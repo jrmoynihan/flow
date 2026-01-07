@@ -252,36 +252,32 @@ mod helpers {
     use super::*;
 
     #[test]
-    fn test_extract_parameter_parts_p1n() {
-        let parts = extract_parameter_parts("P1N").unwrap();
-        assert_eq!(parts.param_number, 1);
-        assert_eq!(parts.suffix, "N");
+    fn test_extract_parameter_suffix_p1n() {
+        let suffix = extract_parameter_suffix("P1N").unwrap();
+        assert_eq!(suffix, "N");
     }
 
     #[test]
-    fn test_extract_parameter_parts_p123n() {
-        let parts = extract_parameter_parts("P123N").unwrap();
-        assert_eq!(parts.param_number, 123);
-        assert_eq!(parts.suffix, "N");
+    fn test_extract_parameter_suffix_p123n() {
+        let suffix = extract_parameter_suffix("P123N").unwrap();
+        assert_eq!(suffix, "N");
     }
 
     #[test]
-    fn test_extract_parameter_parts_g1e() {
-        let parts = extract_parameter_parts("G1E").unwrap();
-        assert_eq!(parts.param_number, 1);
-        assert_eq!(parts.suffix, "E");
+    fn test_extract_parameter_suffix_g1e() {
+        let suffix = extract_parameter_suffix("G1E").unwrap();
+        assert_eq!(suffix, "E");
     }
 
     #[test]
-    fn test_extract_parameter_parts_r1w() {
-        let parts = extract_parameter_parts("R1W").unwrap();
-        assert_eq!(parts.param_number, 1);
-        assert_eq!(parts.suffix, "W");
+    fn test_extract_parameter_suffix_r1w() {
+        let suffix = extract_parameter_suffix("R1W").unwrap();
+        assert_eq!(suffix, "W");
     }
 
     #[test]
-    fn test_extract_parameter_parts_invalid() {
-        assert!(extract_parameter_parts("INVALID").is_none());
+    fn test_extract_parameter_suffix_invalid() {
+        assert!(extract_parameter_suffix("INVALID").is_none());
     }
 
     #[test]
