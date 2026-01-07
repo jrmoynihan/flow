@@ -52,7 +52,6 @@ mod polars_tests {
             parameters: params,
             data_frame: Arc::new(df),
             file_access: AccessWrapper::new(temp_path.to_str().unwrap_or(""))?,
-            cache: Arc::new(FilteredDataCache::new(100)),
         })
     }
 
