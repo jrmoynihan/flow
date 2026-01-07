@@ -17,6 +17,11 @@ keywords = [
 ]
 categories = ["science", "parser"]
 
+[package.metadata.scripts]
+dry-release = "cargo smart-release --update-crates-index"
+publish = "cargo smart-release --execute"
+changelog = "cargo changelog --write"
+
 [dependencies]
 # Polars for columnar data storage
 # Note: Using default-features = false to reduce bloat, but keeping dtype-full as it's needed
