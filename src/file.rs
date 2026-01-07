@@ -1,12 +1,11 @@
 // Internal crate imports
 use crate::{
-    ChannelName,
+    ChannelName, TransformType,
     byteorder::ByteOrder,
     header::Header,
     keyword::{IntegerableKeyword, StringableKeyword},
     metadata::Metadata,
     parameter::{EventDataFrame, EventDatum, Parameter, ParameterBuilder, ParameterMap},
-    transform::TransformType,
 };
 use rayon::iter::IntoParallelRefIterator;
 // Standard library imports
@@ -339,7 +338,7 @@ impl Fcs {
 
         // Handle zero offsets by checking keywords
         if data_start == 0 {
-            if let Ok(begin_data) = metadata.get_numeric_keyword("$BEGINDATA") {
+            if let Ok(begin_data) = metadata.get_integer_keyword("$BEGINDATA") {
                 data_start = begin_data.get_usize().clone();
             } else {
                 return Err(anyhow!(
@@ -349,7 +348,7 @@ impl Fcs {
         }
 
         if data_end == 0 {
-            if let Ok(end_data) = metadata.get_numeric_keyword("$ENDDATA") {
+            if let Ok(end_data) = metadata.get_integer_keyword("$ENDDATA") {
                 data_end = end_data.get_usize().clone();
             } else {
                 return Err(anyhow!(
@@ -649,7 +648,7 @@ impl Fcs {
     /// - the parameter cannot be built (using the Builder pattern)
     pub fn generate_parameter_map(metadata: &Metadata) -> Result<ParameterMap> {
         let mut map = ParameterMap::default();
-        let number_of_parameters = metadata.get_number_of_parameters()?;
+        let number_of_parameters = metadata.get_number_of_parameters_as_usize()?;
         for parameter_number in 1..=*number_of_parameters {
             let channel_name = metadata.get_parameter_channel_name(parameter_number)?;
 
@@ -695,11 +694,16 @@ impl Fcs {
     /// # Errors
     /// Will return `Err` if the `Keyword` is not found in the `metadata` or if the `Keyword` cannot be converted to a `&str`
     pub fn get_keyword_string_value(&self, keyword: &str) -> Result<Cow<'_, str>> {
+        // TODO: This should be a match statement
         if let Ok(keyword) = self.metadata.get_string_keyword(keyword) {
             Ok(keyword.get_str())
-        } else if let Ok(keyword) = self.metadata.get_numeric_keyword(keyword) {
+        } else if let Ok(keyword) = self.metadata.get_integer_keyword(keyword) {
+            Ok(keyword.get_str())
+        } else if let Ok(keyword) = self.metadata.get_float_keyword(keyword) {
             Ok(keyword.get_str())
         } else if let Ok(keyword) = self.metadata.get_byte_keyword(keyword) {
+            Ok(keyword.get_str())
+        } else if let Ok(keyword) = self.metadata.get_mixed_keyword(keyword) {
             Ok(keyword.get_str())
         } else {
             Err(anyhow!("Keyword not found: {}", keyword))
