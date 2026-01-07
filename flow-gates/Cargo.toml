@@ -1,0 +1,21 @@
+[package]
+name = "flow-gates"
+version = "0.1.0"
+edition.workspace = true
+authors.workspace = true
+repository = "https://github.com/jrmoynihan/flow-gates"
+license = "MIT"
+description = "Package for drawing and interacting with gates in flow cytometry data"
+keywords = [
+    "flow",
+    "cytometry",
+    "standard",
+    "fcs",
+    "bioinformatics",
+    "science",
+    "visualization",
+    "gates",
+]
+categories = ["science", "visualization"]
+
+[dependencies]

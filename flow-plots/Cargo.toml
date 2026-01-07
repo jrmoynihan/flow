@@ -1,0 +1,21 @@
+[package]
+name = "flow-plots"
+version = "0.1.0"
+edition.workspace = true
+authors.workspace = true
+repository = "https://github.com/jrmoynihan/flow-plots"
+license = "MIT"
+description = "Package for drawing and interacting with plots in flow cytometry data"
+keywords = [
+    "flow",
+    "cytometry",
+    "standard",
+    "fcs",
+    "bioinformatics",
+    "science",
+    "visualization",
+    "plots",
+]
+categories = ["science", "visualization"]
+
+[dependencies]

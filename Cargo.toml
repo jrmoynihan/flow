@@ -1,28 +1,39 @@
-[package]
-name = "flow-fcs"
-version = "0.1.0"
+[workspace]
+members = [
+    "flow-fcs",
+    "flow-plots",
+    "flow-gates"
+]
+
+[workspace.package]
 edition = "2024"
 authors = ["James Moynihan"]
-repository = "https://github.com/jrmoynihan/flow-fcs"
-license = "MIT"
-description = "High-level Flow Cytometry Standard (FCS) file struct and operations"
-keywords = [
-    "flow",
-    "cytometry",
-    "standard",
-    "fcs",
-    "bioinformatics",
-    "science",
-    "parser",
-]
-categories = ["science", "parser"]
 
-[dependencies]
+[workspace.metadata.scripts]
+build = "cargo build --workspace"
+test = "cargo test --workspace"
+run = "cargo run --workspace"
+check = "cargo check --workspace"
+clippy = "cargo clippy --workspace"
+fmt = "cargo fmt --workspace"
+dry-release-all = "cargo smart-release"
+dry-release-flow-fcs = "cargo smart-release flow-fcs"
+dry-release-flow-plots = "cargo smart-release flow-plots"
+dry-release-flow-gates = "cargo smart-release flow-gates"
+changelog-all = "cargo changelog --workspace"
+changelog-flow-fcs = "cargo changelog --write flow-fcs"
+changelog-flow-plots = "cargo changelog flow-plots"
+changelog-flow-gates = "cargo changelog flow-gates"
+publish-all = "cargo smart-release --execute"
+publish-flow-fcs = "cargo smart-release flow-fcs --execute"
+publish-flow-plots = "cargo smart-release flow-plots --execute"
+publish-flow-gates = "cargo smart-release flow-gates --execute"
+
+[workspace.dependencies]
 # Polars for columnar data storage
 # Note: Using default-features = false to reduce bloat, but keeping dtype-full as it's needed
 polars = { version = "0.51", default-features = false, features = [
     "lazy",
-    "parquet",
     "ndarray",
     "dtype-full"
 ] }
@@ -34,8 +45,6 @@ ndarray = { version = "0.17.1", features = [
     "serde",
 ] }
 ndarray-linalg = { version = "0.18", default-features = false }
-
-ts-rs = { version = "11.1.0", optional = true } # Generate TypeScript bindings for Rust types
 
 # Parallelization
 rayon = "1.11"
@@ -64,9 +73,3 @@ strum = "0.27.2" # For enum-like types
 strum_macros = "0.27.2" # For enum-like types
 regex = "1.11.3" # For regular expressions
 bytemuck = { version = "1.24", features = ["derive"] } # Bytemuck for zero-copy bit-cast conversions between types
-
-[dev-dependencies]
-approx = "0.5" # For approximate comparisons
-
-[features]
-typescript = ["dep:ts-rs"] # Enable TypeScript bindings for Rust types
