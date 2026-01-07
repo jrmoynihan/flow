@@ -648,7 +648,7 @@ impl Fcs {
     /// - the parameter cannot be built (using the Builder pattern)
     pub fn generate_parameter_map(metadata: &Metadata) -> Result<ParameterMap> {
         let mut map = ParameterMap::default();
-        let number_of_parameters = metadata.get_number_of_parameters_as_usize()?;
+        let number_of_parameters = metadata.get_number_of_parameters()?;
         for parameter_number in 1..=*number_of_parameters {
             let channel_name = metadata.get_parameter_channel_name(parameter_number)?;
 
