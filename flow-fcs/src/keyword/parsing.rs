@@ -9,6 +9,7 @@ use crate::{byteorder::ByteOrder, datatype::FcsDataType};
 use std::sync::Arc;
 
 /// Parse fixed (non-parameterized) keywords
+#[allow(deprecated)]
 pub fn parse_fixed_keywords(key: &str, value: &str) -> Option<KeywordCreationResult> {
     let trimmed_value = value.trim();
 
@@ -109,32 +110,40 @@ pub fn parse_fixed_keywords(key: &str, value: &str) -> Option<KeywordCreationRes
         "LAST_MODIFIED" => Some(KeywordCreationResult::String(StringKeyword::LastModified(
             Arc::from(trimmed_value),
         ))),
+        "CYT" => Some(KeywordCreationResult::String(StringKeyword::CYT(
+            Arc::from(trimmed_value),
+        ))),
         // Deprecated keywords
+        #[allow(deprecated)]
         "DATE" => Some(KeywordCreationResult::String(StringKeyword::DATE(
             Arc::from(trimmed_value),
         ))),
+        #[allow(deprecated)]
         "BTIM" => Some(KeywordCreationResult::String(StringKeyword::BTIM(
             Arc::from(trimmed_value),
         ))),
+        #[allow(deprecated)]
         "ETIM" => Some(KeywordCreationResult::String(StringKeyword::ETIM(
             Arc::from(trimmed_value),
         ))),
+        #[allow(deprecated)]
         "MODE" => Some(KeywordCreationResult::String(StringKeyword::MODE(
             Arc::from(trimmed_value),
         ))),
+        #[allow(deprecated)]
         "PLATEID" => Some(KeywordCreationResult::String(StringKeyword::PLATEID(
             Arc::from(trimmed_value),
         ))),
+        #[allow(deprecated)]
         "PLATENAME" => Some(KeywordCreationResult::String(StringKeyword::PLATENAME(
             Arc::from(trimmed_value),
         ))),
+        #[allow(deprecated)]
         "WELLID" => Some(KeywordCreationResult::String(StringKeyword::WELLID(
             Arc::from(trimmed_value),
         ))),
+        #[allow(deprecated)]
         "GATE" => Some(KeywordCreationResult::String(StringKeyword::GATE(
-            Arc::from(trimmed_value),
-        ))),
-        "CYT" => Some(KeywordCreationResult::String(StringKeyword::CYT(
             Arc::from(trimmed_value),
         ))),
         _ => None,
@@ -280,6 +289,7 @@ pub fn parse_gate_keywords(key: &str, value: &str) -> Option<KeywordCreationResu
     let trimmed_value = value.trim();
 
     match suffix.as_str() {
+        #[allow(deprecated)]
         "E" => {
             if let Some((f1, f2)) = parse_float_tuple(trimmed_value) {
                 Some(KeywordCreationResult::Mixed(MixedKeyword::GnE(f1, f2)))
@@ -287,24 +297,31 @@ pub fn parse_gate_keywords(key: &str, value: &str) -> Option<KeywordCreationResu
                 Some(KeywordCreationResult::Mixed(MixedKeyword::GnE(0.0, 0.0)))
             }
         }
+        #[allow(deprecated)]
         "F" => Some(KeywordCreationResult::String(StringKeyword::GnF(
             Arc::from(trimmed_value),
         ))),
+        #[allow(deprecated)]
         "N" => Some(KeywordCreationResult::String(StringKeyword::GnN(
             Arc::from(trimmed_value),
         ))),
+        #[allow(deprecated)]
         "P" => Some(KeywordCreationResult::String(StringKeyword::GnP(
             Arc::from(trimmed_value),
         ))),
+        #[allow(deprecated)]
         "R" => Some(KeywordCreationResult::String(StringKeyword::GnR(
             Arc::from(trimmed_value),
         ))),
+        #[allow(deprecated)]
         "S" => Some(KeywordCreationResult::String(StringKeyword::GnS(
             Arc::from(trimmed_value),
         ))),
+        #[allow(deprecated)]
         "T" => Some(KeywordCreationResult::String(StringKeyword::GnT(
             Arc::from(trimmed_value),
         ))),
+        #[allow(deprecated)]
         "V" => Some(KeywordCreationResult::String(StringKeyword::GnV(
             Arc::from(trimmed_value),
         ))),

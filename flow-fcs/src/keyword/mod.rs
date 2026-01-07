@@ -1,3 +1,4 @@
+#![allow(deprecated)]
 mod helpers;
 mod parsing;
 #[cfg(test)]
@@ -306,64 +307,93 @@ pub enum StringKeyword {
     /// When the data set was last modified (FCS 3.1+)
     LastModified(Arc<str>),
 
-    // Deprecated keywords (FCS 2.0-3.1, deprecated in FCS 3.2)
-    /// Date of data acquisition (FCS 2.0-3.1, deprecated in FCS 3.2 in favor of $BEGINDATETIME)
+    /// Date of data acquisition
+    ///
+    /// <small>(FCS 2.0-3.1, deprecated in FCS 3.2 in favor of $BEGINDATETIME)</small>
     #[deprecated(since = "3.2.0", note = "Use BEGINDATETIME instead")]
     DATE(Arc<str>),
 
-    /// Begin time of data acquisition (FCS 2.0-3.1, deprecated in FCS 3.2 in favor of $BEGINDATETIME)
+    /// Begin time of data acquisition
+    ///
+    /// <small>(FCS 2.0-3.1, deprecated in FCS 3.2 in favor of $BEGINDATETIME)</small>
     #[deprecated(since = "3.2.0", note = "Use BEGINDATETIME instead")]
     BTIM(Arc<str>),
 
-    /// End time of data acquisition (FCS 2.0-3.1, deprecated in FCS 3.2 in favor of $ENDDATETIME)
+    /// End time of data acquisition
+    ///
+    /// <small>(FCS 2.0-3.1, deprecated in FCS 3.2 in favor of $ENDDATETIME)</small>
     #[deprecated(since = "3.2.0", note = "Use ENDDATETIME instead")]
     ETIM(Arc<str>),
 
-    /// Data acquisition mode (FCS 2.0-3.1, deprecated in FCS 3.2, fixed to "L" list mode)
+    /// Data acquisition mode
+    ///
+    /// <small>(FCS 2.0-3.1, deprecated in FCS 3.2, fixed to "L" list mode)</small>
     #[deprecated(since = "3.2.0", note = "Fixed to 'L' list mode in FCS 3.2")]
     MODE(Arc<str>),
 
-    /// Plate identifier (FCS 2.0-3.1, deprecated in FCS 3.2 in favor of $CARRIERID)
+    /// Plate identifier
+    ///
+    /// <small>(FCS 2.0-3.1, deprecated in FCS 3.2 in favor of $CARRIERID)</small>
     #[deprecated(since = "3.2.0", note = "Use CARRIERID instead")]
     PLATEID(Arc<str>),
 
-    /// Platform/plate name (FCS 2.0-3.1, deprecated in FCS 3.2 in favor of $CARRIERTYPE)
+    /// Platform/plate name
+    ///
+    /// <small>(FCS 2.0-3.1, deprecated in FCS 3.2 in favor of $CARRIERTYPE)</small>
     #[deprecated(since = "3.2.0", note = "Use CARRIERTYPE instead")]
     PLATENAME(Arc<str>),
 
-    /// Well identifier (FCS 2.0-3.1, deprecated in FCS 3.2 in favor of $LOCATIONID)
+    /// Well identifier
+    ///
+    /// <small>(FCS 2.0-3.1, deprecated in FCS 3.2 in favor of $LOCATIONID)</small>
     #[deprecated(since = "3.2.0", note = "Use LOCATIONID instead")]
     WELLID(Arc<str>),
 
-    /// Gate definition (FCS 2.0-3.1, removed in FCS 3.2)
+    /// Gate definition
+    ///
+    /// <small>(FCS 2.0-3.1, removed in FCS 3.2)</small>
     #[deprecated(since = "3.2.0", note = "Gate definitions deprecated")]
     GATE(Arc<str>),
 
-    /// Gate n optical filter (FCS 2.0-3.1, removed in FCS 3.2)
+    /// Gate n optical filter
+    ///
+    /// <small>(FCS 2.0-3.1, removed in FCS 3.2)</small>
     #[deprecated(since = "3.2.0", note = "Gate definitions deprecated")]
     GnF(Arc<str>),
 
-    /// Gate n short name (FCS 2.0-3.1, removed in FCS 3.2)
+    /// Gate n short name
+    ///
+    /// <small>(FCS 2.0-3.1, removed in FCS 3.2)</small>
     #[deprecated(since = "3.2.0", note = "Gate definitions deprecated")]
     GnN(Arc<str>),
 
-    /// Gate n population name (FCS 2.0-3.1, removed in FCS 3.2)
+    /// Gate n population name
+    ///
+    /// <small>(FCS 2.0-3.1, removed in FCS 3.2)</small>
     #[deprecated(since = "3.2.0", note = "Gate definitions deprecated")]
     GnP(Arc<str>),
 
-    /// Gate n range (FCS 2.0-3.1, removed in FCS 3.2)
+    /// Gate n range
+    ///
+    /// <small>(FCS 2.0-3.1, removed in FCS 3.2)</small>
     #[deprecated(since = "3.2.0", note = "Gate definitions deprecated")]
     GnR(Arc<str>),
 
-    /// Gate n label name (FCS 2.0-3.1, removed in FCS 3.2)
+    /// Gate n label name
+    ///
+    /// <small>(FCS 2.0-3.1, removed in FCS 3.2)</small>
     #[deprecated(since = "3.2.0", note = "Gate definitions deprecated")]
     GnS(Arc<str>),
 
-    /// Gate n threshold (FCS 2.0-3.1, removed in FCS 3.2)
+    /// Gate n threshold
+    ///
+    /// <small>(FCS 2.0-3.1, removed in FCS 3.2)</small>
     #[deprecated(since = "3.2.0", note = "Gate definitions deprecated")]
     GnT(Arc<str>),
 
-    /// Gate n voltage range (FCS 2.0-3.1, removed in FCS 3.2)
+    /// Gate n voltage range
+    ///
+    /// <small>(FCS 2.0-3.1, removed in FCS 3.2)</small>
     #[deprecated(since = "3.2.0", note = "Gate definitions deprecated")]
     GnV(Arc<str>),
 
