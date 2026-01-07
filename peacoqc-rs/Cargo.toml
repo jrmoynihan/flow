@@ -1,0 +1,24 @@
+[package]
+name = "fcs-qc"
+version = "0.1.0"
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "PeacoQC quality control algorithms for flow cytometry"
+keywords = ["flow-cytometry", "quality-control", "bioinformatics", "peacoqc"]
+
+[dependencies]
+# flow-fcs = "0.1.0"
+polars.workspace = true
+anyhow.workspace = true
+thiserror.workspace = true
+rand.workspace = true
+rayon.workspace = true
+
+[dev-dependencies]
+approx = "0.5"
+criterion = "0.8.1"
+
+[[bench]]
+name = "peacoqc_bench"
+harness = false
