@@ -728,8 +728,8 @@ impl Fcs {
                 // For the ParameterBuilder, ensure we're using the proper methods
                 // that may be defined by the Builder derive macro
                 .parameter_number(parameter_number)
-                .channel_name(channel_name.clone())
-                .label_name(label_name.clone())
+                .channel_name(channel_name)
+                .label_name(label_name)
                 .transform(transform)
                 .excitation_wavelength(excitation_wavelength)
                 .build()?;
