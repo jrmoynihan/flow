@@ -5,14 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## Unreleased
+## 0.1.0 (2026-01-07)
 
 <csr-id-fd12ce3ff00c02e75c9ea84848adb58b32c4d66f/>
 <csr-id-d0455271e8573fa035dab1cf9af4448b5e67373b/>
+<csr-id-ae41dccd0a40e182ad251439e6191bf6f2db0aa2/>
+<csr-id-ea0456e94b12e17eaea070b942e52287423e88e0/>
+<csr-id-4d8fc2267ad20d7fc1ddbdea5e69549b978c1eda/>
+<csr-id-eb923b039da61abb83b35f527c096aecbf84739e/>
+<csr-id-9c184b0cce3e4d8a662b02ac544ea3659cde68f3/>
+<csr-id-48e26f4253ec16f5d49ffbbf1b7bb34c595e2c17/>
+<csr-id-7b5c00622d44ad9bd5791c7fe2f6e4aaaa57b277/>
+<csr-id-ea242306bd6e5c9211c58fb15971c8277ad7abdd/>
+<csr-id-9a522b748fbf62fbb2d3638dd0627c40f400acaa/>
 
 ### Chore
 
  - <csr-id-fd12ce3ff00c02e75c9ea84848adb58b32c4d66f/> reorganize workspace into separate crates
+
+### Chore
+
+ - <csr-id-d194503be414fe7b7214f65d0f6c06010a884e69/> change category tag for crates.io
 
 ### Refactor
 
@@ -56,6 +69,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  - <csr-id-3014b0af9cac746cf8728a33d4bf7fd0a1124ec0/> added root readme ad updated flow-fcs readme
  - <csr-id-e63e03c98834a3280be7d2f3f32fb4fe93272d53/> :memo: Added a changelog
    Used cargo smart-release to generate a changelog
+ - <csr-id-8c420b9f03ce918f7c7e710f622073c66ed0bc64/> :memo: Update changelog
 
 ### Chore
 
@@ -65,8 +79,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 <csr-read-only-do-not-edit/>
 
- - 15 commits contributed to the release.
- - 13 commits were understood as [conventional](https://www.conventionalcommits.org).
+ - 17 commits contributed to the release.
+ - 15 commits were understood as [conventional](https://www.conventionalcommits.org).
  - 0 issues like '(#ID)' were seen in commit messages
 
 ### Commit Details
@@ -76,6 +90,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 <details><summary>view details</summary>
 
  * **Uncategorized**
+    - Change category tag for crates.io ([`d194503`](https://github.com/jrmoynihan/flow/commit/d194503be414fe7b7214f65d0f6c06010a884e69))
+    - :memo: Update changelog ([`8c420b9`](https://github.com/jrmoynihan/flow/commit/8c420b9f03ce918f7c7e710f622073c66ed0bc64))
     - Update deprecated keyword documentation and parsing ([`ae41dcc`](https://github.com/jrmoynihan/flow/commit/ae41dccd0a40e182ad251439e6191bf6f2db0aa2))
     - Remove unused match arm in MixedKeyword implementation ([`ea0456e`](https://github.com/jrmoynihan/flow/commit/ea0456e94b12e17eaea070b942e52287423e88e0))
     - Clean up imports and remove unused code in flow-fcs ([`4d8fc22`](https://github.com/jrmoynihan/flow/commit/4d8fc2267ad20d7fc1ddbdea5e69549b978c1eda))
