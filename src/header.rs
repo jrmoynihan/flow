@@ -7,8 +7,14 @@ use memmap2::Mmap;
 use serde::{Serialize, Serializer, ser::SerializeMap};
 use std::{char, ops::RangeInclusive};
 
+/// Contains FCS version and byte offsets to text, data, and analysis segments
+///
+/// The header is the first segment of an FCS file (first 58 bytes) and contains:
+/// - The FCS version string (e.g., "FCS3.1")
+/// - Byte offsets to the TEXT segment (contains metadata/keywords)
+/// - Byte offsets to the DATA segment (contains event data)
+/// - Byte offsets to the ANALYSIS segment (optional, contains analysis results)
 #[derive(Clone, Debug, Hash)]
-/// Contains fcs version and byte offsets to text, data, and analysis segment
 pub struct Header {
     pub version: Version,
     pub text_offset: RangeInclusive<usize>,
@@ -144,6 +150,17 @@ impl Header {
         let analysis_offset_end = Self::get_analysis_offset_end(mmap)?;
         Ok(analysis_offset_start..=analysis_offset_end)
     }
+    /// Debug utility to print FCS file segment offsets
+    ///
+    /// This function prints detailed information about the header segment
+    /// and the byte offsets for TEXT, DATA, and ANALYSIS segments.
+    /// Useful for debugging file parsing issues.
+    ///
+    /// # Arguments
+    /// * `mmap` - Memory-mapped view of the FCS file
+    ///
+    /// # Errors
+    /// Will return `Err` if offsets cannot be read from the header
     pub fn check_fcs_offsets(mmap: &Mmap) -> Result<()> {
         println!("HEADER (first 58 bytes): {:?}", &mmap[0..58].as_ascii());
         println!(

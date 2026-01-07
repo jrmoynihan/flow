@@ -265,6 +265,37 @@ impl Fcs {
         })
     }
 
+    /// Opens and parses an FCS file from the given path
+    ///
+    /// This is the primary entry point for reading FCS files. It:
+    /// - Validates the file extension (must be `.fcs`)
+    /// - Memory-maps the file for efficient access
+    /// - Parses the header segment to determine FCS version and segment offsets
+    /// - Parses the text segment to extract metadata and keywords
+    /// - Validates required keywords for the FCS version
+    /// - Generates a GUID if one is not present
+    /// - Loads event data into a Polars DataFrame for efficient columnar access
+    ///
+    /// # Arguments
+    /// * `path` - Path to the FCS file (must have `.fcs` extension)
+    ///
+    /// # Errors
+    /// Will return `Err` if:
+    /// - the file cannot be opened or memory-mapped
+    /// - the file extension is not `.fcs`
+    /// - the FCS version is invalid or unsupported
+    /// - required keywords are missing for the FCS version
+    /// - the data segment cannot be read or parsed
+    /// - parameter metadata cannot be generated
+    ///
+    /// # Example
+    /// ```no_run
+    /// use flow_fcs::Fcs;
+    ///
+    /// let fcs = Fcs::open("data/sample.fcs")?;
+    /// println!("File has {} events", fcs.get_number_of_events()?);
+    /// # Ok::<(), anyhow::Error>(())
+    /// ```
     pub fn open(path: &str) -> Result<Self> {
         // Attempt to open the file path
         let file_access = AccessWrapper::new(path).expect("Should be able make new access wrapper");
@@ -602,14 +633,34 @@ impl Fcs {
     }
 
     /// Returns a zero-copy reference to a Polars Float32Chunked view of a column for the parameter
+    ///
+    /// This provides access to the underlying Polars chunked array, which is useful
+    /// for operations that work directly with Polars types. For most use cases,
+    /// `get_parameter_events_slice()` is preferred as it provides a simple `&[f32]` slice.
+    ///
+    /// # Arguments
+    /// * `channel_name` - The channel name (e.g., "FSC-A", "FL1-A")
+    ///
     /// # Errors
-    /// Will return 'Err' if the parameter name is not found in the 'parameters hashmap or if the events are not found
+    /// Will return `Err` if:
+    /// - the parameter name is not found in the parameters map
+    /// - the column data type is not Float32
     pub fn get_parameter_events(&'_ self, channel_name: &str) -> Result<&Float32Chunked> {
         Ok(self
             .get_parameter_column(channel_name)?
             .f32()
             .map_err(|e| anyhow!("Parameter {} is not f32 type: {}", channel_name, e))?)
     }
+    /// Get a reference to the Polars Column for a parameter by channel name
+    ///
+    /// This provides direct access to the underlying Polars column, which can be useful
+    /// for advanced operations that require the full Polars API.
+    ///
+    /// # Arguments
+    /// * `channel_name` - The channel name (e.g., "FSC-A", "FL1-A")
+    ///
+    /// # Errors
+    /// Will return `Err` if the parameter name is not found in the DataFrame
     pub fn get_parameter_column(&'_ self, channel_name: &str) -> Result<&Column> {
         self.data_frame
             .column(channel_name)

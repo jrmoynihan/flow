@@ -11,12 +11,24 @@ use serde::{Deserialize, Serialize};
 use std::{borrow::Cow, hash::Hash, sync::Arc};
 use strum_macros::Display;
 
+/// Result of parsing a keyword-value pair from the FCS TEXT segment
+///
+/// This enum represents the possible types a keyword can be parsed as.
+/// The parsing logic attempts to match the keyword name and value format
+/// to determine the appropriate type.
+#[derive(Debug)]
 pub enum KeywordCreationResult {
+    /// Successfully parsed as an integer keyword (e.g., `$PAR`, `$TOT`)
     Int(IntegerKeyword),
+    /// Successfully parsed as a float keyword (e.g., `$PnG`)
     Float(FloatKeyword),
+    /// Successfully parsed as a string keyword (e.g., `$CYT`, `$FIL`, `$GUID`)
     String(StringKeyword),
+    /// Successfully parsed as a byte-oriented keyword (e.g., `$BYTEORD`, `$DATATYPE`)
     Byte(ByteKeyword),
+    /// Successfully parsed as a mixed-type keyword (e.g., `$SPILLOVER`, `$PnD`, `$PnE`)
     Mixed(MixedKeyword),
+    /// Unable to parse the keyword-value pair (fallback to generic string storage)
     UnableToParse,
 }
 
@@ -490,8 +502,24 @@ impl StringableKeyword for FloatKeyword {
     }
 }
 
-/// Main parsing entry point
-/// Dispatches to appropriate parsing functions based on keyword pattern
+/// Main parsing entry point for FCS keywords
+///
+/// Dispatches to appropriate parsing functions based on keyword name pattern.
+/// Attempts to match the keyword against known patterns (fixed keywords, parameter keywords,
+/// gate keywords, region keywords) and parse the value accordingly.
+///
+/// # Arguments
+/// * `key` - The keyword name (with or without `$` prefix)
+/// * `value` - The keyword value as a string
+///
+/// # Returns
+/// A `KeywordCreationResult` indicating the parsed type, or `UnableToParse` if no pattern matches
+///
+/// # Example
+/// ```ignore
+/// let result = match_and_parse_keyword("$PAR", "10");
+/// // Returns KeywordCreationResult::Int(IntegerKeyword::PAR(10))
+/// ```
 pub fn match_and_parse_keyword(key: &str, value: &str) -> KeywordCreationResult {
     let dollarless_key = key.strip_prefix('$').unwrap_or(key);
 

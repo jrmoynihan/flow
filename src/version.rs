@@ -2,7 +2,10 @@ use anyhow::Result;
 use serde::{Serialize, Serializer};
 use std::fmt::Display;
 
-/// An enum of FCS versions, that includes their required keywords
+/// An enum representing FCS file format versions
+///
+/// Each version has different required keywords and structural requirements.
+/// The library supports FCS versions 1.0 through 4.0, with 3.1 as the default.
 #[derive(Debug, Clone, Copy, Default, Hash)]
 pub enum Version {
     V1_0,

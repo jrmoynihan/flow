@@ -22,8 +22,10 @@ pub type ParameterCount = usize;
 pub type ParameterMap = FxHashMap<ChannelName, Parameter>;
 
 /// Instructions for parameter processing transformations
+///
 /// These variants indicate what transformations should be applied to the data,
 /// not the current state of the data (which may already be processed).
+/// This is used to track the processing pipeline for parameters (compensation, unmixing, etc.)
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
 #[cfg_attr(feature = "typescript", ts(export))]
@@ -44,7 +46,10 @@ impl Default for ParameterProcessing {
     }
 }
 
-/// Category for grouping parameters in UI
+/// Category for grouping parameters in user interfaces
+///
+/// This enum helps organize parameters by their processing state and type,
+/// making it easier to present options to users in plotting or analysis interfaces.
 #[derive(Serialize, Debug, Clone, PartialEq, Eq)]
 pub enum ParameterCategory {
     /// Raw parameters (FSC, SSC, Time, custom params)
@@ -61,7 +66,10 @@ pub enum ParameterCategory {
     Unmixed,
 }
 
-/// A parameter option for plotting - includes display information
+/// A parameter option for plotting that includes display information
+///
+/// This struct combines a `Parameter` with UI-specific metadata like display labels
+/// and categories, making it easy to present parameter options to users in plotting interfaces.
 #[derive(Serialize, Debug, Clone)]
 pub struct ParameterOption {
     /// Unique identifier for this option (e.g., "comp_trans::UV379-A")
@@ -98,6 +106,16 @@ pub struct Parameter {
     pub excitation_wavelength: Option<usize>,
 }
 impl Parameter {
+    /// Creates a new `Parameter` with the specified properties
+    ///
+    /// # Arguments
+    /// * `parameter_number` - The 1-based index of the parameter in the FCS file
+    /// * `channel_name` - The channel name from the `$PnN` keyword (e.g., "FSC-A", "FL1-A")
+    /// * `label_name` - The label name from the `$PnS` keyword (e.g., "CD8", "CD4")
+    /// * `transform` - The default transformation type to apply
+    ///
+    /// # Returns
+    /// A new `Parameter` with `Raw` processing state and no excitation wavelength
     #[must_use]
     pub fn new(
         parameter_number: &usize,
@@ -174,9 +192,24 @@ impl Parameter {
         }
     }
 
-    /// Generate parameter options for plotting
-    /// For fluorescence parameters, always returns transformed versions only
-    /// If include_compensated is true, also includes compensated transformed versions
+    /// Generate parameter options for plotting interfaces
+    ///
+    /// Creates a list of `ParameterOption` structs representing different processing
+    /// states of this parameter that can be used for plotting.
+    ///
+    /// **For fluorescence parameters:**
+    /// - Always returns transformed versions (arcsinh applied)
+    /// - If `include_compensated` is true, also includes compensated+transformed versions
+    /// - Includes unmixed versions if compensation is available
+    ///
+    /// **For non-fluorescence parameters (FSC, SSC, Time):**
+    /// - Returns raw (untransformed) versions only
+    ///
+    /// # Arguments
+    /// * `include_compensated` - Whether to include compensated and unmixed variants
+    ///
+    /// # Returns
+    /// A vector of `ParameterOption` structs ready for use in plotting UIs
     pub fn generate_plot_options(&self, include_compensated: bool) -> Vec<ParameterOption> {
         let mut options = Vec::new();
 

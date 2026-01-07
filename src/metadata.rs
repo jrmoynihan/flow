@@ -16,7 +16,16 @@ use std::sync::Arc;
 use uuid::Uuid;
 pub type KeywordMap = FxHashMap<String, Keyword>;
 
-/// Contains keyword value pairs and delimiter from text segment of fcs file
+/// Contains keyword-value pairs and delimiter from the TEXT segment of an FCS file
+///
+/// The TEXT segment contains all metadata about the FCS file, including:
+/// - File information (GUID, filename, cytometer type)
+/// - Data structure information (number of events, parameters, data type, byte order)
+/// - Parameter metadata (names, labels, ranges, transforms)
+/// - Optional information (compensation matrices, timestamps, etc.)
+///
+/// Keywords are stored in a hashmap for fast lookup, with type-safe accessors
+/// for different keyword types (integer, float, string, byte, mixed).
 #[derive(Default, Debug, Clone, Serialize, Deserialize)]
 pub struct Metadata {
     pub keywords: KeywordMap,
@@ -31,6 +40,10 @@ impl Metadata {
             delimiter: ' ',
         }
     }
+    /// Prints all keywords sorted alphabetically by key name
+    ///
+    /// This is a debugging utility that displays all keyword-value pairs
+    /// in the metadata, sorted for easy reading.
     pub fn print_sorted_by_keyword(&self) {
         // Step 1: Get a Vector from existing text HashMap.
         let mut sorted: Vec<_> = self.keywords.iter().collect();

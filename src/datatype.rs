@@ -2,7 +2,10 @@ use anyhow::{Result, anyhow};
 use serde::{Deserialize, Serialize};
 use strum_macros::Display;
 
-/// The data type of the FCS file, which determines how the data is stored.
+/// The data type of the FCS file, which determines how event data is stored
+///
+/// FCS files can store data in different numeric formats. The most common is
+/// single-precision floating point (F), which is also the default.
 #[derive(Default, Display, Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Hash)]
 pub enum FcsDataType {
     /// Unsigned binary integer

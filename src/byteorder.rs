@@ -3,6 +3,10 @@ use byteorder::{BigEndian as BE, ByteOrder as BO, LittleEndian as LE};
 use serde::{Deserialize, Serialize};
 use strum_macros::Display;
 
+/// Byte order (endianness) for reading numeric data from FCS files
+///
+/// FCS files can be written on either little-endian or big-endian systems.
+/// The `$BYTEORD` keyword specifies which format is used.
 #[derive(Display, Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub enum ByteOrder {
     LittleEndian,

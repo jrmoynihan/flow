@@ -1,9 +1,20 @@
 use serde::{Deserialize, Serialize};
 use std::hash::Hash;
 
+/// Transformation type to apply to flow cytometry parameter data
+///
+/// Transformations are used to convert raw instrument values into display-friendly scales.
+/// The most common transformation for fluorescence data is arcsinh (inverse hyperbolic sine),
+/// which provides a log-like scale that handles both positive and negative values.
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub enum TransformType {
+    /// Linear transformation (no scaling, identity function)
+    /// Used for scatter parameters (FSC, SSC) and time
     Linear,
+    /// Arcsinh (inverse hyperbolic sine) transformation with configurable cofactor
+    /// Formula: `arcsinh(x / cofactor)`
+    /// Common cofactors: 150-200 for modern instruments
+    /// This is the default transformation for fluorescence parameters
     Arcsinh { cofactor: f32 },
 }
 
@@ -18,10 +29,18 @@ impl TransformType {
     }
 }
 
+/// Trait for types that can transform values from raw to display scale
+///
+/// Transformations are typically applied when displaying data, not when storing it.
+/// This allows the raw data to remain unchanged while providing flexible visualization options.
 pub trait Transformable {
     fn transform(&self, value: &f32) -> f32;
     fn inverse_transform(&self, value: &f32) -> f32;
 }
+/// Trait for types that can format transformed values for display
+///
+/// Formatting converts numeric values into human-readable strings,
+/// typically using scientific notation for large numbers.
 pub trait Formattable {
     fn format(&self, value: &f32) -> String;
 }
