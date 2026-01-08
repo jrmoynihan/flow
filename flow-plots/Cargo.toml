@@ -9,9 +9,6 @@ description = "Package for drawing and interacting with plots in flow cytometry 
 keywords = [
     "flow",
     "cytometry",
-    "standard",
-    "fcs",
-    "bioinformatics",
     "science",
     "visualization",
     "plots",
