@@ -1,6 +1,6 @@
 use crate::PlotBytes;
 use crate::create_axis_specs;
-use crate::density::RawPixelData;
+use crate::density_calc::RawPixelData;
 use crate::options::DensityPlotOptions;
 use crate::render::{ProgressInfo, RenderConfig};
 use flow_fcs::TransformType;

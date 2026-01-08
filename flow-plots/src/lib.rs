@@ -36,7 +36,7 @@
 //! - `helpers`: Helper functions for common initialization patterns
 
 pub mod colormap;
-pub mod density;
+pub mod density_calc;
 pub mod helpers;
 pub mod options;
 pub mod plots;
