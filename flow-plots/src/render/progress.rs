@@ -1,4 +1,4 @@
-use crate::density::RawPixelData;
+use crate::density_calc::RawPixelData;
 
 /// Information about plot rendering progress
 #[derive(Clone, Debug)]
