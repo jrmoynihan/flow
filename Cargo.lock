@@ -1198,6 +1198,7 @@ name = "flow-fcs"
 version = "0.1.1"
 dependencies = [
  "anyhow",
+ "approx",
  "bytecount",
  "bytemuck",
  "byteorder",
@@ -1216,34 +1217,7 @@ dependencies = [
  "strum",
  "strum_macros",
  "thiserror",
- "uuid",
-]
-
-[[package]]
-name = "flow-fcs"
-version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0f8279111f54935cb551919bbf0f8730a63c89b05510aa4692ca4b2020471db1"
-dependencies = [
- "anyhow",
- "bytecount",
- "bytemuck",
- "byteorder",
- "derive_builder",
- "itertools 0.14.0",
- "memchr",
- "memmap3",
- "ndarray 0.17.1",
- "ndarray-linalg",
- "polars",
- "rayon",
- "regex",
- "rustc-hash",
- "serde",
- "serde_json",
- "strum",
- "strum_macros",
- "thiserror",
+ "ts-rs",
  "uuid",
 ]
 
@@ -1259,7 +1233,7 @@ dependencies = [
  "colorgrad",
  "colormap",
  "derive_builder",
- "flow-fcs 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "flow-fcs",
  "image 0.25.9",
  "num-traits",
  "once_cell",
