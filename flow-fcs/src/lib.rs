@@ -9,7 +9,7 @@ pub use header::Header;
 pub use keyword::Keyword;
 pub use metadata::Metadata;
 pub use parameter::{ChannelName, Parameter};
-pub use transform::TransformType;
+pub use transform::{Formattable, TransformType, Transformable};
 pub use version::Version;
 
 mod byteorder;

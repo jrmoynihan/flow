@@ -33,7 +33,6 @@ impl TransformType {
 ///
 /// Transformations are typically applied when displaying data, not when storing it.
 /// This allows the raw data to remain unchanged while providing flexible visualization options.
-#[allow(unused)]
 pub trait Transformable {
     fn transform(&self, value: &f32) -> f32;
     fn inverse_transform(&self, value: &f32) -> f32;
