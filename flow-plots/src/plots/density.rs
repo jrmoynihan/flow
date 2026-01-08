@@ -1,5 +1,5 @@
 use crate::PlotBytes;
-use crate::density::{RawPixelData, calculate_density_per_pixel};
+use crate::density_calc::{RawPixelData, calculate_density_per_pixel};
 use crate::options::{DensityPlotOptions, PlotOptions};
 use crate::plots::traits::Plot;
 use crate::render::RenderConfig;

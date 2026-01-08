@@ -235,6 +235,7 @@ impl Plot for DotPlot {
 ### From Old `PlotOptions` API
 
 **Old API:**
+
 ```rust
 let options = PlotOptions::new(
     fcs,
@@ -292,4 +293,3 @@ let bytes = plot.render(data, &options, &mut render_config)?;
 ## License
 
 MIT
-
