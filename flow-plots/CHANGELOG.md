@@ -12,10 +12,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 <csr-id-27e7e939f80820adc297ed7193ba87f3a4e759bb/>
 <csr-id-9f7e36c139ebe5d3180d10e276f9dc6c2f98bb4e/>
 <csr-id-71b90a5b4f798e27fff5634048ad12a9ff57684a/>
+<csr-id-94934619d4cea454e9c38cddcc8f8d6d9ffbe068/>
 
 ### Chore
 
  - <csr-id-fd12ce3ff00c02e75c9ea84848adb58b32c4d66f/> reorganize workspace into separate crates
+
+### Refactor
+
+ - <csr-id-45efa1279eed93d24d598682e3c2875a5859f05a/> clean up unused imports in helper and density plot files
+
+### Other
+
+ - <csr-id-7d23a3ffc9799c4e0faa1dcc3b8d0a46b6cb582c/> swap to hybrid flow-fcs dependency entry
+   allows use of local path during dev and uses the specified version when publishing
+ - <csr-id-2638feaae082a369694370c9ba633c4c0ed7f083/> dependency updates
+   - enabled the `preset` feature for colorgrad
+   - upgraded to flow-fcs 0.1.1
+
+### Chore
+
+ - <csr-id-670c81054b4e1a4455e5050f7888e5f96f1a35cb/> update dependencies and enhance documentation
+   - Added `approx` dependency to Cargo.lock.
+   - Created a comprehensive CHANGELOG.md to document notable changes and adhere to Semantic Versioning.
+   - Enhanced README documentation for the flow-plots library, detailing features and usage examples.
+ - <csr-id-2671217fb91ff7f8e5ad28fc9eb8bf0d4180063e/> update flow-fcs dependency version to 0.1.1 in Cargo.toml
 
 ### Chore
 
@@ -41,53 +62,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
  - <csr-id-c27cf93f445a37e318fabb882968a56775d48a8d/> add BinaryPixelChunk and RawPixelData types for optimized pixel handling and binding to frontend (TS) code
    - Introduced `BinaryPixelChunk` type for efficient data transfer, encapsulating raw RGB pixel data along with metadata for canvas rendering.
-- Added `RawPixelData` type to facilitate optimized density calculations, featuring key performance improvements and a streamlined structure for pixel data representation.
-- Both types are designed to enhance rendering performance and memory efficiency in the flow-plots library.
-- Introduced a comprehensive README.md file detailing the flow-plots library, including an overview, features, and basic usage examples for creating density plots.
-- Documented the architecture of the library, outlining the organization of modules and the process for adding new plot types.
-- Included detailed instructions for using the library with FCS files, highlighting key functionalities and error handling.
-- Enhanced user experience by providing clear examples and explanations of the API, facilitating easier adoption and integration.
-- Added support for the `colorgrad` library to provide a variety of perceptually uniform colormaps for density plots.
-- Expanded the `ColorMaps` enum to include new colormap options such as `Plasma`, `Inferno`, `Magma`, and others, improving visualization capabilities.
-- Updated the `map` method to utilize `colorgrad` for color mapping based on normalized values, enhancing the accuracy and aesthetics of density visualizations.
-- Modified dependencies in `Cargo.toml` to include `colorgrad` and other necessary libraries for improved functionality.
-- Introduced `density_options_from_fcs` function to generate a `DensityPlotOptionsBuilder` with default configurations based on FCS file parameters.
-- Implemented logic to determine appropriate plot ranges and transformations for x and y axes, enhancing usability for density plot creation.
-- Included detailed documentation and examples for the new helper function, improving developer experience.
-- Expanded the test suite for density plots, including comprehensive tests for `BasePlotOptions`, `AxisOptions`, and `DensityPlotOptions`.
-- Introduced a new module for organizing plot options, encapsulating axis, base, and density options with builder patterns for improved usability.
-- Added helper functions and tests for creating test FCS data, ensuring robust validation of density plot configurations and rendering.
-- Implemented tests for percentile bounds and axis specifications, enhancing the reliability of the plotting framework.
-- Introduced `ProgressInfo` struct to encapsulate pixel data and rendering progress percentage.
-- Added `ProgressCallback` type for reporting rendering progress, allowing for error handling without interrupting the rendering process.
-- Introduced `RenderConfig` struct to manage rendering configuration and progress reporting.
-- Implemented `render_pixels` function to handle the complete rendering pipeline for density plots, including pixel buffer management and JPEG encoding.
-- Integrated progress reporting during pixel rendering, allowing applications to track rendering status.
-- Added utility functions for formatting transform values for axis labels.
-- Added a new `DensityPlot` struct to create 2D density plots from (x, y) coordinate pairs.
-- Implemented the `render` method to calculate pixel density and render the plot using specified options.
-- Included an example in the documentation to demonstrate usage of the `DensityPlot` and `DensityPlotOptions` for configuration.
-- Introduced a new `DensityPlotOptions` struct to encapsulate options for creating density plots, including base layout, axis configurations, and color map selection.
-- Implemented a builder pattern for constructing `DensityPlotOptions`, improving usability.
-- Marked the old `PlotOptions` struct as deprecated, encouraging users to transition to the new structure.
-- Included an example in the documentation to demonstrate usage.
-- Introduced a new `AxisOptions` struct to define options for configuring a plot axis, including range, transformation, and label.
-- Implemented a builder pattern for creating instances of `AxisOptions`, improving usability.
-- Provided default values for axis range and transformation, enhancing the flexibility of axis configuration.
-- Included an example in the documentation to demonstrate usage.
-- Added a new `Plot` trait that defines the interface for all plot types, specifying their options and data types.
-- Included an example implementation to demonstrate how to create custom plot types with specific options and rendering logic.
-- This addition enhances the flexibility and extensibility of the plotting framework.
-- Introduced a new `BasePlotOptions` struct to encapsulate common layout and display settings for plots.
-- Implemented a builder pattern for creating instances of `BasePlotOptions`, enhancing usability.
-- Provided default values for plot dimensions, margins, and title.
-- Marked the old `PlotOptions` struct as deprecated, encouraging users to transition to the new structure.
-- Introduced a new `DensityPlot` module for visualizing flow cytometry data.
-- Added `RawPixelData` and `BinaryPixelChunk` structures for efficient pixel data handling.
-- Implemented optimized density calculation methods, significantly improving performance and memory usage.
-- Created a `ColorMaps` enum for various colormap options, enhancing visualization capabilities.
-- Updated `Cargo.toml` to include new dependencies for colormap and image processing.
-- Added comprehensive tests for the new plotting functionality and options.
 
 ### Refactor
 
@@ -110,8 +84,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 <csr-read-only-do-not-edit/>
 
- - 21 commits contributed to the release over the course of 1 calendar day.
- - 19 commits were understood as [conventional](https://www.conventionalcommits.org).
+ - 28 commits contributed to the release over the course of 1 calendar day.
+ - 24 commits were understood as [conventional](https://www.conventionalcommits.org).
  - 0 issues like '(#ID)' were seen in commit messages
 
 ### Commit Details
@@ -121,7 +95,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 <details><summary>view details</summary>
 
  * **Uncategorized**
+    - Update dependencies and enhance documentation ([`670c810`](https://github.com/jrmoynihan/flow/commit/670c81054b4e1a4455e5050f7888e5f96f1a35cb))
+    - Merge pull request #3 from jrmoynihan:flow-plots ([`91674e1`](https://github.com/jrmoynihan/flow/commit/91674e13a6dc21b9c1979d63bbaa161f28f9dc2b))
+    - Merge branch 'main' into flow-plots ([`5977fb3`](https://github.com/jrmoynihan/flow/commit/5977fb309ee7e726e5e7cefca902278f155b79f8))
+    - Update flow-fcs dependency version to 0.1.1 in Cargo.toml ([`2671217`](https://github.com/jrmoynihan/flow/commit/2671217fb91ff7f8e5ad28fc9eb8bf0d4180063e))
     - Add CHANGELOG.md for project documentation ([`9493461`](https://github.com/jrmoynihan/flow/commit/94934619d4cea454e9c38cddcc8f8d6d9ffbe068))
+    - Clean up unused imports in helper and density plot files ([`45efa12`](https://github.com/jrmoynihan/flow/commit/45efa1279eed93d24d598682e3c2875a5859f05a))
+    - Swap to hybrid flow-fcs dependency entry ([`7d23a3f`](https://github.com/jrmoynihan/flow/commit/7d23a3ffc9799c4e0faa1dcc3b8d0a46b6cb582c))
+    - Dependency updates ([`2638fea`](https://github.com/jrmoynihan/flow/commit/2638feaae082a369694370c9ba633c4c0ed7f083))
     - Merge pull request #2 from jrmoynihan:flow-fcs ([`46431c0`](https://github.com/jrmoynihan/flow/commit/46431c0431afb4b7fa7de240595ac5726e693242))
     - :truck: Renamed density calculation module to clarify from density plot implementation ([`71b90a5`](https://github.com/jrmoynihan/flow/commit/71b90a5b4f798e27fff5634048ad12a9ff57684a))
     - Merge pull request #1 from jrmoynihan:flow-plots ([`708ddca`](https://github.com/jrmoynihan/flow/commit/708ddca0149fe7f5c6627e052207d78f06b55ed6))
@@ -145,5 +126,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 </details>
 
 <csr-unknown>
- add README documentation for flow-plots library integrate colorgrad for enhanced colormap options in density plots add helper function for creating DensityPlotOptions from FCS data enhance testing framework for density plots and options add ProgressInfo struct and callback type for rendering progress add rendering capabilities for density plots implement DensityPlot for 2D density visualization add DensityPlotOptions struct for density plot configuration add AxisOptions struct for plot axis configuration introduce Plot trait for customizable plot types add BasePlotOptions struct for plot configuration implement density plotting with optimized pixel rendering<csr-unknown/>
+Added RawPixelData type to facilitate optimized density calculations, featuring key performance improvements and a streamlined structure for pixel data representation.Both types are designed to enhance rendering performance and memory efficiency in the flow-plots library.Introduced a comprehensive README.md file detailing the flow-plots library, including an overview, features, and basic usage examples for creating density plots.Documented the architecture of the library, outlining the organization of modules and the process for adding new plot types.Included detailed instructions for using the library with FCS files, highlighting key functionalities and error handling.Enhanced user experience by providing clear examples and explanations of the API, facilitating easier adoption and integration.Added support for the colorgrad library to provide a variety of perceptually uniform colormaps for density plots.Expanded the ColorMaps enum to include new colormap options such as Plasma, Inferno, Magma, and others, improving visualization capabilities.Updated the map method to utilize colorgrad for color mapping based on normalized values, enhancing the accuracy and aesthetics of density visualizations.Modified dependencies in Cargo.toml to include colorgrad and other necessary libraries for improved functionality.Introduced density_options_from_fcs function to generate a DensityPlotOptionsBuilder with default configurations based on FCS file parameters.Implemented logic to determine appropriate plot ranges and transformations for x and y axes, enhancing usability for density plot creation.Included detailed documentation and examples for the new helper function, improving developer experience.Expanded the test suite for density plots, including comprehensive tests for BasePlotOptions, AxisOptions, and DensityPlotOptions.Introduced a new module for organizing plot options, encapsulating axis, base, and density options with builder patterns for improved usability.Added helper functions and tests for creating test FCS data, ensuring robust validation of density plot configurations and rendering.Implemented tests for percentile bounds and axis specifications, enhancing the reliability of the plotting framework.Introduced ProgressInfo struct to encapsulate pixel data and rendering progress percentage.Added ProgressCallback type for reporting rendering progress, allowing for error handling without interrupting the rendering process.Introduced RenderConfig struct to manage rendering configuration and progress reporting.Implemented render_pixels function to handle the complete rendering pipeline for density plots, including pixel buffer management and JPEG encoding.Integrated progress reporting during pixel rendering, allowing applications to track rendering status.Added utility functions for formatting transform values for axis labels.Added a new DensityPlot struct to create 2D density plots from (x, y) coordinate pairs.Implemented the render method to calculate pixel density and render the plot using specified options.Included an example in the documentation to demonstrate usage of the DensityPlot and DensityPlotOptions for configuration.Introduced a new DensityPlotOptions struct to encapsulate options for creating density plots, including base layout, axis configurations, and color map selection.Implemented a builder pattern for constructing DensityPlotOptions, improving usability.Marked the old PlotOptions struct as deprecated, encouraging users to transition to the new structure.Included an example in the documentation to demonstrate usage.Introduced a new AxisOptions struct to define options for configuring a plot axis, including range, transformation, and label.Implemented a builder pattern for creating instances of AxisOptions, improving usability.Provided default values for axis range and transformation, enhancing the flexibility of axis configuration.Included an example in the documentation to demonstrate usage.Added a new Plot trait that defines the interface for all plot types, specifying their options and data types.Included an example implementation to demonstrate how to create custom plot types with specific options and rendering logic.This addition enhances the flexibility and extensibility of the plotting framework.Introduced a new BasePlotOptions struct to encapsulate common layout and display settings for plots.Implemented a builder pattern for creating instances of BasePlotOptions, enhancing usability.Provided default values for plot dimensions, margins, and title.Marked the old PlotOptions struct as deprecated, encouraging users to transition to the new structure.Introduced a new DensityPlot module for visualizing flow cytometry data.Added RawPixelData and BinaryPixelChunk structures for efficient pixel data handling.Implemented optimized density calculation methods, significantly improving performance and memory usage.Created a ColorMaps enum for various colormap options, enhancing visualization capabilities.Updated Cargo.toml to include new dependencies for colormap and image processing.Added comprehensive tests for the new plotting functionality and options.<csr-unknown/>
 
