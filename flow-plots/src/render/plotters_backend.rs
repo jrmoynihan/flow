@@ -24,7 +24,6 @@ use image::RgbImage;
 use plotters::{
     backend::BitMapBackend, chart::ChartBuilder, prelude::IntoDrawingArea, style::WHITE,
 };
-use std::ops::Range;
 
 /// Render pixels to a JPEG image using the Plotters backend
 ///

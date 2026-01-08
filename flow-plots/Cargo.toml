@@ -20,9 +20,9 @@ categories = ["science", "visualization"]
 
 [dependencies]
 colormap = "0.0.2"
-colorgrad = "0.7"
+colorgrad = { version = "0.8", features = ["preset"] }
 derive_builder = { workspace = true }
-flow-fcs = "0.1.0"
+flow-fcs = { path = "../flow-fcs", version = "0.1.1" }
 image = "0.25.9"
 plotters = "0.3.7"
 anyhow = { workspace = true }

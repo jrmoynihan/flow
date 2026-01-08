@@ -1,6 +1,5 @@
-use crate::PlotRange;
-use crate::options::{AxisOptions, AxisOptionsBuilder};
-use crate::options::{DensityPlotOptions, DensityPlotOptionsBuilder};
+use crate::options::AxisOptionsBuilder;
+use crate::options::DensityPlotOptionsBuilder;
 use anyhow::Result;
 use flow_fcs::{Fcs, Parameter, TransformType, Transformable};
 
