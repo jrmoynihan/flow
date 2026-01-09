@@ -227,29 +227,32 @@ mod complex_keywords {
 
 #[cfg(test)]
 mod validation {
-    use super::*;
+    use crate::keyword::helpers::validate_pnd_scale_type;
 
     #[test]
     fn test_validate_pnd_scale_type_linear() {
-        assert!(super::validate_pnd_scale_type("Linear"));
+        assert!(validate_pnd_scale_type("Linear"));
     }
 
     #[test]
     fn test_validate_pnd_scale_type_logarithmic() {
-        assert!(super::validate_pnd_scale_type("Logarithmic"));
+        assert!(validate_pnd_scale_type("Logarithmic"));
     }
 
     #[test]
     fn test_validate_pnd_scale_type_invalid() {
-        assert!(!super::validate_pnd_scale_type("Invalid"));
-        assert!(!super::validate_pnd_scale_type("linear"));
-        assert!(!super::validate_pnd_scale_type("LOGARITHMIC"));
+        assert!(!validate_pnd_scale_type("Invalid"));
+        assert!(!validate_pnd_scale_type("linear"));
+        assert!(!validate_pnd_scale_type("LOGARITHMIC"));
     }
 }
 
 #[cfg(test)]
 mod helpers {
-    use super::*;
+    use crate::keyword::helpers::{
+        extract_parameter_suffix, is_parameter_keyword, parse_float_tuple, parse_float_vector,
+        parse_float_with_comma_decimal,
+    };
 
     #[test]
     fn test_extract_parameter_suffix_p1n() {

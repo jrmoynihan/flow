@@ -68,6 +68,15 @@ bytemuck = { workspace = true, features = ["derive"] } # Bytemuck for zero-copy 
 
 [dev-dependencies]
 approx =  "0.5.1" # For approximate comparisons
+criterion = { version = "0.5", features = ["html_reports"] }
+
+[[bench]]
+name = "dataframe_parsing"
+harness = false
+
+[[bin]]
+name = "analyze_benchmarks"
+path = "src/bin/analyze_benchmarks.rs"
 
 [features]
 typescript = ["dep:ts-rs"] # Enable TypeScript bindings for Rust types

@@ -1,15 +1,13 @@
 // Internal crate imports
 use crate::{
-    TransformType,
+    FcsDataType, TransformType,
     byteorder::ByteOrder,
     header::Header,
     keyword::{IntegerableKeyword, StringableKeyword},
     metadata::Metadata,
     parameter::{EventDataFrame, EventDatum, Parameter, ParameterBuilder, ParameterMap},
 };
-use rayon::iter::IntoParallelRefIterator;
 // Standard library imports
-use ndarray_linalg::Inverse;
 use std::borrow::Cow;
 use std::fs::File;
 use std::ops::Deref;
@@ -18,12 +16,20 @@ use std::sync::Arc;
 
 // External crate imports
 use anyhow::{Result, anyhow};
+use byteorder::{BigEndian as BE, ByteOrder as BO, LittleEndian as LE};
 use itertools::{Itertools, MinMaxResult};
 use memmap3::{Mmap, MmapOptions};
 use ndarray::Array2;
+use ndarray_linalg::Inverse;
 use polars::prelude::*;
-use rayon::iter::ParallelIterator;
-use rayon::slice::ParallelSlice;
+use rayon::prelude::*;
+
+/// Threshold for parallel processing: only use parallel for datasets larger than this
+/// Below this threshold, parallel overhead exceeds benefits
+/// Based on benchmarks: 400,000 values (50,000 events × 8 parameters)
+/// - Float32: Always use sequential (benchmarks show sequential is 2-13x faster)
+/// - Int16/Int32/Float64: Use parallel for datasets with ≥400k values
+const PARALLEL_THRESHOLD: usize = 400_000;
 
 /// A shareable wrapper around the file path and memory-map
 ///
@@ -279,87 +285,135 @@ impl Fcs {
         let number_of_events = metadata
             .get_number_of_events()
             .expect("Should be able to retrieve the number of events");
+
+        // Calculate bytes per event by summing $PnB / 8 for each parameter
+        // This is more accurate than using $DATATYPE which only provides a default
         let bytes_per_event = metadata
-            .get_data_type()
-            .expect("Should be able to get the data type")
-            .get_bytes_per_event();
+            .calculate_bytes_per_event()
+            .expect("Should be able to calculate bytes per event");
+
         let byte_order = metadata
             .get_byte_order()
             .expect("Should be able to get the byte order");
 
         // Validate data size
-        let expected_total_bytes = number_of_events * number_of_parameters * bytes_per_event;
+        let expected_total_bytes = number_of_events * bytes_per_event;
         if data_bytes.len() < expected_total_bytes {
             return Err(anyhow!(
-                "Insufficient data: expected {} bytes, but only have {} bytes",
+                "Insufficient data: expected {} bytes ({} events × {} bytes/event), but only have {} bytes",
                 expected_total_bytes,
+                number_of_events,
+                bytes_per_event,
                 data_bytes.len()
             ));
         }
 
-        // Confirm that data_bytes is a multiple of 4 bytes
-        if data_bytes.len() % 4 != 0 {
-            return Err(anyhow!(
-                "Data bytes length {} is not a multiple of 4",
-                data_bytes.len()
-            ));
-        }
+        // Collect bytes per parameter and data types for each parameter
+        let bytes_per_parameter: Vec<usize> = (1..=*number_of_parameters)
+            .map(|param_num| {
+                metadata
+                    .get_bytes_per_parameter(param_num)
+                    .expect("Should be able to get bytes per parameter")
+            })
+            .collect();
 
-        // Parse f32 values using the same optimized approach as store_raw_data
-        let f32_values: Vec<f32> = {
-            let needs_swap = match (byte_order, cfg!(target_endian = "little")) {
-                (ByteOrder::LittleEndian, true) | (ByteOrder::BigEndian, false) => false,
-                _ => true,
-            };
+        let data_types: Vec<FcsDataType> = (1..=*number_of_parameters)
+            .map(|param_num| {
+                metadata
+                    .get_data_type_for_channel(param_num)
+                    .expect("Should be able to get data type for channel")
+            })
+            .collect();
 
-            match bytemuck::try_cast_slice::<u8, f32>(data_bytes) {
-                Ok(f32_slice) => {
-                    #[cfg(debug_assertions)]
-                    eprintln!(
-                        "✓ Zero-copy path (DataFrame): aligned data ({} bytes, {} f32s)",
-                        data_bytes.len(),
-                        f32_slice.len()
-                    );
+        // Fast path: Check if all parameters are uniform (same bytes, same data type)
+        // This allows us to use bytemuck zero-copy optimization
+        let uniform_bytes = bytes_per_parameter.first().copied();
+        let uniform_data_type = data_types.first().copied();
+        let is_uniform = uniform_bytes.is_some()
+            && uniform_data_type.is_some()
+            && bytes_per_parameter
+                .iter()
+                .all(|&b| b == uniform_bytes.unwrap())
+            && data_types
+                .iter()
+                .all(|&dt| dt == uniform_data_type.unwrap());
 
-                    if needs_swap {
-                        f32_slice
-                            .par_iter()
-                            .map(|&f| f32::from_bits(f.to_bits().swap_bytes()))
-                            .collect()
-                    } else {
-                        f32_slice.to_vec()
+        let f32_values: Vec<f32> = if is_uniform {
+            // Fast path: All parameters have same size and type - use bytemuck for zero-copy
+            let bytes_per_param = uniform_bytes.unwrap();
+            let data_type = uniform_data_type.unwrap();
+
+            match (data_type, bytes_per_param) {
+                (FcsDataType::F, 4) => {
+                    // Fast path: float32 - use sequential (benchmarks show 2.57x faster than parallel)
+                    let needs_swap = match (byte_order, cfg!(target_endian = "little")) {
+                        (ByteOrder::LittleEndian, true) | (ByteOrder::BigEndian, false) => false,
+                        _ => true,
+                    };
+
+                    match bytemuck::try_cast_slice::<u8, f32>(data_bytes) {
+                        Ok(f32_slice) => {
+                            #[cfg(debug_assertions)]
+                            eprintln!(
+                                "✓ Fast path (bytemuck zero-copy, sequential): {} bytes, {} f32s",
+                                data_bytes.len(),
+                                f32_slice.len()
+                            );
+
+                            if needs_swap {
+                                // Sequential byte swap - faster than parallel for float32
+                                f32_slice
+                                    .iter()
+                                    .map(|&f| f32::from_bits(f.to_bits().swap_bytes()))
+                                    .collect()
+                            } else {
+                                f32_slice.to_vec()
+                            }
+                        }
+                        Err(_) => {
+                            #[cfg(debug_assertions)]
+                            eprintln!(
+                                "⚠ Fast path (bytemuck fallback, sequential): unaligned data ({} bytes)",
+                                data_bytes.len()
+                            );
+
+                            // Fallback: parse in chunks sequentially (faster than parallel for float32)
+                            data_bytes
+                                .chunks_exact(4)
+                                .map(|chunk| {
+                                    let mut bytes = [0u8; 4];
+                                    bytes.copy_from_slice(chunk);
+                                    let bits = u32::from_ne_bytes(bytes);
+                                    let bits = if needs_swap { bits.swap_bytes() } else { bits };
+                                    f32::from_bits(bits)
+                                })
+                                .collect()
+                        }
                     }
                 }
-                Err(_) => {
-                    #[cfg(debug_assertions)]
-                    eprintln!(
-                        "⚠ Fallback path (DataFrame): unaligned data ({} bytes)",
-                        data_bytes.len()
-                    );
-
-                    data_bytes
-                        .par_chunks_exact(4)
-                        .map(|chunk| {
-                            let mut bytes = [0u8; 4];
-                            bytes.copy_from_slice(chunk);
-                            let bits = u32::from_ne_bytes(bytes);
-                            let bits = if needs_swap { bits.swap_bytes() } else { bits };
-                            f32::from_bits(bits)
-                        })
-                        .collect()
+                _ => {
+                    // Uniform but not float32 - use optimized bulk parsing
+                    Self::parse_uniform_data_bulk(
+                        data_bytes,
+                        bytes_per_param,
+                        &data_type,
+                        byte_order,
+                        *number_of_events,
+                        *number_of_parameters,
+                    )?
                 }
             }
+        } else {
+            // Slow path: Variable-width parameters - parse event-by-event
+            Self::parse_variable_width_data(
+                data_bytes,
+                &bytes_per_parameter,
+                &data_types,
+                byte_order,
+                *number_of_events,
+                *number_of_parameters,
+            )?
         };
-
-        // Validate f32 count
-        let expected_f32_values = number_of_events * number_of_parameters;
-        if f32_values.len() != expected_f32_values {
-            return Err(anyhow!(
-                "F32 values count mismatch: expected {} but got {}",
-                expected_f32_values,
-                f32_values.len()
-            ));
-        }
 
         // Create Polars Series for each parameter (column)
         // FCS data is stored row-wise (event1_param1, event1_param2, ..., event2_param1, ...)
@@ -430,6 +484,277 @@ impl Fcs {
         );
 
         Ok(Arc::new(df))
+    }
+
+    /// Parse uniform data in bulk (all parameters have same size and type)
+    ///
+    /// This is faster than event-by-event parsing when all parameters are uniform.
+    /// Uses conditional parallelization based on data type and size:
+    /// - float32: always sequential (benchmarks show 2.57x faster)
+    /// - int16/int32: parallel only above threshold (parallel is 1.84x faster for large datasets)
+    /// - float64: parallel only above threshold
+    ///
+    /// # Arguments
+    /// * `data_bytes` - Raw data bytes
+    /// * `bytes_per_param` - Bytes per parameter (same for all)
+    /// * `data_type` - Data type (same for all)
+    /// * `byte_order` - Byte order
+    /// * `num_events` - Number of events
+    /// * `num_params` - Number of parameters
+    ///
+    /// # Errors
+    /// Will return `Err` if parsing fails
+    #[inline]
+    fn parse_uniform_data_bulk(
+        data_bytes: &[u8],
+        bytes_per_param: usize,
+        data_type: &FcsDataType,
+        byte_order: &ByteOrder,
+        num_events: usize,
+        num_params: usize,
+    ) -> Result<Vec<f32>> {
+        let total_values = num_events * num_params;
+        let use_parallel = total_values > PARALLEL_THRESHOLD;
+        let mut f32_values = Vec::with_capacity(total_values);
+
+        match (data_type, bytes_per_param) {
+            (FcsDataType::I, 2) => {
+                // int16 - parallel is 1.84x faster for large datasets
+                if use_parallel {
+                    data_bytes
+                        .par_chunks_exact(2)
+                        .map(|chunk| {
+                            let value = match byte_order {
+                                ByteOrder::LittleEndian => LE::read_u16(chunk),
+                                ByteOrder::BigEndian => BE::read_u16(chunk),
+                            };
+                            value as f32
+                        })
+                        .collect_into_vec(&mut f32_values);
+                } else {
+                    // Sequential for small datasets
+                    f32_values = data_bytes
+                        .chunks_exact(2)
+                        .map(|chunk| {
+                            let value = match byte_order {
+                                ByteOrder::LittleEndian => LE::read_u16(chunk),
+                                ByteOrder::BigEndian => BE::read_u16(chunk),
+                            };
+                            value as f32
+                        })
+                        .collect();
+                }
+            }
+            (FcsDataType::I, 4) => {
+                // int32 - parallel only above threshold
+                if use_parallel {
+                    data_bytes
+                        .par_chunks_exact(4)
+                        .map(|chunk| {
+                            let value = match byte_order {
+                                ByteOrder::LittleEndian => LE::read_u32(chunk),
+                                ByteOrder::BigEndian => BE::read_u32(chunk),
+                            };
+                            value as f32
+                        })
+                        .collect_into_vec(&mut f32_values);
+                } else {
+                    // Sequential for small datasets
+                    f32_values = data_bytes
+                        .chunks_exact(4)
+                        .map(|chunk| {
+                            let value = match byte_order {
+                                ByteOrder::LittleEndian => LE::read_u32(chunk),
+                                ByteOrder::BigEndian => BE::read_u32(chunk),
+                            };
+                            value as f32
+                        })
+                        .collect();
+                }
+            }
+            (FcsDataType::F, 4) => {
+                // float32 - always sequential (benchmarks show 2.57x faster than parallel)
+                // This is a fallback path - normally handled by bytemuck in store_raw_data_as_dataframe
+                let needs_swap = match (byte_order, cfg!(target_endian = "little")) {
+                    (ByteOrder::LittleEndian, true) | (ByteOrder::BigEndian, false) => false,
+                    _ => true,
+                };
+                f32_values = data_bytes
+                    .chunks_exact(4)
+                    .map(|chunk| {
+                        let mut bytes = [0u8; 4];
+                        bytes.copy_from_slice(chunk);
+                        let bits = u32::from_ne_bytes(bytes);
+                        let bits = if needs_swap { bits.swap_bytes() } else { bits };
+                        f32::from_bits(bits)
+                    })
+                    .collect();
+            }
+            (FcsDataType::D, 8) => {
+                // float64 - parallel only above threshold
+                if use_parallel {
+                    data_bytes
+                        .par_chunks_exact(8)
+                        .map(|chunk| {
+                            let value = match byte_order {
+                                ByteOrder::LittleEndian => LE::read_f64(chunk),
+                                ByteOrder::BigEndian => BE::read_f64(chunk),
+                            };
+                            value as f32
+                        })
+                        .collect_into_vec(&mut f32_values);
+                } else {
+                    // Sequential for small datasets
+                    f32_values = data_bytes
+                        .chunks_exact(8)
+                        .map(|chunk| {
+                            let value = match byte_order {
+                                ByteOrder::LittleEndian => LE::read_f64(chunk),
+                                ByteOrder::BigEndian => BE::read_f64(chunk),
+                            };
+                            value as f32
+                        })
+                        .collect();
+                }
+            }
+            _ => {
+                return Err(anyhow!(
+                    "Unsupported uniform data type: {:?} with {} bytes",
+                    data_type,
+                    bytes_per_param
+                ));
+            }
+        }
+
+        Ok(f32_values)
+    }
+
+    /// Parse a parameter value from bytes to f32 based on data type and bytes per parameter
+    ///
+    /// Handles different data types:
+    /// - int16 (2 bytes) - unsigned integer
+    /// - int32 (4 bytes) - unsigned integer
+    /// - float32 (4 bytes) - single-precision floating point
+    /// - float64 (8 bytes) - double-precision floating point
+    ///
+    /// # Arguments
+    /// * `bytes` - Raw bytes for the parameter value
+    /// * `bytes_per_param` - Number of bytes per parameter (from $PnB / 8)
+    /// * `data_type` - Data type (I, F, or D)
+    /// * `byte_order` - Byte order of the file
+    ///
+    /// # Errors
+    /// Will return `Err` if the bytes cannot be parsed according to the data type
+    #[cold]
+    fn parse_parameter_value_to_f32(
+        bytes: &[u8],
+        bytes_per_param: usize,
+        data_type: &FcsDataType,
+        byte_order: &ByteOrder,
+    ) -> Result<f32> {
+        match (data_type, bytes_per_param) {
+            (FcsDataType::I, 2) => {
+                // int16 (unsigned 16-bit integer)
+                let value = match byte_order {
+                    ByteOrder::LittleEndian => LE::read_u16(bytes),
+                    ByteOrder::BigEndian => BE::read_u16(bytes),
+                };
+                Ok(value as f32)
+            }
+            (FcsDataType::I, 4) => {
+                // int32 (unsigned 32-bit integer)
+                let value = match byte_order {
+                    ByteOrder::LittleEndian => LE::read_u32(bytes),
+                    ByteOrder::BigEndian => BE::read_u32(bytes),
+                };
+                Ok(value as f32)
+            }
+            (FcsDataType::F, 4) => {
+                // float32 (single-precision floating point)
+                Ok(byte_order.read_f32(bytes))
+            }
+            (FcsDataType::D, 8) => {
+                // float64 (double-precision floating point) - convert to f32
+                let value = match byte_order {
+                    ByteOrder::LittleEndian => LE::read_f64(bytes),
+                    ByteOrder::BigEndian => BE::read_f64(bytes),
+                };
+                Ok(value as f32)
+            }
+            (FcsDataType::I, _) => Err(anyhow!(
+                "Unsupported integer size: {} bytes (expected 2 or 4)",
+                bytes_per_param
+            )),
+            (FcsDataType::F, _) => Err(anyhow!(
+                "Invalid float32 size: {} bytes (expected 4)",
+                bytes_per_param
+            )),
+            (FcsDataType::D, _) => Err(anyhow!(
+                "Invalid float64 size: {} bytes (expected 8)",
+                bytes_per_param
+            )),
+            (FcsDataType::A, _) => Err(anyhow!("ASCII data type not supported")),
+        }
+    }
+
+    /// Parse variable-width data event-by-event (cold path)
+    ///
+    /// This is the slower path used when parameters have different sizes/types.
+    /// Marked as `#[cold]` to help the compiler optimize the hot path.
+    ///
+    /// # Arguments
+    /// * `data_bytes` - Raw data bytes
+    /// * `bytes_per_parameter` - Bytes per parameter for each parameter
+    /// * `data_types` - Data type for each parameter
+    /// * `byte_order` - Byte order
+    /// * `num_events` - Number of events
+    /// * `num_params` - Number of parameters
+    ///
+    /// # Errors
+    /// Will return `Err` if parsing fails
+    #[cold]
+    fn parse_variable_width_data(
+        data_bytes: &[u8],
+        bytes_per_parameter: &[usize],
+        data_types: &[FcsDataType],
+        byte_order: &ByteOrder,
+        num_events: usize,
+        num_params: usize,
+    ) -> Result<Vec<f32>> {
+        let mut f32_values: Vec<f32> = Vec::with_capacity(num_events * num_params);
+        let mut data_offset = 0;
+
+        for event_idx in 0..num_events {
+            for (param_idx, &bytes_per_param) in bytes_per_parameter.iter().enumerate() {
+                let param_num = param_idx + 1;
+                let data_type = &data_types[param_idx];
+
+                // Extract bytes for this parameter value
+                if data_offset + bytes_per_param > data_bytes.len() {
+                    return Err(anyhow!(
+                        "Insufficient data at event {}, parameter {}: need {} bytes but only have {} remaining",
+                        event_idx + 1,
+                        param_num,
+                        bytes_per_param,
+                        data_bytes.len() - data_offset
+                    ));
+                }
+
+                let param_bytes = &data_bytes[data_offset..data_offset + bytes_per_param];
+                let f32_value = Self::parse_parameter_value_to_f32(
+                    param_bytes,
+                    bytes_per_param,
+                    data_type,
+                    byte_order,
+                )
+                .map_err(|e| anyhow!("Failed to parse parameter {} value: {}", param_num, e))?;
+
+                f32_values.push(f32_value);
+                data_offset += bytes_per_param;
+            }
+        }
+
+        Ok(f32_values)
     }
 
     /// Looks for the parameter name as a key in the `parameters` hashmap and returns a reference to it

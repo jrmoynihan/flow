@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod polars_tests {
-    use super::*;
-    use crate::{Fcs, fcs::parameter::ParameterProcessing};
+    use crate::{Fcs, parameter::ParameterProcessing};
+    use polars::prelude::Column;
 
     fn create_test_fcs() -> Result<Fcs> {
         use std::fs::File;
