@@ -11,7 +11,7 @@ name = "peacoqc"
 path = "src/main.rs"
 
 [dependencies]
-# flow-fcs = "0.1.0"
+# flow-fcs = "0.1.1"
 # peacoqc-rs = "0.1.0"
 anyhow.workspace = true
 serde_json.workspace = true
