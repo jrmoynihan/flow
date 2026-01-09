@@ -1,0 +1,154 @@
+<!--
+  *******************************************************************
+  * Gating-ML Compliance Tests (Informative) *
+  * ******************************************
+  * 
+  * This file is a part of Gating-ML 1.5 Compliance Tests
+  * Josef Spidlen, BCCRC, jspidlen@bccrc.ca, March 20, 2008
+  *
+  * License
+  * The work may be used under the terms of the 
+  * Creative Commons Attribution-ShareAlike 3.0 Unported license. 
+  * You are free to share (copy, distribute and transmit), and adapt 
+  * the work under the conditions specified at 
+  * http://creativecommons.org/licenses/by-sa/3.0/legalcode
+  * 
+  * Acknowledgement
+  * This work has been supported by NIH grant EB005034 from the 
+  * National Institute of Biomedical Imaging And Bioengineering.
+  * The content is solely the responsibility of the authors and 
+  * does not necessarily represent the official views of the 
+  * National Institute of Biomedical Imaging And Bioengineering 
+  * or the National Institutes of Health.
+  *******************************************************************
+-->
+<gating:Gating-ML 
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xmlns:gating="http://www.isac-net.org/std/Gating-ML/v1.5/gating"
+  xmlns:transforms="http://www.isac-net.org/std/Gating-ML/v1.5/transformations"
+  xmlns:data-type="http://www.isac-net.org/std/Gating-ML/v1.5/datatypes"
+  xsi:schemaLocation="
+  http://www.isac-net.org/std/Gating-ML/v1.5/gating ../../XML-schemas/Gating-ML.v1.5.xsd
+  http://www.isac-net.org/std/Gating-ML/v1.5/transformations ../../XML-schemas/Transformations.v1.5.xsd
+  http://www.isac-net.org/std/Gating-ML/v1.5/datatypes ../../XML-schemas/DataTypes.v1.5.xsd">
+  
+  <!-- To be applied on int-10_events_6_parameters.fcs -->
+  
+  <!-- 5 Inside -->
+  <gating:RectangleGate gating:id="TrSqrtG1">
+    <gating:dimension gating:min="34.65" gating:max="52">
+      <transforms:transformationReference transforms:ref="TrSQ_1" />
+    </gating:dimension>
+  </gating:RectangleGate>
+  
+  <!-- 7 Inside -->
+  <gating:RectangleGate gating:id="TrSqrtG2">
+    <gating:dimension gating:min="5.15" gating:max="11.7">
+      <transforms:transformationReference transforms:ref="TrSQ_2" />
+    </gating:dimension>
+  </gating:RectangleGate>
+  
+  <!-- 8 Inside -->
+  <gating:RectangleGate gating:id="TrSqrtG3">
+    <gating:dimension gating:min="5" gating:max="25">
+      <transforms:transformationReference transforms:ref="TrSQ_3" />
+    </gating:dimension>
+  </gating:RectangleGate>
+  
+  <!-- 4 Inside -->
+  <gating:RectangleGate gating:id="TrSqrtG4">
+    <gating:dimension gating:min="0.21" gating:max="0.26">
+      <transforms:transformationReference transforms:ref="TrSQ_4" />
+    </gating:dimension>
+  </gating:RectangleGate>
+  
+  <!-- 5 Inside -->
+  <gating:RectangleGate gating:id="TrSqrtG5">
+    <gating:dimension gating:min="5.47" gating:max="18.15">
+      <transforms:transformationReference transforms:ref="TrSQ_5" />
+    </gating:dimension>
+  </gating:RectangleGate>
+  
+  <!-- 4 Inside -->
+  <gating:RectangleGate gating:id="TrSqrtG6">
+    <gating:dimension gating:min="250" gating:max="490">
+      <transforms:transformationReference transforms:ref="as" />
+    </gating:dimension>
+  </gating:RectangleGate>
+  
+  <!-- 4 Inside -->
+  <gating:RectangleGate gating:id="TrSqrtG7">
+    <gating:dimension gating:min="-210" gating:max="1000000">
+      <transforms:transformationReference transforms:ref="minusCS" />
+    </gating:dimension>
+  </gating:RectangleGate>
+  
+  <!-- 4 Inside -->
+  <gating:RectangleGate gating:id="TrSqrtG8">
+    <gating:dimension gating:min="337500" gating:max="1000000">
+      <transforms:transformationReference transforms:ref="AS2" />
+    </gating:dimension>
+  </gating:RectangleGate>
+  
+  <!-- 7 Inside -->
+  <gating:RectangleGate gating:id="TrSqrtG9">
+    <gating:dimension gating:min="90" gating:max="500">
+      <transforms:transformationReference transforms:ref="absCS" />
+    </gating:dimension>
+  </gating:RectangleGate>
+
+  <transforms:transformation transforms:id="TrSQ_1">
+    <transforms:sqrt transforms:a=".2" >
+      <data-type:parameter data-type:name="FS" />
+    </transforms:sqrt>
+  </transforms:transformation>
+  
+  <transforms:transformation transforms:id="TrSQ_2">
+    <transforms:sqrt transforms:a="-3.8" >
+      <data-type:parameter data-type:name="DS" />
+    </transforms:sqrt>
+  </transforms:transformation>
+  
+  <transforms:transformation transforms:id="TrSQ_3">
+    <transforms:sqrt transforms:a="-0.8" >
+      <data-type:parameter data-type:name="BS" />
+    </transforms:sqrt>
+  </transforms:transformation>
+  
+  <transforms:transformation transforms:id="TrSQ_4">
+    <transforms:sqrt transforms:a="155" >
+      <transforms:transformationReference transforms:ref="TrSQ_2" />
+    </transforms:sqrt>
+  </transforms:transformation>
+  
+  <transforms:transformation transforms:id="TrSQ_5">
+    <transforms:sqrt transforms:a="1" >
+      <transforms:transformation transforms:id="minusCS">
+        <transforms:dg1polynomial>
+          <data-type:parameter data-type:name="CS" />
+          <transforms:coefficient data-type:value="-1" />
+          <transforms:coefficient data-type:value="0" />
+        </transforms:dg1polynomial>
+      </transforms:transformation>
+    </transforms:sqrt>
+  </transforms:transformation>
+  
+  <transforms:transformation transforms:id="as">
+    <transforms:sqrt transforms:a="5.4" >
+      <transforms:transformationReference transforms:ref="AS2" />
+    </transforms:sqrt>
+  </transforms:transformation>
+  
+  <transforms:transformation transforms:id="AS2">
+    <transforms:quadratic transforms:a="5.4" >
+      <data-type:parameter data-type:name="AS" />
+    </transforms:quadratic>
+  </transforms:transformation>
+  
+  <transforms:transformation transforms:id="absCS">
+    <transforms:quadratic transforms:a="1" >
+      <transforms:transformationReference transforms:ref="TrSQ_5" />
+    </transforms:quadratic>
+  </transforms:transformation>
+
+</gating:Gating-ML>

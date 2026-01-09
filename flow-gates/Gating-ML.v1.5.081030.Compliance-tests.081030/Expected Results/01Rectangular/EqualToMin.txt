@@ -1,0 +1,2 @@
+EqualToMin
+1

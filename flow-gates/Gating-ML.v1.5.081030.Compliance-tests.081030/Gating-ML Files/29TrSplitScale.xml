@@ -1,0 +1,170 @@
+<!--
+  *******************************************************************
+  * Gating-ML Compliance Tests (Informative) *
+  * ******************************************
+  * 
+  * This file is a part of Gating-ML 1.5 Compliance Tests
+  * Josef Spidlen, BCCRC, jspidlen@bccrc.ca, March 20, 2008
+  *
+  * License
+  * The work may be used under the terms of the 
+  * Creative Commons Attribution-ShareAlike 3.0 Unported license. 
+  * You are free to share (copy, distribute and transmit), and adapt 
+  * the work under the conditions specified at 
+  * http://creativecommons.org/licenses/by-sa/3.0/legalcode
+  * 
+  * Acknowledgement
+  * This work has been supported by NIH grant EB005034 from the 
+  * National Institute of Biomedical Imaging And Bioengineering.
+  * The content is solely the responsibility of the authors and 
+  * does not necessarily represent the official views of the 
+  * National Institute of Biomedical Imaging And Bioengineering 
+  * or the National Institutes of Health.
+  *******************************************************************
+-->
+<gating:Gating-ML 
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xmlns:gating="http://www.isac-net.org/std/Gating-ML/v1.5/gating"
+  xmlns:transforms="http://www.isac-net.org/std/Gating-ML/v1.5/transformations"
+  xmlns:data-type="http://www.isac-net.org/std/Gating-ML/v1.5/datatypes"
+  xsi:schemaLocation="
+  http://www.isac-net.org/std/Gating-ML/v1.5/gating ../../XML-schemas/Gating-ML.v1.5.xsd
+  http://www.isac-net.org/std/Gating-ML/v1.5/transformations ../../XML-schemas/Transformations.v1.5.xsd
+  http://www.isac-net.org/std/Gating-ML/v1.5/datatypes ../../XML-schemas/DataTypes.v1.5.xsd">
+  
+  <!-- To be applied on int-10_events_6_parameters.fcs -->
+  
+  <transforms:transformation transforms:id="negLin">
+    <transforms:dg1polynomial>
+      <data-type:parameter data-type:name="DS" />
+      <transforms:coefficient data-type:value="-0.5" />
+      <transforms:coefficient data-type:value="250" />
+    </transforms:dg1polynomial>
+  </transforms:transformation>
+
+  <transforms:transformation transforms:id="negLin2">
+    <transforms:dg1polynomial>
+      <data-type:parameter data-type:name="FS" />
+      <transforms:coefficient data-type:value="0.1" />
+      <transforms:coefficient data-type:value="-25" />
+    </transforms:dg1polynomial>
+  </transforms:transformation>
+    
+  <transforms:transformation transforms:id="SpScTr1">
+      <transforms:split-scale transforms:r="192" transforms:maxValue="262144" transforms:transitionChannel="64">
+        <data-type:parameter data-type:name="AS" />
+      </transforms:split-scale>
+  </transforms:transformation>
+  
+  <transforms:transformation transforms:id="SpScTr2">
+    <transforms:split-scale transforms:r="224" transforms:maxValue="600" transforms:transitionChannel="32">
+      <data-type:parameter data-type:name="FS" />
+    </transforms:split-scale>
+  </transforms:transformation>
+  
+  <transforms:transformation transforms:id="SpScTr3">
+      <transforms:split-scale transforms:r="768" transforms:maxValue="600" transforms:transitionChannel="256">
+        <data-type:parameter data-type:name="BS" />
+      </transforms:split-scale>
+  </transforms:transformation>
+  
+  <transforms:transformation transforms:id="SpScTr4">
+      <transforms:split-scale transforms:r="400" transforms:maxValue="250" transforms:transitionChannel="112">
+        <transforms:transformationReference transforms:ref="negLin" />
+      </transforms:split-scale>
+  </transforms:transformation>
+  
+  <transforms:transformation transforms:id="SpScTr5">
+      <transforms:split-scale transforms:r="400" transforms:maxValue="40" transforms:transitionChannel="112">
+       <transforms:transformationReference transforms:ref="negLin2" />
+      </transforms:split-scale>
+  </transforms:transformation>
+  
+  <transforms:transformation transforms:id="SpScTr6">
+      <transforms:split-scale transforms:r="224" transforms:maxValue="600" transforms:transitionChannel="32">
+        <data-type:parameter data-type:name="FS" />
+      </transforms:split-scale>
+  </transforms:transformation>
+  
+  <transforms:transformation transforms:id="SpScTr7">
+      <transforms:split-scale transforms:r="1024" transforms:maxValue="10000" transforms:transitionChannel="512">
+        <data-type:parameter data-type:name="ES" />
+      </transforms:split-scale>
+  </transforms:transformation>
+  
+  <transforms:transformation transforms:id="SpScTr8">
+      <transforms:split-scale transforms:r="224" transforms:maxValue="8435.669839" transforms:transitionChannel="32">
+        <data-type:parameter data-type:name="BS" />
+      </transforms:split-scale>
+  </transforms:transformation>
+  
+  <transforms:transformation transforms:id="SpScTr9">
+      <transforms:split-scale transforms:r="1024" transforms:maxValue="10000" transforms:transitionChannel="512">
+        <transforms:transformationReference transforms:ref="SpScTr4" />
+      </transforms:split-scale>
+  </transforms:transformation>
+  
+  <!-- 7 Inside -->
+  <gating:RectangleGate gating:id="SpSc_G1">
+    <gating:dimension gating:min="38.4" gating:max="59">
+      <transforms:transformationReference transforms:ref="SpScTr1" />
+    </gating:dimension>
+  </gating:RectangleGate>
+
+  <!-- 4 Inside -->
+  <gating:RectangleGate gating:id="SpSc_G2">
+    <gating:dimension gating:min="250" gating:max="256.1">
+      <transforms:transformationReference transforms:ref="SpScTr2" />
+    </gating:dimension>
+  </gating:RectangleGate>
+  
+  <!-- 3 Inside -->
+  <gating:RectangleGate gating:id="SpSc_G3">
+    <gating:dimension gating:min="917" gating:max="1000">
+      <transforms:transformationReference transforms:ref="SpScTr3" />
+    </gating:dimension>
+  </gating:RectangleGate>
+  
+  <!-- 4 Inside -->
+  <gating:RectangleGate gating:id="SpSc_G4">
+    <gating:dimension gating:min="-3000" gating:max="450">
+      <transforms:transformationReference transforms:ref="SpScTr4" />
+    </gating:dimension>
+  </gating:RectangleGate>
+  
+  <!-- 4 Inside -->
+  <gating:RectangleGate gating:id="SpSc_G5">
+    <gating:dimension gating:min="-2000" gating:max="481">
+      <transforms:transformationReference transforms:ref="SpScTr5" />
+    </gating:dimension>
+  </gating:RectangleGate>
+  
+  <!-- 4 Inside -->
+  <gating:RectangleGate gating:id="SpSc_G6">
+    <gating:dimension gating:min="247" gating:max="256">
+      <transforms:transformationReference transforms:ref="SpScTr6" />
+    </gating:dimension>
+  </gating:RectangleGate>
+  
+  <!-- 3 Inside -->
+  <gating:RectangleGate gating:id="SpSc_G7">
+    <gating:dimension gating:min="630" gating:max="784">
+      <transforms:transformationReference transforms:ref="SpScTr7" />
+    </gating:dimension>
+  </gating:RectangleGate>
+  
+  <!-- 5 Inside -->
+  <gating:RectangleGate gating:id="SpSc_G8">
+    <gating:dimension gating:min="200" gating:max="211">
+      <transforms:transformationReference transforms:ref="SpScTr8" />
+    </gating:dimension>
+  </gating:RectangleGate>
+  
+  <!-- 5 Inside -->
+  <gating:RectangleGate gating:id="SpSc_G9">
+    <gating:dimension gating:min="0" gating:max="764">
+      <transforms:transformationReference transforms:ref="SpScTr9" />
+    </gating:dimension>
+  </gating:RectangleGate>
+  
+</gating:Gating-ML>

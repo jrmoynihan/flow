@@ -1,0 +1,213 @@
+<!--
+  *******************************************************************
+  * Gating-ML Compliance Tests (Informative) *
+  * ******************************************
+  * 
+  * This file is a part of Gating-ML 1.5 Compliance Tests
+  * Josef Spidlen, BCCRC, jspidlen@bccrc.ca, March 20, 2008
+  *
+  * License
+  * The work may be used under the terms of the 
+  * Creative Commons Attribution-ShareAlike 3.0 Unported license. 
+  * You are free to share (copy, distribute and transmit), and adapt 
+  * the work under the conditions specified at 
+  * http://creativecommons.org/licenses/by-sa/3.0/legalcode
+  * 
+  * Acknowledgement
+  * This work has been supported by NIH grant EB005034 from the 
+  * National Institute of Biomedical Imaging And Bioengineering.
+  * The content is solely the responsibility of the authors and 
+  * does not necessarily represent the official views of the 
+  * National Institute of Biomedical Imaging And Bioengineering 
+  * or the National Institutes of Health.
+  *******************************************************************
+-->
+<gating:Gating-ML 
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xmlns:gating="http://www.isac-net.org/std/Gating-ML/v1.5/gating"
+  xmlns:transforms="http://www.isac-net.org/std/Gating-ML/v1.5/transformations"
+  xmlns:data-type="http://www.isac-net.org/std/Gating-ML/v1.5/datatypes"
+  xsi:schemaLocation="
+  http://www.isac-net.org/std/Gating-ML/v1.5/gating ../../XML-schemas/Gating-ML.v1.5.xsd
+  http://www.isac-net.org/std/Gating-ML/v1.5/transformations ../../XML-schemas/Transformations.v1.5.xsd
+  http://www.isac-net.org/std/Gating-ML/v1.5/datatypes ../../XML-schemas/DataTypes.v1.5.xsd">
+  
+  <!-- To be applied on real-8-parameters.data.fcs -->
+  
+  <!--
+    
+    Spillover Matrix:
+    
+                            LnSc_FITC-FL1-H  LnSc_PE-FL2-H  LnSc_PE-TexasRed-FL5-A  LnSc_PE-Cy7-FL4-A  LnSc_APC-FL3-H  LnSc_DAPI-FL8-A
+    LnSc_FITC-FL1-H         1                1.54e-3        0                       0                  0               6.43e-3
+    LnSc_PE-FL2-H           0.028            1              0.062                   0                  0.015           0.084
+    LnSc_PE-TexasRed-FL5-A  3.59e-3          3.43e-3        1                       2.84e-3            6.75e-3         0.011
+    LnSc_PE-Cy7-FL4-A       9.86e-3          0.047          4.26e-3                 1                  3.98e-3         0.04
+    LnSc_APC-FL3-H          2.48e-3          2.49e-3        9.81e-3                 7.62e-4            1               0.012
+    LnSc_DAPI-FL8-A         0                8.58e-3        0.076                   0.012              9.49e-3         1 
+
+  -->
+  
+  <transforms:transformation transforms:id="LnSc_FITC-FL1-H">
+    <transforms:exponential transforms:a="1" transforms:b="111.1793874">
+      <data-type:parameter data-type:name="FITC-FL1-H" />
+    </transforms:exponential>
+  </transforms:transformation>
+  
+  <transforms:transformation transforms:id="LnSc_PE-FL2-H">
+    <transforms:exponential transforms:a="1" transforms:b="111.1793874">
+      <data-type:parameter data-type:name="PE-FL2-H" />
+    </transforms:exponential>
+  </transforms:transformation>
+  
+  <transforms:transformation transforms:id="LnSc_APC-FL3-H">
+    <transforms:exponential transforms:a="1" transforms:b="111.1793874">
+      <data-type:parameter data-type:name="APC-FL3-H" />
+    </transforms:exponential>
+  </transforms:transformation>
+  
+  <transforms:transformation transforms:id="LnSc_PE-TexasRed-FL5-A">
+    <transforms:dg1polynomial>
+      <data-type:parameter data-type:name="FL4-A" />
+      <transforms:coefficient data-type:value="0" />
+      <transforms:coefficient data-type:value="0" />
+    </transforms:dg1polynomial>
+  </transforms:transformation>
+  
+  <transforms:transformation transforms:id="LnSc_PE-Cy7-FL4-A">
+    <transforms:dg1polynomial>
+      <data-type:parameter data-type:name="FL4-A" />
+      <transforms:coefficient data-type:value="1" />
+      <transforms:coefficient data-type:value="0" />
+    </transforms:dg1polynomial>
+  </transforms:transformation>
+  
+  <transforms:transformation transforms:id="LnSc_DAPI-FL8-A">
+    <transforms:dg1polynomial>
+      <data-type:parameter data-type:name="FL4-A" />
+      <transforms:coefficient data-type:value="0" />
+      <transforms:coefficient data-type:value="0" />
+    </transforms:dg1polynomial>
+  </transforms:transformation>
+  
+  <transforms:spilloverMatrix transforms:id="M2">
+    <transforms:parameters>
+      <transforms:transformationReference transforms:ref="LnSc_FITC-FL1-H" />
+      <transforms:transformationReference transforms:ref="LnSc_PE-FL2-H" />
+      <transforms:transformationReference transforms:ref="LnSc_PE-TexasRed-FL5-A" />
+      <transforms:transformationReference transforms:ref="LnSc_PE-Cy7-FL4-A" />
+      <transforms:transformationReference transforms:ref="LnSc_APC-FL3-H" />
+      <transforms:transformationReference transforms:ref="LnSc_DAPI-FL8-A" />
+    </transforms:parameters>
+    <transforms:spillover> <!-- row 1 LnSc_FITC-FL1-H -->
+      <transforms:coefficient transforms:value="1" />
+      <transforms:coefficient transforms:value="1.54e-3" />
+      <transforms:coefficient transforms:value="0" />
+      <transforms:coefficient transforms:value="0" />
+      <transforms:coefficient transforms:value="0" />
+      <transforms:coefficient transforms:value="6.43e-3" />
+    </transforms:spillover>
+    <transforms:spillover> <!-- row 2 LnSc_PE-FL2-H -->
+      <transforms:coefficient transforms:value="0.028" />
+      <transforms:coefficient transforms:value="1" />
+      <transforms:coefficient transforms:value="0.062" />
+      <transforms:coefficient transforms:value="0" />
+      <transforms:coefficient transforms:value="0.015" />
+      <transforms:coefficient transforms:value="0.084" />
+    </transforms:spillover>
+    <transforms:spillover> <!-- row 3 LnSc_PE-TexasRed-FL5-A -->
+      <transforms:coefficient transforms:value="3.59e-3" />
+      <transforms:coefficient transforms:value="3.43e-3" />
+      <transforms:coefficient transforms:value="1" />
+      <transforms:coefficient transforms:value="2.84e-3" />
+      <transforms:coefficient transforms:value="6.75e-3" />
+      <transforms:coefficient transforms:value="0.011" />
+    </transforms:spillover>
+    <transforms:spillover> <!-- row 4 LnSc_PE-Cy7-FL4-A -->
+      <transforms:coefficient transforms:value="9.86e-3" />
+      <transforms:coefficient transforms:value="0.047" />
+      <transforms:coefficient transforms:value="4.26e-3" />
+      <transforms:coefficient transforms:value="1" />
+      <transforms:coefficient transforms:value="3.98e-3" />
+      <transforms:coefficient transforms:value="0.04" />
+    </transforms:spillover>
+    <transforms:spillover> <!-- row 5 LnSc_APC-FL3-H -->
+      <transforms:coefficient transforms:value="2.48e-3" />
+      <transforms:coefficient transforms:value="2.49e-3" />
+      <transforms:coefficient transforms:value="9.81e-3" />
+      <transforms:coefficient transforms:value="7.62e-4" />
+      <transforms:coefficient transforms:value="1" />
+      <transforms:coefficient transforms:value="0.012" />
+    </transforms:spillover>
+    <transforms:spillover> <!-- row 6 LnSc_DAPI-FL8-A -->
+      <transforms:coefficient transforms:value="0" />
+      <transforms:coefficient transforms:value="8.58e-3" />
+      <transforms:coefficient transforms:value="0.076" />
+      <transforms:coefficient transforms:value="0.012" />
+      <transforms:coefficient transforms:value="9.49e-3" />
+      <transforms:coefficient transforms:value="1" />
+    </transforms:spillover>
+  </transforms:spilloverMatrix>
+  
+  <transforms:transformation transforms:id="Comp.FITC">
+    <transforms:compensation transforms:spilloverMatrixRef="M2">
+      <transforms:transformationReference transforms:ref="LnSc_FITC-FL1-H" />
+    </transforms:compensation>
+  </transforms:transformation>
+  
+  <transforms:transformation transforms:id="Comp.PE">
+    <transforms:compensation transforms:spilloverMatrixRef="M2">
+      <transforms:transformationReference transforms:ref="LnSc_PE-FL2-H" />
+    </transforms:compensation>
+  </transforms:transformation>
+  
+  <transforms:transformation transforms:id="Comp.APC">
+    <transforms:compensation transforms:spilloverMatrixRef="M2">
+      <transforms:transformationReference transforms:ref="LnSc_APC-FL3-H" />
+    </transforms:compensation>
+  </transforms:transformation>
+  
+
+  <!-- 1863 Inside -->
+  <gating:RectangleGate gating:id="comp2G1">
+    <gating:dimension gating:min="40" gating:max="320">
+      <transforms:transformationReference transforms:ref="LnSc_FITC-FL1-H" />
+    </gating:dimension>
+  </gating:RectangleGate>
+  
+  <!-- 656 Inside -->
+  <gating:RectangleGate gating:id="comp2G2">
+    <gating:dimension gating:min="20" gating:max="500">
+      <transforms:transformationReference transforms:ref="LnSc_PE-FL2-H" />
+    </gating:dimension>
+  </gating:RectangleGate>
+  
+  <!-- 5427 Inside -->
+  <gating:RectangleGate gating:id="comp2G3">
+    <gating:dimension gating:min="30" gating:max="400">
+      <transforms:transformationReference transforms:ref="LnSc_APC-FL3-H" />
+    </gating:dimension>
+  </gating:RectangleGate>
+  
+  <!-- 2212 Inside -->
+  <gating:RectangleGate gating:id="comp2G4">
+    <gating:dimension gating:min="15" gating:max="380">
+      <transforms:transformationReference transforms:ref="Comp.FITC" />
+    </gating:dimension>
+  </gating:RectangleGate>
+  
+  <!-- 3835 Inside -->
+  <gating:RectangleGate gating:id="comp2G5">
+    <gating:dimension gating:min="-1" gating:max="8">
+      <transforms:transformationReference transforms:ref="Comp.PE" />
+    </gating:dimension>
+  </gating:RectangleGate>
+  
+  <!-- 2054 Inside -->
+  <gating:RectangleGate gating:id="comp2G6">
+    <gating:dimension gating:min="60" gating:max="400">
+      <transforms:transformationReference transforms:ref="Comp.APC" />
+    </gating:dimension>
+  </gating:RectangleGate>
+  
+</gating:Gating-ML>

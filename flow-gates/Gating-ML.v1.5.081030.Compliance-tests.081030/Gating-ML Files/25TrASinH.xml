@@ -1,0 +1,141 @@
+<!--
+  *******************************************************************
+  * Gating-ML Compliance Tests (Informative) *
+  * ******************************************
+  * 
+  * This file is a part of Gating-ML 1.5 Compliance Tests
+  * Josef Spidlen, BCCRC, jspidlen@bccrc.ca, March 20, 2008
+  *
+  * License
+  * The work may be used under the terms of the 
+  * Creative Commons Attribution-ShareAlike 3.0 Unported license. 
+  * You are free to share (copy, distribute and transmit), and adapt 
+  * the work under the conditions specified at 
+  * http://creativecommons.org/licenses/by-sa/3.0/legalcode
+  * 
+  * Acknowledgement
+  * This work has been supported by NIH grant EB005034 from the 
+  * National Institute of Biomedical Imaging And Bioengineering.
+  * The content is solely the responsibility of the authors and 
+  * does not necessarily represent the official views of the 
+  * National Institute of Biomedical Imaging And Bioengineering 
+  * or the National Institutes of Health.
+  *******************************************************************
+-->
+<gating:Gating-ML 
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xmlns:gating="http://www.isac-net.org/std/Gating-ML/v1.5/gating"
+  xmlns:transforms="http://www.isac-net.org/std/Gating-ML/v1.5/transformations"
+  xmlns:data-type="http://www.isac-net.org/std/Gating-ML/v1.5/datatypes"
+  xsi:schemaLocation="
+  http://www.isac-net.org/std/Gating-ML/v1.5/gating ../../XML-schemas/Gating-ML.v1.5.xsd
+  http://www.isac-net.org/std/Gating-ML/v1.5/transformations ../../XML-schemas/Transformations.v1.5.xsd
+  http://www.isac-net.org/std/Gating-ML/v1.5/datatypes ../../XML-schemas/DataTypes.v1.5.xsd">
+  
+  <!-- To be applied on int-10_events_8_parameters.fcs -->
+
+  <transforms:transformation transforms:id="ASHTr1">
+    <transforms:asinh transforms:a="0.8" transforms:b="1" >
+      <data-type:parameter data-type:name="BS"/>
+    </transforms:asinh>
+  </transforms:transformation>
+  
+  <transforms:transformation transforms:id="ASHTr2">
+    <transforms:asinh transforms:a="-.8" transforms:b="15.7" >
+      <data-type:parameter data-type:name="BS"/>
+    </transforms:asinh>
+  </transforms:transformation>
+  
+  <transforms:transformation transforms:id="ASHTr3">
+    <transforms:asinh transforms:a="1024" transforms:b="75" >
+      <data-type:parameter data-type:name="DS"/>
+    </transforms:asinh>
+  </transforms:transformation>
+  
+  <transforms:transformation transforms:id="ASHTr4">
+    <transforms:asinh transforms:a="-1000" transforms:b="1" >
+      <data-type:parameter data-type:name="ES"/>
+    </transforms:asinh>
+  </transforms:transformation>
+
+  <transforms:transformation transforms:id="ASHTr5">
+    <transforms:asinh transforms:a="88.45" transforms:b="1" >
+      <data-type:parameter data-type:name="HS"/>
+    </transforms:asinh>
+  </transforms:transformation>
+
+  <transforms:transformation transforms:id="ASHTr6">
+    <transforms:asinh transforms:a="0.05" transforms:b="150" >
+      <data-type:parameter data-type:name="GS"/>
+    </transforms:asinh>
+  </transforms:transformation>
+
+  <transforms:transformation transforms:id="ASHTr7">
+    <transforms:asinh transforms:a=".4" transforms:b="1" >
+      <transforms:transformationReference transforms:ref="ASHTr1"/>
+    </transforms:asinh>
+  </transforms:transformation>
+
+  <transforms:transformation transforms:id="ASHTr8">
+    <transforms:asinh transforms:a="1000" transforms:b="1" >
+      <transforms:transformationReference transforms:ref="ASHTr7"/>
+    </transforms:asinh>
+  </transforms:transformation>
+  
+  <!-- 4 Inside -->
+  <gating:RectangleGate gating:id="TrASHG1">
+    <gating:dimension gating:min="6.3" gating:max="7">
+      <transforms:transformationReference transforms:ref="ASHTr1" />
+    </gating:dimension>
+  </gating:RectangleGate>
+  
+  <!-- 4 Inside -->
+  <gating:RectangleGate gating:id="TrASHG2">
+    <gating:dimension gating:min="-95.7" gating:max="1000">
+      <transforms:transformationReference transforms:ref="ASHTr2" />
+    </gating:dimension>
+  </gating:RectangleGate>
+  
+  <!-- 4 Inside -->
+  <gating:RectangleGate gating:id="TrASHG3">
+    <gating:dimension gating:min="1000" gating:max="1061">
+      <transforms:transformationReference transforms:ref="ASHTr3" />
+    </gating:dimension>
+  </gating:RectangleGate>
+  
+  <!-- 7 Inside -->
+  <gating:RectangleGate gating:id="TrASHG4">
+    <gating:dimension gating:min="-14.01" gating:max="0">
+      <transforms:transformationReference transforms:ref="ASHTr4" />
+    </gating:dimension>
+  </gating:RectangleGate>
+  
+  <!-- 5 Inside -->
+  <gating:RectangleGate gating:id="TrASHG5">
+    <gating:dimension gating:min="10.9" gating:max="11.7">
+      <transforms:transformationReference transforms:ref="ASHTr5" />
+    </gating:dimension>
+  </gating:RectangleGate>
+  
+  <!-- 3 Inside -->
+  <gating:RectangleGate gating:id="TrASHG6">
+    <gating:dimension gating:min="515" gating:max="577.6">
+      <transforms:transformationReference transforms:ref="ASHTr6" />
+    </gating:dimension>
+  </gating:RectangleGate>
+  
+  <!-- 7 Inside -->
+  <gating:RectangleGate gating:id="TrASHG7">
+    <gating:dimension gating:min="1.5" gating:max="1.75">
+      <transforms:transformationReference transforms:ref="ASHTr7" />
+    </gating:dimension>
+  </gating:RectangleGate>
+  
+  <!-- 4 Inside -->
+  <gating:RectangleGate gating:id="TrASHG8">
+    <gating:dimension gating:min="8.1" gating:max="8.15">
+      <transforms:transformationReference transforms:ref="ASHTr8" />
+    </gating:dimension>
+  </gating:RectangleGate>
+
+</gating:Gating-ML>

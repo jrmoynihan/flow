@@ -1,0 +1,2 @@
+GreaterThanMinAndEqualToMax
+0

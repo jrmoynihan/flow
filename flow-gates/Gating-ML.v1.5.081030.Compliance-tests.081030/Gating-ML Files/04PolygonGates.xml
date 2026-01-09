@@ -1,0 +1,738 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  *******************************************************************
+  * Gating-ML Compliance Tests (Informative) *
+  * ******************************************
+  * 
+  * This file is a part of Gating-ML 1.5 Compliance Tests
+  * Josef Spidlen, BCCRC, jspidlen@bccrc.ca, March 20, 2008
+  *
+  * License
+  * The work may be used under the terms of the 
+  * Creative Commons Attribution-ShareAlike 3.0 Unported license. 
+  * You are free to share (copy, distribute and transmit), and adapt 
+  * the work under the conditions specified at 
+  * http://creativecommons.org/licenses/by-sa/3.0/legalcode
+  * 
+  * Acknowledgement
+  * This work has been supported by NIH grant EB005034 from the 
+  * National Institute of Biomedical Imaging And Bioengineering.
+  * The content is solely the responsibility of the authors and 
+  * does not necessarily represent the official views of the 
+  * National Institute of Biomedical Imaging And Bioengineering 
+  * or the National Institutes of Health.
+  *******************************************************************
+-->
+<gating:Gating-ML 
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xmlns:gating="http://www.isac-net.org/std/Gating-ML/v1.5/gating"
+  xmlns:transforms="http://www.isac-net.org/std/Gating-ML/v1.5/transformations"
+  xmlns:data-type="http://www.isac-net.org/std/Gating-ML/v1.5/datatypes"
+  xsi:schemaLocation="
+  http://www.isac-net.org/std/Gating-ML/v1.5/gating ../../XML-schemas/Gating-ML.v1.5.xsd
+  http://www.isac-net.org/std/Gating-ML/v1.5/transformations ../../XML-schemas/Transformations.v1.5.xsd
+  http://www.isac-net.org/std/Gating-ML/v1.5/datatypes ../../XML-schemas/DataTypes.v1.5.xsd">
+  
+  <!-- 
+    Test with a single event in the int-gating_test_file.fcs FCS file 
+    Event: (100, 200) with parameters (FS, SS)
+  -->
+
+  <!-- Inside -->
+  <gating:PolygonGate gating:id="RectangleInside">
+    <gating:dimension>
+      <data-type:parameter data-type:name="FS" />
+    </gating:dimension>
+    <gating:dimension>
+      <data-type:parameter data-type:name="SS" />
+    </gating:dimension>
+    <gating:vertex>
+      <gating:coordinate data-type:value="50"/>
+      <gating:coordinate data-type:value="250"/>
+    </gating:vertex>
+    <gating:vertex>
+      <gating:coordinate data-type:value="150"/>
+      <gating:coordinate data-type:value="250"/>
+    </gating:vertex>
+    <gating:vertex>
+      <gating:coordinate data-type:value="150"/>
+      <gating:coordinate data-type:value="150"/>
+    </gating:vertex>
+    <gating:vertex>
+      <gating:coordinate data-type:value="50"/>
+      <gating:coordinate data-type:value="150"/>
+    </gating:vertex>
+  </gating:PolygonGate>
+
+  <!-- Inside -->
+  <gating:PolygonGate gating:id="RectangleBoundary">
+    <gating:dimension>
+      <data-type:parameter data-type:name="FS" />
+    </gating:dimension>
+    <gating:dimension>
+      <data-type:parameter data-type:name="SS" />
+    </gating:dimension>
+    <gating:vertex>
+      <gating:coordinate data-type:value="100"/>
+      <gating:coordinate data-type:value="250"/>
+    </gating:vertex>
+    <gating:vertex>
+      <gating:coordinate data-type:value="150"/>
+      <gating:coordinate data-type:value="250"/>
+    </gating:vertex>
+    <gating:vertex>
+      <gating:coordinate data-type:value="150"/>
+      <gating:coordinate data-type:value="150"/>
+    </gating:vertex>
+    <gating:vertex>
+      <gating:coordinate data-type:value="100"/>
+      <gating:coordinate data-type:value="150"/>
+    </gating:vertex>
+  </gating:PolygonGate>
+
+  <!-- Outside -->
+  <gating:PolygonGate gating:id="RectangleOutside">
+    <gating:dimension>
+      <data-type:parameter data-type:name="FS" />
+    </gating:dimension>
+    <gating:dimension>
+      <data-type:parameter data-type:name="SS" />
+    </gating:dimension>
+    <gating:vertex>
+      <gating:coordinate data-type:value="50"/>
+      <gating:coordinate data-type:value="250"/>
+    </gating:vertex>
+    <gating:vertex>
+      <gating:coordinate data-type:value="150"/>
+      <gating:coordinate data-type:value="250"/>
+    </gating:vertex>
+    <gating:vertex>
+      <gating:coordinate data-type:value="150"/>
+      <gating:coordinate data-type:value="225"/>
+    </gating:vertex>
+    <gating:vertex>
+      <gating:coordinate data-type:value="50"/>
+      <gating:coordinate data-type:value="225"/>
+    </gating:vertex>
+  </gating:PolygonGate>
+
+  
+  <!-- 
+    
+    Tests with concave polygons that look like
+       ______
+       |    /
+       |   /
+       |   \
+       |____\
+       
+  -->
+
+  <!-- 
+    The first three "simple" ones are in the regular non-concave portion
+    of the polygon (the left side)
+  -->
+
+  <!-- Inside -->
+  <gating:PolygonGate gating:id="SimpleConcaveInside">
+    <gating:dimension>
+      <data-type:parameter data-type:name="FS" />
+    </gating:dimension>
+    <gating:dimension>
+      <data-type:parameter data-type:name="SS" />
+    </gating:dimension>
+    <gating:vertex>
+      <gating:coordinate data-type:value="50"/>
+      <gating:coordinate data-type:value="250"/>
+    </gating:vertex>
+    <gating:vertex>
+      <gating:coordinate data-type:value="200"/>
+      <gating:coordinate data-type:value="250"/>
+    </gating:vertex>
+    <gating:vertex>
+      <gating:coordinate data-type:value="150"/>
+      <gating:coordinate data-type:value="200"/>
+    </gating:vertex>
+    <gating:vertex>
+      <gating:coordinate data-type:value="200"/>
+      <gating:coordinate data-type:value="150"/>
+    </gating:vertex>
+    <gating:vertex>
+      <gating:coordinate data-type:value="50"/>
+      <gating:coordinate data-type:value="150"/>
+    </gating:vertex>
+  </gating:PolygonGate>
+
+  <!-- Inside -->
+  <gating:PolygonGate gating:id="SimpleConcaveBoundary">
+    <gating:dimension>
+      <data-type:parameter data-type:name="FS" />
+    </gating:dimension>
+    <gating:dimension>
+      <data-type:parameter data-type:name="SS" />
+    </gating:dimension>
+    <gating:vertex>
+      <gating:coordinate data-type:value="50"/>
+      <gating:coordinate data-type:value="250"/>
+    </gating:vertex>
+    <gating:vertex>
+      <gating:coordinate data-type:value="200"/>
+      <gating:coordinate data-type:value="250"/>
+    </gating:vertex>
+    <gating:vertex>
+      <gating:coordinate data-type:value="150"/>
+      <gating:coordinate data-type:value="225"/>
+    </gating:vertex>
+    <gating:vertex>
+      <gating:coordinate data-type:value="200"/>
+      <gating:coordinate data-type:value="200"/>
+    </gating:vertex>
+    <gating:vertex>
+      <gating:coordinate data-type:value="50"/>
+      <gating:coordinate data-type:value="200"/>
+    </gating:vertex>
+  </gating:PolygonGate>
+
+  <!-- Outside -->
+  <gating:PolygonGate gating:id="SimpleConcaveOutside">
+    <gating:dimension>
+      <data-type:parameter data-type:name="FS" />
+    </gating:dimension>
+    <gating:dimension>
+      <data-type:parameter data-type:name="SS" />
+    </gating:dimension>
+    <gating:vertex>
+      <gating:coordinate data-type:value="125"/>
+      <gating:coordinate data-type:value="250"/>
+    </gating:vertex>
+    <gating:vertex>
+      <gating:coordinate data-type:value="200"/>
+      <gating:coordinate data-type:value="250"/>
+    </gating:vertex>
+    <gating:vertex>
+      <gating:coordinate data-type:value="150"/>
+      <gating:coordinate data-type:value="200"/>
+    </gating:vertex>
+    <gating:vertex>
+      <gating:coordinate data-type:value="200"/>
+      <gating:coordinate data-type:value="150"/>
+    </gating:vertex>
+    <gating:vertex>
+      <gating:coordinate data-type:value="125"/>
+      <gating:coordinate data-type:value="150"/>
+    </gating:vertex>
+  </gating:PolygonGate>
+
+  <!-- 
+    The next three gates are in the concave portion of the polygon (the
+    right side). The outside gate has the event inside the convcavity.
+  -->
+
+  <!-- Inside -->
+  <gating:PolygonGate gating:id="ConcaveInside">
+    <gating:dimension>
+      <data-type:parameter data-type:name="FS" />
+    </gating:dimension>
+    <gating:dimension>
+      <data-type:parameter data-type:name="SS" />
+    </gating:dimension>
+    <gating:vertex>
+      <gating:coordinate data-type:value="50"/>
+      <gating:coordinate data-type:value="250"/>
+    </gating:vertex>
+    <gating:vertex>
+      <gating:coordinate data-type:value="150"/>
+      <gating:coordinate data-type:value="250"/>
+    </gating:vertex>
+    <gating:vertex>
+      <gating:coordinate data-type:value="75"/>
+      <gating:coordinate data-type:value="175"/>
+    </gating:vertex>
+    <gating:vertex>
+      <gating:coordinate data-type:value="150"/>
+      <gating:coordinate data-type:value="150"/>
+    </gating:vertex>
+    <gating:vertex>
+      <gating:coordinate data-type:value="50"/>
+      <gating:coordinate data-type:value="150"/>
+    </gating:vertex>
+  </gating:PolygonGate>
+
+  <!-- Inside -->
+  <gating:PolygonGate gating:id="ConcaveBoundary">
+    <gating:dimension>
+      <data-type:parameter data-type:name="FS" />
+    </gating:dimension>
+    <gating:dimension>
+      <data-type:parameter data-type:name="SS" />
+    </gating:dimension>
+    <gating:vertex>
+      <gating:coordinate data-type:value="50"/>
+      <gating:coordinate data-type:value="250"/>
+    </gating:vertex>
+    <gating:vertex>
+      <gating:coordinate data-type:value="200"/>
+      <gating:coordinate data-type:value="250"/>
+    </gating:vertex>
+    <gating:vertex>
+      <gating:coordinate data-type:value="75"/>
+      <gating:coordinate data-type:value="175"/>
+    </gating:vertex>
+    <gating:vertex>
+      <gating:coordinate data-type:value="200"/>
+      <gating:coordinate data-type:value="150"/>
+    </gating:vertex>
+    <gating:vertex>
+      <gating:coordinate data-type:value="50"/>
+      <gating:coordinate data-type:value="150"/>
+    </gating:vertex>
+  </gating:PolygonGate>
+
+  <!-- Outside -->
+  <gating:PolygonGate gating:id="ConcaveOutside">
+    <gating:dimension>
+      <data-type:parameter data-type:name="FS" />
+    </gating:dimension>
+    <gating:dimension>
+      <data-type:parameter data-type:name="SS" />
+    </gating:dimension>
+    <gating:vertex>
+      <gating:coordinate data-type:value="50"/>
+      <gating:coordinate data-type:value="250"/>
+    </gating:vertex>
+    <gating:vertex>
+      <gating:coordinate data-type:value="150"/>
+      <gating:coordinate data-type:value="250"/>
+    </gating:vertex>
+    <gating:vertex>
+      <gating:coordinate data-type:value="75"/>
+      <gating:coordinate data-type:value="200"/>
+    </gating:vertex>
+    <gating:vertex>
+      <gating:coordinate data-type:value="150"/>
+      <gating:coordinate data-type:value="150"/>
+    </gating:vertex>
+    <gating:vertex>
+      <gating:coordinate data-type:value="50"/>
+      <gating:coordinate data-type:value="150"/>
+    </gating:vertex>
+  </gating:PolygonGate>
+
+  <!-- 
+    
+    Test with a non-simple polygon that looks like an angular hourglass.
+         ________
+         \      /
+          \    /
+           \  /
+            \/
+            /\
+           /  \
+          /    \
+         /______\
+  -->
+
+  <!-- Inside -->
+  <gating:PolygonGate gating:id="NonSimpleTopInside">
+    <gating:dimension>
+      <data-type:parameter data-type:name="FS" />
+    </gating:dimension>
+    <gating:dimension>
+      <data-type:parameter data-type:name="SS" />
+    </gating:dimension>
+    <gating:vertex>
+      <gating:coordinate data-type:value="50"/>
+      <gating:coordinate data-type:value="250"/>
+    </gating:vertex>
+    <gating:vertex>
+      <gating:coordinate data-type:value="150"/>
+      <gating:coordinate data-type:value="250"/>
+    </gating:vertex>
+    <gating:vertex>
+      <gating:coordinate data-type:value="50"/>
+      <gating:coordinate data-type:value="100"/>
+    </gating:vertex>
+    <gating:vertex>
+      <gating:coordinate data-type:value="150"/>
+      <gating:coordinate data-type:value="100"/>
+    </gating:vertex>
+  </gating:PolygonGate>
+
+  <!-- Inside -->
+  <gating:PolygonGate gating:id="NonSimpleBottomInside">
+    <gating:dimension>
+      <data-type:parameter data-type:name="FS" />
+    </gating:dimension>
+    <gating:dimension>
+      <data-type:parameter data-type:name="SS" />
+    </gating:dimension>
+    <gating:vertex>
+      <gating:coordinate data-type:value="50"/>
+      <gating:coordinate data-type:value="300"/>
+    </gating:vertex>
+    <gating:vertex>
+      <gating:coordinate data-type:value="150"/>
+      <gating:coordinate data-type:value="300"/>
+    </gating:vertex>
+    <gating:vertex>
+      <gating:coordinate data-type:value="50"/>
+      <gating:coordinate data-type:value="150"/>
+    </gating:vertex>
+    <gating:vertex>
+      <gating:coordinate data-type:value="150"/>
+      <gating:coordinate data-type:value="150"/>
+    </gating:vertex>
+  </gating:PolygonGate>
+
+  <!-- Outside -->
+  <gating:PolygonGate gating:id="NonSimpleLeftOutside">
+    <gating:dimension>
+      <data-type:parameter data-type:name="FS" />
+    </gating:dimension>
+    <gating:dimension>
+      <data-type:parameter data-type:name="SS" />
+    </gating:dimension>
+    <gating:vertex>
+      <gating:coordinate data-type:value="50"/>
+      <gating:coordinate data-type:value="250"/>
+    </gating:vertex>
+    <gating:vertex>
+      <gating:coordinate data-type:value="200"/>
+      <gating:coordinate data-type:value="250"/>
+    </gating:vertex>
+    <gating:vertex>
+      <gating:coordinate data-type:value="50"/>
+      <gating:coordinate data-type:value="150"/>
+    </gating:vertex>
+    <gating:vertex>
+      <gating:coordinate data-type:value="200"/>
+      <gating:coordinate data-type:value="150"/>
+    </gating:vertex>
+  </gating:PolygonGate>
+
+  <!-- Outside -->
+  <gating:PolygonGate gating:id="NonSimpleRightOutside">
+    <gating:dimension>
+      <data-type:parameter data-type:name="FS" />
+    </gating:dimension>
+    <gating:dimension>
+      <data-type:parameter data-type:name="SS" />
+    </gating:dimension>
+    <gating:vertex>
+      <gating:coordinate data-type:value="0"/>
+      <gating:coordinate data-type:value="250"/>
+    </gating:vertex>
+    <gating:vertex>
+      <gating:coordinate data-type:value="150"/>
+      <gating:coordinate data-type:value="250"/>
+    </gating:vertex>
+    <gating:vertex>
+      <gating:coordinate data-type:value="0"/>
+      <gating:coordinate data-type:value="150"/>
+    </gating:vertex>
+    <gating:vertex>
+      <gating:coordinate data-type:value="150"/>
+      <gating:coordinate data-type:value="150"/>
+    </gating:vertex>
+  </gating:PolygonGate>
+
+  <!-- Inside -->
+  <gating:PolygonGate gating:id="NonSimpleBoundaryCrossingPoint">
+    <gating:dimension>
+      <data-type:parameter data-type:name="FS" />
+    </gating:dimension>
+    <gating:dimension>
+      <data-type:parameter data-type:name="SS" />
+    </gating:dimension>
+    <gating:vertex>
+      <gating:coordinate data-type:value="50"/>
+      <gating:coordinate data-type:value="250"/>
+    </gating:vertex>
+    <gating:vertex>
+      <gating:coordinate data-type:value="150"/>
+      <gating:coordinate data-type:value="250"/>
+    </gating:vertex>
+    <gating:vertex>
+      <gating:coordinate data-type:value="50"/>
+      <gating:coordinate data-type:value="150"/>
+    </gating:vertex>
+    <gating:vertex>
+      <gating:coordinate data-type:value="150"/>
+      <gating:coordinate data-type:value="150"/>
+    </gating:vertex>
+  </gating:PolygonGate>
+
+  <!-- Inside -->
+  <gating:PolygonGate gating:id="NonSimpleBoundaryForwardSlant">
+    <gating:dimension>
+      <data-type:parameter data-type:name="FS" />
+    </gating:dimension>
+    <gating:dimension>
+      <data-type:parameter data-type:name="SS" />
+    </gating:dimension>
+    <gating:vertex>
+      <gating:coordinate data-type:value="25"/>
+      <gating:coordinate data-type:value="225"/>
+    </gating:vertex>
+    <gating:vertex>
+      <gating:coordinate data-type:value="125"/>
+      <gating:coordinate data-type:value="225"/>
+    </gating:vertex>
+    <gating:vertex>
+      <gating:coordinate data-type:value="25"/>
+      <gating:coordinate data-type:value="125"/>
+    </gating:vertex>
+    <gating:vertex>
+      <gating:coordinate data-type:value="125"/>
+      <gating:coordinate data-type:value="125"/>
+    </gating:vertex>
+  </gating:PolygonGate>
+
+  <!-- Inside -->
+  <gating:PolygonGate gating:id="NonSimpleBoundaryBackSlant">
+    <gating:dimension>
+      <data-type:parameter data-type:name="FS" />
+    </gating:dimension>
+    <gating:dimension>
+      <data-type:parameter data-type:name="SS" />
+    </gating:dimension>
+    <gating:vertex>
+      <gating:coordinate data-type:value="25"/>
+      <gating:coordinate data-type:value="275"/>
+    </gating:vertex>
+    <gating:vertex>
+      <gating:coordinate data-type:value="125"/>
+      <gating:coordinate data-type:value="275"/>
+    </gating:vertex>
+    <gating:vertex>
+      <gating:coordinate data-type:value="25"/>
+      <gating:coordinate data-type:value="175"/>
+    </gating:vertex>
+    <gating:vertex>
+      <gating:coordinate data-type:value="125"/>
+      <gating:coordinate data-type:value="175"/>
+    </gating:vertex>
+  </gating:PolygonGate>
+
+  <!-- 
+    
+    The next 4 are tests with a more complicated non-simple polygon which looks like:
+        ________      
+       |        |
+       |   __   |
+       |  |  |  |
+       |  | 2| 4|
+       |  |__|__|_
+       |     |  | |
+       |    3| 1| |
+       |     |__| |
+       |          |
+       |__________|
+       
+    Numbers in this diagram correspond to where the event has been placed with respect
+    to the polygon whose id has the given number. i.e., ComplicatedNonSimple3 will place
+    the event at Location 3 in the diagram.
+       
+  -->
+  
+  <!-- Outside -->
+  <gating:PolygonGate gating:id="ComplicatedNonSimple1">
+    <gating:dimension>
+      <data-type:parameter data-type:name="FS" />
+    </gating:dimension>
+    <gating:dimension>
+      <data-type:parameter data-type:name="SS" />
+    </gating:dimension>
+    <gating:vertex>
+      <gating:coordinate data-type:value="50"/>
+      <gating:coordinate data-type:value="150"/>
+    </gating:vertex>
+    <gating:vertex>
+      <gating:coordinate data-type:value="150"/>
+      <gating:coordinate data-type:value="150"/>
+    </gating:vertex>
+    <gating:vertex>
+      <gating:coordinate data-type:value="150"/>
+      <gating:coordinate data-type:value="210"/>
+    </gating:vertex>
+    <gating:vertex>
+      <gating:coordinate data-type:value="60"/>
+      <gating:coordinate data-type:value="210"/>
+    </gating:vertex>
+    <gating:vertex>
+      <gating:coordinate data-type:value="60"/>
+      <gating:coordinate data-type:value="230"/>
+    </gating:vertex>
+    <gating:vertex>
+      <gating:coordinate data-type:value="80"/>
+      <gating:coordinate data-type:value="230"/>
+    </gating:vertex>
+    <gating:vertex>
+      <gating:coordinate data-type:value="80"/>
+      <gating:coordinate data-type:value="180"/>
+    </gating:vertex>
+    <gating:vertex>
+      <gating:coordinate data-type:value="120"/>
+      <gating:coordinate data-type:value="180"/>
+    </gating:vertex>
+    <gating:vertex>
+      <gating:coordinate data-type:value="120"/>
+      <gating:coordinate data-type:value="250"/>
+    </gating:vertex>
+    <gating:vertex>
+      <gating:coordinate data-type:value="50"/>
+      <gating:coordinate data-type:value="250"/>
+    </gating:vertex>
+  </gating:PolygonGate>
+
+  <!-- Outside -->
+  <gating:PolygonGate gating:id="ComplicatedNonSimple2">
+    <gating:dimension>
+      <data-type:parameter data-type:name="FS" />
+    </gating:dimension>
+    <gating:dimension>
+      <data-type:parameter data-type:name="SS" />
+    </gating:dimension>
+    <gating:vertex>
+      <gating:coordinate data-type:value="50"/>
+      <gating:coordinate data-type:value="150"/>
+    </gating:vertex>
+    <gating:vertex>
+      <gating:coordinate data-type:value="150"/>
+      <gating:coordinate data-type:value="150"/>
+    </gating:vertex>
+    <gating:vertex>
+      <gating:coordinate data-type:value="150"/>
+      <gating:coordinate data-type:value="190"/>
+    </gating:vertex>
+    <gating:vertex>
+      <gating:coordinate data-type:value="60"/>
+      <gating:coordinate data-type:value="190"/>
+    </gating:vertex>
+    <gating:vertex>
+      <gating:coordinate data-type:value="60"/>
+      <gating:coordinate data-type:value="230"/>
+    </gating:vertex>
+    <gating:vertex>
+      <gating:coordinate data-type:value="110"/>
+      <gating:coordinate data-type:value="230"/>
+    </gating:vertex>
+    <gating:vertex>
+      <gating:coordinate data-type:value="110"/>
+      <gating:coordinate data-type:value="180"/>
+    </gating:vertex>
+    <gating:vertex>
+      <gating:coordinate data-type:value="120"/>
+      <gating:coordinate data-type:value="180"/>
+    </gating:vertex>
+    <gating:vertex>
+      <gating:coordinate data-type:value="120"/>
+      <gating:coordinate data-type:value="250"/>
+    </gating:vertex>
+    <gating:vertex>
+      <gating:coordinate data-type:value="50"/>
+      <gating:coordinate data-type:value="250"/>
+    </gating:vertex>
+  </gating:PolygonGate>
+
+  <!-- Inside -->
+  <gating:PolygonGate gating:id="ComplicatedNonSimple3">
+    <gating:dimension>
+      <data-type:parameter data-type:name="FS" />
+    </gating:dimension>
+    <gating:dimension>
+      <data-type:parameter data-type:name="SS" />
+    </gating:dimension>
+    <gating:vertex>
+      <gating:coordinate data-type:value="50"/>
+      <gating:coordinate data-type:value="150"/>
+    </gating:vertex>
+    <gating:vertex>
+      <gating:coordinate data-type:value="150"/>
+      <gating:coordinate data-type:value="150"/>
+    </gating:vertex>
+    <gating:vertex>
+      <gating:coordinate data-type:value="150"/>
+      <gating:coordinate data-type:value="210"/>
+    </gating:vertex>
+    <gating:vertex>
+      <gating:coordinate data-type:value="60"/>
+      <gating:coordinate data-type:value="210"/>
+    </gating:vertex>
+    <gating:vertex>
+      <gating:coordinate data-type:value="60"/>
+      <gating:coordinate data-type:value="230"/>
+    </gating:vertex>
+    <gating:vertex>
+      <gating:coordinate data-type:value="110"/>
+      <gating:coordinate data-type:value="230"/>
+    </gating:vertex>
+    <gating:vertex>
+      <gating:coordinate data-type:value="110"/>
+      <gating:coordinate data-type:value="180"/>
+    </gating:vertex>
+    <gating:vertex>
+      <gating:coordinate data-type:value="120"/>
+      <gating:coordinate data-type:value="180"/>
+    </gating:vertex>
+    <gating:vertex>
+      <gating:coordinate data-type:value="120"/>
+      <gating:coordinate data-type:value="250"/>
+    </gating:vertex>
+    <gating:vertex>
+      <gating:coordinate data-type:value="50"/>
+      <gating:coordinate data-type:value="250"/>
+    </gating:vertex>
+  </gating:PolygonGate>
+
+  <!-- Inside -->
+  <gating:PolygonGate gating:id="ComplicatedNonSimple4">
+    <gating:dimension>
+      <data-type:parameter data-type:name="FS" />
+    </gating:dimension>
+    <gating:dimension>
+      <data-type:parameter data-type:name="SS" />
+    </gating:dimension>
+    <gating:vertex>
+      <gating:coordinate data-type:value="50"/>
+      <gating:coordinate data-type:value="150"/>
+    </gating:vertex>
+    <gating:vertex>
+      <gating:coordinate data-type:value="150"/>
+      <gating:coordinate data-type:value="150"/>
+    </gating:vertex>
+    <gating:vertex>
+      <gating:coordinate data-type:value="150"/>
+      <gating:coordinate data-type:value="190"/>
+    </gating:vertex>
+    <gating:vertex>
+      <gating:coordinate data-type:value="60"/>
+      <gating:coordinate data-type:value="190"/>
+    </gating:vertex>
+    <gating:vertex>
+      <gating:coordinate data-type:value="60"/>
+      <gating:coordinate data-type:value="230"/>
+    </gating:vertex>
+    <gating:vertex>
+      <gating:coordinate data-type:value="80"/>
+      <gating:coordinate data-type:value="230"/>
+    </gating:vertex>
+    <gating:vertex>
+      <gating:coordinate data-type:value="80"/>
+      <gating:coordinate data-type:value="180"/>
+    </gating:vertex>
+    <gating:vertex>
+      <gating:coordinate data-type:value="120"/>
+      <gating:coordinate data-type:value="180"/>
+    </gating:vertex>
+    <gating:vertex>
+      <gating:coordinate data-type:value="120"/>
+      <gating:coordinate data-type:value="250"/>
+    </gating:vertex>
+    <gating:vertex>
+      <gating:coordinate data-type:value="50"/>
+      <gating:coordinate data-type:value="250"/>
+    </gating:vertex>
+  </gating:PolygonGate>
+
+</gating:Gating-ML>

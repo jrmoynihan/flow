@@ -1,0 +1,216 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  *******************************************************************
+  * Gating-ML Compliance Tests (Informative) *
+  * ******************************************
+  * 
+  * This file is a part of Gating-ML 1.5 Compliance Tests
+  * Josef Spidlen, BCCRC, jspidlen@bccrc.ca, March 20, 2008
+  *
+  * License
+  * The work may be used under the terms of the 
+  * Creative Commons Attribution-ShareAlike 3.0 Unported license. 
+  * You are free to share (copy, distribute and transmit), and adapt 
+  * the work under the conditions specified at 
+  * http://creativecommons.org/licenses/by-sa/3.0/legalcode
+  * 
+  * Acknowledgement
+  * This work has been supported by NIH grant EB005034 from the 
+  * National Institute of Biomedical Imaging And Bioengineering.
+  * The content is solely the responsibility of the authors and 
+  * does not necessarily represent the official views of the 
+  * National Institute of Biomedical Imaging And Bioengineering 
+  * or the National Institutes of Health.
+  *******************************************************************
+-->
+<gating:Gating-ML 
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xmlns:gating="http://www.isac-net.org/std/Gating-ML/v1.5/gating"
+  xmlns:transforms="http://www.isac-net.org/std/Gating-ML/v1.5/transformations"
+  xmlns:data-type="http://www.isac-net.org/std/Gating-ML/v1.5/datatypes"
+  xsi:schemaLocation="
+  http://www.isac-net.org/std/Gating-ML/v1.5/gating ../../XML-schemas/Gating-ML.v1.5.xsd
+  http://www.isac-net.org/std/Gating-ML/v1.5/transformations ../../XML-schemas/Transformations.v1.5.xsd
+  http://www.isac-net.org/std/Gating-ML/v1.5/datatypes ../../XML-schemas/DataTypes.v1.5.xsd">
+  
+  <!-- 
+    These tests and other "CtS" tests are designed to verify that particular software 
+    applies gates based on values as they appear in the data file. No implicit transformation 
+    (including channel to scale values transformation) shall be performed unless specified 
+    by an explicit transformation definition.
+    
+    Test with fcs2_int16_13367ev_8par_GvHD.fcs
+    
+    Parameters (in order) are: FSC-H, SSC-H, FL1-H, FL2-H, FL3-H, FL2-A, FL4-H, Time
+    13,367 events (data from a GvHD study)
+  -->
+
+  <!-- 13367 expected inside -->
+  <gating:RectangleGate gating:id="CtSR_01">
+    <gating:dimension gating:min="20" >
+      <data-type:parameter data-type:name="FSC-H" />
+    </gating:dimension>
+  </gating:RectangleGate>
+
+  <!-- 4752 expected inside -->
+  <gating:RectangleGate gating:id="CtSR_02">
+    <gating:dimension gating:min="15" gating:max="230">
+      <data-type:parameter data-type:name="FSC-H" />
+    </gating:dimension>
+  </gating:RectangleGate>
+
+  <!-- 13357 expected inside -->
+  <gating:RectangleGate gating:id="CtSR_03">
+    <gating:dimension gating:min="20">
+      <data-type:parameter data-type:name="SSC-H"/>
+    </gating:dimension>
+  </gating:RectangleGate>
+
+  <!-- 1393 expected inside -->
+  <gating:RectangleGate gating:id="CtSR_04">
+    <gating:dimension gating:min="15" gating:max="115">
+      <data-type:parameter data-type:name="SSC-H"/>
+    </gating:dimension>
+  </gating:RectangleGate>
+
+  <!-- 11921 expected inside -->
+  <gating:RectangleGate gating:id="CtSR_05">
+    <gating:dimension gating:min="100">
+      <data-type:parameter data-type:name="FL1-H" />
+    </gating:dimension>
+  </gating:RectangleGate>
+
+  <!-- 11447 expected inside -->
+  <gating:RectangleGate gating:id="CtSR_06">
+    <gating:dimension gating:min="120" gating:max="752">
+      <data-type:parameter data-type:name="FL1-H" />
+    </gating:dimension>
+  </gating:RectangleGate>
+
+  <!-- 13366 expected inside -->
+  <gating:RectangleGate gating:id="CtSR_07">
+    <gating:dimension gating:max="752">
+      <data-type:parameter data-type:name="FL1-H"/>
+    </gating:dimension>
+  </gating:RectangleGate>
+
+  <!-- 11242 expected inside -->
+  <gating:RectangleGate gating:id="CtSR_08">
+    <gating:dimension gating:min="100">
+      <data-type:parameter data-type:name="FL2-H" />
+    </gating:dimension>
+  </gating:RectangleGate>
+
+  <!-- 10748 expected inside -->
+  <gating:RectangleGate gating:id="CtSR_09">
+    <gating:dimension gating:min="120" gating:max="752">
+      <data-type:parameter data-type:name="FL2-H" />
+    </gating:dimension>
+  </gating:RectangleGate>
+
+  <!-- 13366 expected inside -->
+  <gating:RectangleGate gating:id="CtSR_10">
+    <gating:dimension gating:max="752">
+      <data-type:parameter data-type:name="FL2-H" />
+    </gating:dimension>
+  </gating:RectangleGate>
+
+  <!-- 9874 expected inside -->
+  <gating:RectangleGate gating:id="CtSR_11">
+    <gating:dimension gating:min="100">
+      <data-type:parameter data-type:name="FL3-H" />
+    </gating:dimension>
+  </gating:RectangleGate>
+
+  <!-- 8382 expected inside -->
+  <gating:RectangleGate gating:id="CtSR_12">
+    <gating:dimension gating:min="120" gating:max="752">
+      <data-type:parameter data-type:name="FL3-H" />
+    </gating:dimension>
+  </gating:RectangleGate>
+
+  <!-- 13366 expected inside -->
+  <gating:RectangleGate gating:id="CtSR_13">
+    <gating:dimension gating:max="752">
+      <data-type:parameter data-type:name="FL3-H" />
+    </gating:dimension>
+  </gating:RectangleGate>
+
+  <!-- 10844 expected inside -->
+  <gating:RectangleGate gating:id="CtSR_14">
+    <gating:dimension gating:min="100">
+      <data-type:parameter data-type:name="FL4-H" />
+    </gating:dimension>
+  </gating:RectangleGate>
+
+  <!-- 9750 expected inside -->
+  <gating:RectangleGate gating:id="CtSR_15">
+    <gating:dimension gating:min="120" gating:max="752">
+      <data-type:parameter data-type:name="FL4-H" />
+    </gating:dimension>
+  </gating:RectangleGate>
+
+  <!-- 13342 expected inside -->
+  <gating:RectangleGate gating:id="CtSR_16">
+    <gating:dimension gating:max="752">
+      <data-type:parameter data-type:name="FL4-H" />
+    </gating:dimension>
+  </gating:RectangleGate>
+
+  <!-- 12335 expected inside -->
+  <gating:RectangleGate gating:id="CtSR_17">
+    <gating:dimension gating:min="15" gating:max="952">
+      <data-type:parameter data-type:name="FL1-H" />
+    </gating:dimension>
+    <gating:dimension gating:min="25" gating:max="870">
+      <data-type:parameter data-type:name="FL2-H"/>
+    </gating:dimension>
+  </gating:RectangleGate>
+
+  <!-- 11089 expected inside -->
+  <gating:RectangleGate gating:id="CtSR_18">
+    <gating:dimension gating:min="15" gating:max="952">
+      <data-type:parameter data-type:name="FL1-H" />
+    </gating:dimension>
+    <gating:dimension gating:min="25" gating:max="870">
+      <data-type:parameter data-type:name="FL2-H" />
+    </gating:dimension>
+    <gating:dimension gating:min="65" gating:max="688">
+      <data-type:parameter data-type:name="FL3-H" />
+    </gating:dimension>
+  </gating:RectangleGate>
+
+  <!-- 10466 expected inside -->
+  <gating:RectangleGate gating:id="CtSR_19">
+    <gating:dimension gating:min="15" gating:max="952">
+      <data-type:parameter data-type:name="FL1-H" />
+    </gating:dimension>
+    <gating:dimension gating:min="25" gating:max="870">
+      <data-type:parameter data-type:name="FL2-H" />
+    </gating:dimension>
+    <gating:dimension gating:min="65" gating:max="688">
+      <data-type:parameter data-type:name="FL3-H" />
+    </gating:dimension>
+    <gating:dimension gating:min="23" gating:max="542">
+      <data-type:parameter data-type:name="FL4-H" />
+    </gating:dimension>
+  </gating:RectangleGate>
+
+  <!-- 11837 expected inside -->
+  <gating:RectangleGate gating:id="CtSR_20">
+    <gating:dimension gating:min="15" gating:max="952">
+      <data-type:parameter data-type:name="Time" />
+    </gating:dimension>
+  </gating:RectangleGate>
+
+  <!-- 10774 expected inside -->
+  <gating:RectangleGate gating:id="CtSR_21">
+    <gating:dimension gating:min="50" gating:max="952">
+      <data-type:parameter data-type:name="FL2-H" />
+    </gating:dimension>
+    <gating:dimension gating:min="15">
+      <data-type:parameter data-type:name="Time" />
+    </gating:dimension>
+  </gating:RectangleGate>
+
+</gating:Gating-ML>

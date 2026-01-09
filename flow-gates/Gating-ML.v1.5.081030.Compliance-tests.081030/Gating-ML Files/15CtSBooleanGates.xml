@@ -1,0 +1,156 @@
+<!--
+  *******************************************************************
+  * Gating-ML Compliance Tests (Informative) *
+  * ******************************************
+  * 
+  * This file is a part of Gating-ML 1.5 Compliance Tests
+  * Josef Spidlen, BCCRC, jspidlen@bccrc.ca, March 20, 2008
+  *
+  * License
+  * The work may be used under the terms of the 
+  * Creative Commons Attribution-ShareAlike 3.0 Unported license. 
+  * You are free to share (copy, distribute and transmit), and adapt 
+  * the work under the conditions specified at 
+  * http://creativecommons.org/licenses/by-sa/3.0/legalcode
+  * 
+  * Acknowledgement
+  * This work has been supported by NIH grant EB005034 from the 
+  * National Institute of Biomedical Imaging And Bioengineering.
+  * The content is solely the responsibility of the authors and 
+  * does not necessarily represent the official views of the 
+  * National Institute of Biomedical Imaging And Bioengineering 
+  * or the National Institutes of Health.
+  *******************************************************************
+-->
+<gating:Gating-ML 
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xmlns:gating="http://www.isac-net.org/std/Gating-ML/v1.5/gating"
+  xmlns:transforms="http://www.isac-net.org/std/Gating-ML/v1.5/transformations"
+  xmlns:data-type="http://www.isac-net.org/std/Gating-ML/v1.5/datatypes"
+  xsi:schemaLocation="
+  http://www.isac-net.org/std/Gating-ML/v1.5/gating ../../XML-schemas/Gating-ML.v1.5.xsd
+  http://www.isac-net.org/std/Gating-ML/v1.5/transformations ../../XML-schemas/Transformations.v1.5.xsd
+  http://www.isac-net.org/std/Gating-ML/v1.5/datatypes ../../XML-schemas/DataTypes.v1.5.xsd">
+  
+  <!-- 
+    These tests and other "CtS" tests are designed to verify that particular software 
+    applies gates based on values as they appear in the data file. No implicit transformation 
+    (including channel to scale values transformation) shall be performed unless specified 
+    by an explicit transformation definition.
+    
+    Test with fcs2_int16_13367ev_8par_GvHD.fcs
+               
+    Parameters (in order) are: FSC-H, SSC-H, FL1-H, FL2-H, FL3-H, FL2-A, FL4-H, Time
+    13,367 events (data from a GvHD study)
+  -->
+
+  <!-- 5557 expected inside -->
+  <gating:RectangleGate gating:id="CtSB_R1">
+    <gating:dimension gating:min="77.78" gating:max="248.4">
+      <data-type:parameter data-type:name="FSC-H" />
+    </gating:dimension>
+  </gating:RectangleGate>
+
+  <!-- 12272 expected inside -->
+  <gating:RectangleGate gating:id="CtSB_R2">
+    <gating:dimension gating:min="45" gating:max="7845.22">
+      <data-type:parameter data-type:name="FL1-H" />
+    </gating:dimension>
+    <gating:dimension gating:min="12" gating:max="9871.7">
+      <data-type:parameter data-type:name="FL2-H" />
+    </gating:dimension>
+  </gating:RectangleGate>
+
+  <!-- 653 expected inside -->
+  <gating:RectangleGate gating:id="CtSB_R3">
+    <gating:dimension gating:min="14.7" gating:max="100.38">
+      <data-type:parameter data-type:name="SSC-H" />
+    </gating:dimension>
+    <gating:dimension gating:min="50.6" gating:max="9000">
+      <data-type:parameter data-type:name="FL3-H" />
+    </gating:dimension>
+    <gating:dimension gating:min="80.7">
+      <data-type:parameter data-type:name="FL4-H" />
+    </gating:dimension>
+  </gating:RectangleGate>
+
+  <!-- 973 expected inside -->
+  <gating:RectangleGate gating:id="CtSB_R4">
+    <gating:dimension gating:min="62.4">
+      <data-type:parameter data-type:name="FSC-H" />
+    </gating:dimension>
+    <gating:dimension gating:min="16.23" gating:max="94.12">
+      <data-type:parameter data-type:name="SSC-H" />
+    </gating:dimension>
+    <gating:dimension gating:min="5">
+      <data-type:parameter data-type:name="Time" />
+    </gating:dimension>
+    <gating:dimension gating:max="7654.43">
+      <data-type:parameter data-type:name="FL3-H" />
+    </gating:dimension>
+  </gating:RectangleGate>
+
+  <!-- 13148 expected inside -->
+  <gating:BooleanGate gating:id="CtSB_B1">
+    <gating:or>
+      <gating:gateReference gating:ref="CtSB_R1" />
+      <gating:gateReference gating:ref="CtSB_R2" />
+    </gating:or>
+  </gating:BooleanGate>
+
+  <!-- 13199 expected inside -->
+  <gating:BooleanGate gating:id="CtSB_B2">
+    <gating:or>
+      <gating:gateReference gating:ref="CtSB_R1" />
+      <gating:gateReference gating:ref="CtSB_R2" />
+      <gating:gateReference gating:ref="CtSB_R3" />
+    </gating:or>
+  </gating:BooleanGate>
+
+  <!-- 310 expected inside -->
+  <gating:BooleanGate gating:id="CtSB_B3">
+    <gating:and>
+      <gating:gateReference gating:ref="CtSB_R2" />
+      <gating:gateReference gating:ref="CtSB_R3" />
+    </gating:and>
+  </gating:BooleanGate>
+
+  <!-- 257 expected inside -->
+  <gating:BooleanGate gating:id="CtSB_B4">
+    <gating:and>
+      <gating:gateReference gating:ref="CtSB_R2" />
+      <gating:gateReference gating:ref="CtSB_R3" />
+      <gating:gateReference gating:ref="CtSB_R4" />
+    </gating:and>
+  </gating:BooleanGate>
+
+  <!-- 7810 expected inside -->
+  <gating:BooleanGate gating:id="CtSB_B5">
+    <gating:not>
+      <gating:gateReference gating:ref="CtSB_R1" />
+    </gating:not>
+  </gating:BooleanGate>
+
+  <!-- 8672 expected inside -->
+  <gating:BooleanGate gating:id="CtSB_B6">
+    <gating:or>
+      <gating:gateReference gating:ref="CtSB_R4" />
+      <gating:BooleanGate gating:id="_b1">
+        <gating:and>
+          <gating:BooleanGate gating:id="_b2">
+            <gating:not>
+              <gating:gateReference gating:ref="CtSB_R2" />
+            </gating:not>
+          </gating:BooleanGate>
+          <gating:gateReference gating:ref="CtSB_R3" />
+        </gating:and>
+      </gating:BooleanGate>
+      <gating:BooleanGate gating:id="_b3">
+        <gating:not>
+          <gating:gateReference gating:ref="CtSB_R1" />
+        </gating:not>
+      </gating:BooleanGate>
+    </gating:or>
+  </gating:BooleanGate>
+
+</gating:Gating-ML>

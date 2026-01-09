@@ -1,0 +1,113 @@
+<!--
+  *******************************************************************
+  * Gating-ML Compliance Tests (Informative) *
+  * ******************************************
+  * 
+  * This file is a part of Gating-ML 1.5 Compliance Tests
+  * Josef Spidlen, BCCRC, jspidlen@bccrc.ca, March 20, 2008
+  *
+  * License
+  * The work may be used under the terms of the 
+  * Creative Commons Attribution-ShareAlike 3.0 Unported license. 
+  * You are free to share (copy, distribute and transmit), and adapt 
+  * the work under the conditions specified at 
+  * http://creativecommons.org/licenses/by-sa/3.0/legalcode
+  * 
+  * Acknowledgement
+  * This work has been supported by NIH grant EB005034 from the 
+  * National Institute of Biomedical Imaging And Bioengineering.
+  * The content is solely the responsibility of the authors and 
+  * does not necessarily represent the official views of the 
+  * National Institute of Biomedical Imaging And Bioengineering 
+  * or the National Institutes of Health.
+  *******************************************************************
+-->
+<gating:Gating-ML 
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xmlns:gating="http://www.isac-net.org/std/Gating-ML/v1.5/gating"
+  xmlns:transforms="http://www.isac-net.org/std/Gating-ML/v1.5/transformations"
+  xmlns:data-type="http://www.isac-net.org/std/Gating-ML/v1.5/datatypes"
+  xsi:schemaLocation="
+  http://www.isac-net.org/std/Gating-ML/v1.5/gating ../../XML-schemas/Gating-ML.v1.5.xsd
+  http://www.isac-net.org/std/Gating-ML/v1.5/transformations ../../XML-schemas/Transformations.v1.5.xsd
+  http://www.isac-net.org/std/Gating-ML/v1.5/datatypes ../../XML-schemas/DataTypes.v1.5.xsd">
+  
+  <!-- 
+    Test with 6-dimensional matlab-generated data in int-10000_events_random.fcs
+    Parameters (in order) are: AS, BS, CS, DS, ES, FS
+  -->
+  
+  <!-- 7136 inside -->
+  <gating:DecisionTreeGate gating:id="dtree1">
+    <gating:rootNode gating:threshold="194281.061">
+      <data-type:parameter data-type:name="AS" />
+      <gating:nodeLT gating:threshold="668297.553">
+        <data-type:parameter data-type:name="BS" />
+        <gating:nodeLT gating:threshold="830494.388">
+          <data-type:parameter data-type:name="CS" />
+          <gating:nodeLT gating:threshold="362824.333">
+            <data-type:parameter data-type:name="ES" />
+            <gating:leafLT gating:inside="true" />
+            <gating:leafGTE gating:inside="false" />
+          </gating:nodeLT>
+          <gating:nodeGTE gating:threshold="371171.903">
+            <data-type:parameter data-type:name="FS" />
+            <gating:leafLT gating:inside="false" />
+            <gating:leafGTE gating:inside="true" />
+          </gating:nodeGTE>
+        </gating:nodeLT>
+        <gating:nodeGTE gating:threshold="109260.873">
+          <data-type:parameter data-type:name="DS" />
+          <gating:nodeLT gating:threshold="751383.257">
+            <data-type:parameter data-type:name="AS" />
+            <gating:leafLT gating:inside="true" />
+            <gating:leafGTE gating:inside="false" />
+          </gating:nodeLT>
+          <gating:nodeGTE gating:threshold="753819.074">
+            <data-type:parameter data-type:name="FS" />
+            <gating:nodeLT gating:threshold="776937.393">
+              <data-type:parameter data-type:name="CS" />
+              <gating:leafLT gating:inside="false" />
+              <gating:leafGTE gating:inside="true" />
+            </gating:nodeLT>
+            <gating:nodeGTE gating:threshold="192070.079">
+              <data-type:parameter data-type:name="ES" />
+              <gating:leafLT gating:inside="true" />
+              <gating:leafGTE gating:inside="false" />
+            </gating:nodeGTE>
+          </gating:nodeGTE>
+        </gating:nodeGTE>
+      </gating:nodeLT>
+      <gating:nodeGTE gating:threshold="105404.421">
+        <data-type:parameter data-type:name="BS" />
+        <gating:nodeLT gating:threshold="794359.665">
+          <data-type:parameter data-type:name="CS" />
+          <gating:leafLT gating:inside="true" />
+          <gating:leafGTE gating:inside="false" />
+        </gating:nodeLT>
+        <gating:nodeGTE gating:threshold="421593.145">
+          <data-type:parameter data-type:name="ES" />
+          <gating:nodeLT gating:threshold="987669.701">
+            <data-type:parameter data-type:name="BS" />
+            <gating:leafLT gating:inside="true" />
+            <gating:leafGTE gating:inside="false" />
+          </gating:nodeLT>
+          <gating:nodeGTE gating:threshold="901310.398">
+            <data-type:parameter data-type:name="ES" />
+            <gating:nodeLT gating:threshold="657232.788">
+              <data-type:parameter data-type:name="CS" />
+              <gating:leafLT gating:inside="true" />
+              <gating:leafGTE gating:inside="false" />
+            </gating:nodeLT>
+            <gating:nodeGTE gating:threshold="375398.404">
+              <data-type:parameter data-type:name="FS" />
+              <gating:leafLT gating:inside="false" />
+              <gating:leafGTE gating:inside="true" />
+            </gating:nodeGTE>
+          </gating:nodeGTE>
+        </gating:nodeGTE>
+      </gating:nodeGTE>
+    </gating:rootNode>
+  </gating:DecisionTreeGate>
+
+</gating:Gating-ML>

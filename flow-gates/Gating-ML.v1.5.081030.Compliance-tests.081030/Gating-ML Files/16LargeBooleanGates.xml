@@ -1,0 +1,200 @@
+<!--
+  *******************************************************************
+  * Gating-ML Compliance Tests (Informative) *
+  * ******************************************
+  * 
+  * This file is a part of Gating-ML 1.5 Compliance Tests
+  * Josef Spidlen, BCCRC, jspidlen@bccrc.ca, March 20, 2008
+  *
+  * License
+  * The work may be used under the terms of the 
+  * Creative Commons Attribution-ShareAlike 3.0 Unported license. 
+  * You are free to share (copy, distribute and transmit), and adapt 
+  * the work under the conditions specified at 
+  * http://creativecommons.org/licenses/by-sa/3.0/legalcode
+  * 
+  * Acknowledgement
+  * This work has been supported by NIH grant EB005034 from the 
+  * National Institute of Biomedical Imaging And Bioengineering.
+  * The content is solely the responsibility of the authors and 
+  * does not necessarily represent the official views of the 
+  * National Institute of Biomedical Imaging And Bioengineering 
+  * or the National Institutes of Health.
+  *******************************************************************
+-->
+<gating:Gating-ML 
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xmlns:gating="http://www.isac-net.org/std/Gating-ML/v1.5/gating"
+  xmlns:transforms="http://www.isac-net.org/std/Gating-ML/v1.5/transformations"
+  xmlns:data-type="http://www.isac-net.org/std/Gating-ML/v1.5/datatypes"
+  xsi:schemaLocation="
+  http://www.isac-net.org/std/Gating-ML/v1.5/gating ../../XML-schemas/Gating-ML.v1.5.xsd
+  http://www.isac-net.org/std/Gating-ML/v1.5/transformations ../../XML-schemas/Transformations.v1.5.xsd
+  http://www.isac-net.org/std/Gating-ML/v1.5/datatypes ../../XML-schemas/DataTypes.v1.5.xsd">
+  
+  <!-- 
+       Test with 6-dimensional matlab-generated data in int-10000_events_random.fcs
+       Parameters (in order) are: AS, BS, CS, DS, ES, FS
+  -->
+
+  <!-- Some simple Rectangle Gates to refer to in the Boolean Gates. -->
+
+  <!-- 1836 inside -->
+  <gating:RectangleGate gating:id="Rect1">
+    <gating:dimension gating:min="579806.873" gating:max="760365.010">
+      <data-type:parameter data-type:name="CS" />
+    </gating:dimension>
+  </gating:RectangleGate>
+
+  <!-- 803 inside -->
+  <gating:RectangleGate gating:id="Rect2">
+    <gating:dimension gating:min="209069.404" gating:max="529823.117">
+      <data-type:parameter data-type:name="DS" />
+    </gating:dimension>
+    <gating:dimension gating:min="379818.370" gating:max="640526.499">
+      <data-type:parameter data-type:name="CS" />
+    </gating:dimension>
+  </gating:RectangleGate>
+
+  <!-- 107 inside -->
+  <gating:RectangleGate gating:id="Rect3">
+    <gating:dimension gating:min="567828.712" gating:max="783328.650">
+      <data-type:parameter data-type:name="AS" />
+    </gating:dimension>
+    <gating:dimension gating:min="680845.751" gating:max="794210.651">
+      <data-type:parameter data-type:name="BS" />
+    </gating:dimension>
+    <gating:dimension gating:min="59182.593" gating:max="461095.127">
+      <data-type:parameter data-type:name="DS" />
+    </gating:dimension>
+  </gating:RectangleGate>
+
+  <!-- 29 inside -->
+  <gating:RectangleGate gating:id="Rect4">
+    <gating:dimension gating:min="602869.086" gating:max="874367.172">
+      <data-type:parameter data-type:name="ES" />
+    </gating:dimension>
+    <gating:dimension gating:min="15009.499" gating:max="50268.804">
+      <data-type:parameter data-type:name="AS" />
+    </gating:dimension>
+    <gating:dimension gating:min="415374.860" gating:max="767950.390">
+      <data-type:parameter data-type:name="CS" />
+    </gating:dimension>
+    <gating:dimension gating:min="304998.677" gating:max="970844.939">
+      <data-type:parameter data-type:name="FS" />
+    </gating:dimension>
+  </gating:RectangleGate>
+
+  <!-- 30 inside -->
+  <gating:RectangleGate gating:id="Rect5">
+    <gating:dimension gating:min="643492.288" gating:max="990082.593">
+      <data-type:parameter data-type:name="BS" />
+    </gating:dimension>
+    <gating:dimension gating:min="320035.577" gating:max="788861.692">
+      <data-type:parameter data-type:name="ES" />
+    </gating:dimension>
+    <gating:dimension gating:min="438658.534" gating:max="960098.600">
+      <data-type:parameter data-type:name="FS" />
+    </gating:dimension>
+    <gating:dimension gating:min="498311.303" gating:max="726631.767">
+      <data-type:parameter data-type:name="AS" />
+    </gating:dimension>
+    <gating:dimension gating:min="213963.332" gating:max="411953.208">
+      <data-type:parameter data-type:name="DS" />
+    </gating:dimension>
+  </gating:RectangleGate>
+
+  <!-- 4 inside -->
+  <gating:RectangleGate gating:id="Rect6">
+    <gating:dimension gating:min="744565.783" gating:max="839238.240">
+      <data-type:parameter data-type:name="BS" />
+    </gating:dimension>
+    <gating:dimension gating:min="267947.251" gating:max="628784.600">
+      <data-type:parameter data-type:name="FS" />
+    </gating:dimension>
+    <gating:dimension gating:min="133772.748" gating:max="439924.310">
+      <data-type:parameter data-type:name="CS" />
+    </gating:dimension>
+    <gating:dimension gating:min="207132.730" gating:max="933380.108">
+      <data-type:parameter data-type:name="DS" />
+    </gating:dimension>
+    <gating:dimension gating:min="607198.945" gating:max="683332.324">
+      <data-type:parameter data-type:name="AS" />
+    </gating:dimension>
+    <gating:dimension gating:min="212559.864" gating:max="629887.849">
+      <data-type:parameter data-type:name="ES" />
+    </gating:dimension>
+  </gating:RectangleGate>
+
+  <!-- 4182 inside -->
+  <gating:RectangleGate gating:id="Rect7">
+    <gating:dimension gating:min="38128.797" gating:max="458597.955">
+      <data-type:parameter data-type:name="DS" />
+    </gating:dimension>
+  </gating:RectangleGate>
+
+  <!-- 626 inside -->
+  <gating:RectangleGate gating:id="Rect8">
+    <gating:dimension gating:min="869867.350" gating:max="934236.519">
+      <data-type:parameter data-type:name="FS" />
+    </gating:dimension>
+  </gating:RectangleGate>
+
+  <!-- 1016 inside -->
+  <gating:RectangleGate gating:id="Rect9">
+    <gating:dimension gating:min="160300.339" gating:max="264449.166">
+      <data-type:parameter data-type:name="AS" />
+    </gating:dimension>
+  </gating:RectangleGate>
+
+  <!-- 6346 inside -->
+  <gating:RectangleGate gating:id="Rect10">
+    <gating:dimension gating:min="237880.308" gating:max="872855.257">
+      <data-type:parameter data-type:name="ES" />
+    </gating:dimension>
+  </gating:RectangleGate>
+
+  <!-- 9248 inside -->
+  <gating:BooleanGate gating:id="Bool1">
+    <gating:or>
+      <gating:gateReference gating:ref="Rect6" />
+      <gating:BooleanGate gating:id="_b1">
+        <gating:and>
+          <gating:BooleanGate gating:id="_b2">
+            <gating:not>
+              <gating:gateReference gating:ref="Rect2" />
+            </gating:not>
+          </gating:BooleanGate>
+          <gating:gateReference gating:ref="Rect4" />
+        </gating:and>
+      </gating:BooleanGate>
+      <gating:BooleanGate gating:id="_b3">
+        <gating:not>
+          <gating:BooleanGate gating:id="_b4">
+            <gating:and>
+              <gating:gateReference gating:ref="Rect1" />
+              <gating:BooleanGate gating:id="_b5">
+                <gating:or>
+                  <gating:gateReference gating:ref="Rect7" />
+                  <gating:gateReference gating:ref="Rect5" />
+                </gating:or>
+              </gating:BooleanGate>
+              <gating:BooleanGate gating:id="_b6">
+                <gating:or>
+                  <gating:gateReference gating:ref="Rect10" />
+                  <gating:gateReference gating:ref="Rect3" />
+                  <gating:BooleanGate gating:id="_b7">
+                    <gating:not>
+                      <gating:gateReference gating:ref="Rect8" />
+                    </gating:not>
+                  </gating:BooleanGate>
+                </gating:or>
+              </gating:BooleanGate>
+            </gating:and>
+          </gating:BooleanGate>
+        </gating:not>
+      </gating:BooleanGate>
+    </gating:or>
+  </gating:BooleanGate>
+
+</gating:Gating-ML>

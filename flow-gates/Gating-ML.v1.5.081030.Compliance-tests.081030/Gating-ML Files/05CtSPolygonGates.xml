@@ -1,0 +1,389 @@
+<!--
+  *******************************************************************
+  * Gating-ML Compliance Tests (Informative) *
+  * ******************************************
+  * 
+  * This file is a part of Gating-ML 1.5 Compliance Tests
+  * Josef Spidlen, BCCRC, jspidlen@bccrc.ca, March 20, 2008
+  *
+  * License
+  * The work may be used under the terms of the 
+  * Creative Commons Attribution-ShareAlike 3.0 Unported license. 
+  * You are free to share (copy, distribute and transmit), and adapt 
+  * the work under the conditions specified at 
+  * http://creativecommons.org/licenses/by-sa/3.0/legalcode
+  * 
+  * Acknowledgement
+  * This work has been supported by NIH grant EB005034 from the 
+  * National Institute of Biomedical Imaging And Bioengineering.
+  * The content is solely the responsibility of the authors and 
+  * does not necessarily represent the official views of the 
+  * National Institute of Biomedical Imaging And Bioengineering 
+  * or the National Institutes of Health.
+  *******************************************************************
+-->
+<gating:Gating-ML 
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xmlns:gating="http://www.isac-net.org/std/Gating-ML/v1.5/gating"
+  xmlns:transforms="http://www.isac-net.org/std/Gating-ML/v1.5/transformations"
+  xmlns:data-type="http://www.isac-net.org/std/Gating-ML/v1.5/datatypes"
+  xsi:schemaLocation="
+  http://www.isac-net.org/std/Gating-ML/v1.5/gating ../../XML-schemas/Gating-ML.v1.5.xsd
+  http://www.isac-net.org/std/Gating-ML/v1.5/transformations ../../XML-schemas/Transformations.v1.5.xsd
+  http://www.isac-net.org/std/Gating-ML/v1.5/datatypes ../../XML-schemas/DataTypes.v1.5.xsd">
+  
+  <!-- 
+    These tests and other "CtS" tests are designed to verify that particular software 
+    applies gates based on values as they appear in the data file. No implicit transformation 
+    (including channel to scale values transformation) shall be performed unless specified 
+    by an explicit transformation definition.
+    
+    Test with fcs2_int16_13367ev_8par_GvHD.fcs
+    
+    Parameters (in order) are: FSC-H, SSC-H, FL1-H, FL2-H, FL3-H, FL2-A, FL4-H, Time
+    13,367 events (data from a GvHD study)
+  -->
+
+  <!-- 688 expected inside -->
+  <gating:PolygonGate gating:id="CtSPg_01">
+    <gating:dimension>
+      <data-type:parameter data-type:name="FSC-H" />
+    </gating:dimension>
+    <gating:dimension>
+      <data-type:parameter data-type:name="SSC-H" />
+    </gating:dimension>
+    <gating:vertex>
+      <gating:coordinate data-type:value="50"/>
+      <gating:coordinate data-type:value="120"/>
+    </gating:vertex>
+    <gating:vertex>
+      <gating:coordinate data-type:value="30"/>
+      <gating:coordinate data-type:value="18"/>
+    </gating:vertex>
+    <gating:vertex>
+      <gating:coordinate data-type:value="250"/>
+      <gating:coordinate data-type:value="45"/>
+    </gating:vertex>
+    <gating:vertex>
+      <gating:coordinate data-type:value="150"/>
+      <gating:coordinate data-type:value="70"/>
+    </gating:vertex>
+    <gating:vertex>
+      <gating:coordinate data-type:value="233"/>
+      <gating:coordinate data-type:value="98"/>
+    </gating:vertex>
+    <gating:vertex>
+      <gating:coordinate data-type:value="160"/>
+      <gating:coordinate data-type:value="95"/>
+    </gating:vertex>
+  </gating:PolygonGate>
+
+  <!-- 7165 expected inside -->
+  <gating:PolygonGate gating:id="CtSPg_02">
+    <gating:dimension>
+      <data-type:parameter data-type:name="FL1-H" />
+    </gating:dimension>
+    <gating:dimension>
+      <data-type:parameter data-type:name="FL2-H" />
+    </gating:dimension>
+    <gating:vertex>
+      <gating:coordinate data-type:value="30"/>
+      <gating:coordinate data-type:value="150"/>
+    </gating:vertex>
+    <gating:vertex>
+      <gating:coordinate data-type:value="150"/>
+      <gating:coordinate data-type:value="30"/>
+    </gating:vertex>
+    <gating:vertex>
+      <gating:coordinate data-type:value="7432"/>
+      <gating:coordinate data-type:value="2278"/>
+    </gating:vertex>
+    <gating:vertex>
+      <gating:coordinate data-type:value="3515"/>
+      <gating:coordinate data-type:value="2808"/>
+    </gating:vertex>
+  </gating:PolygonGate>
+
+  <!-- 9174 expected inside -->
+  <gating:PolygonGate gating:id="CtSPg_03">
+    <gating:dimension>
+      <data-type:parameter data-type:name="FL3-H" />
+    </gating:dimension>
+    <gating:dimension>
+      <data-type:parameter data-type:name="FL4-H" />
+    </gating:dimension>
+    <gating:vertex>
+      <gating:coordinate data-type:value="30"/>
+      <gating:coordinate data-type:value="150"/>
+    </gating:vertex>
+    <gating:vertex>
+      <gating:coordinate data-type:value="150"/>
+      <gating:coordinate data-type:value="30"/>
+    </gating:vertex>
+    <gating:vertex>
+      <gating:coordinate data-type:value="7432"/>
+      <gating:coordinate data-type:value="2278"/>
+    </gating:vertex>
+    <gating:vertex>
+      <gating:coordinate data-type:value="3515"/>
+      <gating:coordinate data-type:value="2808"/>
+    </gating:vertex>
+  </gating:PolygonGate>
+
+  <!-- 5328 expected inside -->
+  <gating:PolygonGate gating:id="CtSPg_04">
+    <gating:dimension>
+      <data-type:parameter data-type:name="FL3-H" />
+    </gating:dimension>
+    <gating:dimension>
+      <data-type:parameter data-type:name="FL1-H" />
+    </gating:dimension>
+    <gating:vertex>
+      <gating:coordinate data-type:value="30"/>
+      <gating:coordinate data-type:value="150"/>
+    </gating:vertex>
+    <gating:vertex>
+      <gating:coordinate data-type:value="150"/>
+      <gating:coordinate data-type:value="30"/>
+    </gating:vertex>
+    <gating:vertex>
+      <gating:coordinate data-type:value="7432"/>
+      <gating:coordinate data-type:value="2278"/>
+    </gating:vertex>
+    <gating:vertex>
+      <gating:coordinate data-type:value="3515"/>
+      <gating:coordinate data-type:value="2808"/>
+    </gating:vertex>
+  </gating:PolygonGate>
+
+  <!-- 9729 expected inside -->
+  <gating:PolygonGate gating:id="CtSPg_05">
+    <gating:dimension>
+      <data-type:parameter data-type:name="FL2-H" />
+    </gating:dimension>
+    <gating:dimension>
+      <data-type:parameter data-type:name="FL4-H" />
+    </gating:dimension>
+    <gating:vertex>
+      <gating:coordinate data-type:value="30"/>
+      <gating:coordinate data-type:value="150"/>
+    </gating:vertex>
+    <gating:vertex>
+      <gating:coordinate data-type:value="150"/>
+      <gating:coordinate data-type:value="30"/>
+    </gating:vertex>
+    <gating:vertex>
+      <gating:coordinate data-type:value="7432"/>
+      <gating:coordinate data-type:value="2278"/>
+    </gating:vertex>
+    <gating:vertex>
+      <gating:coordinate data-type:value="3515"/>
+      <gating:coordinate data-type:value="2808"/>
+    </gating:vertex>
+  </gating:PolygonGate>
+
+  <!-- 10385 expected inside -->
+  <gating:PolygonGate gating:id="CtSPg_06">
+    <gating:dimension>
+      <data-type:parameter data-type:name="FL1-H" />
+    </gating:dimension>
+    <gating:dimension>
+      <data-type:parameter data-type:name="FL3-H" />
+    </gating:dimension>
+    <gating:vertex>
+      <gating:coordinate data-type:value="15.5"/>
+      <gating:coordinate data-type:value="17.2"/>
+    </gating:vertex>
+    <gating:vertex>
+      <gating:coordinate data-type:value="58.7"/>
+      <gating:coordinate data-type:value="28.2"/>
+    </gating:vertex>
+    <gating:vertex>
+      <gating:coordinate data-type:value="253.8"/>
+      <gating:coordinate data-type:value="80.2"/>
+    </gating:vertex>
+    <gating:vertex>
+      <gating:coordinate data-type:value="551"/>
+      <gating:coordinate data-type:value="169"/>
+    </gating:vertex>
+    <gating:vertex>
+      <gating:coordinate data-type:value="332"/>
+      <gating:coordinate data-type:value="807"/>
+    </gating:vertex>
+    <gating:vertex>
+      <gating:coordinate data-type:value="15"/>
+      <gating:coordinate data-type:value="457"/>
+    </gating:vertex>
+  </gating:PolygonGate>
+
+  <!-- 11626 expected inside -->
+  <gating:PolygonGate gating:id="CtSPg_07">
+    <gating:dimension>
+      <data-type:parameter data-type:name="FL3-H" />
+    </gating:dimension>
+    <gating:dimension>
+      <data-type:parameter data-type:name="FL1-H" />
+    </gating:dimension>
+    <gating:vertex>
+      <gating:coordinate data-type:value="15.5"/>
+      <gating:coordinate data-type:value="17.2"/>
+    </gating:vertex>
+    <gating:vertex>
+      <gating:coordinate data-type:value="58.7"/>
+      <gating:coordinate data-type:value="28.2"/>
+    </gating:vertex>
+    <gating:vertex>
+      <gating:coordinate data-type:value="253.8"/>
+      <gating:coordinate data-type:value="80.2"/>
+    </gating:vertex>
+    <gating:vertex>
+      <gating:coordinate data-type:value="551"/>
+      <gating:coordinate data-type:value="169"/>
+    </gating:vertex>
+    <gating:vertex>
+      <gating:coordinate data-type:value="332"/>
+      <gating:coordinate data-type:value="807"/>
+    </gating:vertex>
+    <gating:vertex>
+      <gating:coordinate data-type:value="15"/>
+      <gating:coordinate data-type:value="457"/>
+    </gating:vertex>
+  </gating:PolygonGate>
+
+  <!-- 125 expected inside -->
+  <gating:PolygonGate gating:id="CtSPg_08">
+    <gating:dimension>
+      <data-type:parameter data-type:name="FL2-A" />
+    </gating:dimension>
+    <gating:dimension>
+      <data-type:parameter data-type:name="FL1-H" />
+    </gating:dimension>
+    <gating:vertex>
+      <gating:coordinate data-type:value="15.5"/>
+      <gating:coordinate data-type:value="17.2"/>
+    </gating:vertex>
+    <gating:vertex>
+      <gating:coordinate data-type:value="58.7"/>
+      <gating:coordinate data-type:value="28.2"/>
+    </gating:vertex>
+    <gating:vertex>
+      <gating:coordinate data-type:value="253.8"/>
+      <gating:coordinate data-type:value="80.2"/>
+    </gating:vertex>
+    <gating:vertex>
+      <gating:coordinate data-type:value="551"/>
+      <gating:coordinate data-type:value="169"/>
+    </gating:vertex>
+    <gating:vertex>
+      <gating:coordinate data-type:value="332"/>
+      <gating:coordinate data-type:value="807"/>
+    </gating:vertex>
+    <gating:vertex>
+      <gating:coordinate data-type:value="15"/>
+      <gating:coordinate data-type:value="457"/>
+    </gating:vertex>
+  </gating:PolygonGate>
+
+  <!-- 33 expected inside -->
+  <gating:PolygonGate gating:id="CtSPg_09">
+    <gating:dimension>
+      <data-type:parameter data-type:name="FL2-A" />
+    </gating:dimension>
+    <gating:dimension>
+      <data-type:parameter data-type:name="FL3-H" />
+    </gating:dimension>
+    <gating:vertex>
+      <gating:coordinate data-type:value="15.5"/>
+      <gating:coordinate data-type:value="17.2"/>
+    </gating:vertex>
+    <gating:vertex>
+      <gating:coordinate data-type:value="58.7"/>
+      <gating:coordinate data-type:value="28.2"/>
+    </gating:vertex>
+    <gating:vertex>
+      <gating:coordinate data-type:value="253.8"/>
+      <gating:coordinate data-type:value="80.2"/>
+    </gating:vertex>
+    <gating:vertex>
+      <gating:coordinate data-type:value="551"/>
+      <gating:coordinate data-type:value="169"/>
+    </gating:vertex>
+    <gating:vertex>
+      <gating:coordinate data-type:value="332"/>
+      <gating:coordinate data-type:value="807"/>
+    </gating:vertex>
+    <gating:vertex>
+      <gating:coordinate data-type:value="15"/>
+      <gating:coordinate data-type:value="457"/>
+    </gating:vertex>
+  </gating:PolygonGate>
+
+  <!-- 2 expected inside -->
+  <gating:PolygonGate gating:id="CtSPg_10">
+    <gating:dimension>
+      <data-type:parameter data-type:name="FL4-H"/>
+    </gating:dimension>
+    <gating:dimension>
+      <data-type:parameter data-type:name="FL2-A"/>
+    </gating:dimension>
+    <gating:vertex>
+      <gating:coordinate data-type:value="15.5"/>
+      <gating:coordinate data-type:value="17.2"/>
+    </gating:vertex>
+    <gating:vertex>
+      <gating:coordinate data-type:value="58.7"/>
+      <gating:coordinate data-type:value="28.2"/>
+    </gating:vertex>
+    <gating:vertex>
+      <gating:coordinate data-type:value="253.8"/>
+      <gating:coordinate data-type:value="80.2"/>
+    </gating:vertex>
+    <gating:vertex>
+      <gating:coordinate data-type:value="551"/>
+      <gating:coordinate data-type:value="169"/>
+    </gating:vertex>
+    <gating:vertex>
+      <gating:coordinate data-type:value="332"/>
+      <gating:coordinate data-type:value="807"/>
+    </gating:vertex>
+    <gating:vertex>
+      <gating:coordinate data-type:value="15"/>
+      <gating:coordinate data-type:value="457"/>
+    </gating:vertex>
+  </gating:PolygonGate>
+
+  <!-- 11052 expected inside -->
+  <gating:PolygonGate gating:id="CtSPg_11">
+    <gating:dimension>
+      <data-type:parameter data-type:name="Time" />
+    </gating:dimension>
+    <gating:dimension>
+      <data-type:parameter data-type:name="FL1-H" />
+    </gating:dimension>
+    <gating:vertex>
+      <gating:coordinate data-type:value="15.5"/>
+      <gating:coordinate data-type:value="17.2"/>
+    </gating:vertex>
+    <gating:vertex>
+      <gating:coordinate data-type:value="58.7"/>
+      <gating:coordinate data-type:value="28.2"/>
+    </gating:vertex>
+    <gating:vertex>
+      <gating:coordinate data-type:value="253.8"/>
+      <gating:coordinate data-type:value="80.2"/>
+    </gating:vertex>
+    <gating:vertex>
+      <gating:coordinate data-type:value="551"/>
+      <gating:coordinate data-type:value="169"/>
+    </gating:vertex>
+    <gating:vertex>
+      <gating:coordinate data-type:value="332"/>
+      <gating:coordinate data-type:value="807"/>
+    </gating:vertex>
+    <gating:vertex>
+      <gating:coordinate data-type:value="15"/>
+      <gating:coordinate data-type:value="457"/>
+    </gating:vertex>
+  </gating:PolygonGate>
+
+</gating:Gating-ML>

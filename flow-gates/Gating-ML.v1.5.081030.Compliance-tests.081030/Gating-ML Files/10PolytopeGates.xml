@@ -1,0 +1,1337 @@
+<!--
+  *******************************************************************
+  * Gating-ML Compliance Tests (Informative) *
+  * ******************************************
+  * 
+  * This file is a part of Gating-ML 1.5 Compliance Tests
+  * Josef Spidlen, BCCRC, jspidlen@bccrc.ca, March 20, 2008
+  *
+  * License
+  * The work may be used under the terms of the 
+  * Creative Commons Attribution-ShareAlike 3.0 Unported license. 
+  * You are free to share (copy, distribute and transmit), and adapt 
+  * the work under the conditions specified at 
+  * http://creativecommons.org/licenses/by-sa/3.0/legalcode
+  * 
+  * Acknowledgement
+  * This work has been supported by NIH grant EB005034 from the 
+  * National Institute of Biomedical Imaging And Bioengineering.
+  * The content is solely the responsibility of the authors and 
+  * does not necessarily represent the official views of the 
+  * National Institute of Biomedical Imaging And Bioengineering 
+  * or the National Institutes of Health.
+  *******************************************************************
+-->
+<gating:Gating-ML 
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xmlns:gating="http://www.isac-net.org/std/Gating-ML/v1.5/gating"
+  xmlns:transforms="http://www.isac-net.org/std/Gating-ML/v1.5/transformations"
+  xmlns:data-type="http://www.isac-net.org/std/Gating-ML/v1.5/datatypes"
+  xsi:schemaLocation="
+  http://www.isac-net.org/std/Gating-ML/v1.5/gating ../../XML-schemas/Gating-ML.v1.5.xsd
+  http://www.isac-net.org/std/Gating-ML/v1.5/transformations ../../XML-schemas/Transformations.v1.5.xsd
+  http://www.isac-net.org/std/Gating-ML/v1.5/datatypes ../../XML-schemas/DataTypes.v1.5.xsd">
+  
+  <!-- 
+    Test with a single event in the int-gating_test_file_4D.fcs FCS file 
+    Event: (100, 200, 300, 400) with parameters (FS, SS, FL4, FL6)
+  -->
+
+  <!-- 1D polytopes -->
+  
+  <!-- Inside -->
+  <gating:PolytopeGate gating:id="polytope_01i">
+    <gating:dimension>
+      <data-type:parameter data-type:name="FS" />
+    </gating:dimension>
+    <gating:halfspace>
+      <gating:entry data-type:value=".7" />
+      <gating:entry data-type:value="-80" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value="-0.5" />
+      <gating:entry data-type:value="30" />
+    </gating:halfspace>
+  </gating:PolytopeGate>
+  
+  
+  <!-- Inside (on the boarder) -->
+  <gating:PolytopeGate gating:id="polytope_02i">
+    <gating:dimension>
+      <data-type:parameter data-type:name="SS" />
+    </gating:dimension>
+    <gating:halfspace>
+      <gating:entry data-type:value=".4" />
+      <gating:entry data-type:value="-80" />
+    </gating:halfspace>
+  </gating:PolytopeGate>
+  
+  
+  <!-- Outside -->
+  <gating:PolytopeGate gating:id="polytope_03o">
+    <gating:dimension>
+      <data-type:parameter data-type:name="SS" />
+    </gating:dimension>
+    <gating:halfspace>
+      <gating:entry data-type:value="1.7" />
+      <gating:entry data-type:value="-320" />
+    </gating:halfspace>
+  </gating:PolytopeGate>
+  
+  
+  <!-- 2D polytopes -->
+  
+  <!-- Inside -->
+  <gating:PolytopeGate gating:id="polytope_04i">
+    <gating:dimension>
+      <data-type:parameter data-type:name="FL4" />
+    </gating:dimension>
+    <gating:dimension>
+      <data-type:parameter data-type:name="FL6" />
+    </gating:dimension>
+    <gating:halfspace>
+      <gating:entry data-type:value=".3" />
+      <gating:entry data-type:value=".2" />
+      <gating:entry data-type:value="-250" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value="-1" />
+      <gating:entry data-type:value=".7" />
+      <gating:entry data-type:value="10" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value="-.02" />
+      <gating:entry data-type:value="-.4" />
+      <gating:entry data-type:value="150" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value="-.6" />
+      <gating:entry data-type:value="-.3" />
+      <gating:entry data-type:value="298" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value=".5" />
+      <gating:entry data-type:value="-0.5" />
+      <gating:entry data-type:value="20" />
+    </gating:halfspace>
+  </gating:PolytopeGate>
+    
+    
+  <!-- Inside (boarder) -->
+  <gating:PolytopeGate gating:id="polytope_05i">
+    <gating:dimension>
+      <data-type:parameter data-type:name="FL4" />
+    </gating:dimension>
+    <gating:dimension>
+      <data-type:parameter data-type:name="FL6" />
+    </gating:dimension>
+    <gating:halfspace>
+      <gating:entry data-type:value=".3" />
+      <gating:entry data-type:value=".2" />
+      <gating:entry data-type:value="-250" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value="-1" />
+      <gating:entry data-type:value=".7" />
+      <gating:entry data-type:value="10" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value="-.02" />
+      <gating:entry data-type:value="-.4" />
+      <gating:entry data-type:value="150" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value="-.6" />
+      <gating:entry data-type:value="-.3" />
+      <gating:entry data-type:value="300" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value=".5" />
+      <gating:entry data-type:value="-0.5" />
+      <gating:entry data-type:value="20" />
+    </gating:halfspace>
+  </gating:PolytopeGate>
+  
+  
+  <!-- Outside -->
+  <gating:PolytopeGate gating:id="polytope_06o">
+    <gating:dimension>
+      <data-type:parameter data-type:name="FL4" />
+    </gating:dimension>
+    <gating:dimension>
+      <data-type:parameter data-type:name="FL6" />
+    </gating:dimension>
+    <gating:halfspace>
+      <gating:entry data-type:value=".3" />
+      <gating:entry data-type:value=".2" />
+      <gating:entry data-type:value="-250" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value="-1" />
+      <gating:entry data-type:value=".7" />
+      <gating:entry data-type:value="30" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value="-.02" />
+      <gating:entry data-type:value="-.4" />
+      <gating:entry data-type:value="150" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value="-.6" />
+      <gating:entry data-type:value="-.3" />
+      <gating:entry data-type:value="300" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value=".5" />
+      <gating:entry data-type:value="-0.5" />
+      <gating:entry data-type:value="20" />
+    </gating:halfspace>
+  </gating:PolytopeGate>
+  
+  
+  <!-- Outside -->
+  <gating:PolytopeGate gating:id="polytope_07o">
+    <gating:dimension>
+      <data-type:parameter data-type:name="FL4" />
+    </gating:dimension>
+    <gating:dimension>
+      <data-type:parameter data-type:name="FL6" />
+    </gating:dimension>
+    <gating:halfspace>
+      <gating:entry data-type:value=".3" />
+      <gating:entry data-type:value=".5" />
+      <gating:entry data-type:value="-250" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value="-1" />
+      <gating:entry data-type:value=".7" />
+      <gating:entry data-type:value="10" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value="-.02" />
+      <gating:entry data-type:value="-.4" />
+      <gating:entry data-type:value="150" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value="-.6" />
+      <gating:entry data-type:value="-.3" />
+      <gating:entry data-type:value="300" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value=".5" />
+      <gating:entry data-type:value="-0.5" />
+      <gating:entry data-type:value="20" />
+    </gating:halfspace>
+  </gating:PolytopeGate>
+
+
+  <!-- Inside -->
+  <gating:PolytopeGate gating:id="polytope_08i">
+    <gating:dimension>
+      <data-type:parameter data-type:name="SS" />
+    </gating:dimension>
+    <gating:dimension>
+      <data-type:parameter data-type:name="FL6" />
+    </gating:dimension>
+    <gating:halfspace>
+      <gating:entry data-type:value=".3" />
+      <gating:entry data-type:value=".4" />
+      <gating:entry data-type:value="-250" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value="-2" />
+      <gating:entry data-type:value=".7" />
+      <gating:entry data-type:value="10" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value="-.02" />
+      <gating:entry data-type:value="-.4" />
+      <gating:entry data-type:value="150" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value="-1" />
+      <gating:entry data-type:value="-.3" />
+      <gating:entry data-type:value="300" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value=".5" />
+      <gating:entry data-type:value="-0.5" />
+      <gating:entry data-type:value="20" />
+    </gating:halfspace>
+  </gating:PolytopeGate>
+  
+
+  <!-- Outside -->
+  <gating:PolytopeGate gating:id="polytope_09o">
+    <gating:dimension>
+      <data-type:parameter data-type:name="SS" />
+    </gating:dimension>
+    <gating:dimension>
+      <data-type:parameter data-type:name="FL6" />
+    </gating:dimension>
+    <gating:halfspace>
+      <gating:entry data-type:value=".3" />
+      <gating:entry data-type:value=".4" />
+      <gating:entry data-type:value="-250" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value="-2" />
+      <gating:entry data-type:value=".7" />
+      <gating:entry data-type:value="10" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value="-.02" />
+      <gating:entry data-type:value="-.4" />
+      <gating:entry data-type:value="150" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value="-1" />
+      <gating:entry data-type:value="-.3" />
+      <gating:entry data-type:value="300" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value="1" />
+      <gating:entry data-type:value="-0.5" />
+      <gating:entry data-type:value="20" />
+    </gating:halfspace>
+  </gating:PolytopeGate>
+  
+  
+  <!-- 3D polytopes -->
+  
+  <!-- Inside -->
+  <gating:PolytopeGate gating:id="polytope_10i">
+    <gating:dimension>
+      <data-type:parameter data-type:name="SS" />
+    </gating:dimension>
+    <gating:dimension>
+      <data-type:parameter data-type:name="FL4" />
+    </gating:dimension>
+    <gating:dimension>
+      <data-type:parameter data-type:name="FL6" />
+    </gating:dimension>
+    <gating:halfspace>
+      <gating:entry data-type:value="1" />
+      <gating:entry data-type:value="0" />
+      <gating:entry data-type:value=".1" />
+      <gating:entry data-type:value="-250" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value="0" />
+      <gating:entry data-type:value="1.2" />
+      <gating:entry data-type:value="-1" />
+      <gating:entry data-type:value="10" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value="0" />
+      <gating:entry data-type:value="1" />
+      <gating:entry data-type:value="0" />
+      <gating:entry data-type:value="-400" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value="-2" />
+      <gating:entry data-type:value="-1" />
+      <gating:entry data-type:value="2" />
+      <gating:entry data-type:value="-200" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value="2" />
+      <gating:entry data-type:value="-4" />
+      <gating:entry data-type:value="1" />
+      <gating:entry data-type:value="200" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value="-1" />
+      <gating:entry data-type:value="-1.3" />
+      <gating:entry data-type:value="1.5" />
+      <gating:entry data-type:value="-20" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value="1.3" />
+      <gating:entry data-type:value="1.4" />
+      <gating:entry data-type:value="-2" />
+      <gating:entry data-type:value="100" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value="-5" />
+      <gating:entry data-type:value="3" />
+      <gating:entry data-type:value="0" />
+      <gating:entry data-type:value="80" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value="1" />
+      <gating:entry data-type:value="1" />
+      <gating:entry data-type:value="2" />
+      <gating:entry data-type:value="-1350" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value="2" />
+      <gating:entry data-type:value="1" />
+      <gating:entry data-type:value="2" />
+      <gating:entry data-type:value="-1550" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value="1" />
+      <gating:entry data-type:value="2" />
+      <gating:entry data-type:value="-1" />
+      <gating:entry data-type:value="-420" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value="-.2" />
+      <gating:entry data-type:value="-.3" />
+      <gating:entry data-type:value="-.05" />
+      <gating:entry data-type:value="130" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value="-1" />
+      <gating:entry data-type:value="0.8" />
+      <gating:entry data-type:value="-.1" />
+      <gating:entry data-type:value="-1" />
+    </gating:halfspace>
+  </gating:PolytopeGate>
+  
+  
+  <!-- Inside -->
+  <gating:PolytopeGate gating:id="polytope_11i">
+    <gating:dimension>
+      <data-type:parameter data-type:name="SS" />
+    </gating:dimension>
+    <gating:dimension>
+      <data-type:parameter data-type:name="FL4" />
+    </gating:dimension>
+    <gating:dimension>
+      <data-type:parameter data-type:name="FL6" />
+    </gating:dimension>
+    <gating:halfspace>
+      <gating:entry data-type:value="1" />
+      <gating:entry data-type:value="0" />
+      <gating:entry data-type:value=".1" />
+      <gating:entry data-type:value="-250" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value="0" />
+      <gating:entry data-type:value="1.2" />
+      <gating:entry data-type:value="-1" />
+      <gating:entry data-type:value="10" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value="0" />
+      <gating:entry data-type:value="1" />
+      <gating:entry data-type:value="0" />
+      <gating:entry data-type:value="-400" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value="-2" />
+      <gating:entry data-type:value="-1" />
+      <gating:entry data-type:value="2" />
+      <gating:entry data-type:value="-200" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value="2" />
+      <gating:entry data-type:value="-4" />
+      <gating:entry data-type:value="1" />
+      <gating:entry data-type:value="200" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value="-1" />
+      <gating:entry data-type:value="-1.3" />
+      <gating:entry data-type:value="1.5" />
+      <gating:entry data-type:value="-20" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value="1.3" />
+      <gating:entry data-type:value="1.4" />
+      <gating:entry data-type:value="-2" />
+      <gating:entry data-type:value="100" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value="-5" />
+      <gating:entry data-type:value="3" />
+      <gating:entry data-type:value="0" />
+      <gating:entry data-type:value="80" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value="1" />
+      <gating:entry data-type:value="1" />
+      <gating:entry data-type:value="2" />
+      <gating:entry data-type:value="-1350" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value="2" />
+      <gating:entry data-type:value="1" />
+      <gating:entry data-type:value="2" />
+      <gating:entry data-type:value="-1550" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value="1" />
+      <gating:entry data-type:value="2" />
+      <gating:entry data-type:value="-1" />
+      <gating:entry data-type:value="-420" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value="-.2" />
+      <gating:entry data-type:value="-.3" />
+      <gating:entry data-type:value="-.05" />
+      <gating:entry data-type:value="130" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value="-1" />
+      <gating:entry data-type:value="0.8" />
+      <gating:entry data-type:value="-.1" />
+      <gating:entry data-type:value="0" />
+    </gating:halfspace>
+  </gating:PolytopeGate>
+  
+  <!-- Outside -->
+  <gating:PolytopeGate gating:id="polytope_12o">
+    <gating:dimension>
+      <data-type:parameter data-type:name="SS" />
+    </gating:dimension>
+    <gating:dimension>
+      <data-type:parameter data-type:name="FL4" />
+    </gating:dimension>
+    <gating:dimension>
+      <data-type:parameter data-type:name="FL6" />
+    </gating:dimension>
+    <gating:halfspace>
+      <gating:entry data-type:value="1" />
+      <gating:entry data-type:value="0" />
+      <gating:entry data-type:value=".1" />
+      <gating:entry data-type:value="-250" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value="0" />
+      <gating:entry data-type:value="1.2" />
+      <gating:entry data-type:value="-1" />
+      <gating:entry data-type:value="10" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value="0" />
+      <gating:entry data-type:value="1" />
+      <gating:entry data-type:value="0" />
+      <gating:entry data-type:value="-400" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value="-2" />
+      <gating:entry data-type:value="-1" />
+      <gating:entry data-type:value="2" />
+      <gating:entry data-type:value="-200" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value="2" />
+      <gating:entry data-type:value="-4" />
+      <gating:entry data-type:value="1" />
+      <gating:entry data-type:value="200" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value="-1" />
+      <gating:entry data-type:value="-1.3" />
+      <gating:entry data-type:value="1.5" />
+      <gating:entry data-type:value="-20" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value="1.3" />
+      <gating:entry data-type:value="1.4" />
+      <gating:entry data-type:value="-2" />
+      <gating:entry data-type:value="100" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value="-5" />
+      <gating:entry data-type:value="3" />
+      <gating:entry data-type:value="0" />
+      <gating:entry data-type:value="80" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value="1" />
+      <gating:entry data-type:value="1" />
+      <gating:entry data-type:value="2" />
+      <gating:entry data-type:value="-1350" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value="2" />
+      <gating:entry data-type:value="1" />
+      <gating:entry data-type:value="2" />
+      <gating:entry data-type:value="-1550" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value="1" />
+      <gating:entry data-type:value="2" />
+      <gating:entry data-type:value="-1" />
+      <gating:entry data-type:value="-420" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value="-.2" />
+      <gating:entry data-type:value="-.3" />
+      <gating:entry data-type:value="-.05" />
+      <gating:entry data-type:value="130" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value="-1" />
+      <gating:entry data-type:value="0.8" />
+      <gating:entry data-type:value="-.1" />
+      <gating:entry data-type:value="1" />
+    </gating:halfspace>
+  </gating:PolytopeGate>
+
+
+  <!-- Inside (weird, all half-spaces crossing in the event) -->
+  <gating:PolytopeGate gating:id="polytope_13i">
+    <gating:dimension>
+      <data-type:parameter data-type:name="SS" />
+    </gating:dimension>
+    <gating:dimension>
+      <data-type:parameter data-type:name="FL4" />
+    </gating:dimension>
+    <gating:dimension>
+      <data-type:parameter data-type:name="FL6" />
+    </gating:dimension>
+    <gating:halfspace>
+      <gating:entry data-type:value="1" />
+      <gating:entry data-type:value="0" />
+      <gating:entry data-type:value=".1" />
+      <gating:entry data-type:value="-240" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value="0" />
+      <gating:entry data-type:value="1.2" />
+      <gating:entry data-type:value="-1" />
+      <gating:entry data-type:value="40" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value="0" />
+      <gating:entry data-type:value="1" />
+      <gating:entry data-type:value="0" />
+      <gating:entry data-type:value="-300" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value="-2" />
+      <gating:entry data-type:value="-1" />
+      <gating:entry data-type:value="2" />
+      <gating:entry data-type:value="-100" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value="2" />
+      <gating:entry data-type:value="-4" />
+      <gating:entry data-type:value="1" />
+      <gating:entry data-type:value="400" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value="-1" />
+      <gating:entry data-type:value="-1.3" />
+      <gating:entry data-type:value="1.5" />
+      <gating:entry data-type:value="-10" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value="1.3" />
+      <gating:entry data-type:value="1.4" />
+      <gating:entry data-type:value="-2" />
+      <gating:entry data-type:value="120" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value="-5" />
+      <gating:entry data-type:value="3" />
+      <gating:entry data-type:value="0" />
+      <gating:entry data-type:value="100" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value="1" />
+      <gating:entry data-type:value="1" />
+      <gating:entry data-type:value="2" />
+      <gating:entry data-type:value="-1300" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value="2" />
+      <gating:entry data-type:value="1" />
+      <gating:entry data-type:value="2" />
+      <gating:entry data-type:value="-1500" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value="1" />
+      <gating:entry data-type:value="2" />
+      <gating:entry data-type:value="-1" />
+      <gating:entry data-type:value="-400" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value="-.2" />
+      <gating:entry data-type:value="-.3" />
+      <gating:entry data-type:value="-.05" />
+      <gating:entry data-type:value="150" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value="-1" />
+      <gating:entry data-type:value="0.8" />
+      <gating:entry data-type:value="-.1" />
+      <gating:entry data-type:value="0" />
+    </gating:halfspace>
+  </gating:PolytopeGate>
+  
+  
+  <!-- Outside -->
+  <gating:PolytopeGate gating:id="polytope_14o">
+    <gating:dimension>
+      <data-type:parameter data-type:name="SS" />
+    </gating:dimension>
+    <gating:dimension>
+      <data-type:parameter data-type:name="FL4" />
+    </gating:dimension>
+    <gating:dimension>
+      <data-type:parameter data-type:name="FL6" />
+    </gating:dimension>
+    <gating:halfspace>
+      <gating:entry data-type:value="1" />
+      <gating:entry data-type:value="0" />
+      <gating:entry data-type:value=".1" />
+      <gating:entry data-type:value="-240" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value="0" />
+      <gating:entry data-type:value="1.2" />
+      <gating:entry data-type:value="-1" />
+      <gating:entry data-type:value="40" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value="0" />
+      <gating:entry data-type:value="1" />
+      <gating:entry data-type:value="0" />
+      <gating:entry data-type:value="-300" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value="-2" />
+      <gating:entry data-type:value="-1" />
+      <gating:entry data-type:value="2" />
+      <gating:entry data-type:value="-100" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value="2" />
+      <gating:entry data-type:value="-4" />
+      <gating:entry data-type:value="1" />
+      <gating:entry data-type:value="400" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value="-1" />
+      <gating:entry data-type:value="-1.3" />
+      <gating:entry data-type:value="1.5" />
+      <gating:entry data-type:value="-10" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value="1.3" />
+      <gating:entry data-type:value="1.4" />
+      <gating:entry data-type:value="-2" />
+      <gating:entry data-type:value="120" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value="-5" />
+      <gating:entry data-type:value="3" />
+      <gating:entry data-type:value="0" />
+      <gating:entry data-type:value="100" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value="1" />
+      <gating:entry data-type:value="1" />
+      <gating:entry data-type:value="2" />
+      <gating:entry data-type:value="-1300" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value="2" />
+      <gating:entry data-type:value="1" />
+      <gating:entry data-type:value="2" />
+      <gating:entry data-type:value="-1500" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value="1" />
+      <gating:entry data-type:value="2" />
+      <gating:entry data-type:value="-1" />
+      <gating:entry data-type:value="-400" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value="-.2" />
+      <gating:entry data-type:value="-.3" />
+      <gating:entry data-type:value="-.05" />
+      <gating:entry data-type:value="150" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value="-1" />
+      <gating:entry data-type:value="0.8" />
+      <gating:entry data-type:value="-.1" />
+      <gating:entry data-type:value="0" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value="5" />
+      <gating:entry data-type:value="4" />
+      <gating:entry data-type:value="3" />
+      <gating:entry data-type:value="-3300" />
+    </gating:halfspace>
+  </gating:PolytopeGate>
+  
+  
+  <!-- Inside -->
+  <gating:PolytopeGate gating:id="polytope_15i">
+    <gating:dimension>
+      <data-type:parameter data-type:name="SS" />
+    </gating:dimension>
+    <gating:dimension>
+      <data-type:parameter data-type:name="FL4" />
+    </gating:dimension>
+    <gating:dimension>
+      <data-type:parameter data-type:name="FL6" />
+    </gating:dimension>
+    <gating:halfspace>
+      <gating:entry data-type:value=".9" />
+      <gating:entry data-type:value="0" />
+      <gating:entry data-type:value=".1" />
+      <gating:entry data-type:value="-240" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value="0" />
+      <gating:entry data-type:value="1.1" />
+      <gating:entry data-type:value="-1" />
+      <gating:entry data-type:value="40" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value="0" />
+      <gating:entry data-type:value="1" />
+      <gating:entry data-type:value="-0.1" />
+      <gating:entry data-type:value="-300" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value="-2.1" />
+      <gating:entry data-type:value="-1" />
+      <gating:entry data-type:value="2" />
+      <gating:entry data-type:value="-100" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value="1.9" />
+      <gating:entry data-type:value="-4" />
+      <gating:entry data-type:value="1" />
+      <gating:entry data-type:value="400" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value="-1" />
+      <gating:entry data-type:value="-1.5" />
+      <gating:entry data-type:value="1.5" />
+      <gating:entry data-type:value="-10" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value="1.3" />
+      <gating:entry data-type:value="1.4" />
+      <gating:entry data-type:value="-2.05" />
+      <gating:entry data-type:value="120" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value="-5" />
+      <gating:entry data-type:value="3" />
+      <gating:entry data-type:value="-0.05" />
+      <gating:entry data-type:value="100" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value="1.1" />
+      <gating:entry data-type:value="0.9" />
+      <gating:entry data-type:value="2" />
+      <gating:entry data-type:value="-1300" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value="1.8" />
+      <gating:entry data-type:value="1" />
+      <gating:entry data-type:value="2" />
+      <gating:entry data-type:value="-1500" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value="1" />
+      <gating:entry data-type:value="2" />
+      <gating:entry data-type:value="-1" />
+      <gating:entry data-type:value="-420" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value="-.2" />
+      <gating:entry data-type:value="-.3" />
+      <gating:entry data-type:value="-.12" />
+      <gating:entry data-type:value="150" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value="-1" />
+      <gating:entry data-type:value="0.8" />
+      <gating:entry data-type:value="-.1" />
+      <gating:entry data-type:value="-15" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value="5" />
+      <gating:entry data-type:value="3.6" />
+      <gating:entry data-type:value="3" />
+      <gating:entry data-type:value="-3300" />
+    </gating:halfspace>
+  </gating:PolytopeGate>
+  
+  
+  <!-- Outside -->
+  <gating:PolytopeGate gating:id="polytope_16o">
+    <gating:dimension>
+      <data-type:parameter data-type:name="FS" />
+    </gating:dimension>
+    <gating:dimension>
+      <data-type:parameter data-type:name="FL4" />
+    </gating:dimension>
+    <gating:dimension>
+      <data-type:parameter data-type:name="FL6" />
+    </gating:dimension>
+    <gating:halfspace>
+      <gating:entry data-type:value=".9" />
+      <gating:entry data-type:value="0" />
+      <gating:entry data-type:value=".1" />
+      <gating:entry data-type:value="-240" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value="0" />
+      <gating:entry data-type:value="1.1" />
+      <gating:entry data-type:value="-1" />
+      <gating:entry data-type:value="40" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value="0" />
+      <gating:entry data-type:value="1" />
+      <gating:entry data-type:value="-0.1" />
+      <gating:entry data-type:value="-300" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value="-2.1" />
+      <gating:entry data-type:value="-1" />
+      <gating:entry data-type:value="2" />
+      <gating:entry data-type:value="-100" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value="1.9" />
+      <gating:entry data-type:value="-4" />
+      <gating:entry data-type:value="1" />
+      <gating:entry data-type:value="400" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value="-1" />
+      <gating:entry data-type:value="-1.5" />
+      <gating:entry data-type:value="1.5" />
+      <gating:entry data-type:value="-10" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value="1.3" />
+      <gating:entry data-type:value="1.4" />
+      <gating:entry data-type:value="-2.05" />
+      <gating:entry data-type:value="120" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value="-5" />
+      <gating:entry data-type:value="3" />
+      <gating:entry data-type:value="-0.05" />
+      <gating:entry data-type:value="100" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value="1.1" />
+      <gating:entry data-type:value="0.9" />
+      <gating:entry data-type:value="2" />
+      <gating:entry data-type:value="-1300" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value="1.8" />
+      <gating:entry data-type:value="1" />
+      <gating:entry data-type:value="2" />
+      <gating:entry data-type:value="-1500" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value="1" />
+      <gating:entry data-type:value="2" />
+      <gating:entry data-type:value="-1" />
+      <gating:entry data-type:value="-420" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value="-.2" />
+      <gating:entry data-type:value="-.3" />
+      <gating:entry data-type:value="-.12" />
+      <gating:entry data-type:value="150" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value="-1" />
+      <gating:entry data-type:value="0.8" />
+      <gating:entry data-type:value="-.1" />
+      <gating:entry data-type:value="-15" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value="5" />
+      <gating:entry data-type:value="3.6" />
+      <gating:entry data-type:value="3" />
+      <gating:entry data-type:value="-3300" />
+    </gating:halfspace>
+  </gating:PolytopeGate>
+  
+  <!-- Outside -->
+  <gating:PolytopeGate gating:id="polytope_17o">
+    <gating:dimension>
+      <data-type:parameter data-type:name="FS" />
+    </gating:dimension>
+    <gating:dimension>
+      <data-type:parameter data-type:name="FL4" />
+    </gating:dimension>
+    <gating:dimension>
+      <data-type:parameter data-type:name="FL6" />
+    </gating:dimension>
+    <gating:halfspace>
+      <gating:entry data-type:value=".9" />
+      <gating:entry data-type:value="0" />
+      <gating:entry data-type:value=".1" />
+      <gating:entry data-type:value="-240" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value="0" />
+      <gating:entry data-type:value="1.1" />
+      <gating:entry data-type:value="-1" />
+      <gating:entry data-type:value="40" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value="0" />
+      <gating:entry data-type:value="1" />
+      <gating:entry data-type:value="-0.1" />
+      <gating:entry data-type:value="-300" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value="-2.1" />
+      <gating:entry data-type:value="-1" />
+      <gating:entry data-type:value="2" />
+      <gating:entry data-type:value="-100" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value="1.9" />
+      <gating:entry data-type:value="-4" />
+      <gating:entry data-type:value="1" />
+      <gating:entry data-type:value="400" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value="-1" />
+      <gating:entry data-type:value="-1.5" />
+      <gating:entry data-type:value="1.5" />
+      <gating:entry data-type:value="-10" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value="1.3" />
+      <gating:entry data-type:value="1.4" />
+      <gating:entry data-type:value="-2.05" />
+      <gating:entry data-type:value="120" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value="-5" />
+      <gating:entry data-type:value="3" />
+      <gating:entry data-type:value="-0.05" />
+      <gating:entry data-type:value="100" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value="1.1" />
+      <gating:entry data-type:value="0.9" />
+      <gating:entry data-type:value="2.1" />
+      <gating:entry data-type:value="-1300" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value="1.8" />
+      <gating:entry data-type:value="1" />
+      <gating:entry data-type:value="2" />
+      <gating:entry data-type:value="-1500" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value="1" />
+      <gating:entry data-type:value="2" />
+      <gating:entry data-type:value="-1" />
+      <gating:entry data-type:value="-420" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value="-.2" />
+      <gating:entry data-type:value="-.3" />
+      <gating:entry data-type:value="-.12" />
+      <gating:entry data-type:value="150" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value="-1" />
+      <gating:entry data-type:value="0.8" />
+      <gating:entry data-type:value="-.1" />
+      <gating:entry data-type:value="-15" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value="5" />
+      <gating:entry data-type:value="3.6" />
+      <gating:entry data-type:value="3" />
+      <gating:entry data-type:value="-3300" />
+    </gating:halfspace>
+  </gating:PolytopeGate>
+  
+
+  <!-- 4D polytopes -->
+  
+  <!-- Inside -->
+  <gating:PolytopeGate gating:id="polytope_18i">
+    <gating:dimension>
+      <data-type:parameter data-type:name="FS" />
+    </gating:dimension>
+    <gating:dimension>
+      <data-type:parameter data-type:name="SS" />
+    </gating:dimension>
+    <gating:dimension>
+      <data-type:parameter data-type:name="FL4" />
+    </gating:dimension>
+    <gating:dimension>
+      <data-type:parameter data-type:name="FL6" />
+    </gating:dimension>
+    <gating:halfspace>
+      <gating:entry data-type:value=".1" />
+      <gating:entry data-type:value=".9" />
+      <gating:entry data-type:value="0" />
+      <gating:entry data-type:value=".1" />
+      <gating:entry data-type:value="-240" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value="0.2" />
+      <gating:entry data-type:value="0" />
+      <gating:entry data-type:value="1.1" />
+      <gating:entry data-type:value="-1" />
+      <gating:entry data-type:value="40" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value="0" />
+      <gating:entry data-type:value="0" />
+      <gating:entry data-type:value="1" />
+      <gating:entry data-type:value="-0.1" />
+      <gating:entry data-type:value="-300" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value="-0.5" />
+      <gating:entry data-type:value="-2.1" />
+      <gating:entry data-type:value="-1" />
+      <gating:entry data-type:value="2" />
+      <gating:entry data-type:value="-100" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value="0" />
+      <gating:entry data-type:value="1.9" />
+      <gating:entry data-type:value="-4" />
+      <gating:entry data-type:value="1" />
+      <gating:entry data-type:value="400" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value="0.3" />
+      <gating:entry data-type:value="-1" />
+      <gating:entry data-type:value="-1.5" />
+      <gating:entry data-type:value="1.5" />
+      <gating:entry data-type:value="-10" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value="-.8" />
+      <gating:entry data-type:value="1.3" />
+      <gating:entry data-type:value="1.4" />
+      <gating:entry data-type:value="-2.05" />
+      <gating:entry data-type:value="120" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value="-2" />
+      <gating:entry data-type:value="-5" />
+      <gating:entry data-type:value="3" />
+      <gating:entry data-type:value="-0.05" />
+      <gating:entry data-type:value="100" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value="4" />
+      <gating:entry data-type:value="1.1" />
+      <gating:entry data-type:value="0.9" />
+      <gating:entry data-type:value="1.0" />
+      <gating:entry data-type:value="-1300" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value=".2" />
+      <gating:entry data-type:value="1.8" />
+      <gating:entry data-type:value="1" />
+      <gating:entry data-type:value="2" />
+      <gating:entry data-type:value="-1500" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value="-3" />
+      <gating:entry data-type:value="1" />
+      <gating:entry data-type:value="2" />
+      <gating:entry data-type:value="-1" />
+      <gating:entry data-type:value="-140" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value="0" />
+      <gating:entry data-type:value="-.2" />
+      <gating:entry data-type:value="-.3" />
+      <gating:entry data-type:value="-.12" />
+      <gating:entry data-type:value="150" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value="2" />
+      <gating:entry data-type:value="-1" />
+      <gating:entry data-type:value="0.79" />
+      <gating:entry data-type:value="-.1" />
+      <gating:entry data-type:value="-200" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value="-2" />
+      <gating:entry data-type:value="4" />
+      <gating:entry data-type:value="1.6" />
+      <gating:entry data-type:value="-1" />
+      <gating:entry data-type:value="-950" />
+    </gating:halfspace>
+  </gating:PolytopeGate>
+  
+  <!-- Inside -->
+  <gating:PolytopeGate gating:id="polytope_19i">
+    <gating:dimension>
+      <data-type:parameter data-type:name="FS" />
+    </gating:dimension>
+    <gating:dimension>
+      <data-type:parameter data-type:name="SS" />
+    </gating:dimension>
+    <gating:dimension>
+      <data-type:parameter data-type:name="FL4" />
+    </gating:dimension>
+    <gating:dimension>
+      <data-type:parameter data-type:name="FL6" />
+    </gating:dimension>
+    <gating:halfspace>
+      <gating:entry data-type:value=".1" />
+      <gating:entry data-type:value=".9" />
+      <gating:entry data-type:value="0" />
+      <gating:entry data-type:value=".1" />
+      <gating:entry data-type:value="-240" />
+    </gating:halfspace>
+  </gating:PolytopeGate>
+  
+  <!-- Outside -->
+  <gating:PolytopeGate gating:id="polytope_20o">
+    <gating:dimension>
+      <data-type:parameter data-type:name="FS" />
+    </gating:dimension>
+    <gating:dimension>
+      <data-type:parameter data-type:name="SS" />
+    </gating:dimension>
+    <gating:dimension>
+      <data-type:parameter data-type:name="FL4" />
+    </gating:dimension>
+    <gating:dimension>
+      <data-type:parameter data-type:name="FL6" />
+    </gating:dimension>
+    <gating:halfspace>
+      <gating:entry data-type:value="2.1" />
+      <gating:entry data-type:value="-1" />
+      <gating:entry data-type:value="0.8" />
+      <gating:entry data-type:value="-.1" />
+      <gating:entry data-type:value="-200" />
+    </gating:halfspace>
+  </gating:PolytopeGate>
+  
+  
+  <!-- Outside -->
+  <gating:PolytopeGate gating:id="polytope_21o">
+    <gating:dimension>
+      <data-type:parameter data-type:name="FS" />
+    </gating:dimension>
+    <gating:dimension>
+      <data-type:parameter data-type:name="SS" />
+    </gating:dimension>
+    <gating:dimension>
+      <data-type:parameter data-type:name="FL4" />
+    </gating:dimension>
+    <gating:dimension>
+      <data-type:parameter data-type:name="FL6" />
+    </gating:dimension>
+    <gating:halfspace>
+      <gating:entry data-type:value=".1" />
+      <gating:entry data-type:value=".9" />
+      <gating:entry data-type:value="0" />
+      <gating:entry data-type:value=".1" />
+      <gating:entry data-type:value="-240" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value="0.2" />
+      <gating:entry data-type:value="0" />
+      <gating:entry data-type:value="1.1" />
+      <gating:entry data-type:value="-1" />
+      <gating:entry data-type:value="40" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value="0" />
+      <gating:entry data-type:value="0" />
+      <gating:entry data-type:value="1" />
+      <gating:entry data-type:value="-0.1" />
+      <gating:entry data-type:value="-300" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value="-0.5" />
+      <gating:entry data-type:value="-2.1" />
+      <gating:entry data-type:value="-1" />
+      <gating:entry data-type:value="2" />
+      <gating:entry data-type:value="-100" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value="0" />
+      <gating:entry data-type:value="1.9" />
+      <gating:entry data-type:value="-4" />
+      <gating:entry data-type:value="1.2" />
+      <gating:entry data-type:value="400" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value="0.3" />
+      <gating:entry data-type:value="-1" />
+      <gating:entry data-type:value="-1.5" />
+      <gating:entry data-type:value="1.5" />
+      <gating:entry data-type:value="-10" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value="-.8" />
+      <gating:entry data-type:value="1.3" />
+      <gating:entry data-type:value="1.4" />
+      <gating:entry data-type:value="-2.05" />
+      <gating:entry data-type:value="120" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value="-2" />
+      <gating:entry data-type:value="-5" />
+      <gating:entry data-type:value="3" />
+      <gating:entry data-type:value="-0.05" />
+      <gating:entry data-type:value="100" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value="4" />
+      <gating:entry data-type:value="1.1" />
+      <gating:entry data-type:value="0.9" />
+      <gating:entry data-type:value="1.0" />
+      <gating:entry data-type:value="-1300" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value=".2" />
+      <gating:entry data-type:value="1.8" />
+      <gating:entry data-type:value="1" />
+      <gating:entry data-type:value="2" />
+      <gating:entry data-type:value="-1500" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value="3" />
+      <gating:entry data-type:value="1" />
+      <gating:entry data-type:value="2" />
+      <gating:entry data-type:value="-1" />
+      <gating:entry data-type:value="-140" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value="0" />
+      <gating:entry data-type:value="-.2" />
+      <gating:entry data-type:value="-.3" />
+      <gating:entry data-type:value="-.12" />
+      <gating:entry data-type:value="150" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value="1.9" />
+      <gating:entry data-type:value="-1" />
+      <gating:entry data-type:value="0.8" />
+      <gating:entry data-type:value="-.1" />
+      <gating:entry data-type:value="-200" />
+    </gating:halfspace>
+    <gating:halfspace>
+      <gating:entry data-type:value="2" />
+      <gating:entry data-type:value="4" />
+      <gating:entry data-type:value="1.6" />
+      <gating:entry data-type:value="-1" />
+      <gating:entry data-type:value="-950" />
+    </gating:halfspace>
+  </gating:PolytopeGate>
+
+</gating:Gating-ML>

@@ -1,0 +1,2 @@
+XorBothOut
+0

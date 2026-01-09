@@ -1,0 +1,168 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  *******************************************************************
+  * Gating-ML Compliance Tests (Informative) *
+  * ******************************************
+  * 
+  * This file is a part of Gating-ML 1.5 Compliance Tests
+  * Josef Spidlen, BCCRC, jspidlen@bccrc.ca, March 12, 2008
+  *
+  * License
+  * The work may be used under the terms of the 
+  * Creative Commons Attribution-ShareAlike 3.0 Unported license. 
+  * You are free to share (copy, distribute and transmit), and adapt 
+  * the work under the conditions specified at 
+  * http://creativecommons.org/licenses/by-sa/3.0/legalcode
+  * 
+  * Acknowledgement
+  * This work has been supported by NIH grant EB005034 from the 
+  * National Institute of Biomedical Imaging And Bioengineering.
+  * The content is solely the responsibility of the authors and 
+  * does not necessarily represent the official views of the 
+  * National Institute of Biomedical Imaging And Bioengineering 
+  * or the National Institutes of Health.
+  *******************************************************************
+-->
+<gating:Gating-ML 
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xmlns:gating="http://www.isac-net.org/std/Gating-ML/v1.5/gating"
+  xmlns:transforms="http://www.isac-net.org/std/Gating-ML/v1.5/transformations"
+  xmlns:data-type="http://www.isac-net.org/std/Gating-ML/v1.5/datatypes"
+  xsi:schemaLocation="
+  http://www.isac-net.org/std/Gating-ML/v1.5/gating ../../XML-schemas/Gating-ML.v1.5.xsd
+  http://www.isac-net.org/std/Gating-ML/v1.5/transformations ../../XML-schemas/Transformations.v1.5.xsd
+  http://www.isac-net.org/std/Gating-ML/v1.5/datatypes ../../XML-schemas/DataTypes.v1.5.xsd">
+  
+  <!-- 
+    Test with a single event in the int-gating_test_file.fcs FCS file 
+    Event: (100, 200) with parameters (FS, SS)
+  -->
+
+  <!-- Outside -->
+  <gating:RectangleGate gating:id="LessThanMin">
+    <gating:dimension gating:min="150">
+      <data-type:parameter data-type:name="FS" />
+    </gating:dimension>
+  </gating:RectangleGate>
+
+  <!-- Inside -->
+  <gating:RectangleGate gating:id="EqualToMin">
+    <gating:dimension gating:min="100">
+      <data-type:parameter data-type:name="FS" />  
+    </gating:dimension>
+  </gating:RectangleGate>
+
+  <!-- Inside -->
+  <gating:RectangleGate gating:id="GreaterThanMin">
+    <gating:dimension gating:min="50">
+      <data-type:parameter data-type:name="FS" />
+    </gating:dimension>
+  </gating:RectangleGate>
+
+  <!-- Inside -->
+  <gating:RectangleGate gating:id="LessThanMax">
+    <gating:dimension gating:max="150">
+      <data-type:parameter data-type:name="FS" />
+    </gating:dimension>
+  </gating:RectangleGate>
+
+  <!-- Outside -->
+  <gating:RectangleGate gating:id="EqualToMax">
+    <gating:dimension gating:max="100">
+      <data-type:parameter data-type:name="FS" />
+    </gating:dimension>
+  </gating:RectangleGate>
+
+  <!-- Outside -->
+  <gating:RectangleGate gating:id="GreaterThanMax">
+    <gating:dimension gating:max="50">
+      <data-type:parameter data-type:name="FS" />
+    </gating:dimension>
+  </gating:RectangleGate>
+
+  <!-- Inside -->
+  <gating:RectangleGate gating:id="BetweenMinAndMax">
+    <gating:dimension gating:min="50" gating:max="150">
+      <data-type:parameter data-type:name="FS" />
+    </gating:dimension>
+  </gating:RectangleGate>
+
+  <!-- Inside -->
+  <gating:RectangleGate gating:id="EqualToMinAndLessThanMax">
+    <gating:dimension gating:min="100" gating:max="150">
+      <data-type:parameter data-type:name="FS" />
+    </gating:dimension>
+  </gating:RectangleGate>
+
+  <!-- Outside -->
+  <gating:RectangleGate gating:id="GreaterThanMinAndEqualToMax">
+    <gating:dimension gating:min="50" gating:max="100">
+      <data-type:parameter data-type:name="FS" />
+    </gating:dimension>
+  </gating:RectangleGate>
+
+  <!-- Outside -->
+  <!-- Gate removed from the tests since min shall be smaller than max according to the current version of the Gating-ML specification -->
+  <!-- 
+  <gating:RectangleGate gating:id="EqualToMinAndMax">
+    <gating:dimension gating:min="100" gating:max="100">
+      <data-type:parameter data-type:name="FS" />
+    </gating:dimension>
+  </gating:RectangleGate>
+  -->
+
+  <!-- Outside -->
+  <gating:RectangleGate gating:id="GreaterThanMinAndMax">
+    <gating:dimension gating:min="50" gating:max="75">
+      <data-type:parameter data-type:name="FS" />
+    </gating:dimension>
+  </gating:RectangleGate>
+
+  <!-- Outside -->
+  <gating:RectangleGate gating:id="LessThanMinAndMax">
+    <gating:dimension gating:min="125" gating:max="150">
+      <data-type:parameter data-type:name="FS" />
+    </gating:dimension>
+  </gating:RectangleGate>
+
+  <!-- Outside -->
+  <!-- Gate removed from the tests since min shall be smaller than max according to the current version of the Gating-ML specification -->
+  <!-- 
+  <gating:RectangleGate gating:id="MinGreaterThanMax">
+    <gating:dimension gating:min="150" gating:max="50">
+      <data-type:parameter data-type:name="FS" />
+    </gating:dimension>
+  </gating:RectangleGate>
+  -->
+
+  <!-- Outside -->
+  <gating:RectangleGate gating:id="InNoDimensions">
+    <gating:dimension gating:min="50" gating:max="75">
+      <data-type:parameter data-type:name="FS" />
+    </gating:dimension>
+    <gating:dimension gating:min="150" gating:max="175">
+      <data-type:parameter data-type:name="SS" />
+    </gating:dimension>
+  </gating:RectangleGate>
+
+  <!-- Outside -->
+  <gating:RectangleGate gating:id="InOneDimensions">
+    <gating:dimension gating:min="150" gating:max="250">
+      <data-type:parameter data-type:name="SS" />
+    </gating:dimension>
+    <gating:dimension gating:min="50" gating:max="75">
+      <data-type:parameter data-type:name="FS" />
+    </gating:dimension>
+  </gating:RectangleGate>
+
+  <!-- Inside -->
+  <gating:RectangleGate gating:id="InAllDimensions">
+    <gating:dimension gating:min="150" gating:max="250">
+      <data-type:parameter data-type:name="SS" />
+    </gating:dimension>
+    <gating:dimension gating:min="50" gating:max="150">
+      <data-type:parameter data-type:name="FS" />
+    </gating:dimension>
+  </gating:RectangleGate>
+
+</gating:Gating-ML>

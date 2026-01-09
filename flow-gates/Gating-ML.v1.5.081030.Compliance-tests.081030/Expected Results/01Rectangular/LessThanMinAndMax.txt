@@ -1,0 +1,2 @@
+LessThanMinAndMax
+0

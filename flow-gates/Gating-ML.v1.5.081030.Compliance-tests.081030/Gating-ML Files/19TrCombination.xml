@@ -1,0 +1,189 @@
+<!--
+  *******************************************************************
+  * Gating-ML Compliance Tests (Informative) *
+  * ******************************************
+  * 
+  * This file is a part of Gating-ML 1.5 Compliance Tests
+  * Josef Spidlen, BCCRC, jspidlen@bccrc.ca, March 20, 2008
+  *
+  * License
+  * The work may be used under the terms of the 
+  * Creative Commons Attribution-ShareAlike 3.0 Unported license. 
+  * You are free to share (copy, distribute and transmit), and adapt 
+  * the work under the conditions specified at 
+  * http://creativecommons.org/licenses/by-sa/3.0/legalcode
+  * 
+  * Acknowledgement
+  * This work has been supported by NIH grant EB005034 from the 
+  * National Institute of Biomedical Imaging And Bioengineering.
+  * The content is solely the responsibility of the authors and 
+  * does not necessarily represent the official views of the 
+  * National Institute of Biomedical Imaging And Bioengineering 
+  * or the National Institutes of Health.
+  *******************************************************************
+-->
+<gating:Gating-ML 
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xmlns:gating="http://www.isac-net.org/std/Gating-ML/v1.5/gating"
+  xmlns:transforms="http://www.isac-net.org/std/Gating-ML/v1.5/transformations"
+  xmlns:data-type="http://www.isac-net.org/std/Gating-ML/v1.5/datatypes"
+  xsi:schemaLocation="
+  http://www.isac-net.org/std/Gating-ML/v1.5/gating ../../XML-schemas/Gating-ML.v1.5.xsd
+  http://www.isac-net.org/std/Gating-ML/v1.5/transformations ../../XML-schemas/Transformations.v1.5.xsd
+  http://www.isac-net.org/std/Gating-ML/v1.5/datatypes ../../XML-schemas/DataTypes.v1.5.xsd">
+  
+  <!-- To be applied on int-10_events_8_parameters.fcs -->
+  
+  <transforms:transformation transforms:id="ASBSCSDS">
+    <transforms:dg1polynomial>
+      <data-type:parameter data-type:name="AS" />
+      <data-type:parameter data-type:name="BS" />
+      <data-type:parameter data-type:name="CS" />
+      <data-type:parameter data-type:name="DS" />
+      <transforms:coefficient data-type:value="1" />
+      <transforms:coefficient data-type:value="1" />
+      <transforms:coefficient data-type:value="1" />
+      <transforms:coefficient data-type:value="1" />
+      <transforms:coefficient data-type:value="0" />
+    </transforms:dg1polynomial>
+  </transforms:transformation>
+  
+  <transforms:transformation transforms:id="ASBS">
+    <transforms:dg1polynomial>
+      <data-type:parameter data-type:name="AS" />
+      <data-type:parameter data-type:name="BS" />
+      <transforms:coefficient data-type:value="1" />
+      <transforms:coefficient data-type:value="1" />
+      <transforms:coefficient data-type:value="0" />
+    </transforms:dg1polynomial>
+  </transforms:transformation>
+
+  <transforms:transformation transforms:id="ASBSCS">
+    <transforms:dg1polynomial>
+      <transforms:transformationReference transforms:ref="ASBS" />
+      <data-type:parameter data-type:name="CS" />
+      <transforms:coefficient data-type:value="1" />
+      <transforms:coefficient data-type:value="1" />
+      <transforms:coefficient data-type:value="0" />
+    </transforms:dg1polynomial>
+  </transforms:transformation>
+  
+  <transforms:transformation transforms:id="LComb_1">
+    <transforms:dg1polynomial>
+      <data-type:parameter data-type:name="ES" />
+      <data-type:parameter data-type:name="FS" />
+      <transforms:coefficient data-type:value="2.05" />
+      <transforms:coefficient data-type:value="1.32" />
+      <transforms:coefficient data-type:value="-8.74" />
+    </transforms:dg1polynomial>
+  </transforms:transformation>
+
+  <transforms:transformation transforms:id="LComb_2">
+    <transforms:dg1polynomial>
+      <data-type:parameter data-type:name="GS" />
+      <data-type:parameter data-type:name="HS" />
+      <transforms:coefficient data-type:value="-0.8" />
+      <transforms:coefficient data-type:value="-1.88" />
+      <transforms:coefficient data-type:value="511" />
+    </transforms:dg1polynomial>
+  </transforms:transformation>
+  
+  <transforms:transformation transforms:id="LComb_3">
+    <transforms:dg1polynomial>
+      <transforms:transformationReference transforms:ref="ASBSCS" />
+      <data-type:parameter data-type:name="ES" />
+      <transforms:coefficient data-type:value="2.4" />
+      <transforms:coefficient data-type:value="1.7" />
+      <transforms:coefficient data-type:value="1024" />
+    </transforms:dg1polynomial>
+  </transforms:transformation>
+  
+  <transforms:transformation transforms:id="LComb_4">
+    <transforms:dg1polynomial>
+      <data-type:parameter data-type:name="AS" />
+      <data-type:parameter data-type:name="BS" />
+      <data-type:parameter data-type:name="CS" />
+      <data-type:parameter data-type:name="DS" />
+      <data-type:parameter data-type:name="ES" />
+      <data-type:parameter data-type:name="HS" />
+      <transforms:coefficient data-type:value="0.25" />
+      <transforms:coefficient data-type:value="0.3" />
+      <transforms:coefficient data-type:value="0.33" />
+      <transforms:coefficient data-type:value="0.42" />
+      <transforms:coefficient data-type:value="-.8" />
+      <transforms:coefficient data-type:value="2.03" />
+      <transforms:coefficient data-type:value="0.1" />
+    </transforms:dg1polynomial>
+  </transforms:transformation>
+  
+  <!-- 3 Inside -->
+  <gating:RectangleGate gating:id="TrComG01">
+    <gating:dimension gating:min="510" gating:max="990">
+      <transforms:transformationReference transforms:ref="ASBS" />
+    </gating:dimension>
+  </gating:RectangleGate>
+  
+  <!-- 6 inside -->
+  <gating:RectangleGate gating:id="TrComG02">
+    <gating:dimension gating:min="780" gating:max="2000">
+      <transforms:transformationReference transforms:ref="ASBSCS" />
+    </gating:dimension>
+  </gating:RectangleGate>
+  
+  <!-- 4 inside -->
+  <gating:RectangleGate gating:id="TrComG03">
+    <gating:dimension gating:min="1065" gating:max="2500">
+      <transforms:transformationReference transforms:ref="ASBSCSDS" />
+    </gating:dimension>
+  </gating:RectangleGate>
+  
+  <!-- 8 inside -->
+  <gating:RectangleGate gating:id="TrComG04">
+    <gating:dimension gating:min="442.57" gating:max="2600">
+      <transforms:transformationReference transforms:ref="LComb_1" />
+    </gating:dimension>
+  </gating:RectangleGate>
+  
+  <!-- 3 inside -->
+  <gating:RectangleGate gating:id="TrComG05">
+    <gating:dimension gating:min="-340" gating:max="300">
+      <transforms:transformationReference transforms:ref="LComb_2" />
+    </gating:dimension>
+  </gating:RectangleGate>
+  
+  <!-- 1 inside -->
+  <gating:RectangleGate gating:id="TrComG06">
+    <gating:dimension gating:min="2490" gating:max="3066">
+      <transforms:transformationReference transforms:ref="LComb_3" />
+    </gating:dimension>
+  </gating:RectangleGate>
+  
+  <!-- 2 inside -->
+  <gating:RectangleGate gating:id="TrComG07">
+    <gating:dimension gating:min="1575" gating:max="2000">
+      <transforms:transformationReference transforms:ref="LComb_4" />
+    </gating:dimension>
+  </gating:RectangleGate>
+  
+  <!-- 1 inside -->
+  <gating:RectangleGate gating:id="TrComG08">
+    <gating:dimension gating:min="300" gating:max="2000">
+      <transforms:transformationReference transforms:ref="LComb_2" />
+    </gating:dimension>
+  </gating:RectangleGate>
+  
+  <!-- 2 inside -->
+  <gating:RectangleGate gating:id="TrComG09">
+    <gating:dimension gating:min="300" gating:max="2000">
+      <transforms:transformationReference transforms:ref="LComb_3" />
+    </gating:dimension>
+  </gating:RectangleGate>
+  
+  <!-- 5 inside -->
+  <gating:RectangleGate gating:id="TrComG10">
+    <gating:dimension gating:min="765" gating:max="1979.3">
+      <transforms:transformationReference transforms:ref="LComb_4" />
+    </gating:dimension>
+  </gating:RectangleGate>
+
+</gating:Gating-ML>

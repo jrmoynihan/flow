@@ -1,0 +1,141 @@
+<!--
+  *******************************************************************
+  * Gating-ML Compliance Tests (Informative) *
+  * ******************************************
+  * 
+  * This file is a part of Gating-ML 1.5 Compliance Tests
+  * Josef Spidlen, BCCRC, jspidlen@bccrc.ca, March 20, 2008
+  *
+  * License
+  * The work may be used under the terms of the 
+  * Creative Commons Attribution-ShareAlike 3.0 Unported license. 
+  * You are free to share (copy, distribute and transmit), and adapt 
+  * the work under the conditions specified at 
+  * http://creativecommons.org/licenses/by-sa/3.0/legalcode
+  * 
+  * Acknowledgement
+  * This work has been supported by NIH grant EB005034 from the 
+  * National Institute of Biomedical Imaging And Bioengineering.
+  * The content is solely the responsibility of the authors and 
+  * does not necessarily represent the official views of the 
+  * National Institute of Biomedical Imaging And Bioengineering 
+  * or the National Institutes of Health.
+  *******************************************************************
+-->
+<gating:Gating-ML 
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xmlns:gating="http://www.isac-net.org/std/Gating-ML/v1.5/gating"
+  xmlns:transforms="http://www.isac-net.org/std/Gating-ML/v1.5/transformations"
+  xmlns:data-type="http://www.isac-net.org/std/Gating-ML/v1.5/datatypes"
+  xsi:schemaLocation="
+  http://www.isac-net.org/std/Gating-ML/v1.5/gating ../../XML-schemas/Gating-ML.v1.5.xsd
+  http://www.isac-net.org/std/Gating-ML/v1.5/transformations ../../XML-schemas/Transformations.v1.5.xsd
+  http://www.isac-net.org/std/Gating-ML/v1.5/datatypes ../../XML-schemas/DataTypes.v1.5.xsd">
+  
+  <!-- To be applied on int-10_events_6_parameters.fcs -->
+  
+  <transforms:transformation transforms:id="ISpScTr1">
+    <transforms:inverse-split-scale transforms:r="768" transforms:maxValue="600" transforms:transitionChannel="256">
+      <data-type:parameter data-type:name="BS" />
+    </transforms:inverse-split-scale>
+  </transforms:transformation>
+  
+  <transforms:transformation transforms:id="ISpScTr2">
+    <transforms:inverse-split-scale transforms:r="500" transforms:maxValue="1000" transforms:transitionChannel="100">
+      <data-type:parameter data-type:name="FS" />
+    </transforms:inverse-split-scale>
+  </transforms:transformation>
+  
+  <transforms:transformation transforms:id="ISpScTr3">
+    <transforms:inverse-split-scale transforms:r="500" transforms:maxValue="2000" transforms:transitionChannel="60">
+      <data-type:parameter data-type:name="BS" />
+    </transforms:inverse-split-scale>
+  </transforms:transformation>
+  
+  <transforms:transformation transforms:id="ISpScTr4">
+    <transforms:inverse-split-scale transforms:r="440" transforms:maxValue="2000" transforms:transitionChannel="120">
+      <data-type:parameter data-type:name="BS" />
+    </transforms:inverse-split-scale>
+  </transforms:transformation>
+
+  <transforms:transformation transforms:id="ISpScTr5">
+    <transforms:inverse-split-scale transforms:r="400" transforms:maxValue="1024" transforms:transitionChannel="190">
+      <data-type:parameter data-type:name="ES" />
+    </transforms:inverse-split-scale>
+  </transforms:transformation>
+  
+  <transforms:transformation transforms:id="ISpScTr6">
+    <transforms:inverse-split-scale transforms:r="400" transforms:maxValue="1024" transforms:transitionChannel="190">
+      <data-type:parameter data-type:name="CS" />
+    </transforms:inverse-split-scale>
+  </transforms:transformation>
+  
+  <transforms:transformation transforms:id="ISpScTr7">
+    <transforms:inverse-split-scale transforms:r="400" transforms:maxValue="1024" transforms:transitionChannel="170">
+      <data-type:parameter data-type:name="CS" />
+    </transforms:inverse-split-scale>
+  </transforms:transformation>
+  
+  <transforms:transformation transforms:id="ISpScTr8">
+    <transforms:inverse-split-scale transforms:r="768" transforms:maxValue="2048" transforms:transitionChannel="256">
+      <transforms:transformationReference transforms:ref="ISpScTr7" />
+    </transforms:inverse-split-scale>
+  </transforms:transformation>
+  
+  <!-- 6 Inside -->
+  <gating:RectangleGate gating:id="ISpSc_G1">
+    <gating:dimension gating:min="0" gating:max="6.4">
+      <transforms:transformationReference transforms:ref="ISpScTr1" />
+    </gating:dimension>
+  </gating:RectangleGate>
+  
+  <!-- 3 Inside -->
+  <gating:RectangleGate gating:id="ISpSc_G2">
+    <gating:dimension gating:min=".75" gating:max="90">
+      <transforms:transformationReference transforms:ref="ISpScTr2" />
+    </gating:dimension>
+  </gating:RectangleGate>
+  
+  <!-- 5 Inside -->
+  <gating:RectangleGate gating:id="ISpSc_G3">
+    <gating:dimension gating:min="0.01" gating:max="270">
+      <transforms:transformationReference transforms:ref="ISpScTr3" />
+    </gating:dimension>
+  </gating:RectangleGate>
+  
+  <!-- 2 Inside -->
+  <gating:RectangleGate gating:id="ISpSc_G4">
+    <gating:dimension gating:min="13.5" gating:max="100">
+      <transforms:transformationReference transforms:ref="ISpScTr4" />
+    </gating:dimension>
+  </gating:RectangleGate>
+  
+  <!-- 1 Inside -->
+  <gating:RectangleGate gating:id="ISpSc_G5">
+    <gating:dimension gating:min="23" gating:max="43">
+      <transforms:transformationReference transforms:ref="ISpScTr5" />
+    </gating:dimension>
+  </gating:RectangleGate>
+  
+  <!-- 6 Inside -->
+  <gating:RectangleGate gating:id="ISpSc_G6">
+    <gating:dimension gating:min="-1" gating:max="125">
+      <transforms:transformationReference transforms:ref="ISpScTr6" />
+    </gating:dimension>
+  </gating:RectangleGate>
+  
+  <!-- 5 Inside -->
+  <gating:RectangleGate gating:id="ISpSc_G7">
+    <gating:dimension gating:min="0" gating:max="61">
+      <transforms:transformationReference transforms:ref="ISpScTr7" />
+    </gating:dimension>
+  </gating:RectangleGate>
+  
+  <!-- 5 Inside -->
+  <gating:RectangleGate gating:id="ISpSc_G8">
+    <gating:dimension gating:min="-4.8" gating:max="0">
+      <transforms:transformationReference transforms:ref="ISpScTr8" />
+    </gating:dimension>
+  </gating:RectangleGate>
+
+</gating:Gating-ML>

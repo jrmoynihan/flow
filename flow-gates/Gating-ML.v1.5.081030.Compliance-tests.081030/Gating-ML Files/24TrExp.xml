@@ -1,0 +1,102 @@
+<!--
+  *******************************************************************
+  * Gating-ML Compliance Tests (Informative) *
+  * ******************************************
+  * 
+  * This file is a part of Gating-ML 1.5 Compliance Tests
+  * Josef Spidlen, BCCRC, jspidlen@bccrc.ca, March 20, 2008
+  *
+  * License
+  * The work may be used under the terms of the 
+  * Creative Commons Attribution-ShareAlike 3.0 Unported license. 
+  * You are free to share (copy, distribute and transmit), and adapt 
+  * the work under the conditions specified at 
+  * http://creativecommons.org/licenses/by-sa/3.0/legalcode
+  * 
+  * Acknowledgement
+  * This work has been supported by NIH grant EB005034 from the 
+  * National Institute of Biomedical Imaging And Bioengineering.
+  * The content is solely the responsibility of the authors and 
+  * does not necessarily represent the official views of the 
+  * National Institute of Biomedical Imaging And Bioengineering 
+  * or the National Institutes of Health.
+  *******************************************************************
+-->
+<gating:Gating-ML 
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xmlns:gating="http://www.isac-net.org/std/Gating-ML/v1.5/gating"
+  xmlns:transforms="http://www.isac-net.org/std/Gating-ML/v1.5/transformations"
+  xmlns:data-type="http://www.isac-net.org/std/Gating-ML/v1.5/datatypes"
+  xsi:schemaLocation="
+  http://www.isac-net.org/std/Gating-ML/v1.5/gating ../../XML-schemas/Gating-ML.v1.5.xsd
+  http://www.isac-net.org/std/Gating-ML/v1.5/transformations ../../XML-schemas/Transformations.v1.5.xsd
+  http://www.isac-net.org/std/Gating-ML/v1.5/datatypes ../../XML-schemas/DataTypes.v1.5.xsd">
+  
+  <!-- To be applied on int-10_events_6_parameters.fcs -->
+  
+  <transforms:transformation transforms:id="TrLn_5">
+    <transforms:ln transforms:a="256" transforms:b="10" >
+      <data-type:parameter data-type:name="ES" />
+    </transforms:ln>
+  </transforms:transformation>
+    
+  <transforms:transformation transforms:id="TrExp_1">
+    <transforms:exponential transforms:a="2" transforms:b="100">
+      <data-type:parameter data-type:name="FS"/>
+    </transforms:exponential>
+  </transforms:transformation>
+  
+  <transforms:transformation transforms:id="TrExp_3">
+    <transforms:exponential transforms:a=".2" transforms:b="3">
+      <transforms:transformation>
+        <transforms:ln transforms:a=".2" transforms:b="3" >
+          <data-type:parameter data-type:name="CS" />
+        </transforms:ln>
+      </transforms:transformation>
+    </transforms:exponential>
+  </transforms:transformation>
+  
+  <transforms:transformation transforms:id="TrExp_4">
+    <transforms:exponential transforms:a="4" transforms:b="20">
+      <transforms:transformationReference transforms:ref="TrLn_5" />
+    </transforms:exponential>
+  </transforms:transformation>
+  
+  
+  <!-- 3 Inside -->
+  <gating:RectangleGate gating:id="TrExpG1">
+    <gating:dimension gating:min="10.1" gating:max="110">
+      <transforms:transformationReference transforms:ref="TrExp_1" />
+    </gating:dimension>
+  </gating:RectangleGate>
+  
+  <!-- 7 Inside -->
+  <gating:RectangleGate gating:id="TrExpG2">
+    <gating:dimension gating:min="10" gating:max="50">
+      <transforms:transformation transforms:id="TrExp_2">
+        <transforms:exponential transforms:a="3" transforms:b="5">
+          <transforms:transformation>
+            <transforms:ln transforms:a="1" transforms:b="4" >
+              <data-type:parameter data-type:name="AS" />
+            </transforms:ln>
+          </transforms:transformation>      
+        </transforms:exponential>
+      </transforms:transformation>
+    </gating:dimension>
+  </gating:RectangleGate>
+  
+  <!-- 6 Inside -->
+  <gating:RectangleGate gating:id="TrExpG3">
+    <gating:dimension gating:min="210" gating:max="510.001">
+      <transforms:transformationReference transforms:ref="TrExp_3" />
+    </gating:dimension>
+  </gating:RectangleGate>
+  
+  <!-- 6 Inside -->
+  <gating:RectangleGate gating:id="TrExpG4">
+    <gating:dimension gating:min="42" gating:max="92">
+      <transforms:transformationReference transforms:ref="TrExp_4" />
+    </gating:dimension>
+  </gating:RectangleGate>
+
+</gating:Gating-ML>

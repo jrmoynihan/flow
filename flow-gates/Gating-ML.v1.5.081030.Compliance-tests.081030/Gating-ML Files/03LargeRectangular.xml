@@ -1,0 +1,475 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  *******************************************************************
+  * Gating-ML Compliance Tests (Informative) *
+  * ******************************************
+  * 
+  * This file is a part of Gating-ML 1.5 Compliance Tests
+  * Josef Spidlen, BCCRC, jspidlen@bccrc.ca, March 20, 2008
+  *
+  * License
+  * The work may be used under the terms of the 
+  * Creative Commons Attribution-ShareAlike 3.0 Unported license. 
+  * You are free to share (copy, distribute and transmit), and adapt 
+  * the work under the conditions specified at 
+  * http://creativecommons.org/licenses/by-sa/3.0/legalcode
+  * 
+  * Acknowledgement
+  * This work has been supported by NIH grant EB005034 from the 
+  * National Institute of Biomedical Imaging And Bioengineering.
+  * The content is solely the responsibility of the authors and 
+  * does not necessarily represent the official views of the 
+  * National Institute of Biomedical Imaging And Bioengineering 
+  * or the National Institutes of Health.
+  *******************************************************************
+-->
+<gating:Gating-ML 
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xmlns:gating="http://www.isac-net.org/std/Gating-ML/v1.5/gating"
+  xmlns:transforms="http://www.isac-net.org/std/Gating-ML/v1.5/transformations"
+  xmlns:data-type="http://www.isac-net.org/std/Gating-ML/v1.5/datatypes"
+  xsi:schemaLocation="
+  http://www.isac-net.org/std/Gating-ML/v1.5/gating ../../XML-schemas/Gating-ML.v1.5.xsd
+  http://www.isac-net.org/std/Gating-ML/v1.5/transformations ../../XML-schemas/Transformations.v1.5.xsd
+  http://www.isac-net.org/std/Gating-ML/v1.5/datatypes ../../XML-schemas/DataTypes.v1.5.xsd">
+  
+  <!-- Test with the homogenous matrix data in int-homogenous_matrix.fcs -->
+
+  <!-- Gate 01, result should be 300 (24%) -->
+  <gating:RectangleGate gating:id="Gate01">
+    <gating:dimension gating:min="800">
+      <data-type:parameter data-type:name="FS" />
+    </gating:dimension>
+  </gating:RectangleGate>
+
+  <!-- Gate 02, result should be 250 (20%) -->
+  <gating:RectangleGate gating:id="Gate02">
+    <gating:dimension gating:min="801">
+      <data-type:parameter data-type:name="FS" />
+    </gating:dimension>
+  </gating:RectangleGate>
+
+  <!-- Gate 03, result should be 550 (44%) -->
+  <gating:RectangleGate gating:id="Gate03">
+    <gating:dimension gating:max="441">
+      <data-type:parameter data-type:name="FS" />
+    </gating:dimension>
+  </gating:RectangleGate>
+
+  <!-- Gate 04, result should be 500 (40%) -->
+  <gating:RectangleGate gating:id="Gate04">
+    <gating:dimension gating:max="440">
+      <data-type:parameter data-type:name="FS" />
+    </gating:dimension>
+  </gating:RectangleGate>
+
+  <!-- Gate 05, result should be 150 (12%) -->
+  <gating:RectangleGate gating:id="Gate05">
+    <gating:dimension gating:min="600" gating:max="681">
+      <data-type:parameter data-type:name="FS" />
+    </gating:dimension>
+  </gating:RectangleGate>
+
+  <!-- Gate 06, result should be 50 (4%) -->
+  <gating:RectangleGate gating:id="Gate06">
+    <gating:dimension gating:min="601" gating:max="680">
+      <data-type:parameter data-type:name="FS" />
+    </gating:dimension>
+  </gating:RectangleGate>
+
+  <!-- Gate 07, result should be 100 (8%) -->
+  <gating:RectangleGate gating:id="Gate07">
+    <gating:dimension gating:min="200" gating:max="241">
+      <data-type:parameter data-type:name="FS" />
+    </gating:dimension>
+  </gating:RectangleGate>
+
+  <!-- Gate 08, result should be 0 (0%) -->
+  <gating:RectangleGate gating:id="Gate08">
+    <gating:dimension gating:min="201" gating:max="239">
+      <data-type:parameter data-type:name="FS" />
+    </gating:dimension>
+  </gating:RectangleGate>
+
+
+  <!-- Gate 11, result should be 975 (78%) -->
+  <gating:RectangleGate gating:id="Gate11">
+    <gating:dimension gating:min="240">
+      <data-type:parameter data-type:name="SS" />
+    </gating:dimension>
+  </gating:RectangleGate>
+
+  <!-- Gate 12, result should be 950 (76%) -->
+  <gating:RectangleGate gating:id="Gate12">
+    <gating:dimension gating:min="241">
+      <data-type:parameter data-type:name="SS" />
+    </gating:dimension>
+  </gating:RectangleGate>
+
+  <!-- Gate 13, result should be 800 (64%)  -->
+  <gating:RectangleGate gating:id="Gate13">
+    <gating:dimension gating:max="641">
+      <data-type:parameter data-type:name="SS" />
+    </gating:dimension>
+  </gating:RectangleGate>
+
+  <!-- Gate 14, result should be 775 (62%) -->
+  <gating:RectangleGate gating:id="Gate14">
+    <gating:dimension gating:max="640">
+      <data-type:parameter data-type:name="SS" />
+    </gating:dimension>
+  </gating:RectangleGate>
+
+  <!-- Gate 15, result should be 125 (10%) -->
+  <gating:RectangleGate gating:id="Gate15">
+    <gating:dimension gating:min="400" gating:max="500">
+      <data-type:parameter data-type:name="SS" />
+    </gating:dimension>
+  </gating:RectangleGate>
+
+  <!-- Gate 16, result should be 100 (8%) -->
+  <gating:RectangleGate gating:id="Gate16">
+    <gating:dimension gating:min="405" gating:max="500">
+      <data-type:parameter data-type:name="SS" />
+    </gating:dimension>
+  </gating:RectangleGate>
+
+  <!-- Gate 17, result should be 25 (2%) -->
+  <gating:RectangleGate gating:id="Gate17">
+    <gating:dimension gating:min="400" gating:max="420">
+      <data-type:parameter data-type:name="SS" />
+    </gating:dimension>
+  </gating:RectangleGate>
+
+  <!-- Gate 18, result should be 0 (0%) -->
+  <gating:RectangleGate gating:id="Gate18">
+    <gating:dimension gating:min="405" gating:max="420">
+      <data-type:parameter data-type:name="SS" />
+    </gating:dimension>
+  </gating:RectangleGate>
+
+
+  <!-- Gate 21, result should be 18 (1.44%) -->
+  <gating:RectangleGate gating:id="Gate21">
+    <gating:dimension gating:min="920">
+      <data-type:parameter data-type:name="FS" />
+    </gating:dimension>
+    <gating:dimension gating:min="900">
+      <data-type:parameter data-type:name="SS" />
+    </gating:dimension>
+  </gating:RectangleGate>
+
+  <!-- Gate 22, result should be 10 (0.8%) -->
+  <gating:RectangleGate gating:id="Gate22">
+    <gating:dimension gating:min="921">
+      <data-type:parameter data-type:name="FS" />
+    </gating:dimension>
+    <gating:dimension gating:min="901">
+      <data-type:parameter data-type:name="SS" />
+    </gating:dimension>
+  </gating:RectangleGate>
+
+  <!-- Gate 23, result should be 240 (19.2%) -->
+  <gating:RectangleGate gating:id="Gate23">
+    <gating:dimension gating:max="500">
+      <data-type:parameter data-type:name="FS" />
+    </gating:dimension>
+    <gating:dimension gating:max="401">
+      <data-type:parameter data-type:name="SS" />
+    </gating:dimension>
+  </gating:RectangleGate>
+
+  <!-- Gate 24, result should be 228 (18.24%) -->
+  <gating:RectangleGate gating:id="Gate24">
+    <gating:dimension gating:max="500">
+      <data-type:parameter data-type:name="FS" />
+    </gating:dimension>
+    <gating:dimension gating:max="400">
+      <data-type:parameter data-type:name="SS" />
+    </gating:dimension>
+  </gating:RectangleGate>
+
+  <!-- Gate 25, result should be 228 (18.24%) -->
+  <gating:RectangleGate gating:id="Gate25">
+    <gating:dimension gating:max="400">
+      <data-type:parameter data-type:name="SS" />
+    </gating:dimension>
+    <gating:dimension gating:max="500">
+      <data-type:parameter data-type:name="FS" />
+    </gating:dimension>
+  </gating:RectangleGate>
+
+  <!-- Gate 26, result should be 228 (18.24%) -->
+  <gating:RectangleGate gating:id="Gate26">
+    <gating:dimension gating:max="400">
+      <data-type:parameter data-type:name="SS" />
+    </gating:dimension>
+    <gating:dimension gating:max="500">
+      <data-type:parameter data-type:name="FS" />
+    </gating:dimension>
+  </gating:RectangleGate>
+
+  <!-- Gate 27, result should be 160 (12.8%) -->
+  <gating:RectangleGate gating:id="Gate27">
+    <gating:dimension gating:min="200" gating:max="500">
+      <data-type:parameter data-type:name="FS" />
+    </gating:dimension>
+    <gating:dimension gating:max="401">
+      <data-type:parameter data-type:name="SS" />
+    </gating:dimension>
+  </gating:RectangleGate>
+
+  <!-- Gate 28, result should be 133 (10.64%) -->
+  <gating:RectangleGate gating:id="Gate28">
+    <gating:dimension gating:min="201" gating:max="500">
+      <data-type:parameter data-type:name="FS" />
+    </gating:dimension>
+    <gating:dimension gating:max="400">
+      <data-type:parameter data-type:name="SS" />
+    </gating:dimension>
+  </gating:RectangleGate>
+
+  <!-- Gate 29, result should be 128 (10.24%) -->
+  <gating:RectangleGate gating:id="Gate29">
+    <gating:dimension gating:min="200" gating:max="500">
+      <data-type:parameter data-type:name="FS" />
+    </gating:dimension>
+    <gating:dimension gating:min="700">
+      <data-type:parameter data-type:name="SS" />
+    </gating:dimension>
+  </gating:RectangleGate>
+
+  <!-- Gate 30, result should be 105 (8.4%) -->
+  <gating:RectangleGate gating:id="Gate30">
+    <gating:dimension gating:min="201" gating:max="500">
+      <data-type:parameter data-type:name="FS" />
+    </gating:dimension>
+    <gating:dimension gating:min="701">
+      <data-type:parameter data-type:name="SS" />
+    </gating:dimension>
+  </gating:RectangleGate>
+
+  <!-- Gate 31, result should be 231 (18.48%) -->
+  <gating:RectangleGate gating:id="Gate31">
+    <gating:dimension gating:min="200">
+      <data-type:parameter data-type:name="FS" />
+    </gating:dimension>
+    <gating:dimension gating:min="700" gating:max="905">
+      <data-type:parameter data-type:name="SS" />
+    </gating:dimension>
+  </gating:RectangleGate>
+
+  <!-- Gate 32, result should be 200 (16%) -->
+  <gating:RectangleGate gating:id="Gate32">
+    <gating:dimension gating:min="201">
+      <data-type:parameter data-type:name="FS" />
+    </gating:dimension>
+    <gating:dimension gating:min="700" gating:max="900">
+      <data-type:parameter data-type:name="SS" />
+    </gating:dimension>
+  </gating:RectangleGate>
+
+  <!-- Gate 33, result should be 110 (8.8%) -->
+  <gating:RectangleGate gating:id="Gate33">
+    <gating:dimension gating:max="401">
+      <data-type:parameter data-type:name="FS" />
+    </gating:dimension>
+    <gating:dimension gating:min="700" gating:max="905">
+      <data-type:parameter data-type:name="SS" />
+    </gating:dimension>
+  </gating:RectangleGate>
+
+  <!-- Gate 34, result should be 90 (7.2%) -->
+  <gating:RectangleGate gating:id="Gate34">
+    <gating:dimension gating:max="400">
+      <data-type:parameter data-type:name="FS" />
+    </gating:dimension>
+    <gating:dimension gating:min="700" gating:max="900">
+      <data-type:parameter data-type:name="SS" />
+    </gating:dimension>
+  </gating:RectangleGate>
+
+  <!-- Gate 35, result should be 88 (7.04%) -->
+  <gating:RectangleGate gating:id="Gate35">
+    <gating:dimension gating:min="400" gating:max="700">
+      <data-type:parameter data-type:name="FS" />
+    </gating:dimension>
+    <gating:dimension gating:min="700" gating:max="905">
+      <data-type:parameter data-type:name="SS" />
+    </gating:dimension>
+  </gating:RectangleGate>
+
+  <!-- Gate 36, result should be 70 (5.6%) -->
+  <gating:RectangleGate gating:id="Gate36">
+    <gating:dimension gating:min="401" gating:max="700">
+      <data-type:parameter data-type:name="FS" />
+    </gating:dimension>
+    <gating:dimension gating:min="701" gating:max="905">
+      <data-type:parameter data-type:name="SS" />
+    </gating:dimension>
+  </gating:RectangleGate>
+
+  <!-- Gate 37, result should be 88 (7.04%) -->
+  <gating:RectangleGate gating:id="Gate37">
+    <gating:dimension gating:min="399" gating:max="700">
+      <data-type:parameter data-type:name="FS" />
+    </gating:dimension>
+    <gating:dimension gating:min="699" gating:max="905">
+      <data-type:parameter data-type:name="SS" />
+    </gating:dimension>
+  </gating:RectangleGate>
+
+  <!-- Gate 38, result should be 88 (7.04%) -->
+  <gating:RectangleGate gating:id="Gate38">
+    <gating:dimension gating:min="699" gating:max="905">
+      <data-type:parameter data-type:name="SS" />
+    </gating:dimension>
+    <gating:dimension gating:min="399" gating:max="700">
+      <data-type:parameter data-type:name="FS" />
+    </gating:dimension>
+  </gating:RectangleGate>
+
+  <!-- Gate 39, result should be 88 (7.04%) -->
+  <gating:RectangleGate gating:id="Gate39">
+    <gating:dimension gating:max="905" gating:min="699">
+      <data-type:parameter data-type:name="SS" />
+    </gating:dimension>
+    <gating:dimension gating:min="399" gating:max="700">
+      <data-type:parameter data-type:name="FS" />
+    </gating:dimension>
+  </gating:RectangleGate>
+
+  <!-- Gate 40, result should be 88 (7.04%) -->
+  <gating:RectangleGate gating:id="Gate40">
+    <gating:dimension gating:max="905" gating:min="699">
+      <data-type:parameter data-type:name="SS" />
+    </gating:dimension>
+    <gating:dimension gating:min="399" gating:max="700">
+      <data-type:parameter data-type:name="FS" />
+    </gating:dimension>
+  </gating:RectangleGate>
+
+  <!-- Gate 41, result should be 88 (7.04%) -->
+  <gating:RectangleGate gating:id="Gate41">
+    <gating:dimension gating:max="905" gating:min="699">
+      <data-type:parameter data-type:name="SS" />
+    </gating:dimension>
+    <gating:dimension gating:min="399" gating:max="700">
+      <data-type:parameter data-type:name="FS" />
+    </gating:dimension>
+  </gating:RectangleGate>
+
+  <!-- Gate 42, result should be 88 (7.04%) -->
+  <gating:RectangleGate gating:id="Gate42">
+    <gating:dimension gating:max="905" gating:min="699">
+      <data-type:parameter data-type:name="SS" />
+    </gating:dimension>
+    <gating:dimension gating:min="399" gating:max="700">
+      <data-type:parameter data-type:name="FS" />
+    </gating:dimension>
+  </gating:RectangleGate>
+
+  <!-- Gate 43, result should be 560 (44.8%) -->
+  <gating:RectangleGate gating:id="Gate43">
+    <gating:dimension gating:min="400">
+      <data-type:parameter data-type:name="FS" />
+    </gating:dimension>
+    <gating:dimension gating:max="710">
+      <data-type:parameter data-type:name="SS" />
+    </gating:dimension>
+  </gating:RectangleGate>
+
+  <!-- Gate 44, result should be 525 (42%) -->
+  <gating:RectangleGate gating:id="Gate44">
+    <gating:dimension gating:min="401">
+      <data-type:parameter data-type:name="FS" />
+    </gating:dimension>
+    <gating:dimension gating:max="710">
+      <data-type:parameter data-type:name="SS" />
+    </gating:dimension>
+  </gating:RectangleGate>
+
+  <!-- Gate 45, result should be 150 (12%) -->
+  <gating:RectangleGate gating:id="Gate45">
+    <gating:dimension gating:max="401">
+      <data-type:parameter data-type:name="FS" />
+    </gating:dimension>
+    <gating:dimension gating:min="710">
+      <data-type:parameter data-type:name="SS" />
+    </gating:dimension>
+  </gating:RectangleGate>
+
+  <!-- Gate 46, result should be 135 (10.8%) -->
+  <gating:RectangleGate gating:id="Gate46">
+    <gating:dimension gating:max="400">
+      <data-type:parameter data-type:name="FS" />
+    </gating:dimension>
+    <gating:dimension gating:min="710">
+      <data-type:parameter data-type:name="SS" />
+    </gating:dimension>
+  </gating:RectangleGate>
+
+
+  <!-- Arbitrary precision Gates - 7 Gates -->
+
+  <!-- Gate p1, result should be 550 (44%) -->
+  <!-- Precision needed to pass the Gate 1E-3 -->
+  <gating:RectangleGate gating:id="Gatep1">
+    <gating:dimension gating:max="440.001">
+      <data-type:parameter data-type:name="FS" />
+    </gating:dimension>
+  </gating:RectangleGate>
+
+  <!-- Gate p2, result should be 550 (44%) -->
+  <!-- Precision needed to pass the Gate 1E-6 -->
+  <gating:RectangleGate gating:id="Gatep2">
+    <gating:dimension gating:max="440.000001">
+      <data-type:parameter data-type:name="FS" />
+    </gating:dimension>
+  </gating:RectangleGate>
+
+  <!-- Gate p3, result should be 550 (44%) -->
+  <!-- Precision needed to pass the Gate 1E-10 -->
+  <gating:RectangleGate gating:id="Gatep3">
+    <gating:dimension gating:max="440.0000000001">
+      <data-type:parameter data-type:name="FS" />
+    </gating:dimension>
+  </gating:RectangleGate>
+
+  <!-- doubles have around 15-17 digits of precision -->
+
+  <!-- Gate p4, result should be 500 (40%) -->
+  <!-- Precision needed to pass the Gate 1E-20 -->
+  <gating:RectangleGate gating:id="Gatep4">
+    <gating:dimension gating:max="440.00000000000000000001">
+      <data-type:parameter data-type:name="FS" />
+    </gating:dimension>
+  </gating:RectangleGate>
+
+  <!-- Gate p5, result should be 500 (40%) -->
+  <!-- Precision needed to pass the Gate 1E-50 -->
+  <gating:RectangleGate gating:id="Gatep5">
+    <gating:dimension gating:max="440.00000000000000000000000000000000000000000000000001">
+      <data-type:parameter data-type:name="FS" />
+    </gating:dimension>
+  </gating:RectangleGate>
+
+  <!-- Gate p6, result should be 500 (40%) -->
+  <!-- Precision needed to pass the Gate 1E-100 -->
+  <gating:RectangleGate gating:id="Gatep6">
+    <gating:dimension 
+      gating:max="440.0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001">
+      <data-type:parameter data-type:name="FS" />
+    </gating:dimension>
+  </gating:RectangleGate>
+
+  <!-- Gate p7, result should be 500 (40%) -->
+  <!-- Precision needed to pass the Gate 1E-1100 -->
+  <gating:RectangleGate gating:id="Gatep7">
+    <gating:dimension 
+      gating:max="440.00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001">
+      <data-type:parameter data-type:name="FS" />
+    </gating:dimension>
+  </gating:RectangleGate>
+
+</gating:Gating-ML>

@@ -1,0 +1,899 @@
+<!--
+  *******************************************************************
+  * Gating-ML Compliance Tests (Informative) *
+  * ******************************************
+  * 
+  * This file is a part of Gating-ML 1.5 Compliance Tests
+  * Josef Spidlen, BCCRC, jspidlen@bccrc.ca, March 20, 2008
+  *
+  * License
+  * The work may be used under the terms of the 
+  * Creative Commons Attribution-ShareAlike 3.0 Unported license. 
+  * You are free to share (copy, distribute and transmit), and adapt 
+  * the work under the conditions specified at 
+  * http://creativecommons.org/licenses/by-sa/3.0/legalcode
+  * 
+  * Acknowledgement
+  * This work has been supported by NIH grant EB005034 from the 
+  * National Institute of Biomedical Imaging And Bioengineering.
+  * The content is solely the responsibility of the authors and 
+  * does not necessarily represent the official views of the 
+  * National Institute of Biomedical Imaging And Bioengineering 
+  * or the National Institutes of Health.
+  *******************************************************************
+-->
+<gating:Gating-ML 
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xmlns:gating="http://www.isac-net.org/std/Gating-ML/v1.5/gating"
+  xmlns:transforms="http://www.isac-net.org/std/Gating-ML/v1.5/transformations"
+  xmlns:data-type="http://www.isac-net.org/std/Gating-ML/v1.5/datatypes"
+  xsi:schemaLocation="
+  http://www.isac-net.org/std/Gating-ML/v1.5/gating ../../XML-schemas/Gating-ML.v1.5.xsd
+  http://www.isac-net.org/std/Gating-ML/v1.5/transformations ../../XML-schemas/Transformations.v1.5.xsd
+  http://www.isac-net.org/std/Gating-ML/v1.5/datatypes ../../XML-schemas/DataTypes.v1.5.xsd">
+  
+  <!-- Test with a single event in the int-gating_test_file_4D.fcs FCS file 
+       Event: (100, 200, 300, 400) with parameters (FS, SS, FL4, FL6)
+  -->
+
+  <!-- 3D Ellipsoids -->
+
+  <!-- Inside -->
+  <gating:EllipsoidGate gating:id="Ellipsoid_01i">
+    <gating:dimension>
+      <data-type:parameter data-type:name="FS" />
+    </gating:dimension>
+    <gating:dimension>
+      <data-type:parameter data-type:name="SS" />
+    </gating:dimension>
+    <gating:dimension>
+      <data-type:parameter data-type:name="FL4" />
+    </gating:dimension>
+    <gating:mean>
+      <gating:coordinate data-type:value="120" />
+      <gating:coordinate data-type:value="220" />
+      <gating:coordinate data-type:value="280" />
+    </gating:mean>
+    <gating:covarianceMatrix>
+      <gating:row>
+        <gating:entry data-type:value="6000" />
+        <gating:entry data-type:value="-800" />
+        <gating:entry data-type:value="1325" />
+      </gating:row>
+      <gating:row>
+        <gating:entry data-type:value="-800" />
+        <gating:entry data-type:value="2000" />
+        <gating:entry data-type:value="1500" />
+      </gating:row>
+      <gating:row>
+        <gating:entry data-type:value="1325" />
+        <gating:entry data-type:value="1500" />
+        <gating:entry data-type:value="5000" />
+      </gating:row>
+    </gating:covarianceMatrix>
+    <gating:distanceSquare data-type:value="1" />
+  </gating:EllipsoidGate>
+
+
+  <!-- Inside -->
+  <gating:EllipsoidGate gating:id="Ellipsoid_02i">
+    <gating:dimension>
+      <data-type:parameter data-type:name="FS" />
+    </gating:dimension>
+    <gating:dimension>
+      <data-type:parameter data-type:name="SS" />
+    </gating:dimension>
+    <gating:dimension>
+      <data-type:parameter data-type:name="FL4" />
+    </gating:dimension>
+    <gating:mean>
+      <gating:coordinate data-type:value="120" />
+      <gating:coordinate data-type:value="220" />
+      <gating:coordinate data-type:value="280" />
+    </gating:mean>
+    <gating:covarianceMatrix>
+      <gating:row>
+        <gating:entry data-type:value="5000" />
+        <gating:entry data-type:value="-800" />
+        <gating:entry data-type:value="1325" />
+      </gating:row>
+      <gating:row>
+        <gating:entry data-type:value="-800" />
+        <gating:entry data-type:value="2200" />
+        <gating:entry data-type:value="1500" />
+      </gating:row>
+      <gating:row>
+        <gating:entry data-type:value="1325" />
+        <gating:entry data-type:value="1500" />
+        <gating:entry data-type:value="5000" />
+      </gating:row>
+    </gating:covarianceMatrix>
+    <gating:distanceSquare data-type:value="1" />
+  </gating:EllipsoidGate>
+  
+  <!-- Outside -->
+  <gating:EllipsoidGate gating:id="Ellipsoid_03o">
+    <gating:dimension>
+      <data-type:parameter data-type:name="FS" />
+    </gating:dimension>
+    <gating:dimension>
+      <data-type:parameter data-type:name="SS" />
+    </gating:dimension>
+    <gating:dimension>
+      <data-type:parameter data-type:name="FL4" />
+    </gating:dimension>
+    <gating:mean>
+      <gating:coordinate data-type:value="120" />
+      <gating:coordinate data-type:value="220" />
+      <gating:coordinate data-type:value="280" />
+    </gating:mean>
+    <gating:covarianceMatrix>
+      <gating:row>
+        <gating:entry data-type:value="7000" />
+        <gating:entry data-type:value="-2000" />
+        <gating:entry data-type:value="1325" />
+      </gating:row>
+      <gating:row>
+        <gating:entry data-type:value="-2000" />
+        <gating:entry data-type:value="2200" />
+        <gating:entry data-type:value="1000" />
+      </gating:row>
+      <gating:row>
+        <gating:entry data-type:value="1325" />
+        <gating:entry data-type:value="1000" />
+        <gating:entry data-type:value="5000" />
+      </gating:row>
+    </gating:covarianceMatrix>
+    <gating:distanceSquare data-type:value="1" />
+  </gating:EllipsoidGate>
+  
+  <!-- Inside -->
+  <gating:EllipsoidGate gating:id="Ellipsoid_04i">
+    <gating:dimension>
+      <data-type:parameter data-type:name="FS" />
+    </gating:dimension>
+    <gating:dimension>
+      <data-type:parameter data-type:name="SS" />
+    </gating:dimension>
+    <gating:dimension>
+      <data-type:parameter data-type:name="FL4" />
+    </gating:dimension>
+    <gating:mean>
+      <gating:coordinate data-type:value="120" />
+      <gating:coordinate data-type:value="220" />
+      <gating:coordinate data-type:value="280" />
+    </gating:mean>
+    <gating:covarianceMatrix>
+      <gating:row>
+        <gating:entry data-type:value="7000" />
+        <gating:entry data-type:value="-2000" />
+        <gating:entry data-type:value="1325" />
+      </gating:row>
+      <gating:row>
+        <gating:entry data-type:value="-2000" />
+        <gating:entry data-type:value="2200" />
+        <gating:entry data-type:value="-1000" />
+      </gating:row>
+      <gating:row>
+        <gating:entry data-type:value="1325" />
+        <gating:entry data-type:value="-1000" />
+        <gating:entry data-type:value="5000" />
+      </gating:row>
+    </gating:covarianceMatrix>
+    <gating:distanceSquare data-type:value="1" />
+  </gating:EllipsoidGate>
+
+  <!-- Outside -->
+  <gating:EllipsoidGate gating:id="Ellipsoid_05o">
+    <gating:dimension>
+      <data-type:parameter data-type:name="FS" />
+    </gating:dimension>
+    <gating:dimension>
+      <data-type:parameter data-type:name="SS" />
+    </gating:dimension>
+    <gating:dimension>
+      <data-type:parameter data-type:name="FL4" />
+    </gating:dimension>
+    <gating:mean>
+      <gating:coordinate data-type:value="120" />
+      <gating:coordinate data-type:value="220" />
+      <gating:coordinate data-type:value="280" />
+    </gating:mean>
+    <gating:covarianceMatrix>
+      <gating:row>
+        <gating:entry data-type:value="7000" />
+        <gating:entry data-type:value="-2000" />
+        <gating:entry data-type:value="1325" />
+      </gating:row>
+      <gating:row>
+        <gating:entry data-type:value="-2000" />
+        <gating:entry data-type:value="100" />
+        <gating:entry data-type:value="-1000" />
+      </gating:row>
+      <gating:row>
+        <gating:entry data-type:value="1325" />
+        <gating:entry data-type:value="-1000" />
+        <gating:entry data-type:value="800" />
+      </gating:row>
+    </gating:covarianceMatrix>
+    <gating:distanceSquare data-type:value="1" />
+  </gating:EllipsoidGate>
+  
+  <!-- Inside -->
+  <gating:EllipsoidGate gating:id="Ellipsoid_06i">
+    <gating:dimension>
+      <data-type:parameter data-type:name="FS" />
+    </gating:dimension>
+    <gating:dimension>
+      <data-type:parameter data-type:name="SS" />
+    </gating:dimension>
+    <gating:dimension>
+      <data-type:parameter data-type:name="FL4" />
+    </gating:dimension>
+    <gating:mean>
+      <gating:coordinate data-type:value="120" />
+      <gating:coordinate data-type:value="220" />
+      <gating:coordinate data-type:value="280" />
+    </gating:mean>
+    <gating:covarianceMatrix>
+      <gating:row>
+        <gating:entry data-type:value="7000" />
+        <gating:entry data-type:value="-2000" />
+        <gating:entry data-type:value="1325" />
+      </gating:row>
+      <gating:row>
+        <gating:entry data-type:value="-2000" />
+        <gating:entry data-type:value="100" />
+        <gating:entry data-type:value="-1000" />
+      </gating:row>
+      <gating:row>
+        <gating:entry data-type:value="1325" />
+        <gating:entry data-type:value="-1000" />
+        <gating:entry data-type:value="800" />
+      </gating:row>
+    </gating:covarianceMatrix>
+    <gating:distanceSquare data-type:value="1.1" />
+  </gating:EllipsoidGate>
+  
+  <!-- Outside -->
+  <gating:EllipsoidGate gating:id="Ellipsoid_07o">
+    <gating:dimension>
+      <data-type:parameter data-type:name="FS" />
+    </gating:dimension>
+    <gating:dimension>
+      <data-type:parameter data-type:name="SS" />
+    </gating:dimension>
+    <gating:dimension>
+      <data-type:parameter data-type:name="FL4" />
+    </gating:dimension>
+    <gating:mean>
+      <gating:coordinate data-type:value="120" />
+      <gating:coordinate data-type:value="220" />
+      <gating:coordinate data-type:value="280" />
+    </gating:mean>
+    <gating:covarianceMatrix>
+      <gating:row>
+        <gating:entry data-type:value="7000" />
+        <gating:entry data-type:value="-2000" />
+        <gating:entry data-type:value="1500" />
+      </gating:row>
+      <gating:row>
+        <gating:entry data-type:value="-2000" />
+        <gating:entry data-type:value="100" />
+        <gating:entry data-type:value="-1000" />
+      </gating:row>
+      <gating:row>
+        <gating:entry data-type:value="1500" />
+        <gating:entry data-type:value="-1000" />
+        <gating:entry data-type:value="800" />
+      </gating:row>
+    </gating:covarianceMatrix>
+    <gating:distanceSquare data-type:value="1.2" />
+  </gating:EllipsoidGate>
+  
+  <!-- Inside -->
+  <gating:EllipsoidGate gating:id="Ellipsoid_08i">
+    <gating:dimension>
+      <data-type:parameter data-type:name="FL6" />
+    </gating:dimension>
+    <gating:dimension>
+      <data-type:parameter data-type:name="SS" />
+    </gating:dimension>
+    <gating:dimension>
+      <data-type:parameter data-type:name="FL4" />
+    </gating:dimension>
+    <gating:mean>
+      <gating:coordinate data-type:value="520" />
+      <gating:coordinate data-type:value="150" />
+      <gating:coordinate data-type:value="270" />
+    </gating:mean>
+    <gating:covarianceMatrix>
+      <gating:row>
+        <gating:entry data-type:value="3600" />
+        <gating:entry data-type:value="-1500" />
+        <gating:entry data-type:value="700" />
+      </gating:row>
+      <gating:row>
+        <gating:entry data-type:value="-1500" />
+        <gating:entry data-type:value="900" />
+        <gating:entry data-type:value="-1000" />
+      </gating:row>
+      <gating:row>
+        <gating:entry data-type:value="700" />
+        <gating:entry data-type:value="-1000" />
+        <gating:entry data-type:value="1200" />
+      </gating:row>
+    </gating:covarianceMatrix>
+    <gating:distanceSquare data-type:value="1.0" />
+  </gating:EllipsoidGate>
+  
+  <!-- Inside -->
+  <gating:EllipsoidGate gating:id="Ellipsoid_09i">
+    <gating:dimension>
+      <data-type:parameter data-type:name="FL6" />
+    </gating:dimension>
+    <gating:dimension>
+      <data-type:parameter data-type:name="SS" />
+    </gating:dimension>
+    <gating:dimension>
+      <data-type:parameter data-type:name="FL4" />
+    </gating:dimension>
+    <gating:mean>
+      <gating:coordinate data-type:value="520" />
+      <gating:coordinate data-type:value="150" />
+      <gating:coordinate data-type:value="270" />
+    </gating:mean>
+    <gating:covarianceMatrix>
+      <gating:row>
+        <gating:entry data-type:value="3600" />
+        <gating:entry data-type:value="-1500" />
+        <gating:entry data-type:value="700" />
+      </gating:row>
+      <gating:row>
+        <gating:entry data-type:value="-1500" />
+        <gating:entry data-type:value="875" />
+        <gating:entry data-type:value="-1000" />
+      </gating:row>
+      <gating:row>
+        <gating:entry data-type:value="700" />
+        <gating:entry data-type:value="-1000" />
+        <gating:entry data-type:value="1200" />
+      </gating:row>
+    </gating:covarianceMatrix>
+    <gating:distanceSquare data-type:value="1.0" />
+  </gating:EllipsoidGate>
+  
+  <!-- Inside -->
+  <gating:EllipsoidGate gating:id="Ellipsoid_10i">
+    <gating:dimension>
+      <data-type:parameter data-type:name="FL6" />
+    </gating:dimension>
+    <gating:dimension>
+      <data-type:parameter data-type:name="SS" />
+    </gating:dimension>
+    <gating:dimension>
+      <data-type:parameter data-type:name="FL4" />
+    </gating:dimension>
+    <gating:mean>
+      <gating:coordinate data-type:value="520" />
+      <gating:coordinate data-type:value="150" />
+      <gating:coordinate data-type:value="270" />
+    </gating:mean>
+    <gating:covarianceMatrix>
+      <gating:row>
+        <gating:entry data-type:value="3600" />
+        <gating:entry data-type:value="-1500" />
+        <gating:entry data-type:value="700" />
+      </gating:row>
+      <gating:row>
+        <gating:entry data-type:value="-1500" />
+        <gating:entry data-type:value="875" />
+        <gating:entry data-type:value="-1000" />
+      </gating:row>
+      <gating:row>
+        <gating:entry data-type:value="700" />
+        <gating:entry data-type:value="-1000" />
+        <gating:entry data-type:value="1100" />
+      </gating:row>
+    </gating:covarianceMatrix>
+    <gating:distanceSquare data-type:value="1.3" />
+  </gating:EllipsoidGate>
+
+  
+  <!-- 4D Ellipsoids -->
+  
+  <!-- Inside -->
+  <gating:EllipsoidGate gating:id="Ellipsoid_11i">
+    <gating:dimension>
+      <data-type:parameter data-type:name="FS" />
+    </gating:dimension>
+    <gating:dimension>
+      <data-type:parameter data-type:name="SS" />
+    </gating:dimension>
+    <gating:dimension>
+      <data-type:parameter data-type:name="FL4" />
+    </gating:dimension>
+    <gating:dimension>
+      <data-type:parameter data-type:name="FL6" />
+    </gating:dimension>
+    <gating:mean>
+      <gating:coordinate data-type:value="80" />
+      <gating:coordinate data-type:value="225" />
+      <gating:coordinate data-type:value="265" />
+      <gating:coordinate data-type:value="450" />
+    </gating:mean>
+    <gating:covarianceMatrix>
+      <gating:row>
+        <gating:entry data-type:value="3600" />
+        <gating:entry data-type:value="-1200" />
+        <gating:entry data-type:value="700" />
+        <gating:entry data-type:value="1000" />
+      </gating:row>
+      <gating:row>
+        <gating:entry data-type:value="-1200" />
+        <gating:entry data-type:value="875" />
+        <gating:entry data-type:value="-1100" />
+        <gating:entry data-type:value="400" />
+      </gating:row>
+      <gating:row>
+        <gating:entry data-type:value="700" />
+        <gating:entry data-type:value="-1100" />
+        <gating:entry data-type:value="1100" />
+        <gating:entry data-type:value="280" />
+      </gating:row>
+      <gating:row>
+        <gating:entry data-type:value="1000" />
+        <gating:entry data-type:value="400" />
+        <gating:entry data-type:value="280" />
+        <gating:entry data-type:value="5000" />
+      </gating:row>
+    </gating:covarianceMatrix>
+    <gating:distanceSquare data-type:value="1" />
+  </gating:EllipsoidGate>
+  
+  <!-- Outside -->
+  <gating:EllipsoidGate gating:id="Ellipsoid_12o">
+    <gating:dimension>
+      <data-type:parameter data-type:name="FS" />
+    </gating:dimension>
+    <gating:dimension>
+      <data-type:parameter data-type:name="SS" />
+    </gating:dimension>
+    <gating:dimension>
+      <data-type:parameter data-type:name="FL4" />
+    </gating:dimension>
+    <gating:dimension>
+      <data-type:parameter data-type:name="FL6" />
+    </gating:dimension>
+    <gating:mean>
+      <gating:coordinate data-type:value="80" />
+      <gating:coordinate data-type:value="225" />
+      <gating:coordinate data-type:value="265" />
+      <gating:coordinate data-type:value="480" />
+    </gating:mean>
+    <gating:covarianceMatrix>
+      <gating:row>
+        <gating:entry data-type:value="3600" />
+        <gating:entry data-type:value="-1200" />
+        <gating:entry data-type:value="700" />
+        <gating:entry data-type:value="1000" />
+      </gating:row>
+      <gating:row>
+        <gating:entry data-type:value="-1200" />
+        <gating:entry data-type:value="875" />
+        <gating:entry data-type:value="-1100" />
+        <gating:entry data-type:value="400" />
+      </gating:row>
+      <gating:row>
+        <gating:entry data-type:value="700" />
+        <gating:entry data-type:value="-1100" />
+        <gating:entry data-type:value="1100" />
+        <gating:entry data-type:value="280" />
+      </gating:row>
+      <gating:row>
+        <gating:entry data-type:value="1000" />
+        <gating:entry data-type:value="400" />
+        <gating:entry data-type:value="280" />
+        <gating:entry data-type:value="5000" />
+      </gating:row>
+    </gating:covarianceMatrix>
+    <gating:distanceSquare data-type:value="1" />
+  </gating:EllipsoidGate>
+  
+  <!-- Outside -->
+  <gating:EllipsoidGate gating:id="Ellipsoid_13o">
+    <gating:dimension>
+      <data-type:parameter data-type:name="FS" />
+    </gating:dimension>
+    <gating:dimension>
+      <data-type:parameter data-type:name="SS" />
+    </gating:dimension>
+    <gating:dimension>
+      <data-type:parameter data-type:name="FL4" />
+    </gating:dimension>
+    <gating:dimension>
+      <data-type:parameter data-type:name="FL6" />
+    </gating:dimension>
+    <gating:mean>
+      <gating:coordinate data-type:value="80" />
+      <gating:coordinate data-type:value="225" />
+      <gating:coordinate data-type:value="265" />
+      <gating:coordinate data-type:value="460" />
+    </gating:mean>
+    <gating:covarianceMatrix>
+      <gating:row>
+        <gating:entry data-type:value="3600" />
+        <gating:entry data-type:value="-1200" />
+        <gating:entry data-type:value="700" />
+        <gating:entry data-type:value="1000" />
+      </gating:row>
+      <gating:row>
+        <gating:entry data-type:value="-1200" />
+        <gating:entry data-type:value="875" />
+        <gating:entry data-type:value="-1100" />
+        <gating:entry data-type:value="400" />
+      </gating:row>
+      <gating:row>
+        <gating:entry data-type:value="700" />
+        <gating:entry data-type:value="-1100" />
+        <gating:entry data-type:value="1100" />
+        <gating:entry data-type:value="280" />
+      </gating:row>
+      <gating:row>
+        <gating:entry data-type:value="1000" />
+        <gating:entry data-type:value="400" />
+        <gating:entry data-type:value="280" />
+        <gating:entry data-type:value="3000" />
+      </gating:row>
+    </gating:covarianceMatrix>
+    <gating:distanceSquare data-type:value="0.92" />
+  </gating:EllipsoidGate>
+  
+  <!-- Inside -->
+  <gating:EllipsoidGate gating:id="Ellipsoid_14i">
+    <gating:dimension>
+      <data-type:parameter data-type:name="FS" />
+    </gating:dimension>
+    <gating:dimension>
+      <data-type:parameter data-type:name="SS" />
+    </gating:dimension>
+    <gating:dimension>
+      <data-type:parameter data-type:name="FL4" />
+    </gating:dimension>
+    <gating:dimension>
+      <data-type:parameter data-type:name="FL6" />
+    </gating:dimension>
+    <gating:mean>
+      <gating:coordinate data-type:value="80" />
+      <gating:coordinate data-type:value="225" />
+      <gating:coordinate data-type:value="265" />
+      <gating:coordinate data-type:value="460" />
+    </gating:mean>
+    <gating:covarianceMatrix>
+      <gating:row>
+        <gating:entry data-type:value="3600" />
+        <gating:entry data-type:value="-1200" />
+        <gating:entry data-type:value="700" />
+        <gating:entry data-type:value="1000" />
+      </gating:row>
+      <gating:row>
+        <gating:entry data-type:value="-1200" />
+        <gating:entry data-type:value="900" />
+        <gating:entry data-type:value="-1100" />
+        <gating:entry data-type:value="400" />
+      </gating:row>
+      <gating:row>
+        <gating:entry data-type:value="700" />
+        <gating:entry data-type:value="-1100" />
+        <gating:entry data-type:value="1100" />
+        <gating:entry data-type:value="280" />
+      </gating:row>
+      <gating:row>
+        <gating:entry data-type:value="1000" />
+        <gating:entry data-type:value="400" />
+        <gating:entry data-type:value="280" />
+        <gating:entry data-type:value="3000" />
+      </gating:row>
+    </gating:covarianceMatrix>
+    <gating:distanceSquare data-type:value="1.15" />
+  </gating:EllipsoidGate>
+  
+  <!-- Inside -->
+  <gating:EllipsoidGate gating:id="Ellipsoid_15i">
+    <gating:dimension>
+      <data-type:parameter data-type:name="FS" />
+    </gating:dimension>
+    <gating:dimension>
+      <data-type:parameter data-type:name="SS" />
+    </gating:dimension>
+    <gating:dimension>
+      <data-type:parameter data-type:name="FL4" />
+    </gating:dimension>
+    <gating:dimension>
+      <data-type:parameter data-type:name="FL6" />
+    </gating:dimension>
+    <gating:mean>
+      <gating:coordinate data-type:value="80" />
+      <gating:coordinate data-type:value="225" />
+      <gating:coordinate data-type:value="265" />
+      <gating:coordinate data-type:value="460" />
+    </gating:mean>
+    <gating:covarianceMatrix>
+      <gating:row>
+        <gating:entry data-type:value="2500" />
+        <gating:entry data-type:value="-1200" />
+        <gating:entry data-type:value="-70" />
+        <gating:entry data-type:value="1000" />
+      </gating:row>
+      <gating:row>
+        <gating:entry data-type:value="-1200" />
+        <gating:entry data-type:value="900" />
+        <gating:entry data-type:value="-1100" />
+        <gating:entry data-type:value="400" />
+      </gating:row>
+      <gating:row>
+        <gating:entry data-type:value="-70" />
+        <gating:entry data-type:value="-1100" />
+        <gating:entry data-type:value="1100" />
+        <gating:entry data-type:value="280" />
+      </gating:row>
+      <gating:row>
+        <gating:entry data-type:value="1000" />
+        <gating:entry data-type:value="400" />
+        <gating:entry data-type:value="280" />
+        <gating:entry data-type:value="3000" />
+      </gating:row>
+    </gating:covarianceMatrix>
+    <gating:distanceSquare data-type:value="1.35" />
+  </gating:EllipsoidGate>
+  
+  <!-- Inside -->
+  <gating:EllipsoidGate gating:id="Ellipsoid_16i">
+    <gating:dimension>
+      <data-type:parameter data-type:name="FS" />
+    </gating:dimension>
+    <gating:dimension>
+      <data-type:parameter data-type:name="SS" />
+    </gating:dimension>
+    <gating:dimension>
+      <data-type:parameter data-type:name="FL4" />
+    </gating:dimension>
+    <gating:dimension>
+      <data-type:parameter data-type:name="FL6" />
+    </gating:dimension>
+    <gating:mean>
+      <gating:coordinate data-type:value="80" />
+      <gating:coordinate data-type:value="225" />
+      <gating:coordinate data-type:value="265" />
+      <gating:coordinate data-type:value="400" />
+    </gating:mean>
+    <gating:covarianceMatrix>
+      <gating:row>
+        <gating:entry data-type:value="2500" />
+        <gating:entry data-type:value="-1200" />
+        <gating:entry data-type:value="-70" />
+        <gating:entry data-type:value="1000" />
+      </gating:row>
+      <gating:row>
+        <gating:entry data-type:value="-1200" />
+        <gating:entry data-type:value="900" />
+        <gating:entry data-type:value="-1100" />
+        <gating:entry data-type:value="400" />
+      </gating:row>
+      <gating:row>
+        <gating:entry data-type:value="-70" />
+        <gating:entry data-type:value="-1100" />
+        <gating:entry data-type:value="1100" />
+        <gating:entry data-type:value="280" />
+      </gating:row>
+      <gating:row>
+        <gating:entry data-type:value="1000" />
+        <gating:entry data-type:value="400" />
+        <gating:entry data-type:value="280" />
+        <gating:entry data-type:value="3000" />
+      </gating:row>
+    </gating:covarianceMatrix>
+    <gating:distanceSquare data-type:value="1" />
+  </gating:EllipsoidGate>
+  
+  <!-- Outside -->
+  <gating:EllipsoidGate gating:id="Ellipsoid_17o">
+    <gating:dimension>
+      <data-type:parameter data-type:name="FS" />
+    </gating:dimension>
+    <gating:dimension>
+      <data-type:parameter data-type:name="SS" />
+    </gating:dimension>
+    <gating:dimension>
+      <data-type:parameter data-type:name="FL4" />
+    </gating:dimension>
+    <gating:dimension>
+      <data-type:parameter data-type:name="FL6" />
+    </gating:dimension>
+    <gating:mean>
+      <gating:coordinate data-type:value="80" />
+      <gating:coordinate data-type:value="225" />
+      <gating:coordinate data-type:value="258" />
+      <gating:coordinate data-type:value="400" />
+    </gating:mean>
+    <gating:covarianceMatrix>
+      <gating:row>
+        <gating:entry data-type:value="2500" />
+        <gating:entry data-type:value="-1200" />
+        <gating:entry data-type:value="-70" />
+        <gating:entry data-type:value="1000" />
+      </gating:row>
+      <gating:row>
+        <gating:entry data-type:value="-1200" />
+        <gating:entry data-type:value="900" />
+        <gating:entry data-type:value="-1100" />
+        <gating:entry data-type:value="400" />
+      </gating:row>
+      <gating:row>
+        <gating:entry data-type:value="-70" />
+        <gating:entry data-type:value="-1100" />
+        <gating:entry data-type:value="1100" />
+        <gating:entry data-type:value="280" />
+      </gating:row>
+      <gating:row>
+        <gating:entry data-type:value="1000" />
+        <gating:entry data-type:value="400" />
+        <gating:entry data-type:value="280" />
+        <gating:entry data-type:value="3000" />
+      </gating:row>
+    </gating:covarianceMatrix>
+    <gating:distanceSquare data-type:value="0.9" />
+  </gating:EllipsoidGate>
+  
+  <!-- Inside -->
+  <gating:EllipsoidGate gating:id="Ellipsoid_18i">
+    <gating:dimension>
+      <data-type:parameter data-type:name="FS" />
+    </gating:dimension>
+    <gating:dimension>
+      <data-type:parameter data-type:name="SS" />
+    </gating:dimension>
+    <gating:dimension>
+      <data-type:parameter data-type:name="FL4" />
+    </gating:dimension>
+    <gating:dimension>
+      <data-type:parameter data-type:name="FL6" />
+    </gating:dimension>
+    <gating:mean>
+      <gating:coordinate data-type:value="80" />
+      <gating:coordinate data-type:value="225" />
+      <gating:coordinate data-type:value="259" />
+      <gating:coordinate data-type:value="400" />
+    </gating:mean>
+    <gating:covarianceMatrix>
+      <gating:row>
+        <gating:entry data-type:value="2500" />
+        <gating:entry data-type:value="-1200" />
+        <gating:entry data-type:value="-70" />
+        <gating:entry data-type:value="1000" />
+      </gating:row>
+      <gating:row>
+        <gating:entry data-type:value="-1200" />
+        <gating:entry data-type:value="900" />
+        <gating:entry data-type:value="-1100" />
+        <gating:entry data-type:value="400" />
+      </gating:row>
+      <gating:row>
+        <gating:entry data-type:value="-70" />
+        <gating:entry data-type:value="-1100" />
+        <gating:entry data-type:value="1100" />
+        <gating:entry data-type:value="280" />
+      </gating:row>
+      <gating:row>
+        <gating:entry data-type:value="1000" />
+        <gating:entry data-type:value="400" />
+        <gating:entry data-type:value="280" />
+        <gating:entry data-type:value="3000" />
+      </gating:row>
+    </gating:covarianceMatrix>
+    <gating:distanceSquare data-type:value="1" />
+  </gating:EllipsoidGate>
+  
+  <!-- Inside -->
+  <gating:EllipsoidGate gating:id="Ellipsoid_19i">
+    <gating:dimension>
+      <data-type:parameter data-type:name="FS" />
+    </gating:dimension>
+    <gating:dimension>
+      <data-type:parameter data-type:name="SS" />
+    </gating:dimension>
+    <gating:dimension>
+      <data-type:parameter data-type:name="FL4" />
+    </gating:dimension>
+    <gating:dimension>
+      <data-type:parameter data-type:name="FL6" />
+    </gating:dimension>
+    <gating:mean>
+      <gating:coordinate data-type:value="80" />
+      <gating:coordinate data-type:value="225" />
+      <gating:coordinate data-type:value="280" />
+      <gating:coordinate data-type:value="400" />
+    </gating:mean>
+    <gating:covarianceMatrix>
+      <gating:row>
+        <gating:entry data-type:value="2500" />
+        <gating:entry data-type:value="-1200" />
+        <gating:entry data-type:value="-70" />
+        <gating:entry data-type:value="1000" />
+      </gating:row>
+      <gating:row>
+        <gating:entry data-type:value="-1200" />
+        <gating:entry data-type:value="700" />
+        <gating:entry data-type:value="-1100" />
+        <gating:entry data-type:value="400" />
+      </gating:row>
+      <gating:row>
+        <gating:entry data-type:value="-70" />
+        <gating:entry data-type:value="-1100" />
+        <gating:entry data-type:value="1100" />
+        <gating:entry data-type:value="-400" />
+      </gating:row>
+      <gating:row>
+        <gating:entry data-type:value="1000" />
+        <gating:entry data-type:value="400" />
+        <gating:entry data-type:value="-400" />
+        <gating:entry data-type:value="2500" />
+      </gating:row>
+    </gating:covarianceMatrix>
+    <gating:distanceSquare data-type:value="0.53" />
+  </gating:EllipsoidGate>
+  
+  <!-- Outside -->
+  <gating:EllipsoidGate gating:id="Ellipsoid_20o">
+    <gating:dimension>
+      <data-type:parameter data-type:name="FS" />
+    </gating:dimension>
+    <gating:dimension>
+      <data-type:parameter data-type:name="SS" />
+    </gating:dimension>
+    <gating:dimension>
+      <data-type:parameter data-type:name="FL4" />
+    </gating:dimension>
+    <gating:dimension>
+      <data-type:parameter data-type:name="FL6" />
+    </gating:dimension>
+    <gating:mean>
+      <gating:coordinate data-type:value="80" />
+      <gating:coordinate data-type:value="225" />
+      <gating:coordinate data-type:value="280" />
+      <gating:coordinate data-type:value="400" />
+    </gating:mean>
+    <gating:covarianceMatrix>
+      <gating:row>
+        <gating:entry data-type:value="2500" />
+        <gating:entry data-type:value="-1200" />
+        <gating:entry data-type:value="-70" />
+        <gating:entry data-type:value="1000" />
+      </gating:row>
+      <gating:row>
+        <gating:entry data-type:value="-1200" />
+        <gating:entry data-type:value="700" />
+        <gating:entry data-type:value="-1100" />
+        <gating:entry data-type:value="400" />
+      </gating:row>
+      <gating:row>
+        <gating:entry data-type:value="-70" />
+        <gating:entry data-type:value="-1100" />
+        <gating:entry data-type:value="1100" />
+        <gating:entry data-type:value="-400" />
+      </gating:row>
+      <gating:row>
+        <gating:entry data-type:value="1000" />
+        <gating:entry data-type:value="400" />
+        <gating:entry data-type:value="-400" />
+        <gating:entry data-type:value="2500" />
+      </gating:row>
+    </gating:covarianceMatrix>
+    <gating:distanceSquare data-type:value="0.5" />
+  </gating:EllipsoidGate>
+  
+  
+  
+  
+
+</gating:Gating-ML>

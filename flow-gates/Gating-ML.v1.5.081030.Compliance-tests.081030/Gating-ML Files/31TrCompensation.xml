@@ -1,0 +1,200 @@
+<!--
+  *******************************************************************
+  * Gating-ML Compliance Tests (Informative) *
+  * ******************************************
+  * 
+  * This file is a part of Gating-ML 1.5 Compliance Tests
+  * Josef Spidlen, BCCRC, jspidlen@bccrc.ca, March 20, 2008
+  *
+  * License
+  * The work may be used under the terms of the 
+  * Creative Commons Attribution-ShareAlike 3.0 Unported license. 
+  * You are free to share (copy, distribute and transmit), and adapt 
+  * the work under the conditions specified at 
+  * http://creativecommons.org/licenses/by-sa/3.0/legalcode
+  * 
+  * Acknowledgement
+  * This work has been supported by NIH grant EB005034 from the 
+  * National Institute of Biomedical Imaging And Bioengineering.
+  * The content is solely the responsibility of the authors and 
+  * does not necessarily represent the official views of the 
+  * National Institute of Biomedical Imaging And Bioengineering 
+  * or the National Institutes of Health.
+  *******************************************************************
+-->
+<gating:Gating-ML 
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xmlns:gating="http://www.isac-net.org/std/Gating-ML/v1.5/gating"
+  xmlns:transforms="http://www.isac-net.org/std/Gating-ML/v1.5/transformations"
+  xmlns:data-type="http://www.isac-net.org/std/Gating-ML/v1.5/datatypes"
+  xsi:schemaLocation="
+  http://www.isac-net.org/std/Gating-ML/v1.5/gating ../../XML-schemas/Gating-ML.v1.5.xsd
+  http://www.isac-net.org/std/Gating-ML/v1.5/transformations ../../XML-schemas/Transformations.v1.5.xsd
+  http://www.isac-net.org/std/Gating-ML/v1.5/datatypes ../../XML-schemas/DataTypes.v1.5.xsd">
+  
+  <!-- To be applied on int-10_events_8_parameters.fcs -->
+
+  <!-- 
+    
+      Spillover Matrix:
+   	   AS     BS     CS     ES     FS     HS
+   	AS 1.0    0.0    0.0    0.0    0.0    0.1234
+   	BS 0.0    1.0    0.0    0.3456 0.0    0.0 
+   	CS 0.0    0.4567 1.0    0.0    0.0    0.0
+   	ES 0.0    0.0    0.0    1.0    0.9123 0.0
+   	FS 0.8912 0.0    0.0    0.0    1.0    0.0
+   	HS 0.0    0.0    0.5678 0.0    0.0    1.0
+     	
+   	Expected "Virtual" data set (including compensated events):
+   	AS     BS     CS     DS     ES     FS     GS     HS     cAS               cBS               cCS               cES                cFS               cHS  
+   	10.0,  20.0,  30.0,  40.0,  50.0,  60.0,  70.0,  80.0,  1.5515612670147,  21.2014838939059, 20.3172823056532, -3.47651589671854, 58.6172485988365, 68.4638471068501
+   	90.0,  100.0, 110.0, 120.0, 130.0, 140.0, 150.0, 160.0, 75.4671280286476, 78.0074237689211, 74.3740095647337, 63.635926594557,   72.7436955008693, 117.770437369144
+   	170.0, 180.0, 190.0, 200.0, 210.0, 220.0, 230.0, 240.0, 149.382694790281, 134.813363643936, 128.430736823814, 130.748369085833,  86.870142402902,  167.077027631438
+   	250.0, 260.0, 270.0, 280.0, 290.0, 300.0, 310.0, 320.0, 223.298261551913, 191.619303518951, 182.487464082895, 197.860811577108,  100.996589304935, 216.383617893732
+   	330.0, 340.0, 350.0, 360.0, 370.0, 380.0, 390.0, 400.0, 297.213828313546, 248.425243393967, 236.544191341975, 264.973254068384,  115.123036206968, 265.690208156026
+   	410.0, 420.0, 430.0, 440.0, 450.0, 460.0, 470.0, 480.0, 371.129395075179, 305.231183268982, 290.600918601056, 332.085696559659,  129.249483109,    314.99679841832
+   	490.0, 500.0, 510.0, 520.0, 530.0, 540.0, 550.0, 560.0, 445.044961836812, 362.037123143997, 344.657645860137, 399.198139050935,  143.375930011033, 364.303388680614
+   	570.0, 580.0, 590.0, 600.0, 610.0, 620.0, 630.0, 640.0, 518.960528598445, 418.843063019012, 398.714373119217, 466.31058154221,   157.502376913066, 413.609978942909
+   	650.0, 660.0, 670.0, 680.0, 690.0, 700.0, 710.0, 720.0, 592.876095360078, 475.649002894027, 452.771100378298, 533.423024033486,  171.628823815098, 462.916569205203
+   	730.0, 740.0, 750.0, 760.0, 770.0, 780.0, 790.0, 800.0, 666.791662121711, 532.454942769043, 506.827827637378, 600.535466524761,  185.755270717131, 512.223159467497
+   	
+  -->
+  
+  <transforms:spilloverMatrix transforms:id="M1">
+    <transforms:parameters>
+      <data-type:parameter data-type:name="AS"/>
+      <data-type:parameter data-type:name="BS"/>
+      <data-type:parameter data-type:name="CS"/>
+      <data-type:parameter data-type:name="ES"/>
+      <data-type:parameter data-type:name="FS"/>
+      <data-type:parameter data-type:name="HS"/>
+    </transforms:parameters>
+    <transforms:spillover> <!-- row 1 AS -->
+      <transforms:coefficient transforms:value="1.0"/>
+      <transforms:coefficient transforms:value="0.0"/>
+      <transforms:coefficient transforms:value="0.0"/>
+      <transforms:coefficient transforms:value="0.0"/>
+      <transforms:coefficient transforms:value="0.0"/>
+      <transforms:coefficient transforms:value="0.1234"/>
+    </transforms:spillover>
+    <transforms:spillover> <!-- row 2 BS -->
+      <transforms:coefficient transforms:value="0.0"/>
+      <transforms:coefficient transforms:value="1.0"/>
+      <transforms:coefficient transforms:value="0.0"/>
+      <transforms:coefficient transforms:value="0.3456"/>
+      <transforms:coefficient transforms:value="0.0"/>
+      <transforms:coefficient transforms:value="0.0"/>
+    </transforms:spillover>
+    <transforms:spillover> <!-- row 3 CS -->
+      <transforms:coefficient transforms:value="0.0"/>
+      <transforms:coefficient transforms:value="0.4567"/>
+      <transforms:coefficient transforms:value="1.0"/>
+      <transforms:coefficient transforms:value="0.0"/>
+      <transforms:coefficient transforms:value="0.0"/>
+      <transforms:coefficient transforms:value="0.0"/>
+    </transforms:spillover>
+    <transforms:spillover> <!-- row 4 ES -->
+      <transforms:coefficient transforms:value="0.0"/>
+      <transforms:coefficient transforms:value="0.0"/>
+      <transforms:coefficient transforms:value="0.0"/>
+      <transforms:coefficient transforms:value="1.0"/>
+      <transforms:coefficient transforms:value="0.9123"/>
+      <transforms:coefficient transforms:value="0.0"/>
+    </transforms:spillover>
+    <transforms:spillover> <!-- row 5 FS -->
+      <transforms:coefficient transforms:value="0.8912"/>
+      <transforms:coefficient transforms:value="0.0"/>
+      <transforms:coefficient transforms:value="0.0"/>
+      <transforms:coefficient transforms:value="0.0"/>
+      <transforms:coefficient transforms:value="1.0"/>
+      <transforms:coefficient transforms:value="0.0"/>
+    </transforms:spillover>
+    <transforms:spillover> <!-- row 6 HS -->
+      <transforms:coefficient transforms:value="0.0"/>
+      <transforms:coefficient transforms:value="0.0"/>
+      <transforms:coefficient transforms:value="0.5678"/>
+      <transforms:coefficient transforms:value="0.0"/>
+      <transforms:coefficient transforms:value="0.0"/>
+      <transforms:coefficient transforms:value="1.0"/>
+    </transforms:spillover>
+  </transforms:spilloverMatrix>
+  
+  <transforms:transformation transforms:id="cAS">
+    <transforms:compensation transforms:spilloverMatrixRef="M1">
+      <data-type:parameter data-type:name="AS"/>
+    </transforms:compensation>
+  </transforms:transformation>
+  
+  <transforms:transformation transforms:id="cBS">
+    <transforms:compensation transforms:spilloverMatrixRef="M1">
+      <data-type:parameter data-type:name="BS"/>
+    </transforms:compensation>
+  </transforms:transformation>  
+  
+  <transforms:transformation transforms:id="cCS">
+    <transforms:compensation transforms:spilloverMatrixRef="M1">
+      <data-type:parameter data-type:name="CS"/>
+    </transforms:compensation>
+  </transforms:transformation>  
+  
+  <transforms:transformation transforms:id="cES">
+    <transforms:compensation transforms:spilloverMatrixRef="M1">
+      <data-type:parameter data-type:name="ES"/>
+    </transforms:compensation>
+  </transforms:transformation>  
+  
+  <transforms:transformation transforms:id="cFS">
+    <transforms:compensation transforms:spilloverMatrixRef="M1">
+      <data-type:parameter data-type:name="FS"/>
+    </transforms:compensation>
+  </transforms:transformation>  
+  
+  <transforms:transformation transforms:id="cHS">
+    <transforms:compensation transforms:spilloverMatrixRef="M1">
+      <data-type:parameter data-type:name="HS"/>
+    </transforms:compensation>
+  </transforms:transformation>  
+  
+  <!-- 7 Inside -->
+  <gating:RectangleGate gating:id="compG1">
+    <gating:dimension gating:min="2" gating:max="520">
+      <transforms:transformationReference transforms:ref="cAS" />
+    </gating:dimension>
+  </gating:RectangleGate>
+  
+  <!-- 8 Inside -->
+  <gating:RectangleGate gating:id="compG2">
+    <gating:dimension gating:min="20.5" gating:max="475">
+      <transforms:transformationReference transforms:ref="cBS" />
+    </gating:dimension>
+  </gating:RectangleGate>
+  
+  <!-- 4 Inside -->
+  <gating:RectangleGate gating:id="compG3">
+    <gating:dimension gating:min="236" gating:max="399">
+      <transforms:transformationReference transforms:ref="cCS" />
+    </gating:dimension>
+  </gating:RectangleGate>
+  
+  <!-- 3 Inside -->
+  <gating:RectangleGate gating:id="compG4">
+    <gating:dimension gating:min="198" gating:max="399.5">
+      <transforms:transformationReference transforms:ref="cES" />
+    </gating:dimension>
+  </gating:RectangleGate>
+  
+  <!-- 4 Inside -->
+  <gating:RectangleGate gating:id="compG5">
+    <gating:dimension gating:min="101" gating:max="158">
+      <transforms:transformationReference transforms:ref="cFS" />
+    </gating:dimension>
+  </gating:RectangleGate>
+  
+  <!-- 6 Inside -->
+  <gating:RectangleGate gating:id="compG6">
+    <gating:dimension gating:min="167" gating:max="414">
+      <transforms:transformationReference transforms:ref="cHS" />
+    </gating:dimension>
+  </gating:RectangleGate>
+
+</gating:Gating-ML>
