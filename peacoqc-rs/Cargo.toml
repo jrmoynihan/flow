@@ -23,6 +23,8 @@ anyhow.workspace   =true
 thiserror.workspace=true
 rand.workspace     =true
 rayon.workspace    =true
+plotters           ="0.3.7"
+image              ="0.25.9"
 serde.workspace    =true
 tracing.workspace  =true
 

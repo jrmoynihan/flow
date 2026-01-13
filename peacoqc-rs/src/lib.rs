@@ -97,8 +97,10 @@ pub mod fcs;
 
 pub use error::{PeacoQCError, Result};
 pub use qc::{
-    DoubletConfig, DoubletResult, MarginConfig, MarginResult, PeacoQCConfig, PeacoQCResult, QCMode,
-    peacoqc, remove_doublets, remove_margins,
+    peacoqc, PeacoQCConfig, PeacoQCResult, QCMode,
+    remove_margins, MarginConfig, MarginResult,
+    remove_doublets, DoubletConfig, DoubletResult,
+    create_qc_plots, QCPlotConfig,
 };
 
 #[cfg(feature = "flow-fcs")]
