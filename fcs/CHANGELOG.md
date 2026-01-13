@@ -7,9 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+<csr-id-9c44f94e6b8e0236a47361a7dc7156b90d25f37c/>
+<csr-id-f64872e441add42bc9d19280d4411df628ff853e/>
+<csr-id-661e8e00088c6bee38bc02a8a2830f284cd49ac4/>
+
 ### Chore
 
  - <csr-id-9c44f94e6b8e0236a47361a7dc7156b90d25f37c/> bump version number in Cargo.toml for flow-fcs
+
+### Chore
+
+ - <csr-id-2fc9efdd0a9bfeadd0613dd309d811067acc709f/> update CHANGELOG for upcoming release
+   - Documented unreleased changes including version bump, new features, enhancements in FCS file parsing, benchmarking capabilities, and metadata processing improvements.
+   - Added new FCS specification PDF and example QC plot to documentation.
+   - Refactored folder names and updated test module imports for better organization and error handling.
 
 ### Documentation
 
@@ -18,6 +29,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
    - Add example QC plot output image
 
 ### New Features
+
+<csr-id-590dfaa8e0c551591ea3b2ff98f893df34f6251c/>
+<csr-id-c92c76434e9a2bf957040821c246eaef261e80f8/>
 
  - <csr-id-4d234b204ade5acd6f1cf1f87c36c5e709fd2d4a/> improve FCS file parsing, keyword handling, and transforms
    - Enhance file parsing with better error handling
@@ -50,9 +64,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 <csr-read-only-do-not-edit/>
 
- - 15 commits contributed to the release over the course of 5 calendar days.
+ - 16 commits contributed to the release over the course of 5 calendar days.
  - 5 days passed between releases.
- - 7 commits were understood as [conventional](https://www.conventionalcommits.org).
+ - 8 commits were understood as [conventional](https://www.conventionalcommits.org).
  - 0 issues like '(#ID)' were seen in commit messages
 
 ### Commit Details
@@ -62,6 +76,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 <details><summary>view details</summary>
 
  * **Uncategorized**
+    - Update CHANGELOG for upcoming release ([`2fc9efd`](https://github.com/jrmoynihan/flow/commit/2fc9efdd0a9bfeadd0613dd309d811067acc709f))
     - Merge branch 'main' into flow-gates ([`4d40ba1`](https://github.com/jrmoynihan/flow/commit/4d40ba1bfa95f9df97a3dbfcc3c22c9bf701a5dd))
     - Merge pull request #5 from jrmoynihan/peacoqc-rs ([`198f659`](https://github.com/jrmoynihan/flow/commit/198f659aed1a8ad7a362ebcfc615e1983c6a4ade))
     - Add FCS specification PDF and example QC plot ([`42a6b5d`](https://github.com/jrmoynihan/flow/commit/42a6b5d7214e1ecc6fbad2c74572f9974c4f6a9f))
@@ -78,6 +93,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - Merge pull request #2 from jrmoynihan:flow-fcs ([`46431c0`](https://github.com/jrmoynihan/flow/commit/46431c0431afb4b7fa7de240595ac5726e693242))
     - Release flow-fcs v0.1.1 ([`c3413e1`](https://github.com/jrmoynihan/flow/commit/c3413e1a46a64f0a798ea0fe4d08134117a8c1ca))
 </details>
+
+<csr-unknown>
+ enhance benchmarking and data parsing capabilities enhance FCS data handling and metadata processing<csr-unknown/>
 
 ## 0.1.1 (2026-01-08)
 

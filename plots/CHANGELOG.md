@@ -5,6 +5,44 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+### Chore
+
+ - <csr-id-8818e480d33513c1bb724432a734b76ac57b95f9/> update plotting backend and bindings
+   - Update plotters backend implementation
+   - Update TypeScript bindings for pixel data
+
+### Refactor
+
+ - <csr-id-f64872e441add42bc9d19280d4411df628ff853e/> :truck: Rnamed folders without the `flow-` prefix.
+   Just shorter to type paths.  We'll keep the crates named with the `flow-` prefix when we publish.
+ - <csr-id-a59079c54a230e816e69cd17e309d9ff66b1bea6/> removed unused RawPixelData import
+
+### Commit Statistics
+
+<csr-read-only-do-not-edit/>
+
+ - 6 commits contributed to the release over the course of 4 calendar days.
+ - 5 days passed between releases.
+ - 3 commits were understood as [conventional](https://www.conventionalcommits.org).
+ - 0 issues like '(#ID)' were seen in commit messages
+
+### Commit Details
+
+<csr-read-only-do-not-edit/>
+
+<details><summary>view details</summary>
+
+ * **Uncategorized**
+    - Merge branch 'main' into flow-gates ([`4d40ba1`](https://github.com/jrmoynihan/flow/commit/4d40ba1bfa95f9df97a3dbfcc3c22c9bf701a5dd))
+    - Merge pull request #5 from jrmoynihan/peacoqc-rs ([`198f659`](https://github.com/jrmoynihan/flow/commit/198f659aed1a8ad7a362ebcfc615e1983c6a4ade))
+    - Update plotting backend and bindings ([`8818e48`](https://github.com/jrmoynihan/flow/commit/8818e480d33513c1bb724432a734b76ac57b95f9))
+    - Merge branch 'flow-gates' into main ([`c2f2d13`](https://github.com/jrmoynihan/flow/commit/c2f2d13a61854f93687cdfd2f6a1b4b12e0d9810))
+    - :truck: Rnamed folders without the `flow-` prefix. ([`f64872e`](https://github.com/jrmoynihan/flow/commit/f64872e441add42bc9d19280d4411df628ff853e))
+    - Removed unused RawPixelData import ([`a59079c`](https://github.com/jrmoynihan/flow/commit/a59079c54a230e816e69cd17e309d9ff66b1bea6))
+</details>
+
 ## v0.1.0 (2026-01-08)
 
 <csr-id-fd12ce3ff00c02e75c9ea84848adb58b32c4d66f/>
@@ -18,10 +56,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 <csr-id-2638feaae082a369694370c9ba633c4c0ed7f083/>
 <csr-id-670c81054b4e1a4455e5050f7888e5f96f1a35cb/>
 <csr-id-2671217fb91ff7f8e5ad28fc9eb8bf0d4180063e/>
+<csr-id-62ee7640139a377207b7a6b5a5590081d473b0a4/>
 
 ### Chore
 
  - <csr-id-fd12ce3ff00c02e75c9ea84848adb58b32c4d66f/> reorganize workspace into separate crates
+
+### Style
+
+ - <csr-id-a236a374302ae611992d7cabec69f7d732c76f54/> :truck: Renamed density calculation module to clarify from density plot implementation
+
+### Chore
+
+ - <csr-id-09d31bc88283911ce2856b59311f83fe2dcf5e52/> remove outdated keywords from Cargo.toml for flow-plots
+ - <csr-id-f79650c2ce3161b7cc212e87a02738da9c1647a1/> update dependencies and enhance documentation
+   - Added `approx` dependency to Cargo.lock.
+   - Created a comprehensive CHANGELOG.md to document notable changes and adhere to Semantic Versioning.
+   - Enhanced README documentation for the flow-plots library, detailing features and usage examples.
+ - <csr-id-8fa97683337b2a912ad4ed0d835d4e066099944a/> add CHANGELOG.md for project documentation
+   - Created a new CHANGELOG.md file to document all notable changes to the flow-plots project.
+   - The changelog follows the Keep a Changelog format and adheres to Semantic Versioning.
+   - Included detailed entries for version 0.1.0, summarizing new features, refactors, and enhancements made to the library.
 
 ### Chore
 
@@ -93,8 +148,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 <csr-read-only-do-not-edit/>
 
- - 30 commits contributed to the release over the course of 1 calendar day.
- - 25 commits were understood as [conventional](https://www.conventionalcommits.org).
+ - 41 commits contributed to the release over the course of 1 calendar day.
+ - 29 commits were understood as [conventional](https://www.conventionalcommits.org).
  - 0 issues like '(#ID)' were seen in commit messages
 
 ### Commit Details
@@ -104,18 +159,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 <details><summary>view details</summary>
 
  * **Uncategorized**
+    - Release flow-plots v0.1.0 ([`43f1292`](https://github.com/jrmoynihan/flow/commit/43f12921cbb9a04491c401b433e90cc7733d51f9))
+    - Release flow-plots v0.1.0 ([`3f63b79`](https://github.com/jrmoynihan/flow/commit/3f63b794fbfeb219acdb1115ad12bb1ce8494b73))
     - Remove outdated keywords from Cargo.toml for flow-plots ([`62ee764`](https://github.com/jrmoynihan/flow/commit/62ee7640139a377207b7a6b5a5590081d473b0a4))
+    - Remove outdated keywords from Cargo.toml for flow-plots ([`09d31bc`](https://github.com/jrmoynihan/flow/commit/09d31bc88283911ce2856b59311f83fe2dcf5e52))
     - Release flow-plots v0.1.0 ([`7d7bd39`](https://github.com/jrmoynihan/flow/commit/7d7bd396e4a6571f80c4cfb8a61096f2beee777d))
+    - Release flow-plots v0.1.0 ([`e6a02b8`](https://github.com/jrmoynihan/flow/commit/e6a02b89a0e26b18f26d9f9d04a5b11530cca8e4))
     - Update dependencies and enhance documentation ([`670c810`](https://github.com/jrmoynihan/flow/commit/670c81054b4e1a4455e5050f7888e5f96f1a35cb))
+    - Update dependencies and enhance documentation ([`f79650c`](https://github.com/jrmoynihan/flow/commit/f79650c2ce3161b7cc212e87a02738da9c1647a1))
     - Merge pull request #3 from jrmoynihan:flow-plots ([`91674e1`](https://github.com/jrmoynihan/flow/commit/91674e13a6dc21b9c1979d63bbaa161f28f9dc2b))
+    - Merge pull request #3 from jrmoynihan:flow-plots ([`4ab8f89`](https://github.com/jrmoynihan/flow/commit/4ab8f895f8642b59274726cc7f254187e0b14602))
     - Merge branch 'main' into flow-plots ([`5977fb3`](https://github.com/jrmoynihan/flow/commit/5977fb309ee7e726e5e7cefca902278f155b79f8))
+    - Merge branch 'main' into flow-plots ([`d7b6226`](https://github.com/jrmoynihan/flow/commit/d7b62269232f1bc6a8b155fd44d905e0a6233887))
     - Update flow-fcs dependency version to 0.1.1 in Cargo.toml ([`2671217`](https://github.com/jrmoynihan/flow/commit/2671217fb91ff7f8e5ad28fc9eb8bf0d4180063e))
     - Add CHANGELOG.md for project documentation ([`9493461`](https://github.com/jrmoynihan/flow/commit/94934619d4cea454e9c38cddcc8f8d6d9ffbe068))
+    - Add CHANGELOG.md for project documentation ([`8fa9768`](https://github.com/jrmoynihan/flow/commit/8fa97683337b2a912ad4ed0d835d4e066099944a))
     - Clean up unused imports in helper and density plot files ([`45efa12`](https://github.com/jrmoynihan/flow/commit/45efa1279eed93d24d598682e3c2875a5859f05a))
     - Swap to hybrid flow-fcs dependency entry ([`7d23a3f`](https://github.com/jrmoynihan/flow/commit/7d23a3ffc9799c4e0faa1dcc3b8d0a46b6cb582c))
     - Dependency updates ([`2638fea`](https://github.com/jrmoynihan/flow/commit/2638feaae082a369694370c9ba633c4c0ed7f083))
+    - Merge pull request #2 from jrmoynihan:flow-fcs ([`987314d`](https://github.com/jrmoynihan/flow/commit/987314dd1120fb723aad0946d8bfb0e882d39454))
     - Merge pull request #2 from jrmoynihan:flow-fcs ([`46431c0`](https://github.com/jrmoynihan/flow/commit/46431c0431afb4b7fa7de240595ac5726e693242))
+    - :truck: Renamed density calculation module to clarify from density plot implementation ([`a236a37`](https://github.com/jrmoynihan/flow/commit/a236a374302ae611992d7cabec69f7d732c76f54))
     - :truck: Renamed density calculation module to clarify from density plot implementation ([`71b90a5`](https://github.com/jrmoynihan/flow/commit/71b90a5b4f798e27fff5634048ad12a9ff57684a))
+    - Merge pull request #1 from jrmoynihan:flow-plots ([`3d994a8`](https://github.com/jrmoynihan/flow/commit/3d994a81aa585e6d5263c5f9d1db7d36106698d2))
     - Merge pull request #1 from jrmoynihan:flow-plots ([`708ddca`](https://github.com/jrmoynihan/flow/commit/708ddca0149fe7f5c6627e052207d78f06b55ed6))
     - Add BinaryPixelChunk and RawPixelData types for optimized pixel handling and binding to frontend (TS) code ([`c27cf93`](https://github.com/jrmoynihan/flow/commit/c27cf93f445a37e318fabb882968a56775d48a8d))
     - Add README documentation for flow-plots library ([`d807135`](https://github.com/jrmoynihan/flow/commit/d807135b00ee17c86bacfebfee220c94a0f4d6bd))
