@@ -1,6 +1,5 @@
-use polars::prelude::*;
-use crate::error::{PeacoQCError, Result};
 use crate::PeacoQCData;
+use crate::error::{PeacoQCError, Result};
 use std::collections::HashMap;
 
 /// Configuration for margin removal
@@ -8,13 +7,13 @@ use std::collections::HashMap;
 pub struct MarginConfig {
     /// Channels to check for margin events
     pub channels: Vec<String>,
-    
+
     /// Override channel specifications (minRange, maxRange)
     pub channel_specifications: Option<HashMap<String, (f64, f64)>>,
-    
+
     /// Channels to check for minimum margins (defaults to all channels)
     pub remove_min: Option<Vec<String>>,
-    
+
     /// Channels to check for maximum margins (defaults to all channels)
     pub remove_max: Option<Vec<String>>,
 }
@@ -35,10 +34,10 @@ impl Default for MarginConfig {
 pub struct MarginResult {
     /// Boolean mask indicating which events to keep (true = keep, false = remove)
     pub mask: Vec<bool>,
-    
+
     /// Number of events removed per channel (min and max)
     pub margin_matrix: HashMap<String, (usize, usize)>, // (min_removed, max_removed)
-    
+
     /// Total percentage removed
     pub percentage_removed: f64,
 }
@@ -66,93 +65,75 @@ pub fn remove_margins<T: PeacoQCData>(fcs: &T, config: &MarginConfig) -> Result<
             "No channels specified for margin removal".to_string(),
         ));
     }
-    
+
     let n_events = fcs.n_events();
     let mut mask = vec![true; n_events];
     let mut margin_matrix = HashMap::new();
-    
-    // Get DataFrame reference
-    let df = fcs.data_frame();
-    
+
     // Get lists of channels to check for min/max margins
-    let remove_min = config.remove_min.as_ref()
-        .unwrap_or(&config.channels);
-    let remove_max = config.remove_max.as_ref()
-        .unwrap_or(&config.channels);
-    
+    let remove_min = config.remove_min.as_ref().unwrap_or(&config.channels);
+    let remove_max = config.remove_max.as_ref().unwrap_or(&config.channels);
+
     for channel in &config.channels {
-        // Get channel data from DataFrame
-        let series = df.column(channel)
-            .map_err(|_| PeacoQCError::ChannelNotFound(channel.clone()))?;
-        
-        let values = series.f64()
-            .map_err(|_| PeacoQCError::InvalidChannel(
-                format!("Channel {} is not numeric", channel)
-            ))?;
-        
+        // Get channel data
+        let values = fcs.get_channel_f64(channel)?;
+
+        // Calculate min/max from data
+        let data_min = values.iter().copied().fold(f64::INFINITY, f64::min);
+        let data_max = values.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+
         // Get or override parameter ranges
         let (min_range, max_range) = if let Some(specs) = &config.channel_specifications {
             if let Some(&(min, max)) = specs.get(channel) {
                 (min, max)
             } else {
                 // Get from FCS metadata via trait
-                fcs.get_channel_range(channel)
-                    .unwrap_or_else(|| {
-                        // Fallback to data range
-                        let min = values.min().unwrap_or(0.0);
-                        let max = values.max().unwrap_or(262144.0);
-                        (min, max)
-                    })
+                fcs.get_channel_range(channel).unwrap_or_else(|| {
+                    // Fallback to data range
+                    (data_min.min(0.0), data_max.max(262144.0))
+                })
             }
         } else {
             // Get from FCS metadata via trait
-            fcs.get_channel_range(channel)
-                .unwrap_or_else(|| {
-                    let min = values.min().unwrap_or(0.0);
-                    let max = values.max().unwrap_or(262144.0);
-                    (min, max)
-                })
+            fcs.get_channel_range(channel).unwrap_or_else(|| {
+                (data_min.min(0.0), data_max.max(262144.0))
+            })
         };
-        
+
         let mut min_removed = 0;
         let mut max_removed = 0;
-        
+
         // Check minimum margins
         if remove_min.contains(channel) {
-            let data_min = values.min().unwrap_or(0.0);
             let threshold = min_range.min(0.0).max(data_min);
-            
-            for (i, &val) in values.into_iter().enumerate() {
-                if let Some(v) = val {
-                    if v <= threshold {
-                        mask[i] = false;
-                        min_removed += 1;
-                    }
+
+            for (i, &v) in values.iter().enumerate() {
+                if v <= threshold {
+                    mask[i] = false;
+                    min_removed += 1;
                 }
             }
         }
-        
+
         // Check maximum margins
         if remove_max.contains(channel) {
-            let data_max = values.max().unwrap_or(262144.0);
             let threshold = max_range.min(data_max);
-            
-            for (i, &val) in values.into_iter().enumerate() {
-                if let Some(v) = val {
-                    if v > threshold && mask[i] {
-                        mask[i] = false;
-                        max_removed += 1;
-                    }
+
+            for (i, &v) in values.iter().enumerate() {
+                // Remove events at or above the max range (margin events)
+                if v >= threshold && mask[i] {
+                    mask[i] = false;
+                    max_removed += 1;
                 }
             }
         }
-        
+
         margin_matrix.insert(channel.clone(), (min_removed, max_removed));
     }
-    
+
     let n_removed = mask.iter().filter(|&&x| !x).count();
     let percentage_removed = (n_removed as f64 / n_events as f64) * 100.0;
-    
+
     // Warn if more than 10% removed
     if percentage_removed > 10.0 {
         eprintln!(
@@ -160,7 +141,7 @@ pub fn remove_margins<T: PeacoQCData>(fcs: &T, config: &MarginConfig) -> Result<
             percentage_removed
         );
     }
-    
+
     Ok(MarginResult {
         mask,
         margin_matrix,
@@ -171,40 +152,50 @@ pub fn remove_margins<T: PeacoQCData>(fcs: &T, config: &MarginConfig) -> Result<
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::fcs::{ParameterMetadata, SimpleFcs};
     use polars::df;
-    
+    use std::collections::HashMap;
+    use std::sync::Arc;
+
     #[test]
     fn test_remove_margins_basic() {
         // Create test data
-        let df = df![
+        let df = Arc::new(df![
             "FSC-A" => &[100.0, 200.0, 300.0, 0.0, 262144.0, 150.0],
             "SSC-A" => &[50.0, 100.0, 150.0, 200.0, 250.0, 300.0],
-        ].unwrap();
-        
+        ]
+        .unwrap());
+
         let mut metadata = HashMap::new();
-        metadata.insert("FSC-A".to_string(), ParameterMetadata {
-            min_range: 0.0,
-            max_range: 262144.0,
-            name: "FSC-A".to_string(),
-        });
-        metadata.insert("SSC-A".to_string(), ParameterMetadata {
-            min_range: 0.0,
-            max_range: 262144.0,
-            name: "SSC-A".to_string(),
-        });
-        
+        metadata.insert(
+            "FSC-A".to_string(),
+            ParameterMetadata {
+                min_range: 0.0,
+                max_range: 262144.0,
+                name: "FSC-A".to_string(),
+            },
+        );
+        metadata.insert(
+            "SSC-A".to_string(),
+            ParameterMetadata {
+                min_range: 0.0,
+                max_range: 262144.0,
+                name: "SSC-A".to_string(),
+            },
+        );
+
         let fcs = SimpleFcs {
             data_frame: df,
             parameter_metadata: metadata,
         };
-        
+
         let config = MarginConfig {
             channels: vec!["FSC-A".to_string()],
             ..Default::default()
         };
-        
+
         let result = remove_margins(&fcs, &config).unwrap();
-        
+
         // Event at 0.0 and 262144.0 should be removed
         assert_eq!(result.mask.iter().filter(|&&x| !x).count(), 2);
         assert!(result.percentage_removed > 0.0);

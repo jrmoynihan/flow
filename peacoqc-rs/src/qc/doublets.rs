@@ -1,6 +1,5 @@
-use polars::prelude::*;
-use crate::error::{PeacoQCError, Result};
 use crate::PeacoQCData;
+use crate::error::Result;
 use crate::stats::median_mad::median_mad;
 
 /// Configuration for doublet removal
@@ -8,13 +7,13 @@ use crate::stats::median_mad::median_mad;
 pub struct DoubletConfig {
     /// First channel (typically FSC-A)
     pub channel1: String,
-    
+
     /// Second channel (typically FSC-H)
     pub channel2: String,
-    
+
     /// Number of MADs above median to use as threshold
     pub nmad: f64,
-    
+
     /// Optional shift parameter
     pub b: f64,
 }
@@ -35,16 +34,16 @@ impl Default for DoubletConfig {
 pub struct DoubletResult {
     /// Boolean mask (true = keep, false = doublet)
     pub mask: Vec<bool>,
-    
+
     /// Median ratio
     pub median_ratio: f64,
-    
+
     /// MAD of ratios
     pub mad_ratio: f64,
-    
+
     /// Threshold used
     pub threshold: f64,
-    
+
     /// Percentage removed
     pub percentage_removed: f64,
 }
@@ -64,46 +63,27 @@ pub struct DoubletResult {
 /// * `fcs` - FCS file data (any type implementing PeacoQCData)
 /// * `config` - Configuration for doublet detection
 pub fn remove_doublets<T: PeacoQCData>(fcs: &T, config: &DoubletConfig) -> Result<DoubletResult> {
-    // Get channel data from DataFrame
-    let df = fcs.data_frame();
-    let series1 = df.column(&config.channel1)
-        .map_err(|_| PeacoQCError::ChannelNotFound(config.channel1.clone()))?;
-    let series2 = df.column(&config.channel2)
-        .map_err(|_| PeacoQCError::ChannelNotFound(config.channel2.clone()))?;
-    
-    let values1 = series1.f64()
-        .map_err(|_| PeacoQCError::InvalidChannel(config.channel1.clone()))?;
-    let values2 = series2.f64()
-        .map_err(|_| PeacoQCError::InvalidChannel(config.channel2.clone()))?;
-    
+    // Get channel data
+    let values1 = fcs.get_channel_f64(&config.channel1)?;
+    let values2 = fcs.get_channel_f64(&config.channel2)?;
+
     // Calculate ratios
     let mut ratios = Vec::with_capacity(fcs.n_events());
-    for (v1, v2) in values1.into_iter().zip(values2.into_iter()) {
-        match (v1, v2) {
-            (Some(a), Some(h)) => {
-                let ratio = a / (1e-10 + h + config.b);
-                ratios.push(ratio);
-            }
-            _ => {
-                return Err(PeacoQCError::StatsError(
-                    "Missing values in doublet channels".to_string()
-                ));
-            }
-        }
+    for (a, h) in values1.iter().zip(values2.iter()) {
+        let ratio = *a / (1e-10 + *h + config.b);
+        ratios.push(ratio);
     }
-    
+
     // Calculate median and MAD
     let (median, mad) = median_mad(&ratios)?;
     let threshold = median + config.nmad * mad;
-    
+
     // Create mask
-    let mask: Vec<bool> = ratios.iter()
-        .map(|&r| r < threshold)
-        .collect();
-    
+    let mask: Vec<bool> = ratios.iter().map(|&r| r < threshold).collect();
+
     let n_removed = mask.iter().filter(|&&x| !x).count();
     let percentage_removed = (n_removed as f64 / fcs.n_events() as f64) * 100.0;
-    
+
     Ok(DoubletResult {
         mask,
         median_ratio: median,
@@ -116,27 +96,31 @@ pub fn remove_doublets<T: PeacoQCData>(fcs: &T, config: &DoubletConfig) -> Resul
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::fcs::SimpleFcs;
     use polars::df;
     use std::collections::HashMap;
-    use crate::fcs::ParameterMetadata;
-    
+    use std::sync::Arc;
+
     #[test]
     fn test_remove_doublets() {
         // Create test data with some doublets (high ratio)
-        let df = df![
-            "FSC-A" => &[100.0, 200.0, 300.0, 400.0, 1000.0], // Last one is doublet
-            "FSC-H" => &[50.0, 100.0, 150.0, 200.0, 100.0],
-        ].unwrap();
-        
+        let df = Arc::new(
+            df![
+                "FSC-A" => &[100.0, 200.0, 300.0, 400.0, 1000.0], // Last one is doublet
+                "FSC-H" => &[50.0, 100.0, 150.0, 200.0, 100.0],
+            ]
+            .unwrap(),
+        );
+
         let fcs = SimpleFcs {
             data_frame: df,
             parameter_metadata: HashMap::new(),
         };
-        
+
         let config = DoubletConfig::default();
-        
+
         let result = remove_doublets(&fcs, &config).unwrap();
-        
+
         // Should detect the outlier ratio
         assert!(result.percentage_removed > 0.0);
         assert!(result.threshold > result.median_ratio);
