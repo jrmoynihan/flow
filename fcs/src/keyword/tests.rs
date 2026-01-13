@@ -1,5 +1,4 @@
 use super::*;
-use std::sync::Arc;
 
 #[cfg(test)]
 mod fixed_keywords {
@@ -164,6 +163,53 @@ mod parameter_keywords {
             panic!("Expected P2L keyword with multiple wavelengths");
         }
     }
+
+    #[test]
+    fn test_parse_p23display_uppercase() {
+        let result = match_and_parse_keyword("$P23DISPLAY", "4");
+        assert!(matches!(
+            result,
+            KeywordCreationResult::Int(IntegerKeyword::PnDisplay(4))
+        ));
+    }
+
+    #[test]
+    fn test_parse_p1display_mixed_case() {
+        let result = match_and_parse_keyword("$P1Display", "2");
+        assert!(matches!(
+            result,
+            KeywordCreationResult::Int(IntegerKeyword::PnDisplay(2))
+        ));
+    }
+
+    #[test]
+    fn test_parse_p5display_lowercase() {
+        let result = match_and_parse_keyword("$P5display", "1");
+        assert!(matches!(
+            result,
+            KeywordCreationResult::Int(IntegerKeyword::PnDisplay(1))
+        ));
+    }
+
+    #[test]
+    fn test_parse_p10type_uppercase() {
+        let result = match_and_parse_keyword("$P10TYPE", "FSC");
+        if let KeywordCreationResult::String(StringKeyword::PnType(ty)) = result {
+            assert_eq!(ty.as_ref(), "FSC");
+        } else {
+            panic!("Expected P10TYPE keyword");
+        }
+    }
+
+    #[test]
+    fn test_parse_p20type_mixed_case() {
+        let result = match_and_parse_keyword("$P20Type", "SSC");
+        if let KeywordCreationResult::String(StringKeyword::PnType(ty)) = result {
+            assert_eq!(ty.as_ref(), "SSC");
+        } else {
+            panic!("Expected P20Type keyword");
+        }
+    }
 }
 
 #[cfg(test)]
@@ -312,11 +358,19 @@ mod helpers {
 
     #[test]
     fn test_is_parameter_keyword() {
-        assert!(is_parameter_keyword("P1"));
-        assert!(is_parameter_keyword("P123"));
-        assert!(!is_parameter_keyword("G1"));
-        assert!(!is_parameter_keyword("R1"));
-        assert!(!is_parameter_keyword("INVALID"));
+        // Valid parameter keywords must have a suffix (e.g., P1N, P123S)
+        // According to FCS spec, $PnX format requires suffix letter X
+        // This function checks for P, G, and R prefixes (parameter, gate, region keywords)
+        assert!(is_parameter_keyword("P1N")); // Valid: has suffix N
+        assert!(is_parameter_keyword("P123S")); // Valid: has suffix S
+        assert!(is_parameter_keyword("P2G")); // Valid: has suffix G
+        assert!(is_parameter_keyword("G1E")); // Valid gate keyword (deprecated but has suffix)
+        assert!(is_parameter_keyword("R1W")); // Valid region keyword (has suffix)
+        assert!(!is_parameter_keyword("P1")); // Invalid: no suffix
+        assert!(!is_parameter_keyword("P123")); // Invalid: no suffix
+        assert!(!is_parameter_keyword("G1")); // Invalid: no suffix
+        assert!(!is_parameter_keyword("R1")); // Invalid: no suffix
+        assert!(!is_parameter_keyword("INVALID")); // Invalid: not a parameter keyword pattern
     }
 }
 

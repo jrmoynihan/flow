@@ -158,8 +158,10 @@ pub fn parse_parameter_keywords(key: &str, value: &str) -> Option<KeywordCreatio
 
     let suffix = extract_parameter_suffix(key)?;
     let trimmed_value = value.trim();
+    // Convert to uppercase for case-insensitive matching (FCS keywords are case-insensitive)
+    let suffix_upper = suffix.to_uppercase();
 
-    match suffix.as_str() {
+    match suffix_upper.as_str() {
         // Gain for parameter n → [`FloatKeyword::PnG`]
         "G" => parse_float_with_comma_decimal(trimmed_value)
             .map(|gain| KeywordCreationResult::Float(FloatKeyword::PnG(gain)))
@@ -216,7 +218,7 @@ pub fn parse_parameter_keywords(key: &str, value: &str) -> Option<KeywordCreatio
                 .map_or(Some(KeywordCreationResult::UnableToParse), Some)
         }
         // Transformation to apply when displaying the data → [`IntegerKeyword::PnDisplay`]
-        "Display" => Some(
+        "DISPLAY" => Some(
             trimmed_value
                 .parse::<usize>()
                 .map(|display_scale| {
@@ -237,7 +239,7 @@ pub fn parse_parameter_keywords(key: &str, value: &str) -> Option<KeywordCreatio
             Arc::from(trimmed_value),
         ))),
         // FCS measurement signal types and evaluation features → [`StringKeyword::PnType`]
-        "Type" | "TYPE" => Some(KeywordCreationResult::String(StringKeyword::PnType(
+        "TYPE" => Some(KeywordCreationResult::String(StringKeyword::PnType(
             Arc::from(trimmed_value),
         ))),
         // Detector name for parameter n (FCS 3.2+) → [`StringKeyword::PnDET`]

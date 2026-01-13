@@ -25,17 +25,29 @@ pub fn parse_float_with_comma_decimal(value: &str) -> Option<f32> {
 /// Helper function to parse comma-separated tuple of 2 floats
 ///
 /// Used for parsing keywords like `$PnE` which contain two float values.
+/// Supports both standard (1.5,2.5) and European (1,5,2,5) decimal formats.
 ///
 /// # Arguments
-/// * `value` - String containing two comma-separated floats (e.g., "4,1")
+/// * `value` - String containing two comma-separated floats (e.g., "4,1" or "1,5,2,5")
 ///
 /// # Returns
 /// `Some((f32, f32))` if parsing succeeds, `None` otherwise
 pub fn parse_float_tuple(value: &str) -> Option<(f32, f32)> {
     let parts: Vec<&str> = value.trim().split(',').collect();
+
+    // Handle standard format: "1.5,2.5" -> 2 parts
     if parts.len() == 2 {
         let f1 = parse_float_with_comma_decimal(parts[0])?;
         let f2 = parse_float_with_comma_decimal(parts[1])?;
+        Some((f1, f2))
+    }
+    // Handle European decimal format: "1,5,2,5" -> 4 parts, where commas are decimal separators
+    else if parts.len() == 4 {
+        // Combine parts: "1,5" -> "1.5" and "2,5" -> "2.5"
+        let f1_str = format!("{}.{}", parts[0], parts[1]);
+        let f2_str = format!("{}.{}", parts[2], parts[3]);
+        let f1 = f1_str.parse::<f32>().ok()?;
+        let f2 = f2_str.parse::<f32>().ok()?;
         Some((f1, f2))
     } else {
         None
@@ -173,11 +185,19 @@ const PARAMETER_KEYWORD_PREFIXES: &[&str] = &["P", "G", "R"];
 /// `Some(suffix)` if the pattern matches, `None` otherwise
 ///
 /// # Note
-/// This function assumes the key has already been validated as a parameter keyword
-/// (e.g., via `is_parameter_keyword`). It will find the matching prefix and extract the suffix.
+/// This function validates that the key starts with a known prefix (P, G, R)
+/// before attempting to extract the suffix.
 pub fn extract_parameter_suffix(key: &str) -> Option<String> {
-    // Skip the first letter (we already know it's a parameter keyword)
-    let rest = key.chars().skip(1).collect::<String>();
+    // First validate that it starts with a known prefix
+    let rest = if let Some(rest) = key.strip_prefix('P') {
+        rest
+    } else if let Some(rest) = key.strip_prefix('G') {
+        rest
+    } else if let Some(rest) = key.strip_prefix('R') {
+        rest
+    } else {
+        return None;
+    };
 
     // Find where the numeric part ends
     let numeric_end = rest
@@ -204,7 +224,7 @@ pub fn extract_parameter_suffix(key: &str) -> Option<String> {
 /// Parameter keywords follow the pattern `{prefix}nX` where:
 /// - `prefix` is one of the known prefixes (P, G, R)
 /// - `n` is a number
-/// - `X` is a suffix
+/// - `X` is a suffix (required)
 ///
 /// Examples: `$P1N`, `$G2E`, `$R3W`
 ///
@@ -216,8 +236,13 @@ pub fn extract_parameter_suffix(key: &str) -> Option<String> {
 pub fn is_parameter_keyword(key: &str) -> bool {
     for prefix in PARAMETER_KEYWORD_PREFIXES {
         if let Some(rest) = key.strip_prefix(prefix) {
+            // Must start with a number
             if rest.chars().next().map_or(false, |c| c.is_numeric()) {
-                return true;
+                // Must have a suffix after the number (not just "P1" but "P1N")
+                let has_suffix = rest.chars().skip_while(|c| c.is_numeric()).next().is_some();
+                if has_suffix {
+                    return true;
+                }
             }
         }
     }

@@ -554,7 +554,17 @@ impl StringableKeyword for FloatKeyword {
 /// // Returns KeywordCreationResult::Int(IntegerKeyword::PAR(10))
 /// ```
 pub fn match_and_parse_keyword(key: &str, value: &str) -> KeywordCreationResult {
-    let dollarless_key = key.strip_prefix('$').unwrap_or(key);
+    // Keywords without $ prefix should be treated as Other, not parsed
+    // Exception: GUID keyword doesn't always have $ prefix in some FCS files
+    let dollarless_key = if let Some(key) = key.strip_prefix('$') {
+        key
+    } else if key == "GUID" {
+        // GUID is a special case - it can appear without $ prefix
+        "GUID"
+    } else {
+        // No $ prefix - treat as unknown keyword
+        return KeywordCreationResult::String(StringKeyword::Other(Arc::from(value.trim())));
+    };
 
     parse_fixed_keywords(dollarless_key, value)
         .or_else(|| parse_parameter_keywords(dollarless_key, value))

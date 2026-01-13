@@ -1,82 +1,92 @@
 [package]
-name = "flow-fcs"
-version = "0.1.1"
-edition.workspace = true
-authors.workspace = true
-repository = "https://github.com/jrmoynihan/flow-fcs"
-license = "MIT"
-description = "High-level Flow Cytometry Standard (FCS) file struct and operations"
-keywords = [
-    "flow",
-    "cytometry",
-    "fcs",
-    "science",
-    "parser",
-]
-categories = ["science", "parser-implementations"]
+name             ="flow-fcs"
+version          ="0.1.1"
+edition.workspace=true
+authors.workspace=true
+repository       ="https://github.com/jrmoynihan/flow-fcs"
+license          ="MIT"
+description      ="High-level Flow Cytometry Standard (FCS) file struct and operations"
+keywords         =["flow", "cytometry", "fcs", "science", "parser"]
+categories       =["science", "parser-implementations"]
 
 [package.metadata.scripts]
-dry-release = "cargo smart-release --update-crates-index"
-publish = "cargo smart-release --execute"
-changelog = "cargo changelog --write"
+dry-release="cargo smart-release --update-crates-index"
+publish    ="cargo smart-release --execute"
+changelog  ="cargo changelog --write"
 
 [dependencies]
 # Polars for columnar data storage
 # Note: Using default-features = false to reduce bloat, but keeping dtype-full as it's needed
-polars = { workspace = true, default-features = false, features = [
+polars={ workspace=true, default-features=false, features=[
     "lazy",
     "ndarray",
-    "dtype-full"
+    "dtype-full",
+    "new_streaming",
 ] }
 # Matrix manipulation
-ndarray = { workspace = true, features = [
+ndarray={ workspace=true, features=[
     "blas",
     "matrixmultiply-threading",
     "rayon",
     "serde",
 ] }
-ndarray-linalg = { workspace = true, default-features = false }
+ndarray-linalg={ workspace=true, default-features=false }
 
-ts-rs = { version = "11.1.0", optional = true } # Generate TypeScript bindings for Rust types
+ts-rs={ version="11.1.0", optional=true } # Generate TypeScript bindings for Rust types
 
 # Parallelization
-rayon = { workspace = true }
+rayon={ workspace=true }
 
 # Error Handling
-thiserror = { workspace = true }
-anyhow = { workspace = true }
+thiserror={ workspace=true }
+anyhow   ={ workspace=true }
 
 # Serialization
-serde = { workspace = true, features = ["derive", "rc"] }
-serde_json = { workspace = true }
+serde     ={ workspace=true, features=["derive", "rc"] }
+serde_json={ workspace=true }
 
 # Performance
-uuid = { workspace = true, features = ["v4"] } # For generating UUIDs/GUIDs
-memchr = { workspace = true } # SIMD-accelerated string searching in metadata parsing
-rustc-hash = { workspace = true } # A speedy, non-cryptographic hashing algorithm used by rustc
-memmap3 = { workspace = true }  # For memory-mapping large files (safe, zero-unsafe replacement for memmap2) 
+uuid={ workspace=true, features=[
+    "v4",
+] } # For generating UUIDs/GUIDs
+memchr={ workspace=true } # SIMD-accelerated string searching in metadata parsing
+rustc-hash={ workspace=true } # A speedy, non-cryptographic hashing algorithm used by rustc
+memmap3={ workspace=true } # For memory-mapping large files (safe, zero-unsafe replacement for memmap2) 
 
 # DX improvement
-itertools = { workspace = true } # For iterating over collections
-derive_builder = { workspace = true } # For building structs with builder pattern
-byteorder = { workspace = true } # For dealing with endianness of data
-bytecount = { workspace = true } # For counting bytes in a slice of bytes
-strum = { workspace = true } # For enum-like types
-strum_macros = { workspace = true } # For enum-like types
-regex = { workspace = true } # For regular expressions
-bytemuck = { workspace = true, features = ["derive"] } # Bytemuck for zero-copy bit-cast conversions between types
+itertools={ workspace=true } # For iterating over collections
+derive_builder={ workspace=true } # For building structs with builder pattern
+byteorder={ workspace=true } # For dealing with endianness of data
+bytecount={ workspace=true } # For counting bytes in a slice of bytes
+strum={ workspace=true } # For enum-like types
+strum_macros={ workspace=true } # For enum-like types
+regex={ workspace=true } # For regular expressions
+bytemuck={ workspace=true, features=[
+    "derive",
+] } # Bytemuck for zero-copy bit-cast conversions between types
+
+# Logging/Tracing
+tracing={ workspace=true }
 
 [dev-dependencies]
-approx =  "0.5.1" # For approximate comparisons
-criterion = { version = "0.5", features = ["html_reports"] }
+approx   ="0.5.1"                                        # For approximate comparisons
+criterion={ version="0.8.1", features=["html_reports"] }
+# Enable LAPACK backend for tests (OpenBLAS provides both BLAS and LAPACK)
+# Note: Requires OpenBLAS installed via Homebrew: brew install openblas
+# Set OPENBLAS_DIR environment variable: export OPENBLAS_DIR=$(brew --prefix openblas)
+ndarray-linalg={ workspace=true, features=[
+    "openblas-system",
+] }
 
 [[bench]]
-name = "dataframe_parsing"
-harness = false
+name   ="dataframe_parsing"
+harness=false
 
 [[bin]]
-name = "analyze_benchmarks"
-path = "src/bin/analyze_benchmarks.rs"
+name="analyze_benchmarks"
+path="src/bin/analyze_benchmarks.rs"
 
 [features]
-typescript = ["dep:ts-rs"] # Enable TypeScript bindings for Rust types
+typescript=[
+    "dep:ts-rs",
+] # Enable TypeScript bindings for Rust types

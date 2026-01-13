@@ -1,6 +1,6 @@
 // Internal crate imports
 use crate::{
-    FcsDataType, TransformType,
+    FcsDataType, TransformType, Transformable,
     byteorder::ByteOrder,
     header::Header,
     keyword::{IntegerableKeyword, StringableKeyword},
@@ -160,6 +160,8 @@ impl Fcs {
     /// # Ok::<(), anyhow::Error>(())
     /// ```
     pub fn open(path: &str) -> Result<Self> {
+        use tracing::debug;
+
         // Attempt to open the file path
         let file_access = AccessWrapper::new(path).expect("Should be able make new access wrapper");
 
@@ -178,7 +180,13 @@ impl Fcs {
         // metadata.validate_number_of_parameters()?;
         metadata.validate_guid();
 
-        Ok(Self {
+        // Log $TOT keyword value
+        let tot_events = metadata.get_number_of_events().ok().copied();
+        if let Some(tot) = tot_events {
+            debug!("FCS file $TOT keyword: {} events", tot);
+        }
+
+        let fcs = Self {
             parameters: Self::generate_parameter_map(&metadata)
                 .expect("Should be able to generate parameter map"),
             data_frame: Self::store_raw_data_as_dataframe(&header, &file_access.mmap, &metadata)
@@ -186,7 +194,47 @@ impl Fcs {
             file_access,
             header,
             metadata,
-        })
+        };
+
+        // Log DataFrame event count and compare to $TOT
+        let df_events = fcs.get_event_count_from_dataframe();
+        if let Some(tot) = tot_events {
+            if df_events != tot {
+                tracing::warn!(
+                    "Event count mismatch: DataFrame has {} events but $TOT keyword says {} (difference: {})",
+                    df_events,
+                    tot,
+                    tot as i64 - df_events as i64
+                );
+            } else {
+                debug!("Event count matches $TOT keyword: {} events", df_events);
+            }
+        }
+
+        // Log compensation status
+        let has_compensation = fcs.has_compensation();
+        debug!(
+            "Compensation: {} (SPILLOVER keyword {})",
+            if has_compensation {
+                "available"
+            } else {
+                "not available"
+            },
+            if has_compensation {
+                "present"
+            } else {
+                "missing"
+            }
+        );
+
+        // Log parameter count
+        let n_params = fcs.parameters.len();
+        debug!(
+            "FCS file loaded: {} parameters, {} events",
+            n_params, df_events
+        );
+
+        Ok(fcs)
     }
 
     /// Validates that the file extension is `.fcs`
@@ -1097,7 +1145,7 @@ impl Fcs {
 
     /// Apply arcsinh transformation to a parameter using Polars
     /// This is the most common transformation for flow cytometry data
-    /// Formula: arcsinh(x / cofactor) / ln(10)
+    /// Formula: arcsinh(x / cofactor)
     ///
     /// # Arguments
     /// * `parameter_name` - Name of the parameter to transform
@@ -1122,14 +1170,16 @@ impl Fcs {
             .f32()
             .map_err(|e| anyhow!("Parameter {} is not f32: {}", parameter_name, e))?;
 
-        // Apply arcsinh transformation: arcsinh(x / cofactor) / ln(10)
+        // Apply arcsinh transformation using TransformType implementation
+        // The division by ln(10) was incorrectly converting to log10 scale,
+        // which compressed the data ~2.3x and caused MAD to over-remove events
         use rayon::prelude::*;
-        let ln_10 = 10_f32.ln();
+        let transform = TransformType::Arcsinh { cofactor };
         let transformed: Vec<f32> = ca
             .cont_slice()
             .map_err(|e| anyhow!("Data not contiguous: {}", e))?
             .par_iter()
-            .map(|&x| ((x / cofactor).asinh()) / ln_10)
+            .map(|&x| transform.transform(&x))
             .collect();
 
         // Create new column with transformed data
@@ -1154,7 +1204,6 @@ impl Fcs {
     pub fn apply_arcsinh_transforms(&self, parameters: &[(&str, f32)]) -> Result<EventDataFrame> {
         let mut df = (*self.data_frame).clone();
 
-        let ln_10 = 10_f32.ln();
         use rayon::prelude::*;
 
         for &(param_name, cofactor) in parameters {
@@ -1167,11 +1216,14 @@ impl Fcs {
                 .f32()
                 .map_err(|e| anyhow!("Parameter {} is not f32: {}", param_name, e))?;
 
+            // Apply arcsinh transformation using TransformType implementation
+            // Standard flow cytometry arcsinh - no division by ln(10)
+            let transform = TransformType::Arcsinh { cofactor };
             let transformed: Vec<f32> = ca
                 .cont_slice()
                 .map_err(|e| anyhow!("Data not contiguous: {}", e))?
                 .par_iter()
-                .map(|&x| ((x / cofactor).asinh()) / ln_10)
+                .map(|&x| transform.transform(&x))
                 .collect();
 
             let new_series = Series::new(param_name.into(), transformed);
@@ -1195,10 +1247,64 @@ impl Fcs {
                 let upper = name.to_uppercase();
                 !upper.contains("FSC") && !upper.contains("SSC") && !upper.contains("TIME")
             })
-            .map(|name| (name.as_str(), 200.0)) // Default cofactor = 200
+            .map(|name| (name.as_str(), 2000.0)) // Default cofactor = 2000
             .collect();
 
         self.apply_arcsinh_transforms(&fluor_params)
+    }
+
+    /// Apply biexponential (logicle) transformation matching FlowJo defaults
+    /// Automatically detects fluorescence parameters (excludes FSC, SSC, Time)
+    /// Uses FlowJo default parameters: top_of_scale=262144 (18-bit), positive_decades=4.5, negative_decades=0, width=0.5
+    pub fn apply_default_biexponential_transform(&self) -> Result<EventDataFrame> {
+        let param_names = self.get_parameter_names_from_dataframe();
+
+        // Filter to fluorescence parameters (exclude scatter and time)
+        let fluor_params: Vec<&str> = param_names
+            .iter()
+            .filter(|name| {
+                let upper = name.to_uppercase();
+                !upper.contains("FSC") && !upper.contains("SSC") && !upper.contains("TIME")
+            })
+            .map(|name| name.as_str())
+            .collect();
+
+        let mut df = (*self.data_frame).clone();
+
+        use rayon::prelude::*;
+
+        // FlowJo default biexponential parameters
+        let transform = TransformType::Biexponential {
+            top_of_scale: 262144.0, // 18-bit data (2^18)
+            positive_decades: 4.5,
+            negative_decades: 0.0,
+            width: 0.5,
+        };
+
+        for param_name in fluor_params {
+            let col = df
+                .column(param_name)
+                .map_err(|e| anyhow!("Parameter {} not found: {}", param_name, e))?;
+
+            let series = col.as_materialized_series();
+            let ca = series
+                .f32()
+                .map_err(|e| anyhow!("Parameter {} is not f32: {}", param_name, e))?;
+
+            // Apply biexponential transformation using TransformType implementation
+            let transformed: Vec<f32> = ca
+                .cont_slice()
+                .map_err(|e| anyhow!("Data not contiguous: {}", e))?
+                .par_iter()
+                .map(|&x| transform.transform(&x))
+                .collect();
+
+            let new_series = Series::new(param_name.into(), transformed);
+            df.replace(param_name, new_series)
+                .map_err(|e| anyhow!("Failed to replace column {}: {}", param_name, e))?;
+        }
+
+        Ok(Arc::new(df))
     }
 
     // ==================== COMPENSATION METHODS ====================
@@ -1562,8 +1668,8 @@ impl Fcs {
         let cofactor = cofactor.unwrap_or(200.0);
 
         // First, inverse-transform the data (go back to linear scale)
-        let ln_10 = 10_f32.ln();
         let mut df = (*self.data_frame).clone();
+        let transform = TransformType::Arcsinh { cofactor };
 
         use rayon::prelude::*;
         for &channel_name in channel_names {
@@ -1576,12 +1682,12 @@ impl Fcs {
                 .f32()
                 .map_err(|e| anyhow!("Parameter {} is not f32: {}", channel_name, e))?;
 
-            // Inverse arcsinh: x = cofactor * sinh(y * ln(10))
+            // Inverse arcsinh using TransformType implementation
             let linear: Vec<f32> = ca
                 .cont_slice()
                 .map_err(|e| anyhow!("Data not contiguous: {}", e))?
                 .par_iter()
-                .map(|&y| cofactor * (y * ln_10).sinh())
+                .map(|&y| transform.inverse_transform(&y))
                 .collect();
 
             let new_series = Series::new(channel_name.into(), linear);
