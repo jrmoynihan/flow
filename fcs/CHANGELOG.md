@@ -5,7 +5,83 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+### Chore
+
+ - <csr-id-9c44f94e6b8e0236a47361a7dc7156b90d25f37c/> bump version number in Cargo.toml for flow-fcs
+
+### Documentation
+
+ - <csr-id-42a6b5d7214e1ecc6fbad2c74572f9974c4f6a9f/> add FCS specification PDF and example QC plot
+   - Add FCS 3.1 implementation guidance PDF for reference
+   - Add example QC plot output image
+
+### New Features
+
+ - <csr-id-4d234b204ade5acd6f1cf1f87c36c5e709fd2d4a/> improve FCS file parsing, keyword handling, and transforms
+   - Enhance file parsing with better error handling
+   - Improve keyword parsing and validation
+   - Add transform functionality improvements
+   - Update keyword tests with additional coverage
+ - <csr-id-590dfaa8e0c551591ea3b2ff98f893df34f6251c/> enhance benchmarking and data parsing capabilities
+   - Introduced new benchmarking scripts for analyzing performance of dataframe parsing.
+   - Added support for various data types and improved parsing efficiency in FCS data handling.
+   - Implemented conditional parallelization based on dataset size to optimize performance.
+   - Created a new `analyze_benchmarks` binary for analyzing benchmark results and extracting insights.
+   - Updated `Cargo.toml` to include necessary dependencies for benchmarking and data processing.
+ - <csr-id-c92c76434e9a2bf957040821c246eaef261e80f8/> enhance FCS data handling and metadata processing
+   - Updated FcsDataType enum to include Copy trait for improved memory efficiency.
+   - Refactored get_bytes_per_event method to get_bytes_for_bits, allowing dynamic byte calculation based on parameter bits.
+   - Added new methods in Metadata for retrieving data types and calculating total bytes per event, improving accuracy in data handling.
+   - Normalized keyword storage in metadata to ensure consistent lookups with $ prefix.
+   - Enhanced parameter metadata extraction to support new FCS specifications.
+
+### Refactor
+
+ - <csr-id-f64872e441add42bc9d19280d4411df628ff853e/> :truck: Rnamed folders without the `flow-` prefix.
+   Just shorter to type paths.  We'll keep the crates named with the `flow-` prefix when we publish.
+ - <csr-id-661e8e00088c6bee38bc02a8a2830f284cd49ac4/> update test module imports and function signatures
+   - Refactored import paths in the polars_tests module to streamline access to parameters and keywords.
+   - Updated the create_test_fcs function signature to return a Result with a boxed error type for better error handling.
+   - Consolidated related imports.
+
+### Commit Statistics
+
+<csr-read-only-do-not-edit/>
+
+ - 15 commits contributed to the release over the course of 5 calendar days.
+ - 5 days passed between releases.
+ - 7 commits were understood as [conventional](https://www.conventionalcommits.org).
+ - 0 issues like '(#ID)' were seen in commit messages
+
+### Commit Details
+
+<csr-read-only-do-not-edit/>
+
+<details><summary>view details</summary>
+
+ * **Uncategorized**
+    - Merge branch 'main' into flow-gates ([`4d40ba1`](https://github.com/jrmoynihan/flow/commit/4d40ba1bfa95f9df97a3dbfcc3c22c9bf701a5dd))
+    - Merge pull request #5 from jrmoynihan/peacoqc-rs ([`198f659`](https://github.com/jrmoynihan/flow/commit/198f659aed1a8ad7a362ebcfc615e1983c6a4ade))
+    - Add FCS specification PDF and example QC plot ([`42a6b5d`](https://github.com/jrmoynihan/flow/commit/42a6b5d7214e1ecc6fbad2c74572f9974c4f6a9f))
+    - Improve FCS file parsing, keyword handling, and transforms ([`4d234b2`](https://github.com/jrmoynihan/flow/commit/4d234b204ade5acd6f1cf1f87c36c5e709fd2d4a))
+    - Merge branch 'flow-gates' into main ([`c2f2d13`](https://github.com/jrmoynihan/flow/commit/c2f2d13a61854f93687cdfd2f6a1b4b12e0d9810))
+    - :truck: Rnamed folders without the `flow-` prefix. ([`f64872e`](https://github.com/jrmoynihan/flow/commit/f64872e441add42bc9d19280d4411df628ff853e))
+    - Update test module imports and function signatures ([`661e8e0`](https://github.com/jrmoynihan/flow/commit/661e8e00088c6bee38bc02a8a2830f284cd49ac4))
+    - Enhance benchmarking and data parsing capabilities ([`590dfaa`](https://github.com/jrmoynihan/flow/commit/590dfaa8e0c551591ea3b2ff98f893df34f6251c))
+    - Enhance FCS data handling and metadata processing ([`c92c764`](https://github.com/jrmoynihan/flow/commit/c92c76434e9a2bf957040821c246eaef261e80f8))
+    - Merge branch 'main' into flow-plots ([`5977fb3`](https://github.com/jrmoynihan/flow/commit/5977fb309ee7e726e5e7cefca902278f155b79f8))
+    - Merge branch 'main' into flow-plots ([`d7b6226`](https://github.com/jrmoynihan/flow/commit/d7b62269232f1bc6a8b155fd44d905e0a6233887))
+    - Bump version number in Cargo.toml for flow-fcs ([`9c44f94`](https://github.com/jrmoynihan/flow/commit/9c44f94e6b8e0236a47361a7dc7156b90d25f37c))
+    - Merge pull request #2 from jrmoynihan:flow-fcs ([`987314d`](https://github.com/jrmoynihan/flow/commit/987314dd1120fb723aad0946d8bfb0e882d39454))
+    - Merge pull request #2 from jrmoynihan:flow-fcs ([`46431c0`](https://github.com/jrmoynihan/flow/commit/46431c0431afb4b7fa7de240595ac5726e693242))
+    - Release flow-fcs v0.1.1 ([`c3413e1`](https://github.com/jrmoynihan/flow/commit/c3413e1a46a64f0a798ea0fe4d08134117a8c1ca))
+</details>
+
 ## 0.1.1 (2026-01-08)
+
+<csr-id-3691bf612ae11ac243fdcc6e3af927d2d3b3780a/>
 
 ### Refactor
 
@@ -15,7 +91,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 <csr-read-only-do-not-edit/>
 
- - 2 commits contributed to the release.
+ - 4 commits contributed to the release.
  - 1 commit was understood as [conventional](https://www.conventionalcommits.org).
  - 0 issues like '(#ID)' were seen in commit messages
 
@@ -26,6 +102,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 <details><summary>view details</summary>
 
  * **Uncategorized**
+    - Release flow-fcs v0.1.1 ([`e0e16cc`](https://github.com/jrmoynihan/flow/commit/e0e16ccaa87b5f5d8413a3eb6198257e2d052ac8))
+    - Merge pull request #1 from jrmoynihan:flow-plots ([`3d994a8`](https://github.com/jrmoynihan/flow/commit/3d994a81aa585e6d5263c5f9d1db7d36106698d2))
     - Merge pull request #1 from jrmoynihan:flow-plots ([`708ddca`](https://github.com/jrmoynihan/flow/commit/708ddca0149fe7f5c6627e052207d78f06b55ed6))
     - Export Transformable and Formattable traits ([`3691bf6`](https://github.com/jrmoynihan/flow/commit/3691bf612ae11ac243fdcc6e3af927d2d3b3780a))
 </details>
