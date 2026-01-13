@@ -12,6 +12,7 @@ pub use qc::{
     peacoqc, PeacoQCConfig, PeacoQCResult, QCMode,
     remove_margins, MarginConfig, MarginResult,
     remove_doublets, DoubletConfig, DoubletResult,
+    create_qc_plots, QCPlotConfig,
 };
 
 use fcs_file::{Fcs, EventDataFrame};
