@@ -54,7 +54,7 @@ ndarray = { version = "0.17.1", features = [
     "rayon",
     "serde",
 ] }
-ndarray-linalg = { version = "0.18", default-features = false }
+ndarray-linalg = { version = "0.18", default-features = false, features = ["openblas-system"] }
 
 # Parallelization
 rayon = "1.11"

@@ -22,6 +22,9 @@ pub enum PeacoQCError {
     
     #[error("No peaks detected")]
     NoPeaksDetected,
+    
+    #[error("Plot generation error: {0}")]
+    PlotError(String),
 }
 
 pub type Result<T> = std::result::Result<T, PeacoQCError>;
