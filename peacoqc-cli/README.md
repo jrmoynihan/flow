@@ -227,6 +227,10 @@ This CLI is built on top of the [`peacoqc-rs` library](https://crates.io/crates/
 
 See the [`peacoqc-rs` documentation](https://crates.io/crates/peacoqc-rs) for library usage.
 
+## License
+
+MIT License - see LICENSE file for details
+
 ## Attribution
 
 We gratefully acknowledge the original PeacoQC algorithm authors:
@@ -240,6 +244,6 @@ We gratefully acknowledge the original PeacoQC algorithm authors:
 - [GitHub: `https://github.com/saeyslab/PeacoQC`](https://github.com/saeyslab/PeacoQC)
 - Authors: Annelies Emmaneel, Katrien Quintelier, and the Saeys Lab
 
-## License
+## Contributing
 
-MIT License - see LICENSE file for details
+Contributions are welcome! Please feel free to open issues or submit a Pull Request on [Github](https://github.com/jrmoynihan/flow).

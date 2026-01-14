@@ -127,15 +127,24 @@ let clean_fcs = fcs.filter(&result.good_cells)?;
 
 ### Main Functions
 
-- `peacoqc<T: PeacoQCData>(fcs: &T, config: &PeacoQCConfig) -> Result<PeacoQCResult>`
-  - Main quality control function that runs the complete PeacoQC pipeline
-  - Processes channels and bins in parallel for optimal performance
+```rust
+fn peacoqc<T: PeacoQCData>(fcs: &T, config: &PeacoQCConfig) -> Result<PeacoQCResult>
+```
 
-- `remove_margins<T: PeacoQCData>(fcs: &T, config: &MarginConfig) -> Result<MarginResult>`
-  - Remove margin events from FCS data
+- Main quality control function that runs the complete PeacoQC pipeline
+- Processes channels and bins in parallel for optimal performance
 
-- `remove_doublets<T: PeacoQCData>(fcs: &T, config: &DoubletConfig) -> Result<DoubletResult>`
-  - Detect and remove doublet/multiplet events
+```rust
+fn remove_margins<T: PeacoQCData>(fcs: &T, config: &MarginConfig) -> Result<MarginResult>
+```
+
+- Remove margin events from FCS data
+
+```rust
+fn remove_doublets<T: PeacoQCData>(fcs: &T, config: &DoubletConfig) -> Result<DoubletResult>
+```
+
+- Detect and remove doublet/multiplet events
 
 ### Configuration
 
@@ -193,7 +202,7 @@ PeacoQC-RS is optimized for performance:
   - **Multiple channels** processed in parallel (all channels simultaneously)
   - **Multiple bins** within each channel processed in parallel
   - Provides significant speedup on multi-core systems (typically 2-8x depending on core count)
-- **Efficient Data Structures**: Uses Polars DataFrames (via `flow-fcs` feature) for columnar storage
+- **Efficient Data Structures**: Uses Polars DataFrames (via `flow-fcs` feature flag) for columnar storage
 - **Minimal Allocations**: Optimized to reduce memory allocations
 - **SIMD Support**: Leverages Polars' SIMD operations for fast numeric computations
 
@@ -243,16 +252,6 @@ Run with:
 cargo run --example basic_usage
 ```
 
-### Tauri Integration Example
-
-See `examples/tauri_command.rs` for an example of integrating PeacoQC into a Tauri application, including:
-
-1. Loading FCS files
-2. Auto-detecting channels
-3. Running quality control with progress reporting
-4. Saving cleaned FCS files
-5. Generating QC reports
-
 ## Error Handling
 
 All functions return `Result<T, PeacoQCError>`. The `PeacoQCError` enum covers:
@@ -274,10 +273,12 @@ MIT License - see LICENSE file for details
 This Rust implementation is based on the original PeacoQC algorithm and R package. We gratefully acknowledge the original authors:
 
 **Original Paper:**
-- Emmaneel, A., Quintelier, K., Sichien, D., Rybakowska, P., Marañón, C., Alarcón-Riquelme, M. E., Van Isterdael, G., Van Gassen, S., & Saeys, Y. (2022). PeacoQC: Peak-based selection of high quality cytometry data. *Cytometry A*, 101(4), 325-338. https://doi.org/10.1002/cyto.a.24501
+
+- [Emmaneel, A., Quintelier, K., Sichien, D., Rybakowska, P., Marañón, C., Alarcón-Riquelme, M. E., Van Isterdael, G., Van Gassen, S., & Saeys, Y. (2022). PeacoQC: Peak-based selection of high quality cytometry data. *Cytometry A*, 101(4), 325-338. `https://doi.org/10.1002/cyto.a.24501`](https://doi.org/10.1002/cyto.a.24501)
 
 **Original R Implementation:**
-- GitHub: https://github.com/saeyslab/PeacoQC
+
+- [GitHub: `https://github.com/saeyslab/PeacoQC`](https://github.com/saeyslab/PeacoQC)
 - Authors: Annelies Emmaneel, Katrien Quintelier, and the Saeys Lab
 
 This Rust version provides:
@@ -289,4 +290,4 @@ This Rust version provides:
 
 ## Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+Contributions are welcome! Please feel free to open issues or submit a Pull Request on [Github](https://github.com/jrmoynihan/flow).
