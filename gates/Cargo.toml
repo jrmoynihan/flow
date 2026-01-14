@@ -24,7 +24,7 @@ serde.workspace     =true
 serde_json.workspace=true
 geo                 ="0.32"
 rstar               ="0.12"
-quick-xml           ={ version="0.38.4", features=["serialize"] }
+quick-xml           ={ version="0.39", features=["serialize"] }
 
 [package.metadata.scripts]
 test-compliance     ="cargo test --test compliance_tests -- --ignored"
