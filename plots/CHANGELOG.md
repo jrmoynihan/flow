@@ -10,12 +10,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 <csr-id-8818e480d33513c1bb724432a734b76ac57b95f9/>
 <csr-id-f64872e441add42bc9d19280d4411df628ff853e/>
 <csr-id-a59079c54a230e816e69cd17e309d9ff66b1bea6/>
+<csr-id-621d3aded59ff51f953c6acdb75027c4541a8b97/>
 
 ### Chore
 
  - <csr-id-8818e480d33513c1bb724432a734b76ac57b95f9/> update plotting backend and bindings
    - Update plotters backend implementation
    - Update TypeScript bindings for pixel data
+
+### Chore
+
+ - <csr-id-14aae61d8d5ccf6b031c3ac9dc310dfb89a383af/> Update CHANGELOG for upcoming release
+   - documented version bump, enhancements in FCS file parsing, benchmarking capabilities, and metadata processing improvements.
+   - updated plotting backend and TypeScript bindings for pixel data
+   - refactored folder names for better organization
 
 ### Chore
 
@@ -34,9 +42,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 <csr-read-only-do-not-edit/>
 
- - 8 commits contributed to the release over the course of 4 calendar days.
+ - 9 commits contributed to the release over the course of 5 calendar days.
  - 5 days passed between releases.
- - 4 commits were understood as [conventional](https://www.conventionalcommits.org).
+ - 5 commits were understood as [conventional](https://www.conventionalcommits.org).
  - 0 issues like '(#ID)' were seen in commit messages
 
 ### Commit Details
@@ -46,6 +54,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 <details><summary>view details</summary>
 
  * **Uncategorized**
+    - Update CHANGELOG for upcoming release ([`14aae61`](https://github.com/jrmoynihan/flow/commit/14aae61d8d5ccf6b031c3ac9dc310dfb89a383af))
     - Release flow-fcs v0.1.2 ([`57f4eb7`](https://github.com/jrmoynihan/flow/commit/57f4eb7de85c2b41ef886db446f63d753c5faf05))
     - Update CHANGELOG for upcoming release ([`621d3ad`](https://github.com/jrmoynihan/flow/commit/621d3aded59ff51f953c6acdb75027c4541a8b97))
     - Merge branch 'main' into flow-gates ([`4d40ba1`](https://github.com/jrmoynihan/flow/commit/4d40ba1bfa95f9df97a3dbfcc3c22c9bf701a5dd))
