@@ -12,7 +12,7 @@ path="src/main.rs"
 
 [dependencies]
 flow-fcs={ path="../fcs", version="^0.1.2" }
-peacoqc-rs={ path="../peacoqc-rs", version="^0.1.1", features=[
+peacoqc-rs={ path="../peacoqc-rs", version= "^0.1.1", features=[
     "flow-fcs",
 ] }
 anyhow.workspace=true
