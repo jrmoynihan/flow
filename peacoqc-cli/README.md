@@ -3,7 +3,7 @@
 [![Rust](https://img.shields.io/badge/rust-1.70+-orange.svg)](https://www.rust-lang.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-Command-line tool for PeacoQC (Peak-based Quality Control) for flow cytometry FCS files. This CLI provides a simple interface to run quality control on one or more FCS files with parallel processing support.
+Command-line tool for PeacoQC (Peak-based Quality Control) for flow cytometry FCS files built on top of the [`peacoqc-rs` crate](https://crates.io/crates/peacoqc-rs), which implements the PeacoQC algorithm. The CLI provides a simple interface to run quality control on one or more FCS files with parallel processing support.
 
 ## Installation
 
@@ -20,6 +20,7 @@ The binary will be at `target/release/peacoqc`.
 ### Using Cargo
 
 Install the binary as a cargo tool by pointing to its location (e.g. using the path of the repo cloned above):
+
 ```bash
 cargo install --path peacoqc-cli
 ```
@@ -217,24 +218,26 @@ The CLI continues processing even if individual files fail:
 
 ## Integration with peacoqc-rs
 
-This CLI is built on top of the `peacoqc-rs` library, which provides:
+This CLI is built on top of the [`peacoqc-rs` library](https://crates.io/crates/peacoqc-rs), which provides:
 
 - Trait-based design for maximum flexibility
 - Efficient parallel processing
 - Comprehensive quality control algorithms
-- Integration with `flow-fcs` for FCS file support
+- Integration with [`flow-fcs`](https://crates.io/crates/flow-fcs) for FCS file support
 
-See the [peacoqc-rs documentation](../peacoqc-rs/README.md) for library usage.
+See the [`peacoqc-rs` documentation](https://crates.io/crates/peacoqc-rs) for library usage.
 
 ## Attribution
 
-This CLI tool is built on top of `peacoqc-rs`, which implements the PeacoQC algorithm. We gratefully acknowledge the original authors:
+We gratefully acknowledge the original PeacoQC algorithm authors:
 
 **Original Paper:**
-- Emmaneel, A., Quintelier, K., Sichien, D., Rybakowska, P., Marañón, C., Alarcón-Riquelme, M. E., Van Isterdael, G., Van Gassen, S., & Saeys, Y. (2022). PeacoQC: Peak-based selection of high quality cytometry data. *Cytometry A*, 101(4), 325-338. https://doi.org/10.1002/cyto.a.24501
+
+- [Emmaneel, A., Quintelier, K., Sichien, D., Rybakowska, P., Marañón, C., Alarcón-Riquelme, M. E., Van Isterdael, G., Van Gassen, S., & Saeys, Y. (2022). PeacoQC: Peak-based selection of high quality cytometry data. *Cytometry A*, 101(4), 325-338. `https://doi.org/10.1002/cyto.a.24501`](https://doi.org/10.1002/cyto.a.24501)
 
 **Original R Implementation:**
-- GitHub: https://github.com/saeyslab/PeacoQC
+
+- [GitHub: `https://github.com/saeyslab/PeacoQC`](https://github.com/saeyslab/PeacoQC)
 - Authors: Annelies Emmaneel, Katrien Quintelier, and the Saeys Lab
 
 ## License
