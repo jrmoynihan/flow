@@ -269,9 +269,18 @@ All functions return `Result<T, PeacoQCError>`. The `PeacoQCError` enum covers:
 
 MIT License - see LICENSE file for details
 
-## References
+## Attribution
 
-PeacoQC is based on the original R implementation. This Rust version provides:
+This Rust implementation is based on the original PeacoQC algorithm and R package. We gratefully acknowledge the original authors:
+
+**Original Paper:**
+- Emmaneel, A., Quintelier, K., Sichien, D., Rybakowska, P., Marañón, C., Alarcón-Riquelme, M. E., Van Isterdael, G., Van Gassen, S., & Saeys, Y. (2022). PeacoQC: Peak-based selection of high quality cytometry data. *Cytometry A*, 101(4), 325-338. https://doi.org/10.1002/cyto.a.24501
+
+**Original R Implementation:**
+- GitHub: https://github.com/saeyslab/PeacoQC
+- Authors: Annelies Emmaneel, Katrien Quintelier, and the Saeys Lab
+
+This Rust version provides:
 
 - Improved performance through native compilation
 - Better memory efficiency
