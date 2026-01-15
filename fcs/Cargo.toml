@@ -40,7 +40,9 @@ ndarray={ workspace=true, features=[
     "rayon",
     "serde",
 ] }
-ndarray-linalg={ workspace=true, default-features=false }
+ndarray-linalg={ workspace=true, default-features=false, features=[
+    "openblas-system",
+] }
 
 ts-rs={ version="11.1.0", optional=true } # Generate TypeScript bindings for Rust types
 
