@@ -47,7 +47,7 @@ fn benchmark_kde_estimate(c: &mut Criterion) {
             let data = generate_test_data(n_data, 3); // 3 peaks
 
             group.bench_with_input(
-                BenchmarkId::new("naive", format!("n_data={},n_grid={}", n_data, n_grid)),
+                BenchmarkId::new("fft", format!("n_data={},n_grid={}", n_data, n_grid)),
                 &(data, n_grid),
                 |b, (data, n_grid)| {
                     b.iter(|| {
