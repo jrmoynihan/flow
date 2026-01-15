@@ -67,6 +67,23 @@ struct Cli {
     #[arg(long, value_name = "REPORT_PATH")]
     report: Option<PathBuf>,
 
+    /// Export QC results as boolean CSV (0/1 values)
+    /// Recommended format for general use (pandas, R, SQL)
+    #[arg(long, value_name = "CSV_PATH")]
+    export_csv: Option<PathBuf>,
+
+    /// Export QC results as numeric CSV (2000/6000 values, R-compatible)
+    #[arg(long, value_name = "CSV_PATH")]
+    export_csv_numeric: Option<PathBuf>,
+
+    /// Export QC metadata as JSON
+    #[arg(long, value_name = "JSON_PATH")]
+    export_json: Option<PathBuf>,
+
+    /// Column name for CSV exports (default: "PeacoQC")
+    #[arg(long, default_value = "PeacoQC")]
+    csv_column_name: String,
+
     /// Verbose output
     #[arg(short, long)]
     verbose: bool,
@@ -218,6 +235,10 @@ struct ProcessingConfig {
     remove_margins: bool,
     remove_doublets: bool,
     doublet_nmad: f64,
+    export_csv: Option<PathBuf>,
+    export_csv_numeric: Option<PathBuf>,
+    export_json: Option<PathBuf>,
+    csv_column_name: String,
 }
 
 /// Internal function to process a single file (called from process_single_file)
@@ -226,6 +247,7 @@ fn process_file_internal(
     output_path: Option<&Path>,
     config: &ProcessingConfig,
 ) -> Result<InternalResult> {
+    use peacoqc_rs::{export_csv_boolean, export_csv_numeric, export_json_metadata};
     // Load FCS file
     let fcs = Fcs::open(
         input_path
@@ -441,6 +463,51 @@ fn process_file_internal(
         );
     }
 
+    // Export QC results if requested
+    let input_stem = input_path
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or("output");
+
+    if let Some(ref csv_path) = config.export_csv {
+        let export_path = if csv_path.is_dir() {
+            csv_path.join(format!("{}.PeacoQC.csv", input_stem))
+        } else {
+            csv_path.clone()
+        };
+        export_csv_boolean(&peacoqc_result, &export_path, Some(&config.csv_column_name))
+            .map_err(|e| anyhow::anyhow!("Failed to export CSV: {}", e))?;
+        info!("Exported boolean CSV to: {}", export_path.display());
+    }
+
+    if let Some(ref csv_numeric_path) = config.export_csv_numeric {
+        let export_path = if csv_numeric_path.is_dir() {
+            csv_numeric_path.join(format!("{}.PeacoQC.csv", input_stem))
+        } else {
+            csv_numeric_path.clone()
+        };
+        export_csv_numeric(
+            &peacoqc_result,
+            &export_path,
+            2000,
+            6000,
+            Some(&config.csv_column_name),
+        )
+        .map_err(|e| anyhow::anyhow!("Failed to export numeric CSV: {}", e))?;
+        info!("Exported numeric CSV to: {}", export_path.display());
+    }
+
+    if let Some(ref json_path) = config.export_json {
+        let export_path = if json_path.is_dir() {
+            json_path.join(format!("{}.PeacoQC.json", input_stem))
+        } else {
+            json_path.clone()
+        };
+        export_json_metadata(&peacoqc_result, &peacoqc_config, &export_path)
+            .map_err(|e| anyhow::anyhow!("Failed to export JSON: {}", e))?;
+        info!("Exported JSON metadata to: {}", export_path.display());
+    }
+
     Ok(InternalResult {
         n_events_before: n_events_initial,
         n_events_after: n_events_final,
@@ -493,6 +560,10 @@ fn main() -> Result<()> {
         remove_margins: args.remove_margins,
         remove_doublets: args.remove_doublets,
         doublet_nmad: args.doublet_nmad,
+        export_csv: args.export_csv,
+        export_csv_numeric: args.export_csv_numeric,
+        export_json: args.export_json,
+        csv_column_name: args.csv_column_name,
     };
 
     // Process files in parallel

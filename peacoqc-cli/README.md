@@ -88,6 +88,10 @@ Options:
   --remove-doublets              Remove doublets before QC (default: true)
   --doublet-nmad <NMAD>          Doublet nmad threshold (default: 4.0)
   --report <REPORT_PATH>         Save QC report as JSON (file for single input, directory for multiple)
+  --export-csv <CSV_PATH>        Export QC results as boolean CSV (0/1 values)
+  --export-csv-numeric <PATH>     Export QC results as numeric CSV (2000/6000 values, R-compatible)
+  --export-json <JSON_PATH>      Export QC metadata as JSON
+  --csv-column-name <NAME>       Column name for CSV exports (default: "PeacoQC")
   -v, --verbose                  Verbose output
   -h, --help                     Print help
   -V, --version                  Print version
@@ -106,6 +110,18 @@ peacoqc sample.fcs -c FL1-A,FL2-A,FL3-A
 
 # Save report
 peacoqc sample.fcs --report report.json
+
+# Export QC results as CSV
+peacoqc sample.fcs --export-csv qc_results.csv
+
+# Export numeric CSV (R-compatible)
+peacoqc sample.fcs --export-csv-numeric qc_results_r.csv
+
+# Export JSON metadata
+peacoqc sample.fcs --export-json qc_metadata.json
+
+# Export to directory (auto-named files)
+peacoqc sample.fcs --export-csv ./exports/ --export-json ./exports/
 
 # Verbose output
 peacoqc sample.fcs -v
@@ -194,6 +210,57 @@ For multiple files:
 
 - If `--report` points to a directory: Individual JSON files are created for each input file
 - If `--report` points to a file: A combined report with all results is created
+
+### Export Formats
+
+The CLI supports exporting QC results in multiple formats:
+
+#### Boolean CSV (Recommended)
+
+```bash
+peacoqc sample.fcs --export-csv qc_results.csv
+```
+
+Exports a CSV file with 0/1 values:
+- `1` = good event (keep)
+- `0` = bad event (remove)
+
+Best for: pandas, R, SQL, general data analysis
+
+#### Numeric CSV (R-Compatible)
+
+```bash
+peacoqc sample.fcs --export-csv-numeric qc_results_r.csv
+```
+
+Exports a CSV file with numeric codes matching R PeacoQC:
+- `2000` = good event (keep)
+- `6000` = bad event (remove)
+
+Best for: R compatibility, FlowJo CSV import, legacy pipelines
+
+#### JSON Metadata
+
+```bash
+peacoqc sample.fcs --export-json qc_metadata.json
+```
+
+Exports comprehensive QC metrics including:
+- Event counts (before/after/removed)
+- Percentage removed by method (IT, MAD, consecutive)
+- Configuration used
+- Channels analyzed
+
+Best for: Programmatic access, reporting, provenance tracking
+
+#### Export to Directory
+
+When exporting to a directory, files are automatically named:
+
+```bash
+peacoqc sample.fcs --export-csv ./exports/ --export-json ./exports/
+# Creates: ./exports/sample.PeacoQC.csv and ./exports/sample.PeacoQC.json
+```
 
 ### Output Files (FCS)
 
