@@ -5,6 +5,7 @@ edition.workspace=true
 authors.workspace=true
 license.workspace=true
 description="PeacoQC quality control algorithms for flow cytometry"
+repository="https://github.com/jrmoynihan/flow/peacoqc-rs"
 keywords=[
     "flow-cytometry",
     "quality-control",

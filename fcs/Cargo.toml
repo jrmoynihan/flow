@@ -1,13 +1,23 @@
 [package]
-name             ="flow-fcs"
-version          ="0.1.1"
+name="flow-fcs"
+version="0.1.1"
 edition.workspace=true
 authors.workspace=true
-repository       ="https://github.com/jrmoynihan/flow-fcs"
-license          ="MIT"
-description      ="High-level Flow Cytometry Standard (FCS) file struct and operations"
-keywords         =["flow", "cytometry", "fcs", "science", "parser"]
-categories       =["science", "parser-implementations"]
+repository="https://github.com/jrmoynihan/flow/flow-fcs"
+license="MIT"
+description="High-level Flow Cytometry Standard (FCS) file struct and operations"
+keywords=[
+    "flow-cytometry",
+    "fcs",
+    "bioinformatics",
+    "science",
+    "parser",
+]
+categories=[
+    "science",
+    "bioinformatics",
+    "parser-implementations",
+]
 
 [package.metadata.scripts]
 dry-release="cargo smart-release --update-crates-index"

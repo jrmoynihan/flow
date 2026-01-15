@@ -1,12 +1,12 @@
 [package]
-name = "flow-gates"
-version = "0.1.0"
-edition.workspace = true
-authors.workspace = true
-repository = "https://github.com/jrmoynihan/flow-gates"
-license = "MIT"
-description = "Package for drawing and interacting with gates in flow cytometry data"
-keywords = [
+name="flow-gates"
+version="0.1.0"
+edition.workspace=true
+authors.workspace=true
+repository="https://github.com/jrmoynihan/flow/flow-gates"
+license="MIT"
+description="Package for drawing and interacting with gates in flow cytometry data"
+keywords=[
     "flow",
     "cytometry",
     "standard",
@@ -16,25 +16,25 @@ keywords = [
     "visualization",
     "gates",
 ]
-categories = ["science", "visualization"]
+categories=["science", "visualization"]
 
 [dependencies]
-flow-fcs = { path = "../fcs", version = "0.1.1" }
-flow-plots = { path = "../plots", version = "0.1.0" }
-anyhow.workspace = true
-thiserror.workspace = true
-serde.workspace = true
-serde_json.workspace = true
-geo = "0.32"
-rstar = "0.12"
-quick-xml = { version = "0.38.4", features = ["serialize"] }
+flow-fcs            ={ path="../fcs", version="0.1.1" }
+flow-plots          ={ path="../plots", version="0.1.0" }
+anyhow.workspace    =true
+thiserror.workspace =true
+serde.workspace     =true
+serde_json.workspace=true
+geo                 ="0.32"
+rstar               ="0.12"
+quick-xml           ={ version="0.38.4", features=["serialize"] }
 
 [package.metadata.scripts]
-test-compliance = "cargo test --test compliance_tests -- --ignored"
-test-compliance-list = "cargo test --test compliance_tests -- --list"
-test-all = "cargo test --all-features"
-test-unit = "cargo test --lib"
-test-integration = "cargo test --test '*'"
-dry-release = "cargo smart-release --update-crates-index"
-publish = "cargo smart-release --execute"
-changelog = "cargo changelog --write"
+test-compliance     ="cargo test --test compliance_tests -- --ignored"
+test-compliance-list="cargo test --test compliance_tests -- --list"
+test-all            ="cargo test --all-features"
+test-unit           ="cargo test --lib"
+test-integration    ="cargo test --test '*'"
+dry-release         ="cargo smart-release --update-crates-index"
+publish             ="cargo smart-release --execute"
+changelog           ="cargo changelog --write"
