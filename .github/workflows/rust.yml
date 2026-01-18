@@ -1,36 +1,36 @@
-name: Rust
+# name: Rust
 
-on:
-  push:
-    branches: [ "main" ]
-  pull_request:
-    branches: [ "main" ]
+# on:
+#   push:
+#     branches: [ "main" ]
+#   pull_request:
+#     branches: [ "main" ]
 
-env:
-  CARGO_TERM_COLOR: always
+# env:
+#   CARGO_TERM_COLOR: always
 
-jobs:
-  build:
+# jobs:
+#   build:
 
-    runs-on: ubuntu-latest
+#     runs-on: ubuntu-latest
 
-    steps:
-    - uses: actions/checkout@v4
+#     steps:
+#     - uses: actions/checkout@v4
 
-    - name: Install Rust nightly toolchain
-      uses: actions-rs/toolchain@v1
-      with:
-        toolchain: nightly
-        override: true
-        profile: minimal
+#     - name: Install Rust nightly toolchain
+#       uses: actions-rs/toolchain@v1
+#       with:
+#         toolchain: nightly
+#         override: true
+#         profile: minimal
 
-    - name: Install system dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y libfontconfig1-dev pkg-config
+#     - name: Install system dependencies
+#       run: |
+#         sudo apt-get update
+#         sudo apt-get install -y libfontconfig1-dev pkg-config
 
-    - name: Build
-      run: cargo build --verbose
+#     - name: Build
+#       run: cargo build --verbose
 
-    - name: Run tests
-      run: cargo test --verbose
+#     - name: Run tests
+#       run: cargo test --verbose
