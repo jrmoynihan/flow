@@ -1,10 +1,10 @@
 use anyhow::Result;
 use clap::Parser;
 use dialoguer::{Confirm, Input};
-use flow_fcs::Fcs;
+use flow_fcs::{Fcs, write_fcs_file};
 use peacoqc_rs::{
-    DoubletConfig, FcsFilter, MarginConfig, PeacoQCConfig, PeacoQCData, QCMode, peacoqc,
-    remove_doublets, remove_margins, create_qc_plots, QCPlotConfig,
+    DoubletConfig, FcsFilter, MarginConfig, PeacoQCConfig, PeacoQCData, QCMode, QCPlotConfig,
+    create_qc_plots, peacoqc, remove_doublets, remove_margins,
 };
 use rayon::prelude::*;
 use std::path::{Path, PathBuf};
@@ -52,13 +52,13 @@ struct Cli {
     #[arg(long)]
     remove_zeros: bool,
 
-    /// Remove margin events before QC
-    #[arg(long, default_value = "true")]
-    remove_margins: bool,
+    /// Keep margin events (default: margins are removed)
+    #[arg(long)]
+    keep_margins: bool,
 
-    /// Remove doublets before QC
-    #[arg(long, default_value = "true")]
-    remove_doublets: bool,
+    /// Keep doublet events (default: doublets are removed)
+    #[arg(long)]
+    keep_doublets: bool,
 
     /// Doublet nmad threshold (default: 4.0)
     #[arg(long, default_value = "4.0")]
@@ -92,6 +92,14 @@ struct Cli {
     /// Directory to save QC plots (defaults to same directory as input file if not specified)
     #[arg(long, value_name = "PLOT_DIR")]
     plot_dir: Option<PathBuf>,
+
+    /// Hide spline and MAD threshold lines in plots (shown by default)
+    #[arg(long)]
+    hide_spline_mad: bool,
+
+    /// Show bin boundaries (gray vertical lines) in plots (hidden by default)
+    #[arg(long)]
+    show_bin_boundaries: bool,
 
     /// Cofactor for arcsinh transformation (default: 2000)
     /// Lower values = more compression, higher values = less compression
@@ -311,19 +319,27 @@ fn process_file_internal(
 
     // Log compensation status
     let has_compensation = fcs.has_compensation();
-    info!(
-        "Compensation status: {} (SPILLOVER keyword {})",
-        if has_compensation {
-            "available"
-        } else {
-            "not available"
-        },
-        if has_compensation {
-            "present"
-        } else {
-            "missing"
+
+    // Log detailed compensation status
+    match fcs.get_spillover_matrix() {
+        Ok(Some((matrix, names))) => {
+            info!(
+                "Compensation status: available ({}x{} matrix, {} parameters)",
+                matrix.nrows(),
+                matrix.ncols(),
+                names.len()
+            );
         }
-    );
+        Ok(None) => {
+            info!("Compensation status: not available (SPILLOVER/SPILL/COMP keyword missing)");
+        }
+        Err(e) => {
+            warn!(
+                "Compensation status: error reading compensation matrix: {}",
+                e
+            );
+        }
+    }
 
     // Log all available channels
     let all_channels = fcs.channel_names();
@@ -359,57 +375,11 @@ fn process_file_internal(
 
     let mut current_fcs = fcs;
 
-    // Apply compensation and transformation (matching R implementation behavior)
-    // Transformation is CRITICAL for MAD detection - without it, raw fluorescence ranges
-    let cofactor = config.cofactor;
-    if has_compensation {
-        info!("Applying compensation and arcsinh transformation (cofactor={}, matching R PeacoQC preprocessing)", cofactor);
-        match peacoqc_rs::preprocess_fcs(current_fcs, true, true, cofactor) {
-            Ok(preprocessed_fcs) => {
-                current_fcs = preprocessed_fcs;
-                let n_events_after = current_fcs.get_event_count_from_dataframe();
-                info!(
-                    "Preprocessing complete: {} events (compensation + arcsinh transform applied, cofactor={})",
-                    n_events_after, cofactor
-                );
-            }
-            Err(e) => {
-                warn!(
-                    "Failed to apply preprocessing: {}, continuing with raw data (MAD results may differ from R)",
-                    e
-                );
-                // Re-open the file if preprocessing failed
-                current_fcs = Fcs::open(
-                    input_path
-                        .to_str()
-                        .ok_or_else(|| anyhow::anyhow!("Invalid path"))?,
-                )?;
-            }
-        }
-    } else {
-        // No compensation available - still apply transformation for better MAD results
-        info!("No compensation available, applying arcsinh transformation only (cofactor={})", cofactor);
-        match peacoqc_rs::preprocess_fcs(current_fcs, false, true, cofactor) {
-            Ok(preprocessed_fcs) => {
-                current_fcs = preprocessed_fcs;
-                info!("Transformation applied (arcsinh with cofactor={})", cofactor);
-            }
-            Err(e) => {
-                warn!(
-                    "Failed to apply transformation: {}, continuing with raw data (MAD results may differ from R)",
-                    e
-                );
-                // Re-open the file if transformation failed
-                current_fcs = Fcs::open(
-                    input_path
-                        .to_str()
-                        .ok_or_else(|| anyhow::anyhow!("Invalid path"))?,
-                )?;
-            }
-        }
-    }
+    // R's preprocessing order: RemoveMargins → RemoveDoublets → Compensate → Transform
+    // This order matters because margin/doublet removal should happen on raw data
+    // before transformation affects the values
 
-    // Remove margins (optional)
+    // Step 1: Remove margins (optional) - BEFORE transformation
     if config.remove_margins {
         let n_events_before_margins = current_fcs.get_event_count_from_dataframe();
         info!("Removing margin events (preprocessing step)");
@@ -437,7 +407,7 @@ fn process_file_internal(
         }
     }
 
-    // Remove doublets (optional)
+    // Step 2: Remove doublets (optional) - BEFORE transformation
     if config.remove_doublets {
         let n_events_before_doublets = current_fcs.get_event_count_from_dataframe();
         info!("Removing doublet events (preprocessing step)");
@@ -473,6 +443,65 @@ fn process_file_internal(
         }
     }
 
+    // Step 3: Apply compensation and transformation (matching R implementation behavior)
+    // R logic: if compensation available → biexponential/logicle, else → arcsinh
+    // Transformation is CRITICAL for MAD detection - without it, raw fluorescence ranges
+    let cofactor = config.cofactor;
+    if has_compensation {
+        info!(
+            "Applying compensation and biexponential transformation (matching R PeacoQC: compensate + estimateLogicle)"
+        );
+        match peacoqc_rs::preprocess_fcs(current_fcs, true, true, cofactor) {
+            Ok(preprocessed_fcs) => {
+                current_fcs = preprocessed_fcs;
+                let n_events_after = current_fcs.get_event_count_from_dataframe();
+                info!(
+                    "Preprocessing complete: {} events (compensation + biexponential/logicle transform applied)",
+                    n_events_after
+                );
+            }
+            Err(e) => {
+                warn!(
+                    "Failed to apply preprocessing: {}, continuing with raw data (MAD results may differ from R)",
+                    e
+                );
+                // Re-open the file if preprocessing failed
+                current_fcs = Fcs::open(
+                    input_path
+                        .to_str()
+                        .ok_or_else(|| anyhow::anyhow!("Invalid path"))?,
+                )?;
+            }
+        }
+    } else {
+        // No compensation available - still apply transformation for better MAD results
+        info!(
+            "No compensation available, applying arcsinh transformation only (cofactor={})",
+            cofactor
+        );
+        match peacoqc_rs::preprocess_fcs(current_fcs, false, true, cofactor) {
+            Ok(preprocessed_fcs) => {
+                current_fcs = preprocessed_fcs;
+                info!(
+                    "Transformation applied (arcsinh with cofactor={})",
+                    cofactor
+                );
+            }
+            Err(e) => {
+                warn!(
+                    "Failed to apply transformation: {}, continuing with raw data (MAD results may differ from R)",
+                    e
+                );
+                // Re-open the file if transformation failed
+                current_fcs = Fcs::open(
+                    input_path
+                        .to_str()
+                        .ok_or_else(|| anyhow::anyhow!("Invalid path"))?,
+                )?;
+            }
+        }
+    }
+
     // Run PeacoQC
     let peacoqc_config = PeacoQCConfig {
         channels: channels.clone(),
@@ -492,12 +521,9 @@ fn process_file_internal(
 
     // Save output (if path provided)
     if let Some(output_path) = output_path {
-        // TODO: Implement write_to_file on Fcs in flow-fcs crate
-        // This is needed for feature parity with the R PeacoQC package (save_fcs=TRUE)
-        eprintln!(
-            "Note: FCS file writing not yet implemented, would save to: {}",
-            output_path.display()
-        );
+        info!("Writing cleaned FCS file to: {}", output_path.display());
+        write_fcs_file(clean_fcs, output_path)?;
+        info!("Successfully wrote cleaned FCS file");
     }
 
     // Export QC results if requested
@@ -598,7 +624,7 @@ fn main() -> Result<()> {
 
     // Determine if plots should be generated
     let generate_plots = if let Some(plots_flag) = args.plots {
-        plots_flag  // Use the flag value directly - this fixes the bug where --plots true didn't work
+        plots_flag // Use the flag value directly - this fixes the bug where --plots true didn't work
     } else {
         // Prompt user interactively if not specified
         Confirm::new()
@@ -646,13 +672,17 @@ fn main() -> Result<()> {
 
     // Process files with each cofactor
     let mut all_results: Vec<FileResult> = Vec::new();
-    
+
     for cofactor in &cofactors_to_use {
         if cofactors_to_use.len() > 1 {
             println!("\n🔄 Processing with cofactor: {}\n", cofactor);
         }
 
         // Prepare processing configuration
+        // keep_margins/keep_doublets default to false, so removal happens by default
+        let remove_margins = !args.keep_margins;
+        let remove_doublets = !args.keep_doublets;
+
         let mut processing_config = ProcessingConfig {
             channels: args.channels.clone(),
             qc_mode: qc_mode,
@@ -660,8 +690,8 @@ fn main() -> Result<()> {
             it_limit: args.it_limit,
             consecutive_bins: args.consecutive_bins,
             remove_zeros: args.remove_zeros,
-            remove_margins: args.remove_margins,
-            remove_doublets: args.remove_doublets,
+            remove_margins,
+            remove_doublets,
             doublet_nmad: args.doublet_nmad,
             export_csv: args.export_csv.clone(),
             export_csv_numeric: args.export_csv_numeric.clone(),
@@ -812,15 +842,25 @@ fn main() -> Result<()> {
                         }
                     })
                     .unwrap_or_else(|| "qc_plot.png".to_string());
-                
+
                 let plot_path = plot_dir.as_ref().unwrap().join(&plot_filename);
 
-                match create_qc_plots(fcs_data, qc_result, &plot_path, QCPlotConfig::default()) {
+                // Configure plot settings
+                let mut plot_config = QCPlotConfig::default();
+                // Spline and MAD thresholds are shown by default, can be hidden with flag
+                plot_config.show_spline_and_mad = !args.hide_spline_mad;
+                // Bin boundaries are hidden by default, can be shown with flag
+                plot_config.show_bin_boundaries = args.show_bin_boundaries;
+
+                match create_qc_plots(fcs_data, qc_result, &plot_path, plot_config) {
                     Ok(()) => {
                         println!("   ✅ Generated plot: {}", plot_path.display());
                     }
                     Err(e) => {
-                        warn!("   ⚠️  Failed to generate plot for {}: {}", result.filename, e);
+                        warn!(
+                            "   ⚠️  Failed to generate plot for {}: {}",
+                            result.filename, e
+                        );
                     }
                 }
             }

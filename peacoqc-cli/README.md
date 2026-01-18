@@ -84,8 +84,8 @@ Options:
   --it-limit <IT_LIMIT>          Isolation Tree limit (default: 0.6) - Higher = less strict
   --consecutive-bins <BINS>      Consecutive bins threshold (default: 5)
   --remove-zeros                 Remove zeros before peak detection
-  --remove-margins               Remove margin events before QC (default: true)
-  --remove-doublets              Remove doublets before QC (default: true)
+  --keep-margins                 Keep margin events (default: margins are removed)
+  --keep-doublets                Keep doublet events (default: doublets are removed)
   --doublet-nmad <NMAD>          Doublet nmad threshold (default: 4.0)
   --report <REPORT_PATH>         Save QC report as JSON (file for single input, directory for multiple)
   --export-csv <CSV_PATH>        Export QC results as boolean CSV (0/1 values)
@@ -152,8 +152,13 @@ peacoqc sample.fcs --mad 8.0
 # Adjust Isolation Tree limit
 peacoqc sample.fcs --it-limit 0.7
 
-# Disable margin/doublet removal
-peacoqc sample.fcs --no-remove-margins --no-remove-doublets
+# Keep margins and doublets (disable removal)
+peacoqc sample.fcs --keep-margins --keep-doublets
+
+# Note: Keeping doublets may cause more bins to be flagged as outliers
+# on some datasets, as doublets can interfere with peak detection and MAD calculations.
+# Use --keep-doublets only if needed to match specific published results
+# or if doublet removal is too aggressive for your dataset.
 ```
 
 ## Performance
@@ -175,7 +180,7 @@ Expected speedup:
 
 The tool prints progress and summary information:
 
-```
+```txt
 🧬 PeacoQC - Flow Cytometry Quality Control
 ============================================
 
@@ -222,6 +227,7 @@ peacoqc sample.fcs --export-csv qc_results.csv
 ```
 
 Exports a CSV file with 0/1 values:
+
 - `1` = good event (keep)
 - `0` = bad event (remove)
 
@@ -234,6 +240,7 @@ peacoqc sample.fcs --export-csv-numeric qc_results_r.csv
 ```
 
 Exports a CSV file with numeric codes matching R PeacoQC:
+
 - `2000` = good event (keep)
 - `6000` = bad event (remove)
 
@@ -246,6 +253,7 @@ peacoqc sample.fcs --export-json qc_metadata.json
 ```
 
 Exports comprehensive QC metrics including:
+
 - Event counts (before/after/removed)
 - Percentage removed by method (IT, MAD, consecutive)
 - Configuration used
@@ -264,15 +272,24 @@ peacoqc sample.fcs --export-csv ./exports/ --export-json ./exports/
 
 ### Output Files (FCS)
 
-**⚠️ Note**: FCS file writing is currently not implemented. The `flow-fcs` crate (which `peacoqc-cli` uses for FCS file support) is currently read-only.
+When an output path is specified (using `-o` or `--output`), the CLI will write cleaned FCS files containing only the events that passed quality control.
 
-To achieve feature parity with the R PeacoQC package (which saves filtered FCS files with `save_fcs=TRUE`), FCS file writing needs to be implemented in the `flow-fcs` crate first. Once implemented:
+- **Single file**: Output file will be saved with `_cleaned` suffix (e.g., `sample.fcs` → `sample_cleaned.fcs`)
+- **Multiple files**: If output directory is specified, files will maintain their original names with `_cleaned` suffix
+- **Filtered data**: Output FCS files contain only events that passed all QC steps (IT, MAD, consecutive filtering)
 
-- Output files will be saved with `_cleaned` suffix (e.g., `sample.fcs` → `sample_cleaned.fcs`)
-- If output directory is specified, files will maintain their original names with `_cleaned` suffix
-- Filtered FCS files will contain only the events that passed quality control
+**Example**:
 
-This feature is planned and will be added when `flow-fcs` supports writing FCS files.
+```bash
+# Single file - saves to sample_cleaned.fcs in same directory
+peacoqc sample.fcs -o sample_cleaned.fcs
+
+# Multiple files - saves to output directory with _cleaned suffix
+peacoqc file1.fcs file2.fcs -o ./clean_dir/_
+# Creates: ./clean_dir/file1_cleaned.fcs, ./clean_dir/file2_cleaned.fcs
+```
+
+This provides feature parity with the R PeacoQC package's `save_fcs=TRUE` option.
 
 ## Error Handling
 
