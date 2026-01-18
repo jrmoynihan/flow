@@ -31,6 +31,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "alga"
+version = "0.9.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4f823d037a7ec6ea2197046bafd4ae150e6bc36f9ca347404f46a46823fa84f2"
+dependencies = [
+ "approx 0.3.2",
+ "num-complex 0.2.4",
+ "num-traits 0.2.19",
+]
+
+[[package]]
 name = "aligned"
 version = "0.4.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -62,6 +73,12 @@ name = "allocator-api2"
 version = "0.2.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "683d7910e743518b0e34f1186f92494becacb047c7b6bf616c96772180fef923"
+
+[[package]]
+name = "almost"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3aa2999eb46af81abb65c2d30d446778d7e613b60bbf4e174a027e80f90a3c14"
 
 [[package]]
 name = "android_system_properties"
@@ -136,11 +153,20 @@ checksum = "a23eb6b1614318a8071c9b2521f36b424b2c83db5eb3a0fead4a6c0809af6e61"
 
 [[package]]
 name = "approx"
+version = "0.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f0e60b75072ecd4168020818c0107f2857bb6c4e64252d8d3983f6263b40a5c3"
+dependencies = [
+ "num-traits 0.2.19",
+]
+
+[[package]]
+name = "approx"
 version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cab112f0a86d568ea0e627cc1d6be74a1e9cd55214684db5561995f6dad897c6"
 dependencies = [
- "num-traits",
+ "num-traits 0.2.19",
 ]
 
 [[package]]
@@ -175,7 +201,7 @@ version = "0.6.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "70f13d10a41ac8d2ec79ee34178d61e6f47a29c2edfe7ef1721c7383b0359e65"
 dependencies = [
- "num-traits",
+ "num-traits 0.2.19",
 ]
 
 [[package]]
@@ -283,10 +309,10 @@ dependencies = [
  "arrayvec",
  "log",
  "num-rational",
- "num-traits",
+ "num-traits 0.2.19",
  "pastey",
  "rayon",
- "thiserror",
+ "thiserror 2.0.17",
  "v_frame",
  "y4m",
 ]
@@ -484,8 +510,8 @@ version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9ff11ddd2af3b5e80dd0297fee6e56ac038d9bdc549573cdb51bd6d2efe7f05e"
 dependencies = [
- "num-complex",
- "num-traits",
+ "num-complex 0.4.6",
+ "num-traits 0.2.19",
  "rand 0.8.5",
  "serde",
 ]
@@ -531,7 +557,7 @@ checksum = "145052bdd345b87320e369255277e3fb5152762ad123a901ef5c262dd38fe8d2"
 dependencies = [
  "iana-time-zone",
  "js-sys",
- "num-traits",
+ "num-traits 0.2.19",
  "serde",
  "wasm-bindgen",
  "windows-link",
@@ -798,7 +824,7 @@ dependencies = [
  "clap",
  "criterion-plot",
  "itertools 0.13.0",
- "num-traits",
+ "num-traits 0.2.19",
  "oorandom",
  "page_size",
  "plotters",
@@ -880,12 +906,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "csaps"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6bfb1d169dd423df86756e3ba5a4ab9584d07f47444751bff5c951c7ae32830a"
+dependencies = [
+ "almost",
+ "itertools 0.9.0",
+ "ndarray 0.13.1",
+ "num-traits 0.2.19",
+ "sprs",
+ "sprs-ldl",
+ "thiserror 1.0.69",
+]
+
+[[package]]
 name = "csscolorparser"
 version = "0.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "02ee6eae4d99456f92dc379ba21cf08f783ef5525f193c3854b4e921ece045c5"
 dependencies = [
- "num-traits",
+ "num-traits 0.2.19",
  "phf 0.13.1",
  "serde",
 ]
@@ -1060,7 +1101,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "79127ed59a85d7687c409e9978547cffb7dc79675355ed22da6b66fd5f6ead01"
 dependencies = [
  "itertools 0.11.0",
- "num-traits",
+ "num-traits 0.2.19",
 ]
 
 [[package]]
@@ -1234,7 +1275,7 @@ version = "0.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b09cf3155332e944990140d967ff5eceb70df778b34f77d8075db46e4704e6d8"
 dependencies = [
- "num-traits",
+ "num-traits 0.2.19",
 ]
 
 [[package]]
@@ -1254,7 +1295,7 @@ name = "flow-fcs"
 version = "0.1.1"
 dependencies = [
  "anyhow",
- "approx",
+ "approx 0.5.1",
  "bytecount",
  "bytemuck",
  "byteorder",
@@ -1273,7 +1314,7 @@ dependencies = [
  "serde_json",
  "strum",
  "strum_macros",
- "thiserror",
+ "thiserror 2.0.17",
  "tracing",
  "ts-rs",
  "uuid",
@@ -1291,7 +1332,7 @@ dependencies = [
  "rstar",
  "serde",
  "serde_json",
- "thiserror",
+ "thiserror 2.0.17",
 ]
 
 [[package]]
@@ -1304,7 +1345,7 @@ dependencies = [
  "derive_builder",
  "flow-fcs",
  "image 0.25.9",
- "num-traits",
+ "num-traits 0.2.19",
  "once_cell",
  "plotters",
  "rayon",
@@ -1533,7 +1574,7 @@ dependencies = [
  "geographiclib-rs",
  "i_overlay",
  "log",
- "num-traits",
+ "num-traits 0.2.19",
  "rand 0.8.5",
  "robust",
  "rstar",
@@ -1547,8 +1588,8 @@ version = "0.7.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "24f8647af4005fa11da47cd56252c6ef030be8fa97bdbf355e7dfb6348f0a82c"
 dependencies = [
- "approx",
- "num-traits",
+ "approx 0.5.1",
+ "num-traits 0.2.19",
  "rayon",
  "rstar",
  "serde",
@@ -2026,7 +2067,7 @@ dependencies = [
  "exr",
  "gif 0.13.3",
  "jpeg-decoder",
- "num-traits",
+ "num-traits 0.2.19",
  "png 0.17.16",
  "qoi",
  "tiff 0.9.1",
@@ -2045,7 +2086,7 @@ dependencies = [
  "gif 0.14.1",
  "image-webp",
  "moxcms",
- "num-traits",
+ "num-traits 0.2.19",
  "png 0.18.0",
  "qoi",
  "ravif",
@@ -2129,6 +2170,15 @@ name = "is_terminal_polyfill"
 version = "1.70.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a6cb138bb79a146c1bd460005623e142ef0181e3d0219cb493e02f7d08a35695"
+
+[[package]]
+name = "itertools"
+version = "0.9.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "284f18f85651fe11e8a991b2adb42cb078325c996ed026d994719efcfca1d54b"
+dependencies = [
+ "either",
+]
 
 [[package]]
 name = "itertools"
@@ -2230,9 +2280,9 @@ dependencies = [
  "cauchy",
  "katexit",
  "lapack-sys",
- "num-traits",
+ "num-traits 0.2.19",
  "openblas-src",
- "thiserror",
+ "thiserror 2.0.17",
 ]
 
 [[package]]
@@ -2362,6 +2412,15 @@ dependencies = [
 
 [[package]]
 name = "matrixmultiply"
+version = "0.2.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "916806ba0031cd542105d916a97c8572e1fa6dd79c9c51e7eb43a09ec2dd84c1"
+dependencies = [
+ "rawpointer",
+]
+
+[[package]]
+name = "matrixmultiply"
 version = "0.3.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a06de3016e9fae57a36fd14dba131fccf49f74b40b7fbdb472f96e361ec71a08"
@@ -2449,7 +2508,7 @@ version = "0.7.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ac9557c559cd6fc9867e122e20d2cbefc9ca29d80d027a8e39310920ed2f0a97"
 dependencies = [
- "num-traits",
+ "num-traits 0.2.19",
  "pxfm",
 ]
 
@@ -2472,14 +2531,27 @@ dependencies = [
 
 [[package]]
 name = "ndarray"
+version = "0.13.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ac06db03ec2f46ee0ecdca1a1c34a99c0d188a0d83439b84bf0cb4b386e4ab09"
+dependencies = [
+ "matrixmultiply 0.2.4",
+ "num-complex 0.2.4",
+ "num-integer",
+ "num-traits 0.2.19",
+ "rawpointer",
+]
+
+[[package]]
+name = "ndarray"
 version = "0.16.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "882ed72dce9365842bf196bdeedf5055305f11fc8c03dee7bb0194a6cad34841"
 dependencies = [
- "matrixmultiply",
- "num-complex",
+ "matrixmultiply 0.3.10",
+ "num-complex 0.4.6",
  "num-integer",
- "num-traits",
+ "num-traits 0.2.19",
  "portable-atomic",
  "portable-atomic-util",
  "rawpointer",
@@ -2491,13 +2563,13 @@ version = "0.17.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0c7c9125e8f6f10c9da3aad044cc918cf8784fa34de857b1aa68038eb05a50a9"
 dependencies = [
- "approx",
+ "approx 0.5.1",
  "cblas-sys",
  "libc",
- "matrixmultiply",
- "num-complex",
+ "matrixmultiply 0.3.10",
+ "num-complex 0.4.6",
  "num-integer",
- "num-traits",
+ "num-traits 0.2.19",
  "portable-atomic",
  "portable-atomic-util",
  "rawpointer",
@@ -2515,10 +2587,10 @@ dependencies = [
  "katexit",
  "lax",
  "ndarray 0.17.1",
- "num-complex",
- "num-traits",
+ "num-complex 0.4.6",
+ "num-traits 0.2.19",
  "rand 0.8.5",
- "thiserror",
+ "thiserror 2.0.17",
 ]
 
 [[package]]
@@ -2567,7 +2639,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a5e44f723f1133c9deac646763579fdb3ac745e418f2a7af9cd0c431da1f20b9"
 dependencies = [
  "num-integer",
- "num-traits",
+ "num-traits 0.2.19",
+]
+
+[[package]]
+name = "num-complex"
+version = "0.2.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b6b19411a9719e753aff12e5187b74d60d3dc449ec3f4dc21e3989c3f554bc95"
+dependencies = [
+ "autocfg",
+ "num-traits 0.2.19",
 ]
 
 [[package]]
@@ -2576,7 +2658,7 @@ version = "0.4.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "73f88a1307638156682bada9d7604135552957b7818057dcef22705b4d509495"
 dependencies = [
- "num-traits",
+ "num-traits 0.2.19",
  "rand 0.8.5",
  "serde",
 ]
@@ -2598,7 +2680,7 @@ version = "0.1.46"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7969661fd2958a5cb096e56c8e1ad0444ac2bbcd0061bd28660485a44879858f"
 dependencies = [
- "num-traits",
+ "num-traits 0.2.19",
 ]
 
 [[package]]
@@ -2609,7 +2691,16 @@ checksum = "f83d14da390562dca69fc84082e73e548e1ad308d24accdedd2720017cb37824"
 dependencies = [
  "num-bigint",
  "num-integer",
- "num-traits",
+ "num-traits 0.2.19",
+]
+
+[[package]]
+name = "num-traits"
+version = "0.1.43"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "92e5113e9fd4cc14ded8e499429f396a20f98c772a47cc8622a736e1ec843c31"
+dependencies = [
+ "num-traits 0.2.19",
 ]
 
 [[package]]
@@ -2667,7 +2758,7 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_urlencoded",
- "thiserror",
+ "thiserror 2.0.17",
  "tokio",
  "tracing",
  "url",
@@ -2704,7 +2795,7 @@ dependencies = [
  "cc",
  "flate2",
  "tar",
- "thiserror",
+ "thiserror 2.0.17",
  "ureq",
 ]
 
@@ -2868,10 +2959,12 @@ name = "peacoqc-rs"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "approx",
+ "approx 0.5.1",
  "criterion",
+ "csaps",
  "flow-fcs",
  "image 0.25.9",
+ "ndarray 0.13.1",
  "plotters",
  "polars",
  "rand 0.9.2",
@@ -2880,7 +2973,7 @@ dependencies = [
  "serde",
  "serde_json",
  "tempfile",
- "thiserror",
+ "thiserror 2.0.17",
  "tracing",
 ]
 
@@ -3000,7 +3093,7 @@ dependencies = [
  "font-kit",
  "image 0.24.9",
  "lazy_static",
- "num-traits",
+ "num-traits 0.2.19",
  "pathfinder_geometry",
  "plotters-backend",
  "plotters-bitmap",
@@ -3102,7 +3195,7 @@ dependencies = [
  "hashbrown 0.15.5",
  "itoa",
  "lz4",
- "num-traits",
+ "num-traits 0.2.19",
  "polars-arrow-format",
  "polars-error",
  "polars-schema",
@@ -3138,7 +3231,7 @@ dependencies = [
  "fast-float2",
  "hashbrown 0.15.5",
  "itoa",
- "num-traits",
+ "num-traits 0.2.19",
  "polars-arrow",
  "polars-error",
  "polars-utils",
@@ -3167,7 +3260,7 @@ dependencies = [
  "indexmap",
  "itoa",
  "ndarray 0.16.1",
- "num-traits",
+ "num-traits 0.2.19",
  "polars-arrow",
  "polars-compute",
  "polars-dtype",
@@ -3224,7 +3317,7 @@ checksum = "343931b818cf136349135ba11dbc18c27683b52c3477b1ba8ca606cf5ab1965c"
 dependencies = [
  "bitflags 2.10.0",
  "hashbrown 0.15.5",
- "num-traits",
+ "num-traits 0.2.19",
  "polars-arrow",
  "polars-compute",
  "polars-core",
@@ -3259,7 +3352,7 @@ dependencies = [
  "itoa",
  "memchr",
  "memmap2",
- "num-traits",
+ "num-traits 0.2.19",
  "object_store",
  "percent-encoding",
  "polars-arrow",
@@ -3293,7 +3386,7 @@ dependencies = [
  "hashbrown 0.15.5",
  "indexmap",
  "itoa",
- "num-traits",
+ "num-traits 0.2.19",
  "polars-arrow",
  "polars-compute",
  "polars-error",
@@ -3365,7 +3458,7 @@ dependencies = [
  "indexmap",
  "libm",
  "memchr",
- "num-traits",
+ "num-traits 0.2.19",
  "polars-arrow",
  "polars-compute",
  "polars-core",
@@ -3393,7 +3486,7 @@ dependencies = [
  "ethnum",
  "futures",
  "hashbrown 0.15.5",
- "num-traits",
+ "num-traits 0.2.19",
  "polars-arrow",
  "polars-compute",
  "polars-error",
@@ -3428,7 +3521,7 @@ dependencies = [
  "either",
  "hashbrown 0.15.5",
  "memmap2",
- "num-traits",
+ "num-traits 0.2.19",
  "percent-encoding",
  "polars-arrow",
  "polars-compute",
@@ -3544,7 +3637,7 @@ dependencies = [
  "chrono",
  "chrono-tz",
  "now",
- "num-traits",
+ "num-traits 0.2.19",
  "polars-arrow",
  "polars-compute",
  "polars-core",
@@ -3573,7 +3666,7 @@ dependencies = [
  "indexmap",
  "libc",
  "memmap2",
- "num-traits",
+ "num-traits 0.2.19",
  "polars-error",
  "rand 0.9.2",
  "raw-cpuid",
@@ -3675,7 +3768,7 @@ version = "0.1.27"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7186d3822593aa4393561d186d1393b3923e9d6163d3fbfd6e825e3e6cf3e6a8"
 dependencies = [
- "num-traits",
+ "num-traits 0.2.19",
 ]
 
 [[package]]
@@ -3717,7 +3810,7 @@ dependencies = [
  "rustc-hash",
  "rustls",
  "socket2",
- "thiserror",
+ "thiserror 2.0.17",
  "tokio",
  "tracing",
  "web-time",
@@ -3738,7 +3831,7 @@ dependencies = [
  "rustls",
  "rustls-pki-types",
  "slab",
- "thiserror",
+ "thiserror 2.0.17",
  "tinyvec",
  "tracing",
  "web-time",
@@ -3838,7 +3931,7 @@ version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6a8615d50dcf34fa31f7ab52692afec947c4dd0ab803cc87cb3b0b4570ff7463"
 dependencies = [
- "num-traits",
+ "num-traits 0.2.19",
  "rand 0.9.2",
 ]
 
@@ -3866,13 +3959,13 @@ dependencies = [
  "new_debug_unreachable",
  "noop_proc_macro",
  "num-derive",
- "num-traits",
+ "num-traits 0.2.19",
  "paste",
  "profiling",
  "rand 0.9.2",
  "rand_chacha 0.9.0",
  "simd_helpers",
- "thiserror",
+ "thiserror 2.0.17",
  "v_frame",
  "wasm-bindgen",
 ]
@@ -3982,7 +4075,7 @@ checksum = "a4e608c6638b9c18977b00b475ac1f28d14e84b27d8d42f70e0bf1e3dec127ac"
 dependencies = [
  "getrandom 0.2.16",
  "libredox",
- "thiserror",
+ "thiserror 2.0.17",
 ]
 
 [[package]]
@@ -4102,7 +4195,7 @@ version = "0.8.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4ba8be72d372b2c9b35542551678538b562e7cf86c3315773cae48dfbfe7790c"
 dependencies = [
- "num-traits",
+ "num-traits 0.2.19",
 ]
 
 [[package]]
@@ -4128,7 +4221,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "421400d13ccfd26dfa5858199c30a5d76f9c54e0dba7575273025b43c5175dbb"
 dependencies = [
  "heapless",
- "num-traits",
+ "num-traits 0.2.19",
  "smallvec",
 ]
 
@@ -4153,9 +4246,9 @@ version = "6.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "21db5f9893e91f41798c88680037dba611ca6674703c1a18601b01a72c8adb89"
 dependencies = [
- "num-complex",
+ "num-complex 0.4.6",
  "num-integer",
- "num-traits",
+ "num-traits 0.2.19",
  "primal-check",
  "strength_reduce",
  "transpose",
@@ -4474,7 +4567,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f354fd282d3177c2951004953e2fdc4cb342fa159bbee8b829852b6a081c8ea1"
 dependencies = [
  "rand 0.9.2",
- "thiserror",
+ "thiserror 2.0.17",
 ]
 
 [[package]]
@@ -4515,9 +4608,31 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fb313e1c8afee5b5647e00ee0fe6855e3d529eb863a0fdae1d60006c4d1e9990"
 dependencies = [
  "hashbrown 0.15.5",
- "num-traits",
+ "num-traits 0.2.19",
  "robust",
  "smallvec",
+]
+
+[[package]]
+name = "sprs"
+version = "0.7.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ec63571489873d4506683915840eeb1bb16b3198ee4894cc6f2fe3013d505e56"
+dependencies = [
+ "alga",
+ "ndarray 0.13.1",
+ "num-complex 0.2.4",
+ "num-traits 0.1.43",
+]
+
+[[package]]
+name = "sprs-ldl"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d4208c8a54c86b8a49c386b5219840ceb93e5250208d0f48dadab42bd5efe3eb"
+dependencies = [
+ "num-traits 0.1.43",
+ "sprs",
 ]
 
 [[package]]
@@ -4671,11 +4786,31 @@ dependencies = [
 
 [[package]]
 name = "thiserror"
+version = "1.0.69"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b6aaf5339b578ea85b50e080feb250a3e8ae8cfcdff9a461c9ec2904bc923f52"
+dependencies = [
+ "thiserror-impl 1.0.69",
+]
+
+[[package]]
+name = "thiserror"
 version = "2.0.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f63587ca0f12b72a0600bcba1d40081f830876000bb46dd2337a3051618f4fc8"
 dependencies = [
- "thiserror-impl",
+ "thiserror-impl 2.0.17",
+]
+
+[[package]]
+name = "thiserror-impl"
+version = "1.0.69"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4fee6c4efc90059e10f81e6d42c60a18f76588c3d74cb83a0b242a2b6c7504c1"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
 ]
 
 [[package]]
@@ -4945,7 +5080,7 @@ version = "11.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4994acea2522cd2b3b85c1d9529a55991e3ad5e25cdcd3de9d505972c4379424"
 dependencies = [
- "thiserror",
+ "thiserror 2.0.17",
  "ts-rs-macros",
 ]
 
@@ -5114,7 +5249,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "666b7727c8875d6ab5db9533418d7c764233ac9c0cff1d469aec8fa127597be2"
 dependencies = [
  "aligned-vec",
- "num-traits",
+ "num-traits 0.2.19",
  "wasm-bindgen",
 ]
 

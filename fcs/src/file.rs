@@ -1321,8 +1321,13 @@ impl Fcs {
     pub fn get_spillover_matrix(&self) -> Result<Option<(Array2<f32>, Vec<String>)>> {
         use crate::keyword::{Keyword, MixedKeyword};
 
-        // Try to get the $SPILLOVER keyword
-        let spillover_keyword = match self.metadata.keywords.get("$SPILLOVER") {
+        // Try to get compensation matrix from $SPILLOVER (FCS 3.1+), $SPILL (unofficial/custom), or $COMP (FCS 3.0)
+        // Check in order of preference: SPILLOVER (official) > SPILL (common) > COMP (legacy)
+        let spillover_keyword = self.metadata.keywords.get("$SPILLOVER")
+            .or_else(|| self.metadata.keywords.get("$SPILL"))
+            .or_else(|| self.metadata.keywords.get("$COMP"));
+        
+        let spillover_keyword = match spillover_keyword {
             Some(Keyword::Mixed(MixedKeyword::SPILLOVER {
                 n_parameters,
                 parameter_names,
@@ -1333,7 +1338,60 @@ impl Fcs {
                 matrix_values.clone(),
             ),
             Some(_) => {
-                return Err(anyhow!("$SPILLOVER keyword exists but has wrong type"));
+                // Keyword exists but has wrong type - might be stored as String(Other) if parsing failed
+                // Try to parse it manually
+                let keyword_name = if self.metadata.keywords.contains_key("$SPILLOVER") {
+                    "$SPILLOVER"
+                } else if self.metadata.keywords.contains_key("$SPILL") {
+                    "$SPILL"
+                } else if self.metadata.keywords.contains_key("$COMP") {
+                    "$COMP"
+                } else {
+                    return Ok(None);
+                };
+                
+                // Try to get the raw string value and parse it
+                // This handles the case where $SPILL/$COMP was stored as String(Other) because
+                // it wasn't recognized during initial parsing
+                if let Some(Keyword::String(crate::keyword::StringKeyword::Other(value))) = 
+                    self.metadata.keywords.get(keyword_name) {
+                    // Parse the string value as SPILLOVER using the same logic as parse_spillover
+                    let parts: Vec<&str> = value.trim().split(',').collect();
+                    if !parts.is_empty() {
+                        if let Ok(n_parameters) = parts[0].trim().parse::<usize>() {
+                            if parts.len() >= 1 + n_parameters {
+                                let parameter_names: Vec<String> = parts[1..=n_parameters]
+                                    .iter()
+                                    .map(|s| s.trim().to_string())
+                                    .collect();
+                                
+                                let expected_matrix_size = n_parameters * n_parameters;
+                                let matrix_start = 1 + n_parameters;
+                                
+                                if parts.len() >= matrix_start + expected_matrix_size {
+                                    // Parse matrix values (handle comma decimal separator)
+                                    let mut matrix_values = Vec::new();
+                                    for part in &parts[matrix_start..matrix_start + expected_matrix_size] {
+                                        let cleaned = part.trim().replace(',', ".");
+                                        if let Ok(val) = cleaned.parse::<f32>() {
+                                            matrix_values.push(val);
+                                        } else {
+                                            break; // Failed to parse, give up
+                                        }
+                                    }
+                                    
+                                    if matrix_values.len() == expected_matrix_size {
+                                        let matrix = Array2::from_shape_vec((n_parameters, n_parameters), matrix_values)
+                                            .map_err(|e| anyhow!("Failed to create compensation matrix from {}: {}", keyword_name, e))?;
+                                        return Ok(Some((matrix, parameter_names)));
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                return Err(anyhow!("{} keyword exists but has wrong type or could not be parsed", keyword_name));
             }
             None => {
                 // No spillover keyword - this is fine, not all files have it

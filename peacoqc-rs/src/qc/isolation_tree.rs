@@ -145,18 +145,19 @@ pub fn isolation_tree_detect(
         return Err(PeacoQCError::NoPeaksDetected);
     }
 
-    // Build feature matrix: bins × channels
-    let (feature_matrix, channel_names) = build_feature_matrix(peak_results, n_bins)?;
+    // Build feature matrix: bins × (channels × clusters)
+    // Each cluster gets its own column, matching R's ExtractPeakValues
+    let (feature_matrix, feature_names) = build_feature_matrix(peak_results, n_bins)?;
     let n_features = feature_matrix[0].len();
 
     eprintln!(
-        "Running SD-based Isolation Tree: {} bins, {} features",
+        "Running SD-based Isolation Tree: {} bins, {} features (clusters)",
         n_bins, n_features
     );
 
     // Build the SD-based isolation tree
     let (tree, selection) =
-        build_isolation_tree_sd(&feature_matrix, &channel_names, config.it_limit)?;
+        build_isolation_tree_sd(&feature_matrix, &feature_names, config.it_limit)?;
 
     // Find the largest leaf node (node with most datapoints and a path_length)
     let largest_node = tree
@@ -200,7 +201,13 @@ pub fn isolation_tree_detect(
 
 /// Build feature matrix from peak detection results
 ///
-/// Returns: (matrix, channel_names) where matrix is Vec<Vec<f64>> (bins × features)
+/// This matches R's ExtractPeakValues and all_peaks construction:
+/// - Each cluster gets its own column (one per cluster per channel)
+/// - For each cluster, bins are filled with actual peak values where available
+/// - Bins without peaks use the cluster median (default value)
+///
+/// Returns: (matrix, feature_names) where matrix is Vec<Vec<f64>> (bins × features)
+/// Feature names are formatted as "{channel}_cluster_{cluster_id}"
 pub fn build_feature_matrix(
     peak_results: &HashMap<String, ChannelPeakFrame>,
     n_bins: usize,
@@ -209,47 +216,58 @@ pub fn build_feature_matrix(
     let mut channel_names: Vec<String> = peak_results.keys().cloned().collect();
     channel_names.sort();
 
-    // Initialize matrix with NaN (will be replaced with median if bin has no peak)
-    let mut matrix = vec![vec![f64::NAN; channel_names.len()]; n_bins];
+    // Collect all clusters per channel (matching R's ExtractPeakValues)
+    let mut feature_names = Vec::new();
+    let mut cluster_data: Vec<(String, usize, Vec<(usize, f64)>)> = Vec::new();
 
-    // Fill in peak values
-    for (channel_idx, channel) in channel_names.iter().enumerate() {
+    for channel in &channel_names {
         let peak_frame = &peak_results[channel];
 
-        // Map bin → peak values
-        let mut bin_peaks: HashMap<usize, Vec<f64>> = HashMap::new();
+        // Group peaks by cluster
+        let mut clusters: HashMap<usize, Vec<(usize, f64)>> = HashMap::new();
         for peak in &peak_frame.peaks {
-            bin_peaks.entry(peak.bin).or_default().push(peak.peak_value);
+            clusters
+                .entry(peak.cluster)
+                .or_default()
+                .push((peak.bin, peak.peak_value));
         }
 
-        // Calculate representative value per bin (median of peaks in that bin)
-        for (bin_idx, peaks) in bin_peaks {
-            if !peaks.is_empty() && bin_idx < n_bins {
-                let median = crate::stats::median(&peaks)?;
-                matrix[bin_idx][channel_idx] = median;
+        // Process each cluster (matching R's ExtractPeakValues)
+        let mut cluster_ids: Vec<usize> = clusters.keys().cloned().collect();
+        cluster_ids.sort();
+        for cluster_id in cluster_ids {
+            let peaks_in_cluster = &clusters[&cluster_id];
+
+            feature_names.push(format!("{}_cluster_{}", channel, cluster_id));
+            cluster_data.push((channel.clone(), cluster_id, peaks_in_cluster.clone()));
+        }
+    }
+
+    // Build matrix: bins × features (clusters)
+    // Each column is a cluster trajectory
+    let n_features = feature_names.len();
+    let mut matrix = vec![vec![0.0; n_features]; n_bins];
+
+    // Fill matrix column by column (one per cluster)
+    for (feature_idx, (channel, cluster_id, peaks_in_cluster)) in cluster_data.iter().enumerate() {
+        // Calculate cluster median (default value)
+        let peak_values: Vec<f64> = peaks_in_cluster.iter().map(|(_, v)| *v).collect();
+        let cluster_median = crate::stats::median(&peak_values)?;
+
+        // Initialize all bins with cluster median
+        for bin_idx in 0..n_bins {
+            matrix[bin_idx][feature_idx] = cluster_median;
+        }
+
+        // Replace with actual peak values where available
+        for (bin_idx, peak_value) in peaks_in_cluster {
+            if *bin_idx < n_bins {
+                matrix[*bin_idx][feature_idx] = *peak_value;
             }
         }
     }
 
-    // Replace NaN with channel median
-    for channel_idx in 0..channel_names.len() {
-        let values: Vec<f64> = matrix
-            .iter()
-            .map(|row| row[channel_idx])
-            .filter(|x| x.is_finite())
-            .collect();
-
-        if !values.is_empty() {
-            let channel_median = crate::stats::median(&values)?;
-            for row in &mut matrix {
-                if !row[channel_idx].is_finite() {
-                    row[channel_idx] = channel_median;
-                }
-            }
-        }
-    }
-
-    Ok((matrix, channel_names))
+    Ok((matrix, feature_names))
 }
 
 /// Build SD-based isolation tree (matches R's isolationTreeSD)
@@ -259,7 +277,7 @@ pub fn build_feature_matrix(
 /// - selection_matrix: Vec<Vec<bool>> where selection[node_id][bin_idx] = true if bin is in node
 fn build_isolation_tree_sd(
     data: &[Vec<f64>],
-    channel_names: &[String],
+    feature_names: &[String],
     initial_gain_limit: f64,
 ) -> Result<(Vec<TreeNode>, Vec<Vec<bool>>)> {
     let n_bins = data.len();
@@ -308,7 +326,7 @@ fn build_isolation_tree_sd(
         }
 
         // Find best split across all columns
-        let best_split = find_best_split_parallel(data, &rows, channel_names, gain_limit);
+        let best_split = find_best_split_parallel(data, &rows, feature_names, gain_limit);
 
         match best_split {
             Some((col_idx, split_value, gain)) => {
@@ -344,7 +362,7 @@ fn build_isolation_tree_sd(
                 tree[node_idx].left_child = Some(left_id);
                 tree[node_idx].right_child = Some(right_id);
                 tree[node_idx].gain = Some(gain);
-                tree[node_idx].split_column = Some(channel_names[col_idx].clone());
+                tree[node_idx].split_column = Some(feature_names[col_idx].clone());
                 tree[node_idx].split_value = Some(split_value);
                 tree[node_idx].n_datapoints = rows.len();
 
@@ -411,7 +429,7 @@ fn build_isolation_tree_sd(
 fn find_best_split_parallel(
     data: &[Vec<f64>],
     rows: &[usize],
-    _channel_names: &[String],
+    _feature_names: &[String],
     gain_limit: f64,
 ) -> Option<(usize, f64, f64)> {
     let n_features = data[0].len();
@@ -483,7 +501,14 @@ fn find_best_split_for_column(
 
         if gain.is_finite() && gain >= best_gain {
             best_gain = gain;
-            best_split_value = Some(values[i - 1]); // Split at the value just before the boundary
+            // R uses x_col[i] as split value (line 328), where i is 1-indexed
+            // R's loop: for(i in seq_len((length(x_col)-1))) means i goes from 1 to n-1
+            // R's split: left = x_col[1:i], right = x_col[(i+1):length(x_col)]
+            // So split_v = x_col[i] is the last value in the left partition
+            // In Rust, i goes from 1 to n-1 (0-indexed: 1..n)
+            // So values[i-1] is the value at position i-1 (0-indexed) = position i (1-indexed)
+            // This matches R's x_col[i]
+            best_split_value = Some(values[i - 1]);
         }
     }
 
@@ -562,7 +587,9 @@ mod tests {
     }
 
     #[test]
-    fn test_build_feature_matrix() {
+    fn test_build_feature_matrix_old_behavior() {
+        // This test documents the OLD (incorrect) behavior
+        // It should now have one column per cluster, not per channel
         let mut peaks1 = Vec::new();
         let mut peaks2 = Vec::new();
 
@@ -586,9 +613,15 @@ mod tests {
         let (matrix, names) = build_feature_matrix(&peak_results, 5).unwrap();
 
         assert_eq!(matrix.len(), 5); // 5 bins
-        assert_eq!(matrix[0].len(), 2); // 2 channels
+        // NEW: Should have 2 columns (one per cluster per channel)
+        // Since each channel has 1 cluster, we get 2 columns total
+        assert_eq!(matrix[0].len(), 2, "Should have 2 features (2 channels × 1 cluster each)");
         assert_eq!(names.len(), 2);
         assert!(matrix[0][0] > 0.0);
         assert!(matrix[0][1] > 0.0);
+        
+        // Verify feature names contain cluster information
+        assert!(names[0].contains("_cluster_"), "Feature name should contain '_cluster_'");
+        assert!(names[1].contains("_cluster_"), "Feature name should contain '_cluster_'");
     }
 }

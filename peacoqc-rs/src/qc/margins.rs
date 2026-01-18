@@ -116,12 +116,14 @@ pub fn remove_margins<T: PeacoQCData>(fcs: &T, config: &MarginConfig) -> Result<
         }
 
         // Check maximum margins
+        // R: max_margin_ev <- e[, d] > min(meta[d, "maxRange"], max(e[, d]))
+        // Note: R uses > (strictly greater than), not >=
         if remove_max.contains(channel) {
             let threshold = max_range.min(data_max);
 
             for (i, &v) in values.iter().enumerate() {
-                // Remove events at or above the max range (margin events)
-                if v >= threshold && mask[i] {
+                // Remove events strictly above the threshold (matching R's > operator)
+                if v > threshold && mask[i] {
                     mask[i] = false;
                     max_removed += 1;
                 }

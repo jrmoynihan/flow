@@ -1,6 +1,6 @@
 use crate::PeacoQCData;
 use crate::error::Result;
-use crate::stats::median_mad::median_mad;
+use crate::stats::median_mad::median_mad_scaled;
 
 /// Configuration for doublet removal
 #[derive(Debug, Clone)]
@@ -74,8 +74,9 @@ pub fn remove_doublets<T: PeacoQCData>(fcs: &T, config: &DoubletConfig) -> Resul
         ratios.push(ratio);
     }
 
-    // Calculate median and MAD
-    let (median, mad) = median_mad(&ratios)?;
+    // Calculate median and MAD (using R's scaled MAD to match stats::mad())
+    // R's stats::mad() uses constant=1.4826 by default
+    let (median, mad) = median_mad_scaled(&ratios)?;
     let threshold = median + config.nmad * mad;
 
     // Create mask

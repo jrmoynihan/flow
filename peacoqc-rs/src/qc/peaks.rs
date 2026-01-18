@@ -173,10 +173,15 @@ fn determine_channel_peaks_from_data(
             }
 
             // Compute KDE and find peaks
-            match KernelDensity::estimate(&bin_data, 1.0, 512) {
+            // R's FindThemPeaks returns peaks sorted by x-value (from dens$x)
+            // We need to sort peaks to match R's column ordering in the matrix
+            let mut peaks = match KernelDensity::estimate(&bin_data, 1.0, 512) {
                 Ok(kde) => kde.find_peaks(config.peak_removal),
                 Err(_) => Vec::new(),
-            }
+            };
+            // Sort peaks by value to match R's behavior (peaks are in dens$x order, which is sorted)
+            peaks.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+            peaks
         })
         .collect();
 

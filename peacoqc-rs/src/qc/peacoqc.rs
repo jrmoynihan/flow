@@ -6,6 +6,7 @@ use crate::qc::mad::{MADConfig, mad_outlier_method};
 use crate::qc::peaks::{
     ChannelPeakFrame, PeakDetectionConfig, create_breaks, determine_peaks_all_channels,
 };
+use crate::qc::debug;
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
 use tracing::{debug, info, trace, warn};
@@ -294,6 +295,13 @@ pub fn peacoqc<T: PeacoQCData>(fcs: &T, config: &PeacoQCConfig) -> Result<PeacoQ
         n_bins, events_per_bin, config.min_cells, config.max_bins
     );
 
+    // Debug logging: Find time channel for bin analysis
+    let time_channel = if std::env::var("PEACOQC_DEBUG_BINS").is_ok() {
+        find_time_channel_for_debug(fcs)
+    } else {
+        None
+    };
+
     // Peak detection
     info!(
         "Starting peak detection across {} channels",
@@ -333,6 +341,11 @@ pub fn peacoqc<T: PeacoQCData>(fcs: &T, config: &PeacoQCConfig) -> Result<PeacoQ
     let mut it_percentage = None;
     let mut mad_percentage = None;
 
+    // Track outlier states for debug logging
+    let mut it_outliers = vec![false; n_bins];
+    let mut mad_outliers = vec![false; n_bins];
+    let mut consecutive_outliers = vec![false; n_bins];
+
     // Run quality control methods
     match config.determine_good_cells {
         QCMode::All | QCMode::IsolationTree => {
@@ -349,7 +362,8 @@ pub fn peacoqc<T: PeacoQCData>(fcs: &T, config: &PeacoQCConfig) -> Result<PeacoQ
 
                 match isolation_tree_detect(&peaks, n_bins, &it_config) {
                     Ok(it_result) => {
-                        outlier_bins = it_result.outlier_bins;
+                        outlier_bins = it_result.outlier_bins.clone();
+                        it_outliers = it_result.outlier_bins.clone();
                         let n_it_outliers = outlier_bins.iter().filter(|&&x| x).count();
                         let it_pct = (n_it_outliers as f64 / n_bins as f64) * 100.0;
                         it_percentage = Some(it_pct);
@@ -358,6 +372,23 @@ pub fn peacoqc<T: PeacoQCData>(fcs: &T, config: &PeacoQCConfig) -> Result<PeacoQ
                             "Isolation Tree analysis removed {:.2}% of the bins ({} outlier bins)",
                             it_pct, n_it_outliers
                         );
+
+                        // Debug logging
+                        if std::env::var("PEACOQC_DEBUG_BINS").is_ok() {
+                            if let Some(ref tc) = time_channel {
+                                if let Ok(debug_info) = debug::collect_bin_debug_info(
+                                    fcs,
+                                    Some(tc),
+                                    &breaks,
+                                    &it_outliers,
+                                    &mad_outliers,
+                                    &consecutive_outliers,
+                                    &outlier_bins,
+                                ) {
+                                    debug::log_bin_debug_info(&debug_info, "After Isolation Tree");
+                                }
+                            }
+                        }
                     }
                     Err(e) => {
                         warn!("Isolation Tree failed: {}, continuing with MAD only", e);
@@ -398,9 +429,11 @@ pub fn peacoqc<T: PeacoQCData>(fcs: &T, config: &PeacoQCConfig) -> Result<PeacoQ
         for (i, &is_mad_outlier) in mad_result.outlier_bins.iter().enumerate() {
             if is_mad_outlier {
                 outlier_bins[i] = true;
+                mad_outliers[i] = true;
             }
         }
-        let n_mad_outliers = mad_result.outlier_bins.iter().filter(|&&x| x).count();
+        let n_mad_outliers = outlier_bins.iter().filter(|&&x| x).count();
+        let n_new_from_mad = n_mad_outliers.saturating_sub(n_mad_outliers_before); // Fix underflow
         let mad_pct = (n_mad_outliers as f64 / n_bins as f64) * 100.0;
         mad_percentage = Some(mad_pct);
 
@@ -409,8 +442,26 @@ pub fn peacoqc<T: PeacoQCData>(fcs: &T, config: &PeacoQCConfig) -> Result<PeacoQ
             mad_pct,
             n_mad_outliers,
             n_mad_outliers_before,
-            n_mad_outliers - n_mad_outliers_before
+            n_new_from_mad
         );
+
+        // Debug logging
+        if std::env::var("PEACOQC_DEBUG_BINS").is_ok() {
+            if let Some(ref tc) = time_channel {
+                if let Ok(debug_info) = debug::collect_bin_debug_info(
+                    fcs,
+                    Some(tc),
+                    &breaks,
+                    &it_outliers,
+                    &mad_outliers,
+                    &consecutive_outliers,
+                    &outlier_bins,
+                ) {
+                    debug::log_bin_debug_info(&debug_info, "After MAD");
+                    debug::analyze_events_per_second_correlation(&debug_info);
+                }
+            }
+        }
     }
 
     // Consecutive bin filtering
@@ -424,8 +475,17 @@ pub fn peacoqc<T: PeacoQCData>(fcs: &T, config: &PeacoQCConfig) -> Result<PeacoQ
             consecutive_bins: config.consecutive_bins,
         };
 
+        let outlier_bins_before_consecutive = outlier_bins.clone();
         outlier_bins = remove_short_regions(&outlier_bins, &consecutive_config)?;
         let n_outliers_after_consecutive = outlier_bins.iter().filter(|&&x| x).count();
+        
+        // Track which bins were flagged by consecutive filtering
+        for (i, (before, after)) in outlier_bins_before_consecutive.iter().zip(outlier_bins.iter()).enumerate() {
+            if !before && *after {
+                consecutive_outliers[i] = true;
+            }
+        }
+        
         // Consecutive filtering removes short good regions, converting them to bad
         // So the number of outliers should increase (or stay the same)
         let regions_removed = if n_outliers_after_consecutive >= n_outliers_before_consecutive {
@@ -438,6 +498,23 @@ pub fn peacoqc<T: PeacoQCData>(fcs: &T, config: &PeacoQCConfig) -> Result<PeacoQ
             "Consecutive filtering: {} → {} outlier bins (removed {} short regions)",
             n_outliers_before_consecutive, n_outliers_after_consecutive, regions_removed
         );
+
+        // Debug logging
+        if std::env::var("PEACOQC_DEBUG_BINS").is_ok() {
+            if let Some(ref tc) = time_channel {
+                if let Ok(debug_info) = debug::collect_bin_debug_info(
+                    fcs,
+                    Some(tc),
+                    &breaks,
+                    &it_outliers,
+                    &mad_outliers,
+                    &consecutive_outliers,
+                    &outlier_bins,
+                ) {
+                    debug::log_bin_debug_info(&debug_info, "After Consecutive Filtering");
+                }
+            }
+        }
     }
 
     // Convert bin-level outliers to cell-level mask with de-duplication
@@ -462,6 +539,24 @@ pub fn peacoqc<T: PeacoQCData>(fcs: &T, config: &PeacoQCConfig) -> Result<PeacoQ
         );
     }
 
+    // Final debug logging
+    if std::env::var("PEACOQC_DEBUG_BINS").is_ok() {
+        if let Some(ref tc) = time_channel {
+            if let Ok(debug_info) = debug::collect_bin_debug_info(
+                fcs,
+                Some(tc),
+                &breaks,
+                &it_outliers,
+                &mad_outliers,
+                &consecutive_outliers,
+                &outlier_bins,
+            ) {
+                debug::log_bin_debug_info(&debug_info, "Final Results");
+                debug::analyze_events_per_second_correlation(&debug_info);
+            }
+        }
+    }
+
     Ok(PeacoQCResult {
         good_cells,
         percentage_removed,
@@ -474,15 +569,35 @@ pub fn peacoqc<T: PeacoQCData>(fcs: &T, config: &PeacoQCConfig) -> Result<PeacoQ
     })
 }
 
+/// Find time channel for debug logging
+fn find_time_channel_for_debug<T: PeacoQCData>(fcs: &T) -> Option<String> {
+    fcs.channel_names().into_iter().find(|name| {
+        let upper = name.to_uppercase();
+        upper.contains("TIME") || upper == "TIME"
+    })
+}
+
 /// Find optimal events per bin
+///
+/// Matches R's FindEventsPerBin function exactly:
+/// ```r
+/// max_cells <- ceiling((nr_events/max_bins)*2)
+/// max_cells <- ((max_cells%/%step)*step) + step
+/// events_per_bin <- max(min_cells, max_cells)
+/// ```
+///
+/// The `* 2` accounts for 50% overlap: with overlap, we get ~2x more bins than non-overlapping.
+/// So to get approximately `max_bins` bins WITH overlap, we multiply by 2 to target larger bins.
 fn find_events_per_bin(n_events: usize, min_cells: usize, max_bins: usize, step: usize) -> usize {
-    let initial = n_events / max_bins;
-    let mut events_per_bin = initial.max(min_cells);
-
-    // Round up to nearest step
-    events_per_bin = ((events_per_bin + step - 1) / step) * step;
-
-    events_per_bin.max(min_cells)
+    // R: max_cells <- ceiling((nr_events/max_bins)*2)
+    let max_cells = ((n_events as f64 / max_bins as f64) * 2.0).ceil() as usize;
+    
+    // R: max_cells <- ((max_cells%/%step)*step) + step
+    // This rounds UP to the next step (integer division then add step)
+    let max_cells_rounded = ((max_cells / step) * step) + step;
+    
+    // R: events_per_bin <- max(min_cells, max_cells)
+    max_cells_rounded.max(min_cells)
 }
 
 /// Convert bin-level mask to cell-level mask with de-duplication

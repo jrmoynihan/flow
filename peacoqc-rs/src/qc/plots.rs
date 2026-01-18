@@ -35,6 +35,18 @@ pub struct QCPlotConfig {
 
     /// Color for median line
     pub median_color: RGBColor,
+
+    /// Color for smoothed spline line
+    pub smoothed_spline_color: RGBColor,
+
+    /// Color for MAD threshold lines
+    pub mad_threshold_color: RGBColor,
+
+    /// Show smoothed spline and MAD threshold lines (default: true)
+    pub show_spline_and_mad: bool,
+
+    /// Show bin boundaries (gray vertical lines, default: false)
+    pub show_bin_boundaries: bool,
 }
 
 impl Default for QCPlotConfig {
@@ -47,6 +59,10 @@ impl Default for QCPlotConfig {
             unstable_color: RGBColor(200, 150, 255), // Light purple
             good_color: RGBColor(128, 128, 128),     // Grey
             median_color: RGBColor(0, 0, 0),         // Black
+            smoothed_spline_color: RGBColor(255, 0, 0), // Red
+            mad_threshold_color: RGBColor(0, 0, 255), // Blue
+            show_spline_and_mad: true,               // Enabled by default
+            show_bin_boundaries: false,              // Disabled by default
         }
     }
 }
@@ -258,13 +274,22 @@ pub fn create_qc_plots<T: PeacoQCData>(
 
             let subplot_area = &subplot_areas[0];
 
+            // Create title with percentage removed
+            let title_text = format!(
+                "{:.3}% of the data was removed",
+                qc_result.percentage_removed
+            );
+
             let y_range_clone = y_range.clone();
             let mut chart = ChartBuilder::on(&subplot_area)
                 .margin(5)
+                .caption(title_text, ("sans-serif", 14).into_font())
                 .x_label_area_size(40)
                 .y_label_area_size(50)
                 .build_cartesian_2d(x_range, y_range_clone)
-                .map_err(|e| PeacoQCError::ExportError(format!("Failed to build chart: {:?}", e)))?;
+                .map_err(|e| {
+                    PeacoQCError::ExportError(format!("Failed to build chart: {:?}", e))
+                })?;
 
             chart
                 .configure_mesh()
@@ -308,20 +333,6 @@ pub fn create_qc_plots<T: PeacoQCData>(
                 .map_err(|e| {
                     PeacoQCError::ExportError(format!("Failed to draw line series: {:?}", e))
                 })?;
-
-            // Add percentage removed text
-            let text = format!(
-                "{:.3}% of the data was removed.",
-                qc_result.percentage_removed
-            );
-            chart
-                .plotting_area()
-                .draw(&Text::new(
-                    text,
-                    (5.0, 5.0),
-                    ("sans-serif", 14).into_font().color(&BLACK),
-                ))
-                .map_err(|e| PeacoQCError::ExportError(format!("Failed to draw text: {:?}", e)))?;
         }
     }
 
@@ -369,13 +380,14 @@ pub fn create_qc_plots<T: PeacoQCData>(
             .unwrap_or(0.0);
 
         let title = if mad_pct > 0.0 {
-            format!("{} MAD: {:.2}%", channel, mad_pct)
+            format!("{} MAD {:.2}%", channel, mad_pct)
         } else {
             channel.clone()
         };
 
         let mut chart = ChartBuilder::on(&subplot_area)
             .margin(5)
+            .caption(&title, ("sans-serif", 12).into_font())
             .x_label_area_size(40)
             .y_label_area_size(50)
             .build_cartesian_2d(x_range.clone(), y_range.clone())
@@ -430,7 +442,9 @@ pub fn create_qc_plots<T: PeacoQCData>(
                         .iter()
                         .map(|(x, y)| Circle::new((*x, *y), 1, config.good_color.filled())),
                 )
-                .map_err(|e| PeacoQCError::ExportError(format!("Failed to draw circles: {:?}", e)))?;
+                .map_err(|e| {
+                    PeacoQCError::ExportError(format!("Failed to draw circles: {:?}", e))
+                })?;
         }
 
         // Draw median line per bin
@@ -446,23 +460,169 @@ pub fn create_qc_plots<T: PeacoQCData>(
 
             chart
                 .draw_series(LineSeries::new(
-                    median_points,
+                    median_points.clone(),
                     config.median_color.stroke_width(2),
                 ))
                 .map_err(|e| {
                     PeacoQCError::ExportError(format!("Failed to draw median line: {:?}", e))
                 })?;
-        }
 
-        // Add title
-        chart
-            .plotting_area()
-            .draw(&Text::new(
-                title,
-                (5.0, 5.0),
-                ("sans-serif", 12).into_font().color(&BLACK),
-            ))
-            .map_err(|e| PeacoQCError::ExportError(format!("Failed to draw title: {:?}", e)))?;
+            // Draw bin boundaries (if enabled)
+            if config.show_bin_boundaries {
+                let n_bins = (n_events + qc_result.events_per_bin - 1) / qc_result.events_per_bin;
+                let boundary_color = RGBColor(200, 200, 200);
+                for bin_idx in 0..=n_bins {
+                    let cell_idx = (bin_idx * qc_result.events_per_bin) as f64;
+                    if cell_idx <= n_events as f64 {
+                        chart
+                            .draw_series(std::iter::once(plotters::prelude::PathElement::new(
+                                vec![(cell_idx, y_range.start), (cell_idx, y_range.end)],
+                                boundary_color.stroke_width(1),
+                            )))
+                            .map_err(|e| {
+                                PeacoQCError::ExportError(format!(
+                                    "Failed to draw bin boundary: {:?}",
+                                    e
+                                ))
+                            })?;
+                    }
+                }
+            }
+
+            // Draw smoothed spline and MAD threshold lines (if enabled)
+            if config.show_spline_and_mad && medians.len() >= 3 {
+                let bin_medians: Vec<f64> = medians.iter().map(|(_, m)| *m).collect();
+                let bin_indices: Vec<f64> = medians.iter().map(|(i, _)| *i as f64).collect();
+
+                // Apply smoothing (using default spar=0.5)
+                if let Ok(smoothed) =
+                    crate::stats::spline::smooth_spline(&bin_indices, &bin_medians, 0.5)
+                {
+                    let smoothed_points: Vec<(f64, f64)> = smoothed
+                        .iter()
+                        .enumerate()
+                        .map(|(i, &y)| {
+                            let cell_idx = (i * qc_result.events_per_bin) as f64;
+                            (cell_idx, y)
+                        })
+                        .collect();
+
+                    chart
+                        .draw_series(LineSeries::new(
+                            smoothed_points.clone(),
+                            config.smoothed_spline_color.stroke_width(2),
+                        ))
+                        .map_err(|e| {
+                            PeacoQCError::ExportError(format!(
+                                "Failed to draw smoothed spline: {:?}",
+                                e
+                            ))
+                        })?;
+
+                    // Compute and draw MAD threshold lines
+                    if let Ok((median, mad)) =
+                        crate::stats::median_mad::median_mad_scaled(&smoothed)
+                    {
+                        let mad_threshold = 6.0; // Default MAD threshold
+                        let upper_threshold = median + mad_threshold * mad;
+                        let lower_threshold = median - mad_threshold * mad;
+
+                        // Draw threshold lines
+                        let threshold_points_upper: Vec<(f64, f64)> =
+                            vec![(0.0, upper_threshold), (n_events as f64, upper_threshold)];
+                        let threshold_points_lower: Vec<(f64, f64)> =
+                            vec![(0.0, lower_threshold), (n_events as f64, lower_threshold)];
+
+                        chart
+                            .draw_series(LineSeries::new(
+                                threshold_points_upper,
+                                config.mad_threshold_color.stroke_width(1),
+                            ))
+                            .map_err(|e| {
+                                PeacoQCError::ExportError(format!(
+                                    "Failed to draw upper threshold: {:?}",
+                                    e
+                                ))
+                            })?;
+
+                        chart
+                            .draw_series(LineSeries::new(
+                                threshold_points_lower,
+                                config.mad_threshold_color.stroke_width(1),
+                            ))
+                            .map_err(|e| {
+                                PeacoQCError::ExportError(format!(
+                                    "Failed to draw lower threshold: {:?}",
+                                    e
+                                ))
+                            })?;
+                    }
+                }
+            }
+
+            // Draw legend in top-right corner
+            let mut legend_items: Vec<(&str, RGBColor, u32)> =
+                vec![("Median", config.median_color, 2)];
+
+            if config.show_spline_and_mad {
+                legend_items.push(("Spline", config.smoothed_spline_color, 2));
+                legend_items.push(("MAD ±6", config.mad_threshold_color, 1));
+            }
+
+            if !legend_items.is_empty() {
+                // Position legend in top-right corner
+                // Calculate margins as percentage of plot range
+                let x_range_size = x_range.end - x_range.start;
+                let y_range_size = y_range.end - y_range.start;
+
+                let legend_margin_right_pct = 0.10; // 10% from right edge
+                let legend_margin_top_pct = 0.02; // 2% from top edge
+
+                let legend_x_start = x_range.end - (x_range_size * legend_margin_right_pct);
+                let legend_y_start = y_range.end - (y_range_size * legend_margin_top_pct);
+                let legend_y_step = y_range_size * 0.032; // Spacing between items
+                let line_length = x_range_size * 0.035; // Length of legend line
+                let text_gap = x_range_size * 0.008; // Gap between line and text
+
+                let mut legend_y = legend_y_start;
+
+                for (label, color, stroke_width) in &legend_items {
+                    // Draw legend line - use same y for both line and text baseline
+                    chart
+                        .draw_series(std::iter::once(plotters::prelude::PathElement::new(
+                            vec![
+                                (legend_x_start, legend_y),
+                                (legend_x_start + line_length, legend_y),
+                            ],
+                            color.stroke_width(*stroke_width),
+                        )))
+                        .map_err(|e| {
+                            PeacoQCError::ExportError(format!(
+                                "Failed to draw legend line: {:?}",
+                                e
+                            ))
+                        })?;
+
+                    // Draw legend text - align baseline with line y coordinate
+                    // Text position in plotters is bottom-left, so y should match line y
+                    chart
+                        .plotting_area()
+                        .draw(&Text::new(
+                            label.to_string(),
+                            (legend_x_start + line_length + text_gap, legend_y),
+                            ("sans-serif", 10).into_font().color(&BLACK),
+                        ))
+                        .map_err(|e| {
+                            PeacoQCError::ExportError(format!(
+                                "Failed to draw legend text: {:?}",
+                                e
+                            ))
+                        })?;
+
+                    legend_y -= legend_y_step;
+                }
+            }
+        }
     }
 
     root.present()
@@ -474,8 +634,6 @@ pub fn create_qc_plots<T: PeacoQCData>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use polars::df;
-    use std::collections::HashMap;
 
     #[test]
     fn test_find_unstable_regions() {

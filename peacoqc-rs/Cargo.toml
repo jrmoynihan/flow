@@ -30,6 +30,8 @@ serde.workspace     =true
 serde_json.workspace=true
 tracing.workspace   =true
 realfft             ="3.5.0"                                           # FFT-based KDE for performance
+csaps               ="0.3"                                             # Cubic smoothing splines (matches R's smooth.spline)
+ndarray             ="0.13"                                            # Required by csaps for array types (must match csaps version)
 
 [dev-dependencies]
 approx   ="0.5"

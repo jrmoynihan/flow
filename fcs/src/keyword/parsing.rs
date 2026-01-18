@@ -97,7 +97,10 @@ pub fn parse_fixed_keywords(key: &str, value: &str) -> Option<KeywordCreationRes
         "FLOWRATE" => Some(KeywordCreationResult::String(StringKeyword::FLOWRATE(
             Arc::from(trimmed_value),
         ))),
+        // Handle compensation matrix keywords: $SPILLOVER (FCS 3.1+), $SPILL (unofficial/custom), $COMP (FCS 3.0)
         "SPILLOVER" => parse_spillover(trimmed_value).map(KeywordCreationResult::Mixed),
+        "SPILL" => parse_spillover(trimmed_value).map(KeywordCreationResult::Mixed),
+        "COMP" => parse_spillover(trimmed_value).map(KeywordCreationResult::Mixed),
         "VOL" => Some(KeywordCreationResult::String(StringKeyword::VOL(
             Arc::from(trimmed_value),
         ))),

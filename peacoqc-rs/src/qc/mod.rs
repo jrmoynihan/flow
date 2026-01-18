@@ -8,6 +8,7 @@ pub mod monotonic;
 pub mod peacoqc;
 pub mod export;
 pub mod plots;
+pub mod debug;
 
 pub use margins::{remove_margins, MarginConfig, MarginResult};
 pub use doublets::{remove_doublets, DoubletConfig, DoubletResult};
