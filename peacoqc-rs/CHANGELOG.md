@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 0.1.2 (2026-01-18)
 
+<csr-id-d3aa6cdc5a806703131a3ffac63506142f052da9/>
+<csr-id-8d232b2838f65aa621a81031183d4c954d787543/>
+<csr-id-ccd3cb1557065cd0c1ba4637c35d937bac39c9f6/>
+<csr-id-1b41cd165c4cd315e9759b437e6b4e2a2839af99/>
+<csr-id-4649c7af16150d05880ddab4e732e9dee374d01b/>
+<csr-id-be95b5180e4ffe4826bcb9a3833295d35a9b7ced/>
+<csr-id-5bd48e4049f6afc1539dc0a23d41d0d0f98ee6f7/>
+<csr-id-005a1cc9bd0bef0c9354d1f16b1fa077828359a3/>
+
 ### Chore
 
  - <csr-id-d3aa6cdc5a806703131a3ffac63506142f052da9/> update Cargo.toml scripts and dependency versions
@@ -26,26 +35,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
    - Enhance keywords and categories for better discoverability
    - Ensure consistent dependency declarations and script commands
 
+### Chore
+
+ - <csr-id-339d07ac60343b172cd5962310abbc7899fdc770/> update categories in Cargo.toml files
+   - Simplify categories in fcs and plots to remove redundant entries.
+   - Change peacoqc-cli category to reflect its command-line utility nature.
+   - Add algorithms category to peacoqc-rs for better classification.
+
 ### Documentation
+
+<csr-id-2721f1f10fe2edd01034e4bd5340dd9cc6fe6b2e/>
+<csr-id-76d800d1b9a5b40c8f4628b46074320bd9e51630/>
 
  - <csr-id-c6e843a730bc3352229c02a60be3b167e9f2d14d/> md formatting on dev notes
  - <csr-id-06a15cc61b34171896102c8de48c275fb811e78d/> consolidate and clean up documentation
    - Create DEV_NOTES.md consolidating technical implementation details
-   - Update QUICK_START.md with cleaner examples
-   - Update README.md with improved documentation
-   - Add .gitignore entry for test artifacts
- - <csr-id-2721f1f10fe2edd01034e4bd5340dd9cc6fe6b2e/> add export formats documentation
-   Add comprehensive documentation for export formats:
-   - Boolean CSV format description and use cases
-   - Numeric CSV format (R-compatible) description
-   - JSON metadata format with example structure
-   - Custom column name examples
-   - Integration notes for downstream tools (pandas, R, SQL)
-   
-   Includes code examples for each export format.
- - <csr-id-76d800d1b9a5b40c8f4628b46074320bd9e51630/> Update README files for peacoqc-cli and peacoqc-rs to include license information, enhance function documentation, and improve contribution guidelines.
+- Update QUICK_START.md with cleaner examples
+- Update README.md with improved documentation
+- Add .gitignore entry for test artifacts
+- Boolean CSV format description and use cases
+- Numeric CSV format (R-compatible) description
+- JSON metadata format with example structure
+- Custom column name examples
+- Integration notes for downstream tools (pandas, R, SQL)
 
 ### New Features
+
+<csr-id-1164c5de5cd34a0806cf2b89bd87f51e905b8aed/>
+<csr-id-9bfc1e2f00f85a894ae962a8a1b7bbe0bb019b10/>
 
  - <csr-id-d262a619dbf3ed9a147a9a2e6b2fa0a729991b1f/> add QC plot generation functionality
    Add comprehensive QC plot generation for visualizing PeacoQC results.
@@ -54,30 +71,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
    for significant performance improvements.
    
    - Add realfft dependency for efficient FFT operations
-   - Implement FFT-based convolution for KDE computation
-   - Update benchmarks to reflect FFT implementation
-   - Update performance analysis documentation
-   
-   Performance improvements:
-   - 30-87x faster for typical use cases (1k-50k events)
-   - Better scaling for larger datasets
-   - No accuracy loss - all tests pass
-   
-   Benchmarks show ~48x speedup for default bin size (1k events),
-   reducing KDE time from ~1.4ms to ~29µs per bin.
- - <csr-id-1164c5de5cd34a0806cf2b89bd87f51e905b8aed/> add convenience export methods to PeacoQCResult
-   Add methods to PeacoQCResult for easier export:
-   - export_csv_boolean() and export_csv_boolean_with_name()
-   - export_csv_numeric() and export_csv_numeric_with_name()
-   - export_json_metadata()
-   
-   These methods wrap the export functions and provide a more
-   ergonomic API for users.
- - <csr-id-9bfc1e2f00f85a894ae962a8a1b7bbe0bb019b10/> add export module for QC results
-   Add export functionality to support multiple output formats:
-   - Boolean CSV (0/1 values) for general use
-   - Numeric CSV (2000/6000 values) for R compatibility
-   - JSON metadata with comprehensive QC metrics
+- Implement FFT-based convolution for KDE computation
+- Update benchmarks to reflect FFT implementation
+- Update performance analysis documentation
+- 30-87x faster for typical use cases (1k-50k events)
+- Better scaling for larger datasets
+- No accuracy loss - all tests pass
+- export_csv_boolean() and export_csv_boolean_with_name()
+- export_csv_numeric() and export_csv_numeric_with_name()
+- export_json_metadata()
+- Boolean CSV (0/1 values) for general use
+- Numeric CSV (2000/6000 values) for R compatibility
+- JSON metadata with comprehensive QC metrics
 
 ### Other
 
@@ -108,9 +113,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 <csr-read-only-do-not-edit/>
 
- - 19 commits contributed to the release over the course of 3 calendar days.
+ - 21 commits contributed to the release over the course of 3 calendar days.
  - 3 days passed between releases.
- - 16 commits were understood as [conventional](https://www.conventionalcommits.org).
+ - 17 commits were understood as [conventional](https://www.conventionalcommits.org).
  - 0 issues like '(#ID)' were seen in commit messages
 
 ### Commit Details
@@ -120,6 +125,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 <details><summary>view details</summary>
 
  * **Uncategorized**
+    - Update categories in Cargo.toml files ([`339d07a`](https://github.com/jrmoynihan/flow/commit/339d07ac60343b172cd5962310abbc7899fdc770))
+    - Release flow-fcs v0.1.3, peacoqc-rs v0.1.2 ([`607fcae`](https://github.com/jrmoynihan/flow/commit/607fcae78304d51ce8d156e82e5dba48a1b6dbfa))
     - Update Cargo.toml scripts and dependency versions ([`d3aa6cd`](https://github.com/jrmoynihan/flow/commit/d3aa6cdc5a806703131a3ffac63506142f052da9))
     - Release flow-fcs v0.1.3 ([`e79b57f`](https://github.com/jrmoynihan/flow/commit/e79b57f8fd7613fbdcc682863fef44178f14bed8))
     - Update publish command in Cargo.toml files to include --update-crates-index ([`8d232b2`](https://github.com/jrmoynihan/flow/commit/8d232b2838f65aa621a81031183d4c954d787543))
@@ -140,6 +147,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - Update Cargo.toml files for consistency and improvements ([`4649c7a`](https://github.com/jrmoynihan/flow/commit/4649c7af16150d05880ddab4e732e9dee374d01b))
     - Update README files for peacoqc-cli and peacoqc-rs to include license information, enhance function documentation, and improve contribution guidelines. ([`76d800d`](https://github.com/jrmoynihan/flow/commit/76d800d1b9a5b40c8f4628b46074320bd9e51630))
 </details>
+
+<csr-unknown>
+ add export formats documentationAdd comprehensive documentation for export formats:Includes code examples for each export format. Update README files for peacoqc-cli and peacoqc-rs to include license information, enhance function documentation, and improve contribution guidelines.Performance improvements:Benchmarks show ~48x speedup for default bin size (1k events),reducing KDE time from ~1.4ms to ~29µs per bin. add convenience export methods to PeacoQCResultAdd methods to PeacoQCResult for easier export:These methods wrap the export functions and provide a moreergonomic API for users. add export module for QC resultsAdd export functionality to support multiple output formats:<csr-unknown/>
 
 ## 0.1.1 (2026-01-14)
 

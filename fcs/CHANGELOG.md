@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 <csr-id-8d232b2838f65aa621a81031183d4c954d787543/>
 <csr-id-4649c7af16150d05880ddab4e732e9dee374d01b/>
+<csr-id-5bd48e4049f6afc1539dc0a23d41d0d0f98ee6f7/>
+<csr-id-d3aa6cdc5a806703131a3ffac63506142f052da9/>
 
 ### Chore
 
@@ -18,6 +20,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
    - Update repository URLs to reflect new structure
    - Enhance keywords and categories for better discoverability
    - Ensure consistent dependency declarations and script commands
+
+### Chore
+
+ - <csr-id-339d07ac60343b172cd5962310abbc7899fdc770/> update categories in Cargo.toml files
+   - Simplify categories in fcs and plots to remove redundant entries.
+   - Change peacoqc-cli category to reflect its command-line utility nature.
+   - Add algorithms category to peacoqc-rs for better classification.
 
 ### Refactor
 
@@ -41,19 +50,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
    
    New functions:
    - `write_fcs_file`: Write Fcs struct to disk
-- `duplicate_fcs_file`: Copy existing FCS file
-- `edit_metadata_and_save`: Modify metadata and persist changes
-- `filter_events`: Remove events based on boolean mask
-- `concatenate_events`: Combine multiple FCS files into a single new file
-- `add_column`: Add a new parameter column to an existing FCS file
 
 ### Commit Statistics
 
 <csr-read-only-do-not-edit/>
 
- - 8 commits contributed to the release over the course of 3 calendar days.
+ - 10 commits contributed to the release over the course of 3 calendar days.
  - 4 days passed between releases.
- - 5 commits were understood as [conventional](https://www.conventionalcommits.org).
+ - 6 commits were understood as [conventional](https://www.conventionalcommits.org).
  - 0 issues like '(#ID)' were seen in commit messages
 
 ### Commit Details
@@ -63,6 +67,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 <details><summary>view details</summary>
 
  * **Uncategorized**
+    - Update categories in Cargo.toml files ([`339d07a`](https://github.com/jrmoynihan/flow/commit/339d07ac60343b172cd5962310abbc7899fdc770))
+    - Release flow-fcs v0.1.3, peacoqc-rs v0.1.2 ([`607fcae`](https://github.com/jrmoynihan/flow/commit/607fcae78304d51ce8d156e82e5dba48a1b6dbfa))
     - Update Cargo.toml scripts and dependency versions ([`d3aa6cd`](https://github.com/jrmoynihan/flow/commit/d3aa6cdc5a806703131a3ffac63506142f052da9))
     - Release flow-fcs v0.1.3 ([`e79b57f`](https://github.com/jrmoynihan/flow/commit/e79b57f8fd7613fbdcc682863fef44178f14bed8))
     - Update publish command in Cargo.toml files to include --update-crates-index ([`8d232b2`](https://github.com/jrmoynihan/flow/commit/8d232b2838f65aa621a81031183d4c954d787543))
@@ -72,6 +78,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - Add FCS file writing and modification utilities ([`31bd355`](https://github.com/jrmoynihan/flow/commit/31bd355c1457beae0a9852adfc9dd1bdab7a3cf4))
     - Update Cargo.toml files for consistency and improvements ([`4649c7a`](https://github.com/jrmoynihan/flow/commit/4649c7af16150d05880ddab4e732e9dee374d01b))
 </details>
+
+<csr-unknown>
+duplicate_fcs_file: Copy existing FCS fileedit_metadata_and_save: Modify metadata and persist changesfilter_events: Remove events based on boolean maskconcatenate_events: Combine multiple FCS files into a single new fileadd_column: Add a new parameter column to an existing FCS file<csr-unknown/>
 
 ## 0.1.2 (2026-01-13)
 

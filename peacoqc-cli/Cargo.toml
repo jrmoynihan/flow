@@ -20,8 +20,8 @@ path        ="src/main.rs"
 reproducible=""
 
 [dependencies]
-flow-fcs={ path="../fcs", version="^0.1.3" }
-peacoqc-rs={ path="../peacoqc-rs", version="^0.1.2", features=[
+flow-fcs={ path="../fcs", version= "^0.1.3" }
+peacoqc-rs={ path="../peacoqc-rs", version= "^0.1.2", features=[
     "flow-fcs",
 ] }
 anyhow.workspace=true
