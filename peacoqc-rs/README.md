@@ -178,6 +178,7 @@ result.export_csv_boolean("qc_results.csv")?;
 ```
 
 **Format:**
+
 ```csv
 PeacoQC
 1
@@ -190,6 +191,7 @@ PeacoQC
 - `0` = bad event (remove)
 
 **Use cases:**
+
 - pandas: `df[df['PeacoQC'] == 1]`
 - R: `df[df$PeacoQC == 1, ]`
 - SQL: `WHERE PeacoQC = 1`
@@ -204,6 +206,7 @@ result.export_csv_numeric("qc_results_r.csv", 2000, 6000)?;
 ```
 
 **Format:**
+
 ```csv
 PeacoQC
 2000
@@ -216,6 +219,7 @@ PeacoQC
 - `6000` (or custom bad_value) = bad event (remove)
 
 **Use cases:**
+
 - Compatibility with existing R PeacoQC workflows
 - FlowJo CSV import
 - Legacy analysis pipelines
@@ -229,6 +233,7 @@ result.export_json_metadata(&config, "qc_metadata.json")?;
 ```
 
 **Format:**
+
 ```json
 {
   "n_events_before": 713904,
@@ -252,6 +257,7 @@ result.export_json_metadata(&config, "qc_metadata.json")?;
 ```
 
 **Use cases:**
+
 - Programmatic access to QC metrics
 - Reporting and documentation
 - Provenance tracking
