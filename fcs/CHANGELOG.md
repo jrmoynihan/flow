@@ -5,6 +5,54 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.1.3 (2026-01-18)
+
+### Chore
+
+ - <csr-id-8d232b2838f65aa621a81031183d4c954d787543/> update publish command in Cargo.toml files to include --update-crates-index
+ - <csr-id-4649c7af16150d05880ddab4e732e9dee374d01b/> update Cargo.toml files for consistency and improvements
+   - Standardize formatting in Cargo.toml files across multiple crates
+   - Update repository URLs to reflect new structure
+   - Enhance keywords and categories for better discoverability
+   - Ensure consistent dependency declarations and script commands
+
+### New Features
+
+ - <csr-id-31bd355c1457beae0a9852adfc9dd1bdab7a3cf4/> add FCS file writing and modification utilities
+   Add comprehensive FCS file writing capabilities to the previously read-only `flow-fcs` crate.
+   
+   New functions:
+   - `write_fcs_file`: Write Fcs struct to disk
+   - `duplicate_fcs_file`: Copy existing FCS file
+   - `edit_metadata_and_save`: Modify metadata and persist changes
+   - `filter_events`: Remove events based on boolean mask
+   - `concatenate_events`: Combine multiple FCS files into a single new file
+   - `add_column`: Add a new parameter column to an existing FCS file
+
+### Commit Statistics
+
+<csr-read-only-do-not-edit/>
+
+ - 6 commits contributed to the release over the course of 3 calendar days.
+ - 4 days passed between releases.
+ - 4 commits were understood as [conventional](https://www.conventionalcommits.org).
+ - 0 issues like '(#ID)' were seen in commit messages
+
+### Commit Details
+
+<csr-read-only-do-not-edit/>
+
+<details><summary>view details</summary>
+
+ * **Uncategorized**
+    - Update publish command in Cargo.toml files to include --update-crates-index ([`8d232b2`](https://github.com/jrmoynihan/flow/commit/8d232b2838f65aa621a81031183d4c954d787543))
+    - Merge pull request #8 from jrmoynihan/peacoqc-rs ([`fbeaab2`](https://github.com/jrmoynihan/flow/commit/fbeaab262dc1a72832dba3d6c4708bf95c941929))
+    - Merge branch 'main' into peacoqc-rs ([`c52af3c`](https://github.com/jrmoynihan/flow/commit/c52af3c09ae547a7e1ce2c62e9999590314e8f97))
+    - Improve code quality and add features ([`5bd48e4`](https://github.com/jrmoynihan/flow/commit/5bd48e4049f6afc1539dc0a23d41d0d0f98ee6f7))
+    - Add FCS file writing and modification utilities ([`31bd355`](https://github.com/jrmoynihan/flow/commit/31bd355c1457beae0a9852adfc9dd1bdab7a3cf4))
+    - Update Cargo.toml files for consistency and improvements ([`4649c7a`](https://github.com/jrmoynihan/flow/commit/4649c7af16150d05880ddab4e732e9dee374d01b))
+</details>
+
 ## 0.1.2 (2026-01-13)
 
 <csr-id-9c44f94e6b8e0236a47361a7dc7156b90d25f37c/>
@@ -13,6 +61,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 <csr-id-2fc9efdd0a9bfeadd0613dd309d811067acc709f/>
 <csr-id-621d3aded59ff51f953c6acdb75027c4541a8b97/>
 <csr-id-037f74e0e364ebfc8d68cf672dca0f758a3f2952/>
+<csr-id-3292c46b282d226aa48c2a83bc17c50896bb8341/>
 
 ### Chore
 
@@ -73,7 +122,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 <csr-read-only-do-not-edit/>
 
- - 19 commits contributed to the release over the course of 5 calendar days.
+ - 20 commits contributed to the release over the course of 5 calendar days.
  - 5 days passed between releases.
  - 11 commits were understood as [conventional](https://www.conventionalcommits.org).
  - 0 issues like '(#ID)' were seen in commit messages
@@ -85,6 +134,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 <details><summary>view details</summary>
 
  * **Uncategorized**
+    - Release flow-fcs v0.1.2 ([`57f4eb7`](https://github.com/jrmoynihan/flow/commit/57f4eb7de85c2b41ef886db446f63d753c5faf05))
     - Update CHANGELOG for upcoming release ([`3292c46`](https://github.com/jrmoynihan/flow/commit/3292c46b282d226aa48c2a83bc17c50896bb8341))
     - Update CHANGELOG for upcoming release ([`037f74e`](https://github.com/jrmoynihan/flow/commit/037f74e0e364ebfc8d68cf672dca0f758a3f2952))
     - Update CHANGELOG for upcoming release ([`621d3ad`](https://github.com/jrmoynihan/flow/commit/621d3aded59ff51f953c6acdb75027c4541a8b97))
