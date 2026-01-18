@@ -12,6 +12,7 @@ keywords=[
     "bioinformatics",
     "peacoqc",
 ]
+categories=["science", "algorithms"]
 
 [features]
 default =["flow-fcs"]

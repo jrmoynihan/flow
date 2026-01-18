@@ -13,11 +13,7 @@ keywords=[
     "science",
     "parser",
 ]
-categories=[
-    "science",
-    "bioinformatics",
-    "parser-implementations",
-]
+categories=["science", "parser-implementations"]
 
 [package.metadata.scripts]
 dry-release="cargo smart-release flow-fcs --update-crates-index"
