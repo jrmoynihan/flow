@@ -8,7 +8,7 @@ pub use file::Fcs;
 pub use header::Header;
 pub use keyword::Keyword;
 pub use metadata::Metadata;
-pub use parameter::{ChannelName, Parameter};
+pub use parameter::{ChannelName, EventDataFrame, EventDatum, LabelName, Parameter, ParameterMap};
 pub use transform::{Formattable, TransformType, Transformable};
 pub use version::Version;
 pub use write::{
