@@ -2910,7 +2910,7 @@ checksum = "8bf7cc16383c4b8d58b9905a8509f02926ce3058053c056376248d958c9df1e8"
 
 [[package]]
 name = "flow-fcs"
-version = "0.1.5"
+version = "0.1.6"
 dependencies = [
  "anyhow",
  "approx 0.5.1",
@@ -2964,12 +2964,9 @@ name = "flow-plots"
 version = "0.1.3"
 dependencies = [
  "anyhow",
- "burn",
- "bytemuck",
  "colorgrad",
  "colormap",
  "criterion",
- "cubecl",
  "derive_builder",
  "flow-fcs",
  "image 0.25.9",

@@ -38,10 +38,7 @@ impl DensityPlot {
         Self
     }
 
-    /// Render multiple density plots in batch (GPU-accelerated if available)
-    ///
-    /// This amortizes GPU overhead across multiple plots, providing significant
-    /// speedup when processing multiple plots together.
+    /// Render multiple density plots in batch
     ///
     /// High-level convenience method that handles both density calculation
     /// and rendering. For apps that want to orchestrate rendering themselves,
@@ -60,7 +57,7 @@ impl DensityPlot {
     ) -> Result<Vec<PlotBytes>> {
         use crate::density_calc::calculate_density_per_pixel_batch;
 
-        // Calculate density for all plots (GPU if available, CPU otherwise)
+        // Calculate density for all plots
         let raw_pixels_batch = calculate_density_per_pixel_batch(requests);
 
         // Render each plot

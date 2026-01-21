@@ -139,11 +139,6 @@ pub fn calculate_density_per_pixel_cancelable(
 /// This is the core density calculation function, separate from rendering.
 /// Apps can use this to orchestrate their own rendering pipelines.
 ///
-/// GPU acceleration is automatically used when:
-/// - `gpu` feature is enabled
-/// - GPU is available
-/// - Batch size >= 3 plots
-///
 /// # Arguments
 /// * `requests` - Vector of (data, options) tuples, where each tuple contains
 ///   the data points and the density plot options for one plot
@@ -172,27 +167,9 @@ pub fn calculate_density_per_pixel_batch_cancelable(
     requests: &[(Vec<(f32, f32)>, DensityPlotOptions)],
     mut should_cancel: impl FnMut() -> bool,
 ) -> Option<Vec<Vec<RawPixelData>>> {
-    #[cfg(feature = "gpu")]
-    {
-        use crate::gpu::{is_gpu_available, context::GpuContext};
-        use crate::gpu::density::calculate_density_per_pixel_batch_gpu;
-
-        // Use GPU if available and batch is large enough
-        if requests.len() >= 3 && is_gpu_available() {
-            // Check cancellation before GPU processing
-            if should_cancel() {
-                return None;
-            }
-
-            // Create context for this batch (apps can provide their own via direct GPU function)
-            if let Ok(mut gpu_ctx) = GpuContext::new() {
-                if let Ok(result) = calculate_density_per_pixel_batch_gpu(requests, &mut gpu_ctx) {
-                    return Some(result);
-                }
-            }
-        }
+    if should_cancel() {
+        return None;
     }
-    // CPU fallback
     Some(calculate_density_per_pixel_batch_cpu(requests))
 }
 
