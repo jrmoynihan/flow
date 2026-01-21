@@ -5,7 +5,7 @@
 
 #[cfg(all(test, feature = "flow-fcs"))]
 mod tests {
-    use peacoqc_rs::{PeacoQCConfig, QCMode};
+    use peacoqc_rs::{PeacoQCConfig, PeacoQCData, QCMode};
     use std::path::PathBuf;
 
     /// Test that flow_file_start_up.fcs produces expected results
@@ -21,7 +21,7 @@ mod tests {
             return;
         }
 
-        let fcs = Fcs::open(&fcs_path).unwrap();
+        let fcs = Fcs::open(fcs_path.to_str().unwrap()).unwrap();
         
         // Get fluorescence channels (exclude Time, FSC, SSC)
         let all_channels: Vec<String> = fcs.channel_names();
@@ -45,6 +45,7 @@ mod tests {
         // Based on testing: 175,312 events after preprocessing, ~7-8% removed
         
         let n_events_before = fcs.n_events();
+        let _ = n_events_before; // Suppress unused variable warning
         let n_events_after = result.good_cells.iter().filter(|&&x| x).count();
         let pct_removed = result.percentage_removed;
 
@@ -99,7 +100,7 @@ mod tests {
             return;
         }
 
-        let fcs = Fcs::open(&fcs_path).unwrap();
+        let fcs = Fcs::open(fcs_path.to_str().unwrap()).unwrap();
         
         let all_channels: Vec<String> = fcs.channel_names();
         let channels: Vec<String> = all_channels
@@ -150,20 +151,12 @@ mod tests {
             return;
         }
 
-        let fcs = Fcs::open(&fcs_path).unwrap();
+        let fcs = Fcs::open(fcs_path.to_str().unwrap()).unwrap();
         let n_events_initial = fcs.n_events();
 
         // Apply preprocessing in correct order using preprocess_fcs
-        let all_channels: Vec<String> = fcs.channel_names();
-        let channels: Vec<String> = all_channels
-            .into_iter()
-            .filter(|ch: &String| {
-                let upper = ch.to_uppercase();
-                !upper.contains("TIME") && !upper.contains("FSC") && !upper.contains("SSC")
-            })
-            .collect();
-
-        let preprocessed = preprocess_fcs(&fcs, &channels).unwrap();
+        // preprocess_fcs takes ownership and applies compensation/transformation
+        let preprocessed = preprocess_fcs(fcs, true, true, 2000.0).unwrap();
         let n_after_preprocessing = preprocessed.n_events();
 
         // Verify preprocessing reduces event count
@@ -195,7 +188,7 @@ mod tests {
             return;
         }
 
-        let fcs = Fcs::open(&fcs_path).unwrap();
+        let fcs = Fcs::open(fcs_path.to_str().unwrap()).unwrap();
         
         let all_channels: Vec<String> = fcs.channel_names();
         let channels: Vec<String> = all_channels
