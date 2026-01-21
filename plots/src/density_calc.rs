@@ -2,7 +2,7 @@ use rustc_hash::FxHashMap;
 use serde::Serialize;
 use ts_rs::TS;
 
-use crate::options::DensityPlotOptions;
+use crate::options::{DensityPlotOptions, PlotOptions};
 
 /// Optimized density calculation with pixel-based rendering
 ///
@@ -124,6 +124,70 @@ pub fn calculate_density_per_pixel(
 }
 
 pub fn calculate_density_per_pixel_cancelable(
+    data: &[(f32, f32)],
+    width: usize,
+    height: usize,
+    options: &DensityPlotOptions,
+    should_cancel: impl FnMut() -> bool,
+) -> Option<Vec<RawPixelData>> {
+    calculate_density_per_pixel_cpu(data, width, height, options, should_cancel)
+}
+
+/// Calculate density for multiple plots in batch
+///
+/// Returns vector of RawPixelData vectors, one per plot request.
+/// This is the core density calculation function, separate from rendering.
+/// Apps can use this to orchestrate their own rendering pipelines.
+///
+/// # Arguments
+/// * `requests` - Vector of (data, options) tuples, where each tuple contains
+///   the data points and the density plot options for one plot
+///
+/// # Returns
+/// Vector of RawPixelData vectors, one per request
+pub fn calculate_density_per_pixel_batch(
+    requests: &[(Vec<(f32, f32)>, DensityPlotOptions)],
+) -> Vec<Vec<RawPixelData>> {
+    calculate_density_per_pixel_batch_cancelable(requests, || false)
+        .expect("calculate_density_per_pixel_batch_cancelable returned None when cancellation is disabled")
+}
+
+/// Calculate density for multiple plots in batch with cancellation support
+///
+/// Same as `calculate_density_per_pixel_batch` but supports cancellation callbacks.
+/// Returns `None` if cancelled.
+///
+/// # Arguments
+/// * `requests` - Vector of (data, options) tuples
+/// * `should_cancel` - Closure that returns true if processing should be cancelled
+///
+/// # Returns
+/// `Some(Vec<Vec<RawPixelData>>)` if successful, `None` if cancelled
+pub fn calculate_density_per_pixel_batch_cancelable(
+    requests: &[(Vec<(f32, f32)>, DensityPlotOptions)],
+    mut should_cancel: impl FnMut() -> bool,
+) -> Option<Vec<Vec<RawPixelData>>> {
+    if should_cancel() {
+        return None;
+    }
+    Some(calculate_density_per_pixel_batch_cpu(requests))
+}
+
+/// CPU implementation of batched density calculation
+fn calculate_density_per_pixel_batch_cpu(
+    requests: &[(Vec<(f32, f32)>, DensityPlotOptions)],
+) -> Vec<Vec<RawPixelData>> {
+    requests
+        .iter()
+        .map(|(data, options)| {
+            let base = options.base();
+            calculate_density_per_pixel(data, base.width as usize, base.height as usize, options)
+        })
+        .collect()
+}
+
+/// CPU implementation of density calculation
+fn calculate_density_per_pixel_cpu(
     data: &[(f32, f32)],
     width: usize,
     height: usize,

@@ -1,6 +1,6 @@
 [package]
 name="flow-fcs"
-version= "0.1.4"
+version= "0.2.0"
 edition.workspace=true
 authors.workspace=true
 repository="https://github.com/jrmoynihan/flow/flow-fcs"
@@ -76,9 +76,14 @@ bytemuck={ workspace=true, features=[
 # Logging/Tracing
 tracing={ workspace=true }
 
+# GPU acceleration was previously implemented and benchmarked but found to be slower
+# than CPU for typical flow cytometry workloads due to transfer overhead. See GPU_BENCHMARKING.md
+# for details.
+
 [dev-dependencies]
 approx   ="0.5.1"                                        # For approximate comparisons
 criterion={ version="0.8.1", features=["html_reports"] }
+rand="0.8"                                              # For generating test data in benchmarks
 # Enable LAPACK backend for tests (OpenBLAS provides both BLAS and LAPACK)
 # Note: Requires OpenBLAS installed via Homebrew: brew install openblas
 # Set OPENBLAS_DIR environment variable: export OPENBLAS_DIR=$(brew --prefix openblas)
@@ -90,11 +95,16 @@ ndarray-linalg={ workspace=true, features=[
 name   ="dataframe_parsing"
 harness=false
 
+[[bench]]
+name   ="matrix_operations"
+harness=false
+
 [[bin]]
 name="analyze_benchmarks"
 path="src/bin/analyze_benchmarks.rs"
 
 [features]
+default=[]
 typescript=[
     "dep:ts-rs",
 ] # Enable TypeScript bindings for Rust types

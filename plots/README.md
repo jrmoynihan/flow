@@ -165,6 +165,84 @@ let bytes = with_render_lock(|| {
 })?;
 ```
 
+### Batch Rendering
+
+For processing multiple plots together, use the batch API:
+
+```rust
+use flow_plots::{DensityPlot, DensityPlotOptions};
+use flow_plots::render::RenderConfig;
+
+let plot = DensityPlot::new();
+let mut render_config = RenderConfig::default();
+
+// Prepare multiple plot requests
+let requests: Vec<(Vec<(f32, f32)>, DensityPlotOptions)> = vec![
+    (
+        vec![(100.0, 200.0), (150.0, 250.0)], // Data for plot 1
+        DensityPlotOptions::new()
+            .width(800)
+            .height(600)
+            .title("Plot 1")
+            .build()?,
+    ),
+    (
+        vec![(200.0, 300.0), (250.0, 350.0)], // Data for plot 2
+        DensityPlotOptions::new()
+            .width(800)
+            .height(600)
+            .title("Plot 2")
+            .build()?,
+    ),
+];
+
+// Render all plots in batch
+let plot_bytes: Vec<Vec<u8>> = plot.render_batch(&requests, &mut render_config)?;
+
+// plot_bytes[0] contains the JPEG bytes for the first plot
+// plot_bytes[1] contains the JPEG bytes for the second plot
+```
+
+### Custom Batch Orchestration
+
+For applications that want to orchestrate rendering themselves (e.g., custom progress reporting, parallel rendering, etc.), use the low-level batch density calculation:
+
+```rust
+use flow_plots::density_calc::calculate_density_per_pixel_batch;
+use flow_plots::{DensityPlotOptions};
+use flow_plots::render::{RenderConfig, plotters_backend::render_pixels};
+use anyhow::Result;
+
+// Calculate density for multiple plots
+let requests: Vec<(Vec<(f32, f32)>, DensityPlotOptions)> = vec![
+    (data1, options1),
+    (data2, options2),
+    (data3, options3),
+];
+
+// Get raw pixel data for all plots (density calculation only)
+let raw_pixels_batch = calculate_density_per_pixel_batch(&requests);
+
+// Now you can orchestrate rendering yourself
+let mut render_config = RenderConfig::default();
+
+// Example: Render plots in parallel using rayon
+use rayon::prelude::*;
+let plot_bytes: Result<Vec<Vec<u8>>> = raw_pixels_batch
+    .par_iter()
+    .enumerate()
+    .map(|(i, raw_pixels)| {
+        // Custom rendering logic here
+        // You have access to raw_pixels and requests[i].1 (options)
+        render_pixels(raw_pixels.clone(), &requests[i].1, &mut render_config)
+    })
+    .collect();
+
+let plot_bytes = plot_bytes?;
+```
+
+**Note**: While batch processing is available, sequential processing (calling `render()` in a loop) is typically faster for most use cases. See `GPU_EVALUATION.md` for performance analysis.
+
 ## Architecture
 
 The library is organized into several modules:

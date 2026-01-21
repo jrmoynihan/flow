@@ -281,21 +281,44 @@ impl EventIndex {
         // Query R-tree for candidates within bounding box (fast)
         let candidates: Vec<_> = self.rtree.locate_in_envelope(&aabb).collect();
 
-        // Build geo::Polygon for precise point-in-polygon test
-        let polygon = match self.build_geo_polygon(gate) {
-            Some(poly) => poly,
-            None => return Vec::new(),
+        // Extract polygon coordinates for batch processing
+        let polygon_coords: Vec<(f32, f32)> = match &gate.geometry {
+            GateGeometry::Polygon { nodes, .. } => nodes
+                .iter()
+                .filter_map(|node| {
+                    Some((
+                        node.get_coordinate(gate.x_parameter_channel_name())?,
+                        node.get_coordinate(gate.y_parameter_channel_name())?,
+                    ))
+                })
+                .collect(),
+            _ => return Vec::new(),
         };
 
-        // Filter candidates with precise point-in-polygon test
-        use geo::Contains;
+        if polygon_coords.len() < 3 {
+            return Vec::new();
+        }
+
+        // Extract candidate points
+        let candidate_points: Vec<(f32, f32)> = candidates
+            .iter()
+            .map(|geom| {
+                let point = geom.geom();
+                (point.x(), point.y())
+            })
+            .collect();
+
+        let results = crate::batch_filtering::filter_by_polygon_batch(
+            &candidate_points,
+            &polygon_coords,
+        )
+        .unwrap_or_default();
+
+        // Map results back to indices
         candidates
             .into_iter()
-            .filter(|geom| {
-                let point = geom.geom();
-                polygon.contains(point)
-            })
-            .map(|geom| geom.data)
+            .zip(results.into_iter())
+            .filter_map(|(geom, inside)| if inside { Some(geom.data) } else { None })
             .collect()
     }
 
@@ -323,17 +346,26 @@ impl EventIndex {
             let aabb = AABB::from_corners(Point::new(min_x, min_y), Point::new(max_x, max_y));
             let candidates: Vec<_> = self.rtree.locate_in_envelope(&aabb).collect();
 
-            // Perform precise point-in-rectangle check (handles edge cases and floating-point precision)
+            // Extract candidate points
+            let candidate_points: Vec<(f32, f32)> = candidates
+                .iter()
+                .map(|geom| {
+                    let point = geom.geom();
+                    (point.x(), point.y())
+                })
+                .collect();
+
+            let results = crate::batch_filtering::filter_by_rectangle_batch(
+                &candidate_points,
+                (min_x, min_y, max_x, max_y),
+            )
+            .unwrap_or_default();
+
+            // Map results back to indices
             candidates
                 .into_iter()
-                .filter(|geom| {
-                    let point = geom.geom();
-                    let x = point.x();
-                    let y = point.y();
-                    // Inclusive bounds: x >= min_x && x <= max_x && y >= min_y && y <= max_y
-                    x >= min_x && x <= max_x && y >= min_y && y <= max_y
-                })
-                .map(|geom| geom.data)
+                .zip(results.into_iter())
+                .filter_map(|(geom, inside)| if inside { Some(geom.data) } else { None })
                 .collect()
         } else {
             Vec::new()
@@ -372,24 +404,29 @@ impl EventIndex {
             // Get candidates from R-tree
             let candidates: Vec<_> = self.rtree.locate_in_envelope(&aabb).collect();
 
-            // Apply ellipse equation for precise filtering
+            // Extract candidate points
+            let candidate_points: Vec<(f32, f32)> = candidates
+                .iter()
+                .map(|geom| {
+                    let point = geom.geom();
+                    (point.x(), point.y())
+                })
+                .collect();
+
+            let results = crate::batch_filtering::filter_by_ellipse_batch(
+                &candidate_points,
+                (cx, cy),
+                *radius_x,
+                *radius_y,
+                *angle,
+            )
+            .unwrap_or_default();
+
+            // Map results back to indices
             candidates
                 .into_iter()
-                .filter(|geom| {
-                    let point = geom.geom();
-                    let dx = point.x() - cx;
-                    let dy = point.y() - cy;
-
-                    // Rotate point to ellipse's coordinate system
-                    let rotated_x = dx * cos_angle + dy * sin_angle;
-                    let rotated_y = -dx * sin_angle + dy * cos_angle;
-
-                    // Check if inside ellipse: (x/rx)^2 + (y/ry)^2 <= 1
-                    let normalized_x = rotated_x / radius_x;
-                    let normalized_y = rotated_y / radius_y;
-                    normalized_x * normalized_x + normalized_y * normalized_y <= 1.0
-                })
-                .map(|geom| geom.data)
+                .zip(results.into_iter())
+                .filter_map(|(geom, inside)| if inside { Some(geom.data) } else { None })
                 .collect()
         } else {
             Vec::new()

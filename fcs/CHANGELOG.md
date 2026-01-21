@@ -5,7 +5,112 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.2.0 (2026-01-21)
+
+<csr-id-fec1c6d2c50730d98771b7cdc101bad5071baf29/>
+<csr-id-2d2660406806bdb259dbf66fefa3576fa1a611f3/>
+
+### Refactor (BREAKING)
+
+ - <csr-id-fec1c6d2c50730d98771b7cdc101bad5071baf29/> remove GPU acceleration implementation
+   - Remove GPU module and all GPU-related code
+   - Remove GPU dependencies (burn, cubecl, bytemuck)
+   - Remove GPU feature flags from Cargo.toml
+   - Update batch functions to use CPU-only implementation
+
+### Refactor
+
+ - <csr-id-2d2660406806bdb259dbf66fefa3576fa1a611f3/> remove GPU acceleration implementation
+   - Remove GPU module and all GPU-related code
+   - Remove GPU dependencies (burn, cubecl, cubecl-wgpu)
+   - Remove GPU feature flags from Cargo.toml
+   - Reorganize matrix operations into dedicated matrix module
+   - Update benchmarks to use CPU-only MatrixOps API
+   - Add GPU_BENCHMARKING.md documenting benchmark results
+   
+   Benchmarks showed CPU implementations are 1.2-21× faster for typical
+   flow cytometry workloads due to GPU transfer overhead and kernel launch
+   costs. See GPU_BENCHMARKING.md for detailed analysis.
+
+### Commit Statistics
+
+<csr-read-only-do-not-edit/>
+
+ - 8 commits contributed to the release.
+ - 2 commits were understood as [conventional](https://www.conventionalcommits.org).
+ - 0 issues like '(#ID)' were seen in commit messages
+
+### Commit Details
+
+<csr-read-only-do-not-edit/>
+
+<details><summary>view details</summary>
+
+ * **Uncategorized**
+    - Release flow-fcs v0.2.0 ([`f2fc722`](https://github.com/jrmoynihan/flow/commit/f2fc72250da69b63cacdea28f561db60732c0a39))
+    - Release flow-fcs v0.2.0, safety bump 4 crates ([`cd26a89`](https://github.com/jrmoynihan/flow/commit/cd26a8970fc25dbe70c1cc9ac342b367613bcda6))
+    - Remove GPU acceleration implementation ([`2d26604`](https://github.com/jrmoynihan/flow/commit/2d2660406806bdb259dbf66fefa3576fa1a611f3))
+    - Remove GPU acceleration implementation ([`fec1c6d`](https://github.com/jrmoynihan/flow/commit/fec1c6d2c50730d98771b7cdc101bad5071baf29))
+    - Release flow-fcs v0.1.6 ([`bd1ebad`](https://github.com/jrmoynihan/flow/commit/bd1ebad7b940f9c46f3e54202730b1f117a1d70b))
+    - Release flow-fcs v0.1.6 ([`3343b32`](https://github.com/jrmoynihan/flow/commit/3343b32dbfeda6e2f0e1efa05c1b903bf457d5be))
+    - Adjusting changelogs prior to release of flow-fcs v0.1.6 ([`37f1d61`](https://github.com/jrmoynihan/flow/commit/37f1d61dcb790b63c2ef0ea148b4fde57a6414b2))
+    - Adjusting changelogs prior to release of flow-fcs v0.1.6 ([`7fb88db`](https://github.com/jrmoynihan/flow/commit/7fb88db9ede05b317a03d367cea18a3b8b73c5a1))
+</details>
+
+## 0.1.6 (2026-01-21)
+
+### Removed
+
+ - Remove GPU acceleration implementations
+   - Removed GPU matrix operations module (`gpu/`) after benchmarking showed CPU implementations are 1.2-21× faster for typical flow cytometry workloads
+   - GPU transfer overhead and kernel launch costs exceeded benefits for small-to-medium datasets (10K-1M events, 5-30 channels)
+   - CPU BLAS/LAPACK implementations are highly optimized for these matrix sizes
+   - See `GPU_BENCHMARKING.md` for detailed benchmark results and analysis
+- GPU transfer overhead and kernel launch costs exceeded benefits for small-to-medium datasets (10K-1M events, 5-30 channels)
+- CPU BLAS/LAPACK implementations are highly optimized for these matrix sizes
+- See `GPU_BENCHMARKING.md` for detailed benchmark results and analysis
+
+### Refactor
+
+ - Reorganize matrix operations into dedicated `matrix` module
+   - Moved CPU matrix operations from `gpu/fallback` to new `matrix` module
+   - Simplified codebase by removing GPU dependencies (`burn`, `cubecl`)
+   - Updated benchmarks to use new `MatrixOps` API
+
+<csr-unknown>
+GPU transfer overhead and kernel launch costs exceeded benefits for small-to-medium datasets (10K-1M events, 5-30 channels)CPU BLAS/LAPACK implementations are highly optimized for these matrix sizesSee GPU_BENCHMARKING.md for detailed benchmark results and analysisGPU transfer overhead and kernel launch costs exceeded benefits for small-to-medium datasets (10K-1M events, 5-30 channels)CPU BLAS/LAPACK implementations are highly optimized for these matrix sizesSee GPU_BENCHMARKING.md for detailed benchmark results and analysis<csr-unknown/>
+<csr-unknown/>
+
+## 0.1.5 (2026-01-21)
+
+### New Features
+
+ - <csr-id-da12f8bdda2def063a9469ff921250a1d8a91aef/> expand parameter exports in lib.rs
+   - Added EventDataFrame, EventDatum, and LabelName to the exported parameters in lib.rs for enhanced functionality.
+
+### Commit Statistics
+
+<csr-read-only-do-not-edit/>
+
+ - 2 commits contributed to the release over the course of 1 calendar day.
+ - 3 days passed between releases.
+ - 1 commit was understood as [conventional](https://www.conventionalcommits.org).
+ - 0 issues like '(#ID)' were seen in commit messages
+
+### Commit Details
+
+<csr-read-only-do-not-edit/>
+
+<details><summary>view details</summary>
+
+ * **Uncategorized**
+    - Release flow-fcs v0.1.5, flow-gates v0.1.2 ([`4106abc`](https://github.com/jrmoynihan/flow/commit/4106abc5ae2d35328ec470daf9b0a9a549ebd6ba))
+    - Expand parameter exports in lib.rs ([`da12f8b`](https://github.com/jrmoynihan/flow/commit/da12f8bdda2def063a9469ff921250a1d8a91aef))
+</details>
+
 ## 0.1.4 (2026-01-18)
+
+<csr-id-6da76b758d02b9da1abcd3052323f81992dc3fdd/>
 
 ### Refactor
 
@@ -18,7 +123,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 <csr-read-only-do-not-edit/>
 
- - 1 commit contributed to the release.
+ - 2 commits contributed to the release.
  - 1 commit was understood as [conventional](https://www.conventionalcommits.org).
  - 0 issues like '(#ID)' were seen in commit messages
 
@@ -29,6 +134,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 <details><summary>view details</summary>
 
  * **Uncategorized**
+    - Release flow-fcs v0.1.4, peacoqc-rs v0.1.2 ([`140a59a`](https://github.com/jrmoynihan/flow/commit/140a59af3c1ca751672e66c9cc69708f45ac8453))
     - Clean up unused imports and improve code readability ([`6da76b7`](https://github.com/jrmoynihan/flow/commit/6da76b758d02b9da1abcd3052323f81992dc3fdd))
 </details>
 

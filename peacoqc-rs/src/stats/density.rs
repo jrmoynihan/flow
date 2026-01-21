@@ -2,6 +2,9 @@ use crate::error::{PeacoQCError, Result};
 use realfft::RealFftPlanner;
 use realfft::num_complex::Complex;
 
+#[cfg(feature = "gpu")]
+use crate::gpu::{is_gpu_available, kde_fft_gpu};
+
 /// Kernel Density Estimation using Gaussian kernel with FFT acceleration
 ///
 /// This is a simplified implementation of R's density() function
@@ -54,6 +57,15 @@ impl KernelDensity {
             .collect();
 
         // Use FFT-based KDE for better performance
+        // Use GPU if available (batched operations provide speedup even for smaller datasets)
+        #[cfg(feature = "gpu")]
+        let y = if is_gpu_available() {
+            kde_fft_gpu(&clean_data, &x, bandwidth, n)?
+        } else {
+            kde_fft(&clean_data, &x, bandwidth, n)?
+        };
+        
+        #[cfg(not(feature = "gpu"))]
         let y = kde_fft(&clean_data, &x, bandwidth, n)?;
 
         Ok(KernelDensity { x, y })

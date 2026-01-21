@@ -18,6 +18,9 @@ use crate::qc::peaks::ChannelPeakFrame;
 use rayon::prelude::*;
 use std::collections::HashMap;
 
+#[cfg(feature = "gpu")]
+use crate::gpu::{build_feature_matrix_gpu, is_gpu_available};
+
 /// Configuration for SD-based Isolation Tree
 #[derive(Debug, Clone)]
 pub struct IsolationTreeConfig {
@@ -147,6 +150,15 @@ pub fn isolation_tree_detect(
 
     // Build feature matrix: bins × (channels × clusters)
     // Each cluster gets its own column, matching R's ExtractPeakValues
+    // Use GPU if available (batched operations provide speedup even for smaller datasets)
+    #[cfg(feature = "gpu")]
+    let (feature_matrix, feature_names) = if is_gpu_available() {
+        build_feature_matrix_gpu(peak_results, n_bins)?
+    } else {
+        build_feature_matrix(peak_results, n_bins)?
+    };
+
+    #[cfg(not(feature = "gpu"))]
     let (feature_matrix, feature_names) = build_feature_matrix(peak_results, n_bins)?;
     let n_features = feature_matrix[0].len();
 

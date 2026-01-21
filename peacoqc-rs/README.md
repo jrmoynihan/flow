@@ -35,6 +35,8 @@ peacoqc-rs = { version = "0.1.0", features = ["flow-fcs"] }
 ### Feature Flags
 
 - `flow-fcs` (default): Enable integration with the `flow-fcs` crate for FCS file support
+- `gpu`: Enable GPU acceleration for multi-channel datasets (20-32x speedup for batched operations)
+- `cubecl`: Enable cubeCL custom GPU kernels (optional, requires `gpu` feature)
 
 ## Quick Start
 
@@ -316,6 +318,10 @@ PeacoQC-RS is optimized for performance:
   - **Multiple channels** processed in parallel (all channels simultaneously)
   - **Multiple bins** within each channel processed in parallel
   - Provides significant speedup on multi-core systems (typically 2-8x depending on core count)
+- **GPU Acceleration** (optional, `--features gpu`): Provides 20-32x speedup for batched multi-channel operations
+  - Automatically used when GPU is available
+  - Batched operations amortize GPU overhead across multiple channels
+  - See `DEV_NOTES.md` for detailed performance results
 - **Efficient Data Structures**: Uses Polars DataFrames (via `flow-fcs` feature flag) for columnar storage
 - **Minimal Allocations**: Optimized to reduce memory allocations
 - **SIMD Support**: Leverages Polars' SIMD operations for fast numeric computations

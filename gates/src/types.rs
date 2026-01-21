@@ -375,6 +375,84 @@ impl GateGeometry {
         }
     }
 
+    /// Batch check if points (in raw coordinates) are inside the gate
+    ///
+    /// Uses optimized CPU-based batch filtering with Rayon parallelization.
+    pub fn contains_points_batch(
+        &self,
+        points: &[(f32, f32)],
+        x_param: &str,
+        y_param: &str,
+    ) -> Result<Vec<bool>> {
+        match self {
+            GateGeometry::Polygon { nodes, closed } => {
+                if !closed {
+                    return Ok(vec![false; points.len()]);
+                }
+
+                // Extract coordinates
+                let coords: Vec<(f32, f32)> = nodes
+                    .iter()
+                    .filter_map(|node| {
+                        Some((node.get_coordinate(x_param)?, node.get_coordinate(y_param)?))
+                    })
+                    .collect();
+
+                if coords.len() < 3 {
+                    return Ok(vec![false; points.len()]);
+                }
+
+                crate::batch_filtering::filter_by_polygon_batch(points, &coords)
+            }
+            GateGeometry::Rectangle { min, max } => {
+                let min_x = min
+                    .get_coordinate(x_param)
+                    .ok_or_else(|| GateError::missing_parameter(x_param, "rectangle min"))?;
+                let min_y = min
+                    .get_coordinate(y_param)
+                    .ok_or_else(|| GateError::missing_parameter(y_param, "rectangle min"))?;
+                let max_x = max
+                    .get_coordinate(x_param)
+                    .ok_or_else(|| GateError::missing_parameter(x_param, "rectangle max"))?;
+                let max_y = max
+                    .get_coordinate(y_param)
+                    .ok_or_else(|| GateError::missing_parameter(y_param, "rectangle max"))?;
+
+                crate::batch_filtering::filter_by_rectangle_batch(
+                    points,
+                    (min_x, min_y, max_x, max_y),
+                )
+            }
+            GateGeometry::Ellipse {
+                center,
+                radius_x,
+                radius_y,
+                angle,
+            } => {
+                let cx = center
+                    .get_coordinate(x_param)
+                    .ok_or_else(|| GateError::missing_parameter(x_param, "ellipse center"))?;
+                let cy = center
+                    .get_coordinate(y_param)
+                    .ok_or_else(|| GateError::missing_parameter(y_param, "ellipse center"))?;
+
+                crate::batch_filtering::filter_by_ellipse_batch(
+                    points,
+                    (cx, cy),
+                    *radius_x,
+                    *radius_y,
+                    *angle,
+                )
+            }
+            GateGeometry::Boolean { .. } => {
+                // Boolean gates require resolving referenced gates - can't check containment directly
+                Err(GateError::invalid_geometry(
+                    "Boolean gates require gate resolution to check containment",
+                ))
+            }
+        }
+    }
+
     /// Check if the gate has valid geometry and coordinates
     pub fn is_valid(&self, x_param: &str, y_param: &str) -> Result<bool> {
         match self {

@@ -5,7 +5,7 @@ use std::hint::black_box;
 
 /// Generate synthetic flow cytometry data with multiple peaks
 fn generate_test_data(n_points: usize, n_peaks: usize) -> Vec<f64> {
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rng();
     let mut data = Vec::with_capacity(n_points);
 
     // Create data with n_peaks distinct populations

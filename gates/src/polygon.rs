@@ -118,7 +118,7 @@ impl GateGeometryOps for PolygonGateGeometry {
 }
 
 /// Point-in-polygon using ray casting algorithm
-fn point_in_polygon(x: f32, y: f32, polygon: &[(f32, f32)]) -> bool {
+pub fn point_in_polygon(x: f32, y: f32, polygon: &[(f32, f32)]) -> bool {
     let mut inside = false;
     let n = polygon.len();
 

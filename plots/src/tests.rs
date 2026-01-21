@@ -528,4 +528,158 @@ mod tests {
         // Should create successfully
         assert!(std::mem::size_of_val(&plot) == 0); // Unit struct
     }
+
+    // ============================================================================
+    // Batch API Tests
+    // ============================================================================
+
+    #[test]
+    fn test_calculate_density_per_pixel_batch_empty() {
+        use crate::density_calc::calculate_density_per_pixel_batch;
+
+        let requests: Vec<(Vec<(f32, f32)>, DensityPlotOptions)> = vec![];
+        let results = calculate_density_per_pixel_batch(&requests);
+        assert_eq!(results.len(), 0);
+    }
+
+    #[test]
+    fn test_calculate_density_per_pixel_batch_single_plot() {
+        use crate::density_calc::{calculate_density_per_pixel, calculate_density_per_pixel_batch};
+
+        let options = DensityPlotOptions::new()
+            .width(100)
+            .height(100)
+            .build()
+            .unwrap();
+        let data = vec![(100.0, 200.0), (150.0, 250.0), (200.0, 300.0)];
+
+        // Single plot via batch
+        let batch_results = calculate_density_per_pixel_batch(&[(data.clone(), options.clone())]);
+        assert_eq!(batch_results.len(), 1);
+
+        // Single plot via direct call
+        let direct_result = calculate_density_per_pixel(&data, 100, 100, &options);
+
+        // Results should be similar (same number of pixels, similar positions)
+        assert_eq!(batch_results[0].len(), direct_result.len());
+    }
+
+    #[test]
+    fn test_calculate_density_per_pixel_batch_multiple_plots() {
+        use crate::density_calc::calculate_density_per_pixel_batch;
+
+        let options1 = DensityPlotOptions::new()
+            .width(100)
+            .height(100)
+            .build()
+            .unwrap();
+        let options2 = DensityPlotOptions::new()
+            .width(200)
+            .height(200)
+            .build()
+            .unwrap();
+
+        let data1 = vec![(100.0, 200.0), (150.0, 250.0)];
+        let data2 = vec![(50.0, 100.0), (75.0, 125.0), (100.0, 150.0)];
+
+        let requests = vec![
+            (data1, options1),
+            (data2, options2),
+        ];
+
+        let results = calculate_density_per_pixel_batch(&requests);
+        assert_eq!(results.len(), 2);
+        assert!(!results[0].is_empty());
+        assert!(!results[1].is_empty());
+    }
+
+    #[test]
+    fn test_calculate_density_per_pixel_batch_different_sizes() {
+        use crate::density_calc::calculate_density_per_pixel_batch;
+
+        let requests: Vec<(Vec<(f32, f32)>, DensityPlotOptions)> = vec![
+            (
+                vec![(100.0, 200.0)],
+                DensityPlotOptions::new().width(800).height(600).build().unwrap(),
+            ),
+            (
+                vec![(50.0, 100.0)],
+                DensityPlotOptions::new().width(1024).height(768).build().unwrap(),
+            ),
+            (
+                vec![(200.0, 300.0)],
+                DensityPlotOptions::new().width(640).height(480).build().unwrap(),
+            ),
+        ];
+
+        let results = calculate_density_per_pixel_batch(&requests);
+        assert_eq!(results.len(), 3);
+        // Each result should have pixels
+        for result in &results {
+            assert!(!result.is_empty());
+        }
+    }
+
+    #[test]
+    fn test_render_batch_empty() {
+        let plot = DensityPlot::new();
+        let requests: Vec<(Vec<(f32, f32)>, DensityPlotOptions)> = vec![];
+        let mut render_config = RenderConfig::default();
+
+        let results = plot.render_batch(&requests, &mut render_config).unwrap();
+        assert_eq!(results.len(), 0);
+    }
+
+    #[test]
+    fn test_render_batch_single_plot() {
+        let plot = DensityPlot::new();
+        let options = DensityPlotOptions::new()
+            .width(100)
+            .height(100)
+            .build()
+            .unwrap();
+        let data = vec![(100.0, 200.0), (150.0, 250.0)];
+        let requests = vec![(data, options)];
+        let mut render_config = RenderConfig::default();
+
+        let results = plot.render_batch(&requests, &mut render_config).unwrap();
+        assert_eq!(results.len(), 1);
+        assert!(!results[0].is_empty());
+        // Should be JPEG bytes
+        assert_eq!(results[0][0], 0xFF);
+        assert_eq!(results[0][1], 0xD8);
+    }
+
+    #[test]
+    fn test_render_batch_multiple_plots() {
+        let plot = DensityPlot::new();
+        let options1 = DensityPlotOptions::new()
+            .width(100)
+            .height(100)
+            .build()
+            .unwrap();
+        let options2 = DensityPlotOptions::new()
+            .width(200)
+            .height(200)
+            .build()
+            .unwrap();
+
+        let data1 = vec![(100.0, 200.0), (150.0, 250.0)];
+        let data2 = vec![(50.0, 100.0), (75.0, 125.0), (100.0, 150.0)];
+
+        let requests = vec![
+            (data1, options1),
+            (data2, options2),
+        ];
+        let mut render_config = RenderConfig::default();
+
+        let results = plot.render_batch(&requests, &mut render_config).unwrap();
+        assert_eq!(results.len(), 2);
+        for result in &results {
+            assert!(!result.is_empty());
+            // Should be JPEG bytes
+            assert_eq!(result[0], 0xFF);
+            assert_eq!(result[1], 0xD8);
+        }
+    }
 }
