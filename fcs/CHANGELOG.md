@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## 0.2.0 (2026-01-21)
 
 <csr-id-fec1c6d2c50730d98771b7cdc101bad5071baf29/>
+<csr-id-2d2660406806bdb259dbf66fefa3576fa1a611f3/>
 
 ### Refactor (BREAKING)
 
@@ -35,7 +36,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 <csr-read-only-do-not-edit/>
 
- - 6 commits contributed to the release.
+ - 7 commits contributed to the release.
  - 2 commits were understood as [conventional](https://www.conventionalcommits.org).
  - 0 issues like '(#ID)' were seen in commit messages
 
@@ -46,6 +47,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 <details><summary>view details</summary>
 
  * **Uncategorized**
+    - Release flow-fcs v0.2.0, safety bump 4 crates ([`cd26a89`](https://github.com/jrmoynihan/flow/commit/cd26a8970fc25dbe70c1cc9ac342b367613bcda6))
     - Remove GPU acceleration implementation ([`2d26604`](https://github.com/jrmoynihan/flow/commit/2d2660406806bdb259dbf66fefa3576fa1a611f3))
     - Remove GPU acceleration implementation ([`fec1c6d`](https://github.com/jrmoynihan/flow/commit/fec1c6d2c50730d98771b7cdc101bad5071baf29))
     - Release flow-fcs v0.1.6 ([`bd1ebad`](https://github.com/jrmoynihan/flow/commit/bd1ebad7b940f9c46f3e54202730b1f117a1d70b))
@@ -73,6 +75,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
    - Moved CPU matrix operations from `gpu/fallback` to new `matrix` module
    - Simplified codebase by removing GPU dependencies (`burn`, `cubecl`)
    - Updated benchmarks to use new `MatrixOps` API
+
+<csr-unknown>
+GPU transfer overhead and kernel launch costs exceeded benefits for small-to-medium datasets (10K-1M events, 5-30 channels)CPU BLAS/LAPACK implementations are highly optimized for these matrix sizesSee GPU_BENCHMARKING.md for detailed benchmark results and analysis<csr-unknown/>
 
 ## 0.1.5 (2026-01-21)
 
