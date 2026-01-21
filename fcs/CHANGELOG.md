@@ -5,32 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## 0.1.6 (2026-01-21)
+## Unreleased
 
-### Removed
+### Refactor (BREAKING)
 
- - Remove GPU acceleration implementations
-   - Removed GPU matrix operations module (`gpu/`) after benchmarking showed CPU implementations are 1.2-21× faster for typical flow cytometry workloads
-   - GPU transfer overhead and kernel launch costs exceeded benefits for small-to-medium datasets (10K-1M events, 5-30 channels)
-   - CPU BLAS/LAPACK implementations are highly optimized for these matrix sizes
-   - See `GPU_BENCHMARKING.md` for detailed benchmark results and analysis
-- GPU transfer overhead and kernel launch costs exceeded benefits for small-to-medium datasets (10K-1M events, 5-30 channels)
-- CPU BLAS/LAPACK implementations are highly optimized for these matrix sizes
-- See `GPU_BENCHMARKING.md` for detailed benchmark results and analysis
-
-### Refactor
-
- - Reorganize matrix operations into dedicated `matrix` module
-   - Moved CPU matrix operations from `gpu/fallback` to new `matrix` module
-   - Simplified codebase by removing GPU dependencies (`burn`, `cubecl`)
-   - Updated benchmarks to use new `MatrixOps` API
+ - <csr-id-fec1c6d2c50730d98771b7cdc101bad5071baf29/> remove GPU acceleration implementation
+   - Remove GPU module and all GPU-related code
+   - Remove GPU dependencies (burn, cubecl, bytemuck)
+   - Remove GPU feature flags from Cargo.toml
+   - Update batch functions to use CPU-only implementation
 
 ### Commit Statistics
 
 <csr-read-only-do-not-edit/>
 
- - 3 commits contributed to the release.
- - 0 commits were understood as [conventional](https://www.conventionalcommits.org).
+ - 5 commits contributed to the release.
+ - 1 commit was understood as [conventional](https://www.conventionalcommits.org).
  - 0 issues like '(#ID)' were seen in commit messages
 
 ### Commit Details
@@ -40,13 +30,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 <details><summary>view details</summary>
 
  * **Uncategorized**
+    - Remove GPU acceleration implementation ([`fec1c6d`](https://github.com/jrmoynihan/flow/commit/fec1c6d2c50730d98771b7cdc101bad5071baf29))
+    - Release flow-fcs v0.1.6 ([`bd1ebad`](https://github.com/jrmoynihan/flow/commit/bd1ebad7b940f9c46f3e54202730b1f117a1d70b))
     - Release flow-fcs v0.1.6 ([`3343b32`](https://github.com/jrmoynihan/flow/commit/3343b32dbfeda6e2f0e1efa05c1b903bf457d5be))
     - Adjusting changelogs prior to release of flow-fcs v0.1.6 ([`37f1d61`](https://github.com/jrmoynihan/flow/commit/37f1d61dcb790b63c2ef0ea148b4fde57a6414b2))
     - Adjusting changelogs prior to release of flow-fcs v0.1.6 ([`7fb88db`](https://github.com/jrmoynihan/flow/commit/7fb88db9ede05b317a03d367cea18a3b8b73c5a1))
 </details>
 
-<csr-unknown>
-GPU transfer overhead and kernel launch costs exceeded benefits for small-to-medium datasets (10K-1M events, 5-30 channels)CPU BLAS/LAPACK implementations are highly optimized for these matrix sizesSee GPU_BENCHMARKING.md for detailed benchmark results and analysis<csr-unknown/>
+## 0.1.6 (2026-01-21)
+
+### Removed
+
+ - Remove GPU acceleration implementations
+   - Removed GPU matrix operations module (`gpu/`) after benchmarking showed CPU implementations are 1.2-21× faster for typical flow cytometry workloads
+   - GPU transfer overhead and kernel launch costs exceeded benefits for small-to-medium datasets (10K-1M events, 5-30 channels)
+   - CPU BLAS/LAPACK implementations are highly optimized for these matrix sizes
+   - See `GPU_BENCHMARKING.md` for detailed benchmark results and analysis
+
+### Refactor
+
+ - Reorganize matrix operations into dedicated `matrix` module
+   - Moved CPU matrix operations from `gpu/fallback` to new `matrix` module
+   - Simplified codebase by removing GPU dependencies (`burn`, `cubecl`)
+   - Updated benchmarks to use new `MatrixOps` API
 
 ## 0.1.5 (2026-01-21)
 
