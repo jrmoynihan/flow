@@ -5,7 +5,9 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## Unreleased
+## 0.2.0 (2026-01-21)
+
+<csr-id-fec1c6d2c50730d98771b7cdc101bad5071baf29/>
 
 ### Refactor (BREAKING)
 
@@ -15,12 +17,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
    - Remove GPU feature flags from Cargo.toml
    - Update batch functions to use CPU-only implementation
 
+### Refactor
+
+ - <csr-id-2d2660406806bdb259dbf66fefa3576fa1a611f3/> remove GPU acceleration implementation
+   - Remove GPU module and all GPU-related code
+   - Remove GPU dependencies (burn, cubecl, cubecl-wgpu)
+   - Remove GPU feature flags from Cargo.toml
+   - Reorganize matrix operations into dedicated matrix module
+   - Update benchmarks to use CPU-only MatrixOps API
+   - Add GPU_BENCHMARKING.md documenting benchmark results
+   
+   Benchmarks showed CPU implementations are 1.2-21× faster for typical
+   flow cytometry workloads due to GPU transfer overhead and kernel launch
+   costs. See GPU_BENCHMARKING.md for detailed analysis.
+
 ### Commit Statistics
 
 <csr-read-only-do-not-edit/>
 
- - 5 commits contributed to the release.
- - 1 commit was understood as [conventional](https://www.conventionalcommits.org).
+ - 6 commits contributed to the release.
+ - 2 commits were understood as [conventional](https://www.conventionalcommits.org).
  - 0 issues like '(#ID)' were seen in commit messages
 
 ### Commit Details
@@ -30,6 +46,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 <details><summary>view details</summary>
 
  * **Uncategorized**
+    - Remove GPU acceleration implementation ([`2d26604`](https://github.com/jrmoynihan/flow/commit/2d2660406806bdb259dbf66fefa3576fa1a611f3))
     - Remove GPU acceleration implementation ([`fec1c6d`](https://github.com/jrmoynihan/flow/commit/fec1c6d2c50730d98771b7cdc101bad5071baf29))
     - Release flow-fcs v0.1.6 ([`bd1ebad`](https://github.com/jrmoynihan/flow/commit/bd1ebad7b940f9c46f3e54202730b1f117a1d70b))
     - Release flow-fcs v0.1.6 ([`3343b32`](https://github.com/jrmoynihan/flow/commit/3343b32dbfeda6e2f0e1efa05c1b903bf457d5be))
@@ -46,6 +63,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
    - GPU transfer overhead and kernel launch costs exceeded benefits for small-to-medium datasets (10K-1M events, 5-30 channels)
    - CPU BLAS/LAPACK implementations are highly optimized for these matrix sizes
    - See `GPU_BENCHMARKING.md` for detailed benchmark results and analysis
+- GPU transfer overhead and kernel launch costs exceeded benefits for small-to-medium datasets (10K-1M events, 5-30 channels)
+- CPU BLAS/LAPACK implementations are highly optimized for these matrix sizes
+- See `GPU_BENCHMARKING.md` for detailed benchmark results and analysis
 
 ### Refactor
 
