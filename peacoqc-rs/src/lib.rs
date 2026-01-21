@@ -92,6 +92,9 @@ pub mod error;
 pub mod qc;
 pub mod stats;
 
+#[cfg(feature = "gpu")]
+pub mod gpu;
+
 // fcs module provides SimpleFcs for testing and examples
 pub mod fcs;
 
