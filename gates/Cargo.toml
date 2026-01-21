@@ -1,6 +1,6 @@
 [package]
 name="flow-gates"
-version= "0.1.1"
+version="0.1.1"
 edition.workspace=true
 authors.workspace=true
 repository="https://github.com/jrmoynihan/flow/flow-gates"
@@ -16,8 +16,8 @@ keywords=[
 categories=["science", "visualization"]
 
 [dependencies]
-flow-fcs            ={ path="../fcs", version= "^0.1.4" }
-flow-plots          ={ path="../plots", version= "^0.1.2" }
+flow-fcs            ={ path="../fcs", version="^0.1.4" }
+flow-plots          ={ path="../plots", version="^0.1.2" }
 anyhow.workspace    =true
 thiserror.workspace =true
 serde.workspace     =true
@@ -25,6 +25,16 @@ serde_json.workspace=true
 geo                 ="0.32"
 rstar               ="0.12"
 quick-xml           ={ version="0.39", features=["serialize"] }
+rayon               ={ workspace=true }
+once_cell           ="1.20"
+bytemuck            ={ workspace=true }
+
+[features]
+default=[]
+
+[dev-dependencies]
+criterion={ version="0.8.1", features=["html_reports"] }
+rand="0.9"
 
 [package.metadata.scripts]
 test-compliance     ="cargo test --test compliance_tests -- --ignored"
