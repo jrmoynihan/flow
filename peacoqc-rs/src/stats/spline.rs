@@ -124,20 +124,35 @@ pub fn smooth_spline(x: &[f64], y: &[f64], spar: f64) -> Result<Vec<f64>> {
     }
     
     // Fit smoothing spline using csaps
-    // Convert to ndarray arrays
+    // csaps expects slices or arrays that implement AsRef<[f64]>
+    // Convert to ndarray arrays, then use as_slice() to get slices
     let x_array = Array1::from(unique_x.clone());
     let y_array = Array1::from(unique_y.clone());
     let weights_array = Array1::from(weights.clone());
     
-    let spline = CubicSmoothingSpline::new(&x_array, &y_array)
+    // Use as_slice() to convert Array1 to slices that csaps can use
+    let x_slice = x_array.as_slice().ok_or_else(|| {
+        PeacoQCError::StatsError("Failed to convert x array to slice".to_string())
+    })?;
+    let y_slice = y_array.as_slice().ok_or_else(|| {
+        PeacoQCError::StatsError("Failed to convert y array to slice".to_string())
+    })?;
+    let weights_slice = weights_array.as_slice().ok_or_else(|| {
+        PeacoQCError::StatsError("Failed to convert weights array to slice".to_string())
+    })?;
+    
+    let spline = CubicSmoothingSpline::new(x_slice, y_slice)
         .with_smooth(smooth)
-        .with_weights(&weights_array)
+        .with_weights(weights_slice)
         .make()
         .map_err(|e| PeacoQCError::StatsError(format!("csaps spline fitting failed: {:?}", e)))?;
     
     // Evaluate at original x points (including duplicates)
-    let x_eval = Array1::from(x_sorted.clone());
-    let smoothed_array = spline.evaluate(&x_eval)
+    let x_eval_array = Array1::from(x_sorted.clone());
+    let x_eval_slice = x_eval_array.as_slice().ok_or_else(|| {
+        PeacoQCError::StatsError("Failed to convert evaluation x array to slice".to_string())
+    })?;
+    let smoothed_array = spline.evaluate(x_eval_slice)
         .map_err(|e| PeacoQCError::StatsError(format!("csaps evaluation failed: {:?}", e)))?;
     
     // Convert back to Vec<f64>
