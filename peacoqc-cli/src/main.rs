@@ -598,8 +598,6 @@ fn main() -> Result<()> {
     println!("🧬 PeacoQC - Flow Cytometry Quality Control");
     println!("============================================\n");
 
-    let start_time = Instant::now();
-
     // Collect input files (expand directories if needed)
     let input_files = collect_input_files(&args.input)?;
 
@@ -666,6 +664,9 @@ fn main() -> Result<()> {
     if let Some(ref dir) = plot_dir {
         std::fs::create_dir_all(dir)?;
     }
+
+    // Start timing AFTER all user interactions and setup
+    let start_time = Instant::now();
 
     // Convert qc_mode once before the loop
     let qc_mode = args.qc_mode.into();
@@ -739,19 +740,38 @@ fn main() -> Result<()> {
     if !failed.is_empty() {
         println!("   Failed: {}", failed.len());
     }
-    println!("   ⏱️  Total time: {:.2}s\n", total_time);
+    println!("   ⏱️  Total time: {:.2}s", total_time);
+    
+    // Report per-file timing for multi-file processing
+    if results.len() > 1 && !successful.is_empty() {
+        let total_processing_ms: u128 = successful.iter().map(|r| r.processing_time_ms).sum();
+        let avg_time_ms = total_processing_ms / successful.len() as u128;
+        println!("   ⏱️  Average time per file: {:.2}s", avg_time_ms as f64 / 1000.0);
+    }
+    println!();
 
     // Print summaries
     if args.verbose && !successful.is_empty() {
         println!("📊 Results:");
         for result in &successful {
-            println!(
-                "   {}: {} → {} events ({:.2}% removed)",
-                result.filename,
-                result.n_events_before,
-                result.n_events_after,
-                result.percentage_removed
-            );
+            if results.len() > 1 {
+                println!(
+                    "   {}: {} → {} events ({:.2}% removed) [{:.2}s]",
+                    result.filename,
+                    result.n_events_before,
+                    result.n_events_after,
+                    result.percentage_removed,
+                    result.processing_time_ms as f64 / 1000.0
+                );
+            } else {
+                println!(
+                    "   {}: {} → {} events ({:.2}% removed)",
+                    result.filename,
+                    result.n_events_before,
+                    result.n_events_after,
+                    result.percentage_removed
+                );
+            }
         }
         println!();
     }

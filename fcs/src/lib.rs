@@ -15,10 +15,12 @@ pub use write::{
     add_column, concatenate_events, duplicate_fcs_file, edit_metadata_and_save, filter_events,
     write_fcs_file,
 };
+pub use matrix::MatrixOps;
 
 mod byteorder;
 pub mod datatype;
 pub mod file;
+pub mod matrix;
 pub mod header;
 pub mod keyword;
 pub mod metadata;

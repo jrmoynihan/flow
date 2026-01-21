@@ -5,7 +5,128 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.1.2 (2026-01-21)
+
+### New Features
+
+ - <csr-id-2b7981fa03249f2052e4078ca6b145371c1a661c/> expand error types for new features
+   Add comprehensive error types to support new functionality.
+   
+   - Add HierarchyCycle error for cycle detection
+   - Add InvalidBooleanOperation error for boolean gate validation
+   - Add GateNotFound error for missing gate references
+   - Add InvalidLink error for gate linking operations
+   - Add CannotReparent error for hierarchy operations
+   - Add InvalidSubtreeOperation error for subtree operations
+   - Add EmptyOperands error for boolean operations
+   - Add InvalidBuilderState error for builder validation
+   - Add DuplicateGateId error for ID conflicts
+   - Add helper constructors for all new error types
+ - <csr-id-7018701b741c6910e89c93e21ca4249120a1eb1b/> add gate query builder and filtering helpers
+   Add fluent API for querying and filtering gates by various criteria.
+   
+   - Add GateQuery builder with fluent API
+   - Add filter_gates_by_parameters() helper
+   - Add filter_gates_by_scope() helper
+   - Add filter_hierarchy_by_parameters() helper
+   - Support filtering by parameters, scope, and type
+   - Improve documentation and examples
+ - <csr-id-873cfaee2af2b444fe0cd951ed701fade83febc0/> enhance gate hierarchy with reparenting and cloning
+   Add advanced hierarchy manipulation methods for reorganizing gate
+   structures.
+   
+   - Add reparent() to move a gate to a new parent
+   - Add reparent_subtree() to move entire subtrees
+   - Add clone_subtree() to duplicate subtrees with new IDs
+   - Add cycle detection to prevent invalid hierarchies
+   - Improve error handling with specific error types
+ - <csr-id-b6bf3fcdc9e7466c234ecd30b47db57abc52f643/> add boolean gate support to GatingML import/export
+   Add support for serializing and deserializing boolean gates in
+   GatingML format.
+   
+   - Add write_boolean_gate for exporting boolean gates to XML
+   - Add parse_boolean_gate_v1_5 and parse_boolean_geometry_v2 for import
+   - Support AND, OR, and NOT operations in GatingML
+   - Replace anyhow::Result with custom GateError::Result
+   - Improve error handling with custom error types
+ - <csr-id-d2068182f96d737d1febfca6854ad89d84a6cbfe/> add boolean gate support
+   Add support for boolean gates that combine multiple gates using
+   logical operations (AND, OR, NOT).
+   
+   - Add BooleanOperation enum (And, Or, Not)
+   - Add Boolean variant to GateGeometry with operation and operands
+   - Add GateResolver trait for resolving gate IDs to gate references
+   - Implement boolean gate filtering with filter_events_boolean
+   - Add filter_by_gate_with_resolver for boolean gate support
+   - Update EventIndex to handle boolean gates via resolver
+ - <csr-id-e8455560b2f20ff0dda711f866f5eaf71d1d323d/> add gate linking system
+   Add GateLinks structure for tracking gate references and reuse.
+   This is separate from hierarchy - links represent gate references
+   (e.g., in boolean gates), not parent-child relationships.
+   
+   - Add GateLinks with add_link, remove_link, get_links methods
+   - Track which gates reference other gates
+   - Support querying link counts and checking if gates are linked
+
+### Refactor
+
+ - <csr-id-e670a9216137c9a2cedde38f3e21894f280fe516/> update module structure after GPU removal
+   - Remove gpu module from lib.rs
+   - Update all GPU references to use batch_filtering module
+   - Simplify conditional compilation by removing GPU feature flags
+ - <csr-id-a0b4bcdd64294de3a0e40795c6db838cbcb18ac0/> remove GPU implementation, use CPU-only batch filtering
+   - Remove all GPU code (backend, filter, kernels)
+   - Create new batch_filtering module with optimized CPU implementation
+   - Remove GPU dependencies (burn, cubecl) from Cargo.toml
+   - Update types.rs and filtering/mod.rs to use batch_filtering directly
+   - Add GPU_PERFORMANCE_FINDINGS.md documenting why GPU was removed
+   - GPU was 2-10x slower than CPU at all batch sizes due to overhead
+ - <csr-id-4bbcfad61b695c86b6b07173486e5580d8b9eeae/> update library exports and documentation
+   Update public API exports to include new features and improve
+   documentation.
+   
+   - Export GateLinks, GateQuery, and new filtering functions
+   - Export BooleanOperation and GateBuilder
+   - Export gate geometry traits (GateBounds, GateCenter, etc.)
+   - Export GatingML import/export functions
+   - Add ParameterSet type alias
+   - Update documentation examples to be compilable
+   - Fix example code formatting
+
+### Commit Statistics
+
+<csr-read-only-do-not-edit/>
+
+ - 10 commits contributed to the release.
+ - 3 days passed between releases.
+ - 9 commits were understood as [conventional](https://www.conventionalcommits.org).
+ - 0 issues like '(#ID)' were seen in commit messages
+
+### Commit Details
+
+<csr-read-only-do-not-edit/>
+
+<details><summary>view details</summary>
+
+ * **Uncategorized**
+    - Update module structure after GPU removal ([`e670a92`](https://github.com/jrmoynihan/flow/commit/e670a9216137c9a2cedde38f3e21894f280fe516))
+    - Remove GPU implementation, use CPU-only batch filtering ([`a0b4bcd`](https://github.com/jrmoynihan/flow/commit/a0b4bcdd64294de3a0e40795c6db838cbcb18ac0))
+    - Merge pull request #9 from jrmoynihan/flow-gates ([`d6e993e`](https://github.com/jrmoynihan/flow/commit/d6e993ea8eb206c676aa0a95d01fc8cfaec882c9))
+    - Update library exports and documentation ([`4bbcfad`](https://github.com/jrmoynihan/flow/commit/4bbcfad61b695c86b6b07173486e5580d8b9eeae))
+    - Expand error types for new features ([`2b7981f`](https://github.com/jrmoynihan/flow/commit/2b7981fa03249f2052e4078ca6b145371c1a661c))
+    - Add gate query builder and filtering helpers ([`7018701`](https://github.com/jrmoynihan/flow/commit/7018701b741c6910e89c93e21ca4249120a1eb1b))
+    - Enhance gate hierarchy with reparenting and cloning ([`873cfae`](https://github.com/jrmoynihan/flow/commit/873cfaee2af2b444fe0cd951ed701fade83febc0))
+    - Add boolean gate support to GatingML import/export ([`b6bf3fc`](https://github.com/jrmoynihan/flow/commit/b6bf3fcdc9e7466c234ecd30b47db57abc52f643))
+    - Add boolean gate support ([`d206818`](https://github.com/jrmoynihan/flow/commit/d2068182f96d737d1febfca6854ad89d84a6cbfe))
+    - Add gate linking system ([`e845556`](https://github.com/jrmoynihan/flow/commit/e8455560b2f20ff0dda711f866f5eaf71d1d323d))
+</details>
+
 ## 0.1.1 (2026-01-18)
+
+<csr-id-d3aa6cdc5a806703131a3ffac63506142f052da9/>
+<csr-id-8d232b2838f65aa621a81031183d4c954d787543/>
+<csr-id-4649c7af16150d05880ddab4e732e9dee374d01b/>
+<csr-id-fbbef211ba3c7f4dffa75ea7d56f65e249e72384/>
 
 ### Chore
 
@@ -27,7 +148,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 <csr-read-only-do-not-edit/>
 
- - 9 commits contributed to the release over the course of 4 calendar days.
+ - 10 commits contributed to the release over the course of 4 calendar days.
  - 4 days passed between releases.
  - 4 commits were understood as [conventional](https://www.conventionalcommits.org).
  - 0 issues like '(#ID)' were seen in commit messages
@@ -39,6 +160,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 <details><summary>view details</summary>
 
  * **Uncategorized**
+    - Release flow-plots v0.1.2, flow-gates v0.1.1 ([`2c36741`](https://github.com/jrmoynihan/flow/commit/2c367411265c8385e88b2653e278bd1e2d1d2198))
     - Release flow-fcs v0.1.4, peacoqc-rs v0.1.2 ([`140a59a`](https://github.com/jrmoynihan/flow/commit/140a59af3c1ca751672e66c9cc69708f45ac8453))
     - Release flow-fcs v0.1.3, peacoqc-rs v0.1.2 ([`607fcae`](https://github.com/jrmoynihan/flow/commit/607fcae78304d51ce8d156e82e5dba48a1b6dbfa))
     - Update Cargo.toml scripts and dependency versions ([`d3aa6cd`](https://github.com/jrmoynihan/flow/commit/d3aa6cdc5a806703131a3ffac63506142f052da9))

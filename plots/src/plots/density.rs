@@ -37,6 +37,40 @@ impl DensityPlot {
     pub fn new() -> Self {
         Self
     }
+
+    /// Render multiple density plots in batch (GPU-accelerated if available)
+    ///
+    /// This amortizes GPU overhead across multiple plots, providing significant
+    /// speedup when processing multiple plots together.
+    ///
+    /// High-level convenience method that handles both density calculation
+    /// and rendering. For apps that want to orchestrate rendering themselves,
+    /// use `calculate_density_per_pixel_batch` instead.
+    ///
+    /// # Arguments
+    /// * `requests` - Vector of (data, options) tuples
+    /// * `render_config` - Rendering configuration (shared across all plots)
+    ///
+    /// # Returns
+    /// Vector of plot bytes, one per request
+    pub fn render_batch(
+        &self,
+        requests: &[(Vec<(f32, f32)>, DensityPlotOptions)],
+        render_config: &mut RenderConfig,
+    ) -> Result<Vec<PlotBytes>> {
+        use crate::density_calc::calculate_density_per_pixel_batch;
+
+        // Calculate density for all plots (GPU if available, CPU otherwise)
+        let raw_pixels_batch = calculate_density_per_pixel_batch(requests);
+
+        // Render each plot
+        let mut results = Vec::with_capacity(requests.len());
+        for (i, raw_pixels) in raw_pixels_batch.iter().enumerate() {
+            let bytes = render_pixels(raw_pixels.clone(), &requests[i].1, render_config)?;
+            results.push(bytes);
+        }
+        Ok(results)
+    }
 }
 
 impl Plot for DensityPlot {

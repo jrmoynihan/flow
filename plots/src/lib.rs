@@ -42,6 +42,9 @@ pub mod options;
 pub mod plots;
 pub mod render;
 
+#[cfg(feature = "gpu")]
+pub mod gpu;
+
 // Re-export commonly used types
 pub use colormap::ColorMaps;
 pub use options::{AxisOptions, BasePlotOptions, DensityPlotOptions, PlotOptions};

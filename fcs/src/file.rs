@@ -20,7 +20,6 @@ use byteorder::{BigEndian as BE, ByteOrder as BO, LittleEndian as LE};
 use itertools::{Itertools, MinMaxResult};
 use memmap3::{Mmap, MmapOptions};
 use ndarray::Array2;
-use ndarray_linalg::Inverse;
 use polars::prelude::*;
 use rayon::prelude::*;
 
@@ -1323,10 +1322,13 @@ impl Fcs {
 
         // Try to get compensation matrix from $SPILLOVER (FCS 3.1+), $SPILL (unofficial/custom), or $COMP (FCS 3.0)
         // Check in order of preference: SPILLOVER (official) > SPILL (common) > COMP (legacy)
-        let spillover_keyword = self.metadata.keywords.get("$SPILLOVER")
+        let spillover_keyword = self
+            .metadata
+            .keywords
+            .get("$SPILLOVER")
             .or_else(|| self.metadata.keywords.get("$SPILL"))
             .or_else(|| self.metadata.keywords.get("$COMP"));
-        
+
         let spillover_keyword = match spillover_keyword {
             Some(Keyword::Mixed(MixedKeyword::SPILLOVER {
                 n_parameters,
@@ -1349,12 +1351,13 @@ impl Fcs {
                 } else {
                     return Ok(None);
                 };
-                
+
                 // Try to get the raw string value and parse it
                 // This handles the case where $SPILL/$COMP was stored as String(Other) because
                 // it wasn't recognized during initial parsing
-                if let Some(Keyword::String(crate::keyword::StringKeyword::Other(value))) = 
-                    self.metadata.keywords.get(keyword_name) {
+                if let Some(Keyword::String(crate::keyword::StringKeyword::Other(value))) =
+                    self.metadata.keywords.get(keyword_name)
+                {
                     // Parse the string value as SPILLOVER using the same logic as parse_spillover
                     let parts: Vec<&str> = value.trim().split(',').collect();
                     if !parts.is_empty() {
@@ -1364,14 +1367,16 @@ impl Fcs {
                                     .iter()
                                     .map(|s| s.trim().to_string())
                                     .collect();
-                                
+
                                 let expected_matrix_size = n_parameters * n_parameters;
                                 let matrix_start = 1 + n_parameters;
-                                
+
                                 if parts.len() >= matrix_start + expected_matrix_size {
                                     // Parse matrix values (handle comma decimal separator)
                                     let mut matrix_values = Vec::new();
-                                    for part in &parts[matrix_start..matrix_start + expected_matrix_size] {
+                                    for part in
+                                        &parts[matrix_start..matrix_start + expected_matrix_size]
+                                    {
                                         let cleaned = part.trim().replace(',', ".");
                                         if let Ok(val) = cleaned.parse::<f32>() {
                                             matrix_values.push(val);
@@ -1379,10 +1384,19 @@ impl Fcs {
                                             break; // Failed to parse, give up
                                         }
                                     }
-                                    
+
                                     if matrix_values.len() == expected_matrix_size {
-                                        let matrix = Array2::from_shape_vec((n_parameters, n_parameters), matrix_values)
-                                            .map_err(|e| anyhow!("Failed to create compensation matrix from {}: {}", keyword_name, e))?;
+                                        let matrix = Array2::from_shape_vec(
+                                            (n_parameters, n_parameters),
+                                            matrix_values,
+                                        )
+                                        .map_err(|e| {
+                                            anyhow!(
+                                                "Failed to create compensation matrix from {}: {}",
+                                                keyword_name,
+                                                e
+                                            )
+                                        })?;
                                         return Ok(Some((matrix, parameter_names)));
                                     }
                                 }
@@ -1390,8 +1404,11 @@ impl Fcs {
                         }
                     }
                 }
-                
-                return Err(anyhow!("{} keyword exists but has wrong type or could not be parsed", keyword_name));
+
+                return Err(anyhow!(
+                    "{} keyword exists but has wrong type or could not be parsed",
+                    keyword_name
+                ));
             }
             None => {
                 // No spillover keyword - this is fine, not all files have it
@@ -1585,6 +1602,7 @@ impl Fcs {
             sub
         };
 
+        // Use CPU compensation (benchmarked: GPU was slower due to transfer overhead)
         // Invert sub-matrix
         use ndarray_linalg::Inverse;
         let comp_inv = sub_matrix
@@ -1669,8 +1687,10 @@ impl Fcs {
             channel_data.push(data.to_vec());
         }
 
+        // Use CPU compensation (benchmarked: GPU was slower due to transfer overhead)
         // Apply compensation: compensated = original * inverse(compensation_matrix)
         // For efficiency, we pre-compute the inverse
+        use ndarray_linalg::Inverse;
         let comp_inv = compensation_matrix
             .inv()
             .map_err(|e| anyhow!("Failed to invert compensation matrix: {:?}", e))?;
