@@ -162,8 +162,22 @@ impl Hash for TransformType {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         match self {
             TransformType::Linear => "linear".hash(state),
-            TransformType::Arcsinh { cofactor: _ } => "arcsinh".hash(state),
-            TransformType::Biexponential { .. } => "biexponential".hash(state),
+            TransformType::Arcsinh { cofactor } => {
+                "arcsinh".hash(state);
+                cofactor.to_bits().hash(state);
+            }
+            TransformType::Biexponential {
+                top_of_scale,
+                positive_decades,
+                negative_decades,
+                width,
+            } => {
+                "biexponential".hash(state);
+                top_of_scale.to_bits().hash(state);
+                positive_decades.to_bits().hash(state);
+                negative_decades.to_bits().hash(state);
+                width.to_bits().hash(state);
+            }
         }
     }
 }
@@ -193,4 +207,23 @@ fn test_transform() {
     assert!(!t.transform(&-1.0).is_nan());
     assert!(!t.transform(&0.0).is_nan());
     assert!(!t.transform(&-200.0).is_nan());
+}
+
+#[test]
+fn test_transform_type_partial_eq_and_hash_consistency() {
+    use std::hash::{Hash, Hasher};
+    let a = TransformType::Arcsinh { cofactor: 200.0 };
+    let b = TransformType::Arcsinh { cofactor: 200.0 };
+    let c = TransformType::Arcsinh { cofactor: 150.0 };
+    assert_eq!(a, b);
+    assert_ne!(a, c);
+    // Equal values must have the same hash (Hash + PartialEq consistency)
+    let mut hasher_a = std::collections::hash_map::DefaultHasher::new();
+    let mut hasher_b = std::collections::hash_map::DefaultHasher::new();
+    a.hash(&mut hasher_a);
+    b.hash(&mut hasher_b);
+    assert_eq!(hasher_a.finish(), hasher_b.finish());
+    c.hash(&mut hasher_a);
+    b.hash(&mut hasher_b);
+    assert_ne!(hasher_a.finish(), hasher_b.finish());
 }
