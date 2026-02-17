@@ -46,7 +46,8 @@ pub fn create_synthetic_fcs(n_events: usize, scenario: TestScenario) -> Result<F
     columns.push(Column::new("SSC-A".into(), ssc_a));
     columns.push(Column::new("SSC-H".into(), ssc_h));
 
-    let df = DataFrame::new(columns).expect("Failed to create test DataFrame");
+    let height = n_events;
+    let df = DataFrame::new(height, columns).expect("Failed to create test DataFrame");
 
     // Create parameter map
     let mut params = ParameterMap::default();
@@ -100,7 +101,7 @@ pub enum TestScenario {
 /// Creates a tight cluster around a center point with Gaussian distributions.
 fn generate_single_population(n_events: usize) -> (Vec<f32>, Vec<f32>, Vec<f32>, Vec<f32>, Vec<f32>) {
     use rand_distr::{Distribution, Normal};
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rng();
     
     // Use Gaussian distributions for realistic flow cytometry data
     let fsc_dist = Normal::new(50000.0, 12000.0).unwrap();
@@ -142,7 +143,7 @@ fn generate_single_population(n_events: usize) -> (Vec<f32>, Vec<f32>, Vec<f32>,
 /// Creates two distinct populations with different scatter characteristics.
 fn generate_multi_population(n_events: usize) -> (Vec<f32>, Vec<f32>, Vec<f32>, Vec<f32>, Vec<f32>) {
     use rand_distr::{Distribution, Normal};
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rng();
     
     // Two distinct populations with Gaussian distributions
     let pop1_fsc_dist = Normal::new(30000.0, 8000.0).unwrap();
@@ -191,7 +192,7 @@ fn generate_multi_population(n_events: usize) -> (Vec<f32>, Vec<f32>, Vec<f32>, 
 /// Creates singlet population plus doublet population with higher FSC-A/FSC-H ratios.
 fn generate_with_doublets(n_events: usize) -> (Vec<f32>, Vec<f32>, Vec<f32>, Vec<f32>, Vec<f32>) {
     use rand_distr::{Distribution, Normal};
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rng();
     
     let singlet_fsc_dist = Normal::new(50000.0, 12000.0).unwrap();
     let singlet_ssc_dist = Normal::new(30000.0, 9000.0).unwrap();
@@ -238,7 +239,7 @@ fn generate_with_doublets(n_events: usize) -> (Vec<f32>, Vec<f32>, Vec<f32>, Vec
 /// Creates data with high noise and less clear patterns.
 fn generate_noisy_data(n_events: usize) -> (Vec<f32>, Vec<f32>, Vec<f32>, Vec<f32>, Vec<f32>) {
     use rand_distr::{Distribution, Normal};
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rng();
     
     // Wider distributions for noisy data
     let fsc_dist = Normal::new(50000.0, 25000.0).unwrap();
@@ -270,7 +271,7 @@ fn generate_noisy_data(n_events: usize) -> (Vec<f32>, Vec<f32>, Vec<f32>, Vec<f3
 /// Creates main population plus debris population near origin (low FSC/SSC).
 fn generate_with_debris(n_events: usize) -> (Vec<f32>, Vec<f32>, Vec<f32>, Vec<f32>, Vec<f32>) {
     use rand_distr::{Distribution, Normal};
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rng();
     
     // Main population
     let main_fsc_dist = Normal::new(50000.0, 12000.0).unwrap();
