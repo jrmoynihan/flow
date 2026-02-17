@@ -1,5 +1,6 @@
 use crate::colormap::ColorMaps;
 use crate::options::{AxisOptions, BasePlotOptions, PlotOptions};
+use crate::plots::PlotType;
 use derive_builder::Builder;
 
 /// Options for density plots
@@ -42,6 +43,22 @@ pub struct DensityPlotOptions {
     /// Color map to use for density visualization
     #[builder(default = "ColorMaps::Viridis")]
     pub colormap: ColorMaps,
+
+    /// Plot type (density, scatter, contour, etc.)
+    #[builder(default)]
+    pub plot_type: PlotType,
+
+    /// Point size in pixels for scatter plots (0.5–4.0)
+    #[builder(default = "1.0")]
+    pub point_size: f32,
+
+    /// Contour line thickness in pixels (when plot_type is Contour)
+    #[builder(default = "1.0")]
+    pub contour_line_thickness: f32,
+
+    /// Number of contour levels (when plot_type is Contour)
+    #[builder(default = "5")]
+    pub contour_level_count: u32,
 }
 
 impl Default for DensityPlotOptions {
@@ -51,6 +68,10 @@ impl Default for DensityPlotOptions {
             x_axis: AxisOptions::default(),
             y_axis: AxisOptions::default(),
             colormap: ColorMaps::Viridis,
+            plot_type: PlotType::Density,
+            point_size: 1.0,
+            contour_line_thickness: 1.0,
+            contour_level_count: 5,
         }
     }
 }

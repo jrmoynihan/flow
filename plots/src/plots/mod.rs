@@ -8,19 +8,43 @@ pub use traits::Plot;
 
 /// Plot type enumeration
 ///
-/// This enum can be used to dispatch to different plot implementations.
-/// However, for better type safety and extensibility, prefer using the
-/// `Plot` trait directly with specific plot types.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// Maps to UI labels: Scatterplot (Solid), Scatterplot (Density), etc.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum PlotType {
-    /// Dot plot (scatter plot)
-    Dot,
-    /// Density plot (2D histogram)
+    /// Monocolor scatter (Scatterplot Solid)
+    ScatterSolid,
+    /// Density heatmap (Scatterplot Density)
     Density,
-    /// Contour plot
+    /// Z-axis colored scatter (Scatterplot Colored-continuous)
+    ScatterColoredContinuous,
+    /// Metadata-group colored (Scatterplot Overlay)
+    ScatterOverlay,
+    /// Contour lines from KDE
     Contour,
-    /// Zebra plot
+    /// Contour with metadata groups
+    ContourOverlay,
+    /// Legacy alias for ScatterSolid
+    #[serde(alias = "dot")]
+    Dot,
+    /// Legacy alias for Contour
     Zebra,
     /// Histogram plot
     Histogram,
+}
+
+impl Default for PlotType {
+    fn default() -> Self {
+        PlotType::Density
+    }
+}
+
+impl PlotType {
+    /// Normalize legacy variants to canonical form for dispatch
+    pub fn canonical(self) -> Self {
+        match self {
+            PlotType::Dot => PlotType::ScatterSolid,
+            other => other,
+        }
+    }
 }

@@ -3,6 +3,7 @@ use serde::Serialize;
 use ts_rs::TS;
 
 use crate::options::{DensityPlotOptions, PlotOptions};
+use crate::plots::PlotType;
 
 /// Optimized density calculation with pixel-based rendering
 ///
@@ -110,6 +111,104 @@ pub fn create_binary_chunk(
         total_width: plot_width,
         total_height: plot_height,
     })
+}
+
+/// Convert scatter (x,y) points to RawPixelData for solid scatter plots
+///
+/// Each point is drawn as a small square of pixels. point_size controls the radius.
+/// Uses a single color (dark gray) for all points.
+pub fn scatter_to_pixels(
+    data: &[(f32, f32)],
+    width: usize,
+    height: usize,
+    options: &DensityPlotOptions,
+) -> Vec<RawPixelData> {
+    let point_size = options.point_size.max(0.5).min(4.0);
+    let radius_px = (point_size.ceil() as usize).max(1);
+
+    let scale_x = width as f32 / (*options.x_axis.range.end() - *options.x_axis.range.start());
+    let scale_y = height as f32 / (*options.y_axis.range.end() - *options.y_axis.range.start());
+
+    // Offset in data coordinates for multi-pixel points
+    let dx_data = 0.5 / scale_x;
+    let dy_data = 0.5 / scale_y;
+
+    // Single color for scatter solid
+    let (r, g, b) = (60u8, 60u8, 60u8);
+
+    let mut pixels = Vec::with_capacity(data.len() * (2 * radius_px + 1).pow(2));
+
+    for &(x, y) in data {
+        let pixel_x = (((x - *options.x_axis.range.start()) * scale_x).floor() as isize)
+            .clamp(0, (width - 1) as isize) as usize;
+        let pixel_y = (((y - *options.y_axis.range.start()) * scale_y).floor() as isize)
+            .clamp(0, (height - 1) as isize) as usize;
+
+        for dy in -(radius_px as i32)..=(radius_px as i32) {
+            for dx in -(radius_px as i32)..=(radius_px as i32) {
+                let px = (pixel_x as i32 + dx).clamp(0, (width - 1) as i32) as usize;
+                let py = (pixel_y as i32 + dy).clamp(0, (height - 1) as i32) as usize;
+
+                let data_x = (px as f32 / scale_x) + *options.x_axis.range.start();
+                let data_y = (py as f32 / scale_y) + *options.y_axis.range.start();
+
+                pixels.push(RawPixelData {
+                    x: data_x,
+                    y: data_y,
+                    r,
+                    g,
+                    b,
+                });
+            }
+        }
+    }
+
+    pixels
+}
+
+/// Dispatch to density or scatter based on plot_type
+pub fn calculate_plot_pixels(
+    data: &[(f32, f32)],
+    width: usize,
+    height: usize,
+    options: &DensityPlotOptions,
+) -> Vec<RawPixelData> {
+    match options.plot_type.canonical() {
+        PlotType::ScatterSolid | PlotType::Dot => {
+            scatter_to_pixels(data, width, height, options)
+        }
+        PlotType::Density
+        | PlotType::ScatterColoredContinuous
+        | PlotType::ScatterOverlay
+        | PlotType::Contour
+        | PlotType::ContourOverlay
+        | PlotType::Zebra
+        | PlotType::Histogram => calculate_density_per_pixel(data, width, height, options),
+    }
+}
+
+/// Cancelable version of calculate_plot_pixels
+pub fn calculate_plot_pixels_cancelable(
+    data: &[(f32, f32)],
+    width: usize,
+    height: usize,
+    options: &DensityPlotOptions,
+    should_cancel: impl FnMut() -> bool,
+) -> Option<Vec<RawPixelData>> {
+    match options.plot_type.canonical() {
+        PlotType::ScatterSolid | PlotType::Dot => {
+            Some(scatter_to_pixels(data, width, height, options))
+        }
+        PlotType::Density
+        | PlotType::ScatterColoredContinuous
+        | PlotType::ScatterOverlay
+        | PlotType::Contour
+        | PlotType::ContourOverlay
+        | PlotType::Zebra
+        | PlotType::Histogram => {
+            calculate_density_per_pixel_cancelable(data, width, height, options, should_cancel)
+        }
+    }
 }
 
 pub fn calculate_density_per_pixel(
