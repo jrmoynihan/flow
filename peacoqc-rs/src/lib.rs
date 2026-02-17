@@ -351,19 +351,18 @@ mod flow_fcs_impl {
     ) -> anyhow::Result<Fcs> {
         use tracing::info;
 
-        // Step 1: Apply compensation (if requested)
-        if apply_compensation {
-            if !fcs.has_compensation() {
-                return Err(anyhow::anyhow!(
-                    "Compensation requested but no $SPILLOVER keyword found in FCS file"
-                ));
-            }
+        // Step 1: Apply compensation (if requested and available)
+        // Skip compensation when $SPILLOVER is missing (e.g. some IntelliCyt iQue3 exports);
+        // transformation will use arcsinh fallback instead of biexponential.
+        if apply_compensation && fcs.has_compensation() {
             let compensated_df = fcs
                 .apply_file_compensation()
                 .map_err(|e| anyhow::anyhow!("Failed to apply compensation: {}", e))?;
             // EventDataFrame is already Arc<DataFrame>, no need to wrap again
             fcs.data_frame = compensated_df;
             info!("Applied compensation from $SPILLOVER keyword");
+        } else if apply_compensation && !fcs.has_compensation() {
+            info!("No $SPILLOVER keyword found; skipping compensation (will use arcsinh transform)");
         }
 
         // Step 2: Apply transformation (if requested)
