@@ -208,11 +208,13 @@ fn find_unstable_regions(good_cells: &[bool]) -> Vec<(usize, usize)> {
 /// * `qc_result` - Result from PeacoQC analysis
 /// * `output_path` - Path to save the plot image
 /// * `config` - Plot configuration
+/// * `plot_index` - When `Some(i)`, render only the i-th plot (0 = time, 1..n = channels). Uses full canvas for single plot.
 pub fn create_qc_plots<T: PeacoQCData>(
     fcs: &T,
     qc_result: &PeacoQCResult,
     output_path: impl AsRef<Path>,
     config: QCPlotConfig,
+    plot_index: Option<usize>,
 ) -> Result<()> {
     let output_path = output_path.as_ref();
 
@@ -227,11 +229,24 @@ pub fn create_qc_plots<T: PeacoQCData>(
         return Err(PeacoQCError::ConfigError("No channels to plot".to_string()));
     }
 
-    // Calculate total number of plots needed (1 time plot + N channel plots)
-    let n_plots = 1 + channels.len();
-
-    // Calculate grid dimensions dynamically based on number of plots
-    let (n_rows, n_cols) = calculate_grid_dimensions(n_plots);
+    // When plot_index is set, render only that one plot using full canvas
+    let (_n_plots, n_rows, n_cols) = match plot_index {
+        Some(idx) => {
+            let total = 1 + channels.len();
+            if idx >= total {
+                return Err(PeacoQCError::ConfigError(format!(
+                    "plot_index {} out of range (0..{})",
+                    idx, total
+                )));
+            }
+            (1, 1, 1)
+        }
+        None => {
+            let n = 1 + channels.len();
+            let (r, c) = calculate_grid_dimensions(n);
+            (n, r, c)
+        }
+    };
 
     // Create drawing area
     let root = BitMapBackend::new(output_path, (config.width, config.height)).into_drawing_area();
@@ -242,7 +257,8 @@ pub fn create_qc_plots<T: PeacoQCData>(
     let subplot_areas = root.split_evenly((n_rows, n_cols));
 
     // Plot 1: Time vs events/second
-    {
+    let draw_time = plot_index.map_or(true, |i| i == 0);
+    if draw_time {
         let events_per_sec = calculate_events_per_second(fcs, &time_channel, 1000)?;
 
         if !events_per_sec.is_empty() {
@@ -338,8 +354,19 @@ pub fn create_qc_plots<T: PeacoQCData>(
 
     // Plot channels: Signal value vs cell event
     let total_cells = n_rows * n_cols;
-    for (plot_idx, channel) in channels.iter().enumerate() {
-        let subplot_idx = plot_idx + 1; // +1 because first plot is time plot
+    let channel_iter: Box<dyn Iterator<Item = (usize, &String)>> = match plot_index {
+        Some(i) if i >= 1 && i <= channels.len() => {
+            Box::new(std::iter::once((i - 1, &channels[i - 1])))
+        }
+        Some(_) => Box::new(std::iter::empty()),
+        None => Box::new(channels.iter().enumerate()),
+    };
+    for (plot_idx, channel) in channel_iter {
+        let subplot_idx = if plot_index.is_some() {
+            0 // Single-plot mode: use first (only) cell
+        } else {
+            plot_idx + 1 // +1 because first plot is time plot
+        };
 
         if subplot_idx >= total_cells {
             break;
