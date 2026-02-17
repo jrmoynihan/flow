@@ -72,7 +72,7 @@ mod test_helpers {
 
     fn generate_single_population(n_events: usize) -> (Vec<f32>, Vec<f32>, Vec<f32>, Vec<f32>, Vec<f32>) {
         use rand_distr::{Distribution, Normal};
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         
         // Use Gaussian distributions for realistic flow cytometry data
         // Reduced FSC mean by 35%: 50000 * 0.65 = 32500
@@ -113,7 +113,7 @@ mod test_helpers {
 
     fn generate_multi_population(n_events: usize) -> (Vec<f32>, Vec<f32>, Vec<f32>, Vec<f32>, Vec<f32>) {
         use rand_distr::{Distribution, Normal};
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         
         // Two distinct populations with Gaussian distributions
         // Narrowed distributions for more concentration
@@ -160,7 +160,7 @@ mod test_helpers {
 
     fn generate_with_doublets(n_events: usize) -> (Vec<f32>, Vec<f32>, Vec<f32>, Vec<f32>, Vec<f32>) {
         use rand_distr::{Distribution, Normal};
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         
         // Reduced FSC mean by 35%: 50000 * 0.65 = 32500
         // Narrowed distribution for more concentration
@@ -206,7 +206,7 @@ mod test_helpers {
 
     fn generate_noisy_data(n_events: usize) -> (Vec<f32>, Vec<f32>, Vec<f32>, Vec<f32>, Vec<f32>) {
         use rand_distr::{Distribution, Normal};
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         
         // Narrowed distributions (still wider than others, but more concentrated)
         let fsc_dist = Normal::new(50000.0, 15000.0).unwrap();
@@ -236,7 +236,7 @@ mod test_helpers {
     fn generate_with_debris(n_events: usize) -> (Vec<f32>, Vec<f32>, Vec<f32>, Vec<f32>, Vec<f32>) {
         use rand::Rng;
         use rand_distr::{Distribution, Normal};
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         
         // Narrowed main population distribution for more concentration
         // Debris population keeps original wider distribution
