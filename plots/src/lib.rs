@@ -11,17 +11,20 @@
 //! ## Basic Usage
 //!
 //! ```rust,no_run
-//! use flow_plots::{DensityPlot, DensityPlotOptions};
+//! use flow_plots::{DensityPlot, DensityPlotOptions, Plot};
+//! use flow_plots::options::BasePlotOptions;
 //! use flow_plots::render::RenderConfig;
 //!
+//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! let plot = DensityPlot::new();
 //! let options = DensityPlotOptions::new()
-//!     .width(800)
-//!     .height(600)
+//!     .base(BasePlotOptions::new().width(800u32).height(600u32).build()?)
 //!     .build()?;
 //! let data: Vec<(f32, f32)> = vec![(100.0, 200.0)];
 //! let mut render_config = RenderConfig::default();
 //! let bytes = plot.render(data, &options, &mut render_config)?;
+//! # Ok(())
+//! # }
 //! ```
 //!
 //! ## Architecture

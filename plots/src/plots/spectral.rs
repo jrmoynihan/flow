@@ -20,17 +20,18 @@ use anyhow::Result;
 ///
 /// ```rust,no_run
 /// use flow_plots::plots::spectral::SpectralSignaturePlot;
+/// use flow_plots::plots::traits::Plot;
 /// use flow_plots::options::spectral::SpectralSignaturePlotOptions;
+/// use flow_plots::options::BasePlotOptions;
 /// use flow_plots::render::RenderConfig;
 ///
 /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
 /// let plot = SpectralSignaturePlot::new();
 /// let options = SpectralSignaturePlotOptions::new()
-///     .width(1200)
-///     .height(600)
+///     .base(BasePlotOptions::new().width(1200u32).height(600u32).build()?)
 ///     .build()?;
 /// let data: Vec<(usize, f64)> = vec![(0, 0.1), (1, 0.5), (2, 1.0), (3, 0.8)];
-/// let channel_names = vec!["UV1-A", "UV2-A", "UV3-A", "UV4-A"];
+/// let channel_names: Vec<String> = vec!["UV1-A".into(), "UV2-A".into(), "UV3-A".into(), "UV4-A".into()];
 /// let mut render_config = RenderConfig::default();
 /// let bytes = plot.render((data, channel_names), &options, &mut render_config)?;
 /// # Ok(())

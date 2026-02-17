@@ -11,13 +11,12 @@ use derive_builder::Builder;
 /// # Example
 ///
 /// ```rust,no_run
-/// use flow_plots::options::DensityPlotOptions;
+/// use flow_plots::options::{DensityPlotOptions, BasePlotOptions};
 /// use flow_plots::colormap::ColorMaps;
 ///
 /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
 /// let options = DensityPlotOptions::new()
-///     .width(800)
-///     .height(600)
+///     .base(BasePlotOptions::new().width(800u32).height(600u32).build()?)
 ///     .colormap(ColorMaps::Viridis)
 ///     .build()?;
 /// # Ok(())
