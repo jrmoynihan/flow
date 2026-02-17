@@ -19,7 +19,7 @@ use std::sync::Arc;
 ///
 /// assert_eq!(node.get_coordinate("FSC-A"), Some(1000.0));
 /// ```
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct GateNode {
     /// Unique identifier for this node
     pub id: Arc<str>,
@@ -146,7 +146,7 @@ impl BooleanOperation {
 /// # Ok(())
 /// # }
 /// ```
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(tag = "type")]
 pub enum GateGeometry {
     Polygon {
@@ -853,7 +853,7 @@ pub struct LabelPosition {
 /// # Ok(())
 /// # }
 /// ```
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct Gate {
     #[serde(with = "arc_str_serde")]
     pub id: Arc<str>,

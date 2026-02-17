@@ -6,7 +6,7 @@ use std::hash::Hash;
 /// Transformations are used to convert raw instrument values into display-friendly scales.
 /// The most common transformation for fluorescence data is arcsinh (inverse hyperbolic sine),
 /// which provides a log-like scale that handles both positive and negative values.
-#[derive(Clone, Serialize, Deserialize, Debug)]
+#[derive(Clone, Serialize, Deserialize, Debug, PartialEq)]
 pub enum TransformType {
     /// Linear transformation (no scaling, identity function)
     /// Used for scatter parameters (FSC, SSC) and time
