@@ -282,10 +282,17 @@ pub fn create_qc_plots<T: PeacoQCData>(
                 x_range.0..x_range.1
             };
 
-            let y_range = if y_range.0 == y_range.1 {
-                (y_range.0 - 1.0)..(y_range.1 + 1.0)
+            // Enforce minimum y-scale maximum of 1 event/sec; rates below that show as "low"
+            let actual_y_max = y_range.1;
+            let (y_range, y_max_is_low) = if actual_y_max < 1.0 {
+                (0.0..1.0, true)
             } else {
-                y_range.0..y_range.1
+                let yr = if y_range.0 == y_range.1 {
+                    (y_range.0 - 1.0)..(y_range.1 + 1.0)
+                } else {
+                    y_range.0..y_range.1
+                };
+                (yr, false)
             };
 
             let subplot_area = &subplot_areas[0];
@@ -307,11 +314,27 @@ pub fn create_qc_plots<T: PeacoQCData>(
                     PeacoQCError::ExportError(format!("Failed to build chart: {:?}", e))
                 })?;
 
-            chart
-                .configure_mesh()
-                .x_desc("Time")
-                .y_desc("Nr of cells per second")
-                .draw()
+            let draw_result = if y_max_is_low {
+                chart
+                    .configure_mesh()
+                    .x_desc("Time")
+                    .y_desc("Nr of cells per second")
+                    .y_label_formatter(&|v: &f64| {
+                        if *v >= 0.99 {
+                            "low".to_string()
+                        } else {
+                            format!("{v:.2}")
+                        }
+                    })
+                    .draw()
+            } else {
+                chart
+                    .configure_mesh()
+                    .x_desc("Time")
+                    .y_desc("Nr of cells per second")
+                    .draw()
+            };
+            draw_result
                 .map_err(|e| PeacoQCError::ExportError(format!("Failed to draw mesh: {:?}", e)))?;
 
             // Highlight unstable regions on time plot
