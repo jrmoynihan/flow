@@ -1581,8 +1581,48 @@ impl Fcs {
             .unwrap_or(false)
     }
 
+    /// Resolve spillover channel labels to actual $PnN channel names.
+    /// Some instruments (e.g. IntelliCyt iQue3) use parameter numbers ("1","2","3") in
+    /// $SPILLOVER instead of channel names; these are mapped via metadata.get_parameter_channel_name.
+    fn resolve_spillover_channel_names(&self, channel_names: &[String]) -> Result<Vec<String>> {
+        let mut resolved = Vec::with_capacity(channel_names.len());
+        for name in channel_names {
+            let resolved_name = if let Ok(param_idx) = name.trim().parse::<usize>() {
+                if param_idx >= 1 {
+                    self.metadata
+                        .get_parameter_channel_name(param_idx)
+                        .map(|s| s.to_string())
+                        .map_err(|e| {
+                            anyhow!(
+                                "Parameter {} not found: spillover references \"{}\" but {}",
+                                param_idx,
+                                name,
+                                e
+                            )
+                        })?
+                } else {
+                    name.clone()
+                }
+            } else {
+                name.clone()
+            };
+            if !self.parameters.contains_key(resolved_name.as_str()) {
+                return Err(anyhow!(
+                    "Spillover channel \"{}\" (resolved) not found in parameters",
+                    resolved_name
+                ));
+            }
+            resolved.push(resolved_name);
+        }
+        Ok(resolved)
+    }
+
     /// Apply compensation from the file's $SPILLOVER keyword
     /// Convenience method that extracts spillover and applies it automatically
+    ///
+    /// Resolves spillover channel labels: some instruments (e.g. IntelliCyt iQue3) use
+    /// parameter numbers ("1", "2", "3") in $SPILLOVER instead of $PnN names; these are
+    /// mapped to actual channel names via metadata.
     ///
     /// # Returns
     /// New DataFrame with compensated data, or error if no spillover keyword exists
@@ -1591,7 +1631,8 @@ impl Fcs {
             .get_spillover_matrix()?
             .ok_or_else(|| anyhow!("No $SPILLOVER keyword found in FCS file"))?;
 
-        let channel_refs: Vec<&str> = channel_names.iter().map(|s| s.as_str()).collect();
+        let channel_refs: Vec<String> = self.resolve_spillover_channel_names(&channel_names)?;
+        let channel_refs: Vec<&str> = channel_refs.iter().map(|s| s.as_str()).collect();
 
         self.apply_compensation(comp_matrix.as_ref(), &channel_refs)
     }
