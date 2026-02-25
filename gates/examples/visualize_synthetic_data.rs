@@ -52,7 +52,7 @@ mod test_helpers {
         columns.push(Column::new("SSC-A".into(), ssc_a));
         columns.push(Column::new("SSC-H".into(), ssc_h));
 
-        let df = DataFrame::new(columns).expect("Failed to create test DataFrame");
+        let df = DataFrame::new(n_events, columns).expect("Failed to create test DataFrame");
 
         let mut params = ParameterMap::default();
         params.insert("FSC-A".into(), Parameter::new(&1, "FSC-A", "FSC-A", &TransformType::Linear));
