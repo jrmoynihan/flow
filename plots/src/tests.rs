@@ -167,7 +167,7 @@ mod tests {
 
         assert_eq!(*options.range.start(), 0.0);
         assert_eq!(*options.range.end(), 1000.0);
-        assert!(matches!(options.transform, TransformType::Linear));
+        assert_eq!(options.transform, TransformType::Linear);
         assert_eq!(options.label, Some("X-Axis".to_string()));
     }
 
@@ -179,10 +179,10 @@ mod tests {
             .build()
             .unwrap();
 
-        assert!(matches!(
+        assert_eq!(
             options.transform,
             TransformType::Arcsinh { cofactor: 150.0 }
-        ));
+        );
     }
 
     // ============================================================================
@@ -270,8 +270,8 @@ mod tests {
         assert_eq!(*options.y_axis.range.end(), 200_000.0);
 
         // FSC/SSC should use Linear transform
-        assert!(matches!(options.x_axis.transform, TransformType::Linear));
-        assert!(matches!(options.y_axis.transform, TransformType::Linear));
+        assert_eq!(options.x_axis.transform, TransformType::Linear);
+        assert_eq!(options.y_axis.transform, TransformType::Linear);
 
         // Title should be extracted from $FIL keyword
         assert_eq!(options.base.title, "test_file.fcs");
