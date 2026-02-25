@@ -17,7 +17,7 @@ use flow_plots::{DensityPlot, Plot, SpectralSignaturePlot};
 use flow_plots::{generate_normalized_spectral_signature_plot, generate_signal_heatmap};
 use ndarray::Array2;
 use polars::prelude::*;
-use rand::Rng;
+use rand::{Rng, RngExt};
 use rand_distr::{Distribution, Normal};
 use std::collections::HashMap;
 use std::fs;
@@ -55,7 +55,8 @@ pub fn generate_single_stain_control(
     noise_level: f32,
     output_path: &PathBuf,
 ) -> Result<()> {
-    let mut rng = rand::thread_rng();
+    use rand::RngExt;
+    let mut rng = rand::rng();
 
     // Generate base signal intensity (varies per event)
     let signal_mean = 50000.0;
@@ -133,7 +134,7 @@ pub fn generate_single_stain_control(
                 let af_component = af;
 
                 // Add noise
-                let noise = rng.gen_range(-noise_level..noise_level) * event_signal;
+                let noise = rng.random_range(-noise_level..noise_level) * event_signal;
 
                 // Total signal (ensure non-negative)
                 (spectral_component + af_component + noise).max(0.0)
@@ -154,7 +155,8 @@ pub fn generate_single_stain_control(
     }
 
     // Create DataFrame
-    let df = DataFrame::new(columns).context("Failed to create DataFrame for synthetic control")?;
+    let df = DataFrame::new(n_events, columns)
+        .context("Failed to create DataFrame for synthetic control")?;
 
     // Ensure parent directory exists before writing
     // #region agent log
@@ -368,7 +370,8 @@ pub fn generate_mixed_sample(
     noise_level: f32,
     output_path: &PathBuf,
 ) -> Result<()> {
-    let mut rng = rand::thread_rng();
+    use rand::RngExt;
+    let mut rng = rand::rng();
 
     // Verify dimensions
     if abundances.nrows() != n_events {
@@ -465,7 +468,7 @@ pub fn generate_mixed_sample(
                 total_signal += af;
 
                 // Add noise
-                let noise = rng.gen_range(-noise_level..noise_level) * 50000.0;
+                let noise = rng.random_range(-noise_level..noise_level) * 50000.0;
 
                 // Total signal (ensure non-negative)
                 (total_signal + noise).max(0.0)
@@ -486,8 +489,8 @@ pub fn generate_mixed_sample(
     }
 
     // Create DataFrame
-    let df =
-        DataFrame::new(columns).context("Failed to create DataFrame for synthetic mixed sample")?;
+    let df = DataFrame::new(n_events, columns)
+        .context("Failed to create DataFrame for synthetic mixed sample")?;
 
     // Ensure parent directory exists before writing
     if let Some(parent) = output_path.parent() {
@@ -1281,8 +1284,8 @@ fn create_varying_expression_abundances(
     signatures: &[SpectralSignature],
     sample_idx: usize,
 ) -> Array2<f64> {
-    use rand::Rng;
-    let mut rng = rand::thread_rng();
+    use rand::RngExt;
+    let mut rng = rand::rng();
     let mut abundances = Array2::zeros((n_events, signatures.len()));
 
     // Define expression patterns for each sample
@@ -1314,27 +1317,27 @@ fn create_varying_expression_abundances(
 
     for event_idx in 0..n_events {
         // Randomly select a pattern for this event
-        let pattern_idx = rng.gen_range(0..patterns.len());
+        let pattern_idx = rng.random_range(0..patterns.len());
         let pattern = &patterns[pattern_idx];
 
         // For each fluorophore in the pattern, assign abundance
         for &fluor_idx in pattern {
             // Abundance varies: some cells express strongly, others weakly
-            let base_abundance = if rng.gen_bool(0.7) {
+            let base_abundance = if rng.random_bool(0.7) {
                 // 70% chance of strong expression
-                rng.gen_range(0.6..1.0)
+                rng.random_range(0.6..1.0)
             } else {
                 // 30% chance of weak expression
-                rng.gen_range(0.1..0.5)
+                rng.random_range(0.1..0.5)
             };
             abundances[(event_idx, fluor_idx)] = base_abundance;
         }
 
         // Some events may have additional weak expression from other fluors (spillover-like)
         for fluor_idx in 0..signatures.len() {
-            if !pattern.contains(&fluor_idx) && rng.gen_bool(0.15) {
+            if !pattern.contains(&fluor_idx) && rng.random_bool(0.15) {
                 // 15% chance of weak expression from non-pattern fluors
-                abundances[(event_idx, fluor_idx)] = rng.gen_range(0.05..0.2);
+                abundances[(event_idx, fluor_idx)] = rng.random_range(0.05..0.2);
             }
         }
     }
