@@ -48,7 +48,7 @@ rayon = "1.11"
 
 # Error Handling
 thiserror = "2.0.18"
-anyhow = "1.0.100"
+anyhow = "1.0.102"
 
 # Serialization
 serde = { version = "1.0.228", features = ["derive", "rc"] }
@@ -65,8 +65,8 @@ itertools = "0.14" # For iterating over collections
 derive_builder = "0.20" # For building structs with builder pattern
 byteorder = "1.5" # For dealing with endianness of data
 bytecount = "0.6.4" # For counting bytes in a slice of bytes
-strum = "0.27.2" # For enum-like types
-strum_macros = "0.27.2" # For enum-like types
+strum = "0.28.0" # For enum-like types
+strum_macros = "0.28.0" # For enum-like types
 regex = "1.11.3" # For regular expressions
 bytemuck = { version = "1.24", features = ["derive"] } # Bytemuck for zero-copy bit-cast conversions between types
 rand = "0.10.0"
@@ -74,22 +74,22 @@ rand_distr = "0.6.0"
 ts-rs = "12.0.1"
 
 # CLI (indicatif used in peacoqc-cli, tru-ols-cli)
-clap = { version = "4.5.54", features = ["derive", "cargo"] }
+clap = { version = "4.5.60", features = ["derive", "cargo"] }
 indicatif = "0.18.3"
 
 # Logging/Tracing
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
 
-# Dev-dependencies (benchmarks, tests)
-criterion = { version = "0.8.1", features = ["html_reports"] }
-approx = "0.5.1"
-tempfile = "3.10"
-
 # Visualization (plotters, image used in plots, peacoqc-rs, tru-ols-cli)
 plotters = "0.3.7"
 image = "0.25.9"
 
-
 # CSV (tru-ols-cli)
 csv = "1.3"
+
+# Benchmarks, tests
+criterion = { version = "0.8.1", features = ["html_reports"] }
+approx = "0.5.1"
+tempfile = "3.26"
+loom = "12.0.1" # For multithreaded testing
