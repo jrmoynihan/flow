@@ -29,7 +29,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 <csr-read-only-do-not-edit/>
 
- - 5 commits contributed to the release over the course of 9 calendar days.
+ - 6 commits contributed to the release over the course of 9 calendar days.
  - 10 days passed between releases.
  - 4 commits were understood as [conventional](https://www.conventionalcommits.org).
  - 0 issues like '(#ID)' were seen in commit messages
@@ -41,15 +41,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 <details><summary>view details</summary>
 
  * **Uncategorized**
+    - Release flow-fcs v0.2.2, flow-plots v0.2.2, peacoqc-rs v0.2.2 ([`d8a6922`](https://github.com/jrmoynihan/flow/commit/d8a6922a47b2196a6dcf8362bab067b176757908))
     - Release flow-fcs v0.2.2, flow-plots v0.2.2, peacoqc-rs v0.2.2 ([`cb7b98e`](https://github.com/jrmoynihan/flow/commit/cb7b98ecbc3d012df79c2e70bd2aad2f89d9c303))
     - Update changelogs and READMEs for flow-fcs, flow-plots, peacoqc-rs patch release ([`ec0fcf8`](https://github.com/jrmoynihan/flow/commit/ec0fcf8823f4d35e47d7da935f1e70d1927f0f0c))
     - Enforce minimum y-scale for plots and improve mesh drawing ([`6916425`](https://github.com/jrmoynihan/flow/commit/6916425895d246583109af0b35b9fc60e487ba5c))
     - Add plot_index parameter for selective plot rendering ([`d2faa60`](https://github.com/jrmoynihan/flow/commit/d2faa60c34aacf4bc627e86e314ba3e4ef550797))
     - Improve compensation handling in FCS processing ([`b8041c2`](https://github.com/jrmoynihan/flow/commit/b8041c2bdc2ed688ecbdf3d0babc3fceaad43e63))
 </details>
-
-<csr-unknown>
-Enhanced the mesh drawing logic to conditionally format y-axis labels when the maximum y-value is low.Updated the chart configuration to improve clarity in visual representation of data.Introduced plot_index to allow rendering of a specific plot (0 for time, 1..n for channels) using full canvas.Updated grid dimension calculations to accommodate single plot rendering.Enhanced error handling for out-of-range plot_index values.Adjusted plotting logic to conditionally draw time and channel plots based on plot_index.Added logging to indicate when compensation is skipped due to the absence of the keyword.<csr-unknown/>
 
 ## 0.2.1 (2026-02-16)
 
