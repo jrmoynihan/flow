@@ -5,6 +5,48 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+### New Features
+
+ - <csr-id-42ff5a7c597cdda6b9340c4f98e3f27f6e5a7feb/> enhance density and scatter plot functionality
+   - Added `scatter_to_pixels` function to convert scatter (x,y) points into pixel data for solid scatter plots.
+   - Introduced `calculate_plot_pixels` and `calculate_plot_pixels_cancelable` functions to dispatch between density and scatter plot calculations based on the plot type.
+   - Updated `DensityPlotOptions` to include `plot_type`, `point_size`, `contour_line_thickness`, and `contour_level_count` for better customization.
+   - Enhanced `PlotType` enum with additional variants and a canonical method for legacy support.
+
+### Refactor
+
+ - <csr-id-9292dc407a5eaab2aa949fdfc1d2abdfcb32798d/> replace matches! with assert_eq! for transform type assertions
+   - Updated test assertions to use assert_eq! instead of matches! for checking TransformType values, improving clarity and consistency in test validations.
+   - Ensured that the tests remain robust while enhancing readability of the assertions.
+ - <csr-id-895fb633cf95fe04939a714f7a41f9e019fce35f/> unify plot options initialization with BasePlotOptions
+   - Updated various plot options to utilize BasePlotOptions for consistent width and height settings across DensityPlotOptions and SpectralSignaturePlotOptions.
+   - Enhanced documentation examples to reflect the new initialization method, improving clarity for users.
+   - Removed redundant width and height setters in favor of a unified base configuration.
+
+### Commit Statistics
+
+<csr-read-only-do-not-edit/>
+
+ - 4 commits contributed to the release over the course of 11 calendar days.
+ - 11 days passed between releases.
+ - 3 commits were understood as [conventional](https://www.conventionalcommits.org).
+ - 0 issues like '(#ID)' were seen in commit messages
+
+### Commit Details
+
+<csr-read-only-do-not-edit/>
+
+<details><summary>view details</summary>
+
+ * **Uncategorized**
+    - Replace matches! with assert_eq! for transform type assertions ([`9292dc4`](https://github.com/jrmoynihan/flow/commit/9292dc407a5eaab2aa949fdfc1d2abdfcb32798d))
+    - Unify plot options initialization with BasePlotOptions ([`895fb63`](https://github.com/jrmoynihan/flow/commit/895fb633cf95fe04939a714f7a41f9e019fce35f))
+    - Enhance density and scatter plot functionality ([`42ff5a7`](https://github.com/jrmoynihan/flow/commit/42ff5a7c597cdda6b9340c4f98e3f27f6e5a7feb))
+    - Merge pull request #14 from jrmoynihan/gpu-acceleration ([`01edbec`](https://github.com/jrmoynihan/flow/commit/01edbecfc222685a8e052eb26b001d3fae4dfe13))
+</details>
+
 ## 0.2.1 (2026-02-15)
 
 <csr-id-46bee42d4f28d185b38446c0d950c2579c422f43/>
@@ -37,7 +79,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 <csr-read-only-do-not-edit/>
 
- - 6 commits contributed to the release over the course of 24 calendar days.
+ - 7 commits contributed to the release over the course of 24 calendar days.
  - 24 days passed between releases.
  - 4 commits were understood as [conventional](https://www.conventionalcommits.org).
  - 0 issues like '(#ID)' were seen in commit messages
@@ -49,6 +91,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 <details><summary>view details</summary>
 
  * **Uncategorized**
+    - Release flow-fcs v0.2.1, flow-plots v0.2.1, flow-utils v0.1.0, flow-gates v0.2.1, peacoqc-rs v0.2.0, peacoqc-cli v0.2.0, flow-tru-ols v0.1.0, flow-tru-ols-cli v0.1.0 ([`b758024`](https://github.com/jrmoynihan/flow/commit/b7580243ad5dfba389d80f55d9d2b0a0adf26348))
     - Release flow-fcs v0.2.1, flow-plots v0.2.1, flow-utils v0.1.0, flow-gates v0.2.1, peacoqc-rs v0.2.0, peacoqc-cli v0.2.0, flow-tru-ols v0.1.0, flow-tru-ols-cli v0.1.0 ([`1e3ae1e`](https://github.com/jrmoynihan/flow/commit/1e3ae1e2a91b53f70120cb96987ba5a8f02dc21e))
     - Update changelogs prior to release ([`089feff`](https://github.com/jrmoynihan/flow/commit/089feff624625a5ddf0b1da570e4f60b6fedf09b))
     - Update dependencies and align workspace configurations ([`46bee42`](https://github.com/jrmoynihan/flow/commit/46bee42d4f28d185b38446c0d950c2579c422f43))
@@ -56,9 +99,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - Clean up unused imports and variables ([`c987a22`](https://github.com/jrmoynihan/flow/commit/c987a225570c2afae480800327d0072ab4b4e4ad))
     - Merge pull request #10 from jrmoynihan/gpu-acceleration ([`69363eb`](https://github.com/jrmoynihan/flow/commit/69363eb3a664b1aa6cd0be9b980ec08fc03b7955))
 </details>
-
-<csr-unknown>
-Add signal heatmap for spectral visualizationExtend plotters backend for new plot types<csr-unknown/>
 
 ## 0.2.0 (2026-01-21)
 

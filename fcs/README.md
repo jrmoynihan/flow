@@ -44,7 +44,7 @@ Add this to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-flow-fcs = "0.1.0"
+flow-fcs = "0.2.2"
 ```
 
 ### Optional Features
@@ -53,7 +53,7 @@ flow-fcs = "0.1.0"
 
 ```toml
 [dependencies]
-flow-fcs = { version = "0.1.0", features = ["typescript"] }
+flow-fcs = { version = "0.2.2", features = ["typescript"] }
 ```
 
 ## Quick Start

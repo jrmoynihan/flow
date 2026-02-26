@@ -22,14 +22,14 @@ Add this to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-peacoqc-rs = { path = "../peacoqc-rs", version = "0.1.0", features = ["flow-fcs"] }
+peacoqc-rs = { path = "../peacoqc-rs", version = "0.2.2", features = ["flow-fcs"] }
 ```
 
 Or from crates.io (when published):
 
 ```toml
 [dependencies]
-peacoqc-rs = { version = "0.1.0", features = ["flow-fcs"] }
+peacoqc-rs = { version = "0.2.2", features = ["flow-fcs"] }
 ```
 
 ### Feature Flags

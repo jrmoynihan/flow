@@ -5,28 +5,69 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+### New Features
+
+ - <csr-id-6916425895d246583109af0b35b9fc60e487ba5c/> enforce minimum y-scale for plots and improve mesh drawing
+   - Implemented a minimum y-scale of 1 event/sec for plots, adjusting the y-range accordingly.
+   - Enhanced the mesh drawing logic to conditionally format y-axis labels when the maximum y-value is low.
+   - Updated the chart configuration to improve clarity in visual representation of data.
+ - <csr-id-d2faa60c34aacf4bc627e86e314ba3e4ef550797/> add plot_index parameter for selective plot rendering
+   - Introduced `plot_index` to allow rendering of a specific plot (0 for time, 1..n for channels) using full canvas.
+   - Updated grid dimension calculations to accommodate single plot rendering.
+   - Enhanced error handling for out-of-range `plot_index` values.
+   - Adjusted plotting logic to conditionally draw time and channel plots based on `plot_index`.
+
+### Bug Fixes
+
+ - <csr-id-b8041c2bdc2ed688ecbdf3d0babc3fceaad43e63/> improve compensation handling in FCS processing
+   - Updated compensation logic to skip processing when $SPILLOVER keyword is missing, using arcsinh fallback instead.
+   - Added logging to indicate when compensation is skipped due to the absence of the keyword.
+
+### Commit Statistics
+
+<csr-read-only-do-not-edit/>
+
+ - 3 commits contributed to the release over the course of 9 calendar days.
+ - 10 days passed between releases.
+ - 3 commits were understood as [conventional](https://www.conventionalcommits.org).
+ - 0 issues like '(#ID)' were seen in commit messages
+
+### Commit Details
+
+<csr-read-only-do-not-edit/>
+
+<details><summary>view details</summary>
+
+ * **Uncategorized**
+    - Enforce minimum y-scale for plots and improve mesh drawing ([`6916425`](https://github.com/jrmoynihan/flow/commit/6916425895d246583109af0b35b9fc60e487ba5c))
+    - Add plot_index parameter for selective plot rendering ([`d2faa60`](https://github.com/jrmoynihan/flow/commit/d2faa60c34aacf4bc627e86e314ba3e4ef550797))
+    - Improve compensation handling in FCS processing ([`b8041c2`](https://github.com/jrmoynihan/flow/commit/b8041c2bdc2ed688ecbdf3d0babc3fceaad43e63))
+</details>
+
 ## 0.2.1 (2026-02-16)
 
 ### Documentation
 
  - <csr-id-a6df2248b415f4cb6650b4a3efc96a6f80f2a1ee/> improve formatting and clarity in DEV_NOTES.md
    - Updated table formatting for batched operations to enhance readability.
-   - Added backticks around `cubeCL` and `burn` for consistency in terminology.
-   - Clarified GPU usage and fallback mechanisms in implementation details.
+- Added backticks around `cubeCL` and `burn` for consistency in terminology.
+- Clarified GPU usage and fallback mechanisms in implementation details.
 
 ### New Features
 
  - <csr-id-442c53cc3018e84661fca51603e175c67be11531/> add Serialize/Deserialize and Clone/PartialEq derives
    - Add Serialize/Deserialize to PeacoQCResult, PeakInfo, ChannelPeakFrame
-   - Add #[serde(skip)] on PeacoQCResult.good_cells for JSON sidecar use
-   - Add Clone to result types (PeacoQCResult, IsolationTreeResult, etc.)
-   - Add PartialEq to config types (PeakDetectionConfig, MADConfig, etc.)
+- Add #[serde(skip)] on PeacoQCResult.good_cells for JSON sidecar use
+- Add Clone to result types (PeacoQCResult, IsolationTreeResult, etc.)
+- Add PartialEq to config types (PeakDetectionConfig, MADConfig, etc.)
 
 ### Commit Statistics
 
 <csr-read-only-do-not-edit/>
 
- - 3 commits contributed to the release.
+ - 4 commits contributed to the release.
  - 2 commits were understood as [conventional](https://www.conventionalcommits.org).
  - 0 issues like '(#ID)' were seen in commit messages
 
@@ -37,6 +78,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 <details><summary>view details</summary>
 
  * **Uncategorized**
+    - Release peacoqc-rs v0.2.1, flow-utils v0.1.1, flow-gates v0.2.2, flow-tru-ols v0.1.0 ([`c3d9774`](https://github.com/jrmoynihan/flow/commit/c3d97742b3f83d01f1b831eea6eb662a2511adb9))
     - Improve formatting and clarity in DEV_NOTES.md ([`a6df224`](https://github.com/jrmoynihan/flow/commit/a6df2248b415f4cb6650b4a3efc96a6f80f2a1ee))
     - Add Serialize/Deserialize and Clone/PartialEq derives ([`442c53c`](https://github.com/jrmoynihan/flow/commit/442c53cc3018e84661fca51603e175c67be11531))
     - Merge pull request #14 from jrmoynihan/gpu-acceleration ([`01edbec`](https://github.com/jrmoynihan/flow/commit/01edbecfc222685a8e052eb26b001d3fae4dfe13))
