@@ -101,7 +101,6 @@ pub enum MixedKeyword {
     /// Gate n amplification type.
     ///
     /// *<small>(FCS v2.0-3.1, deprecated)</small>*
-    #[deprecated(since = "3.1.0", note = "Use PnE instead")]
     GnE(f32, f32),
 
     /// Region n width values - vector of width values for region boundaries
@@ -125,7 +124,6 @@ pub enum MixedKeyword {
 }
 
 impl StringableKeyword for MixedKeyword {
-    #[allow(deprecated)]
     fn get_str(&self) -> Cow<'_, str> {
         match self {
             Self::PnCalibration(f1, s) => Cow::Owned(format!("PnCalibration({}, {})", f1, s)),
@@ -166,7 +164,6 @@ impl StringableKeyword for MixedKeyword {
 
 impl Eq for MixedKeyword {}
 impl Hash for MixedKeyword {
-    #[allow(deprecated)]
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         match self {
             Self::PnCalibration(f1, s) => {
@@ -253,7 +250,6 @@ impl Hash for FloatKeyword {
 }
 
 #[derive(Clone, Debug, Display, Serialize, Deserialize, PartialEq, Eq, Hash)]
-#[allow(deprecated)]
 pub enum StringKeyword {
     /// The name of the cytometer used to acquire the data (FCS 1.0+)
     CYT(Arc<str>),
@@ -311,91 +307,76 @@ pub enum StringKeyword {
     /// Date of data acquisition
     ///
     /// <small>(FCS 2.0-3.1, deprecated in FCS 3.2 in favor of $BEGINDATETIME)</small>
-    #[deprecated(since = "3.2.0", note = "Use BEGINDATETIME instead")]
     DATE(Arc<str>),
 
     /// Begin time of data acquisition
     ///
     /// <small>(FCS 2.0-3.1, deprecated in FCS 3.2 in favor of $BEGINDATETIME)</small>
-    #[deprecated(since = "3.2.0", note = "Use BEGINDATETIME instead")]
     BTIM(Arc<str>),
 
     /// End time of data acquisition
     ///
     /// <small>(FCS 2.0-3.1, deprecated in FCS 3.2 in favor of $ENDDATETIME)</small>
-    #[deprecated(since = "3.2.0", note = "Use ENDDATETIME instead")]
     ETIM(Arc<str>),
 
     /// Data acquisition mode
     ///
     /// <small>(FCS 2.0-3.1, deprecated in FCS 3.2, fixed to "L" list mode)</small>
-    #[deprecated(since = "3.2.0", note = "Fixed to 'L' list mode in FCS 3.2")]
     MODE(Arc<str>),
 
     /// Plate identifier
     ///
     /// <small>(FCS 2.0-3.1, deprecated in FCS 3.2 in favor of $CARRIERID)</small>
-    #[deprecated(since = "3.2.0", note = "Use CARRIERID instead")]
     PLATEID(Arc<str>),
 
     /// Platform/plate name
     ///
     /// <small>(FCS 2.0-3.1, deprecated in FCS 3.2 in favor of $CARRIERTYPE)</small>
-    #[deprecated(since = "3.2.0", note = "Use CARRIERTYPE instead")]
     PLATENAME(Arc<str>),
 
     /// Well identifier
     ///
     /// <small>(FCS 2.0-3.1, deprecated in FCS 3.2 in favor of $LOCATIONID)</small>
-    #[deprecated(since = "3.2.0", note = "Use LOCATIONID instead")]
     WELLID(Arc<str>),
 
     /// Gate definition
     ///
     /// <small>(FCS 2.0-3.1, removed in FCS 3.2)</small>
-    #[deprecated(since = "3.2.0", note = "Gate definitions deprecated")]
     GATE(Arc<str>),
 
     /// Gate n optical filter
     ///
     /// <small>(FCS 2.0-3.1, removed in FCS 3.2)</small>
-    #[deprecated(since = "3.2.0", note = "Gate definitions deprecated")]
     GnF(Arc<str>),
 
     /// Gate n short name
     ///
     /// <small>(FCS 2.0-3.1, removed in FCS 3.2)</small>
-    #[deprecated(since = "3.2.0", note = "Gate definitions deprecated")]
     GnN(Arc<str>),
 
     /// Gate n population name
     ///
     /// <small>(FCS 2.0-3.1, removed in FCS 3.2)</small>
-    #[deprecated(since = "3.2.0", note = "Gate definitions deprecated")]
     GnP(Arc<str>),
 
     /// Gate n range
     ///
     /// <small>(FCS 2.0-3.1, removed in FCS 3.2)</small>
-    #[deprecated(since = "3.2.0", note = "Gate definitions deprecated")]
     GnR(Arc<str>),
 
     /// Gate n label name
     ///
     /// <small>(FCS 2.0-3.1, removed in FCS 3.2)</small>
-    #[deprecated(since = "3.2.0", note = "Gate definitions deprecated")]
     GnS(Arc<str>),
 
     /// Gate n threshold
     ///
     /// <small>(FCS 2.0-3.1, removed in FCS 3.2)</small>
-    #[deprecated(since = "3.2.0", note = "Gate definitions deprecated")]
     GnT(Arc<str>),
 
     /// Gate n voltage range
     ///
     /// <small>(FCS 2.0-3.1, removed in FCS 3.2)</small>
-    #[deprecated(since = "3.2.0", note = "Gate definitions deprecated")]
     GnV(Arc<str>),
 
     /// A catch-all for other keywords, to be stored as Arc<str>
@@ -454,7 +435,6 @@ impl FloatableKeyword for FloatKeyword {
 
 impl StringableKeyword for StringKeyword {
     /// Get a reference to the string value (if it exists) from a StringKeyword variant
-    #[allow(deprecated)]
     fn get_str(&self) -> Cow<'_, str> {
         match self {
             Self::CYT(value)
