@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 0.2.2 (2026-02-26)
 
+<csr-id-ec0fcf8823f4d35e47d7da935f1e70d1927f0f0c/>
+
 ### Chore
 
  - <csr-id-ec0fcf8823f4d35e47d7da935f1e70d1927f0f0c/> update changelogs and READMEs for flow-fcs, flow-plots, peacoqc-rs patch release
@@ -17,24 +19,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
  - <csr-id-6916425895d246583109af0b35b9fc60e487ba5c/> enforce minimum y-scale for plots and improve mesh drawing
    - Implemented a minimum y-scale of 1 event/sec for plots, adjusting the y-range accordingly.
-- Enhanced the mesh drawing logic to conditionally format y-axis labels when the maximum y-value is low.
-- Updated the chart configuration to improve clarity in visual representation of data.
-- Introduced `plot_index` to allow rendering of a specific plot (0 for time, 1..n for channels) using full canvas.
-- Updated grid dimension calculations to accommodate single plot rendering.
-- Enhanced error handling for out-of-range `plot_index` values.
-- Adjusted plotting logic to conditionally draw time and channel plots based on `plot_index`.
 
 ### Bug Fixes
 
  - <csr-id-b8041c2bdc2ed688ecbdf3d0babc3fceaad43e63/> improve compensation handling in FCS processing
    - Updated compensation logic to skip processing when $SPILLOVER keyword is missing, using arcsinh fallback instead.
-- Added logging to indicate when compensation is skipped due to the absence of the keyword.
 
 ### Commit Statistics
 
 <csr-read-only-do-not-edit/>
 
- - 4 commits contributed to the release over the course of 9 calendar days.
+ - 5 commits contributed to the release over the course of 9 calendar days.
  - 10 days passed between releases.
  - 4 commits were understood as [conventional](https://www.conventionalcommits.org).
  - 0 issues like '(#ID)' were seen in commit messages
@@ -46,6 +41,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 <details><summary>view details</summary>
 
  * **Uncategorized**
+    - Release flow-fcs v0.2.2, flow-plots v0.2.2, peacoqc-rs v0.2.2 ([`cb7b98e`](https://github.com/jrmoynihan/flow/commit/cb7b98ecbc3d012df79c2e70bd2aad2f89d9c303))
     - Update changelogs and READMEs for flow-fcs, flow-plots, peacoqc-rs patch release ([`ec0fcf8`](https://github.com/jrmoynihan/flow/commit/ec0fcf8823f4d35e47d7da935f1e70d1927f0f0c))
     - Enforce minimum y-scale for plots and improve mesh drawing ([`6916425`](https://github.com/jrmoynihan/flow/commit/6916425895d246583109af0b35b9fc60e487ba5c))
     - Add plot_index parameter for selective plot rendering ([`d2faa60`](https://github.com/jrmoynihan/flow/commit/d2faa60c34aacf4bc627e86e314ba3e4ef550797))
@@ -53,7 +49,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 </details>
 
 <csr-unknown>
- add plot_index parameter for selective plot rendering<csr-unknown/>
+Enhanced the mesh drawing logic to conditionally format y-axis labels when the maximum y-value is low.Updated the chart configuration to improve clarity in visual representation of data.Introduced plot_index to allow rendering of a specific plot (0 for time, 1..n for channels) using full canvas.Updated grid dimension calculations to accommodate single plot rendering.Enhanced error handling for out-of-range plot_index values.Adjusted plotting logic to conditionally draw time and channel plots based on plot_index.Added logging to indicate when compensation is skipped due to the absence of the keyword.<csr-unknown/>
 
 ## 0.2.1 (2026-02-16)
 
@@ -87,9 +83,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - Add Serialize/Deserialize and Clone/PartialEq derives ([`442c53c`](https://github.com/jrmoynihan/flow/commit/442c53cc3018e84661fca51603e175c67be11531))
     - Merge pull request #14 from jrmoynihan/gpu-acceleration ([`01edbec`](https://github.com/jrmoynihan/flow/commit/01edbecfc222685a8e052eb26b001d3fae4dfe13))
 </details>
-
-<csr-unknown>
-Added backticks around cubeCL and burn for consistency in terminology.Clarified GPU usage and fallback mechanisms in implementation details.Add #[serde(skip)] on PeacoQCResult.good_cells for JSON sidecar useAdd Clone to result types (PeacoQCResult, IsolationTreeResult, etc.)Add PartialEq to config types (PeakDetectionConfig, MADConfig, etc.)<csr-unknown/>
 
 ## 0.2.0 (2026-02-15)
 

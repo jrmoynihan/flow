@@ -9,14 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 <csr-id-9292dc407a5eaab2aa949fdfc1d2abdfcb32798d/>
 <csr-id-895fb633cf95fe04939a714f7a41f9e019fce35f/>
+<csr-id-ec0fcf8823f4d35e47d7da935f1e70d1927f0f0c/>
 
 ### New Features
 
  - <csr-id-42ff5a7c597cdda6b9340c4f98e3f27f6e5a7feb/> enhance density and scatter plot functionality
    - Added `scatter_to_pixels` function to convert scatter (x,y) points into pixel data for solid scatter plots.
-- Introduced `calculate_plot_pixels` and `calculate_plot_pixels_cancelable` functions to dispatch between density and scatter plot calculations based on the plot type.
-- Updated `DensityPlotOptions` to include `plot_type`, `point_size`, `contour_line_thickness`, and `contour_level_count` for better customization.
-- Enhanced `PlotType` enum with additional variants and a canonical method for legacy support.
 
 ### Refactor
 
@@ -36,7 +34,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 <csr-read-only-do-not-edit/>
 
- - 5 commits contributed to the release over the course of 11 calendar days.
+ - 6 commits contributed to the release over the course of 11 calendar days.
  - 11 days passed between releases.
  - 4 commits were understood as [conventional](https://www.conventionalcommits.org).
  - 0 issues like '(#ID)' were seen in commit messages
@@ -48,12 +46,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 <details><summary>view details</summary>
 
  * **Uncategorized**
+    - Release flow-fcs v0.2.2, flow-plots v0.2.2, peacoqc-rs v0.2.2 ([`cb7b98e`](https://github.com/jrmoynihan/flow/commit/cb7b98ecbc3d012df79c2e70bd2aad2f89d9c303))
     - Update changelogs and READMEs for flow-fcs, flow-plots, peacoqc-rs patch release ([`ec0fcf8`](https://github.com/jrmoynihan/flow/commit/ec0fcf8823f4d35e47d7da935f1e70d1927f0f0c))
     - Replace matches! with assert_eq! for transform type assertions ([`9292dc4`](https://github.com/jrmoynihan/flow/commit/9292dc407a5eaab2aa949fdfc1d2abdfcb32798d))
     - Unify plot options initialization with BasePlotOptions ([`895fb63`](https://github.com/jrmoynihan/flow/commit/895fb633cf95fe04939a714f7a41f9e019fce35f))
     - Enhance density and scatter plot functionality ([`42ff5a7`](https://github.com/jrmoynihan/flow/commit/42ff5a7c597cdda6b9340c4f98e3f27f6e5a7feb))
     - Merge pull request #14 from jrmoynihan/gpu-acceleration ([`01edbec`](https://github.com/jrmoynihan/flow/commit/01edbecfc222685a8e052eb26b001d3fae4dfe13))
 </details>
+
+<csr-unknown>
+Introduced calculate_plot_pixels and calculate_plot_pixels_cancelable functions to dispatch between density and scatter plot calculations based on the plot type.Updated DensityPlotOptions to include plot_type, point_size, contour_line_thickness, and contour_level_count for better customization.Enhanced PlotType enum with additional variants and a canonical method for legacy support.<csr-unknown/>
 
 ## 0.2.1 (2026-02-15)
 
