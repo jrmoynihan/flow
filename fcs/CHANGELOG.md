@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## Unreleased
+## 0.2.2 (2026-02-26)
 
 <csr-id-6d8f95797fdd97e7fa1ffa34050cf3fcccb7a1f0/>
 
@@ -22,13 +22,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
    - Eliminated deprecated attributes from the MixedKeyword and StringKeyword enums to clean up the codebase.
    - This change enhances code clarity and prepares for future updates by removing outdated references.
 
+### Chore
+
+ - <csr-id-ec0fcf8823f4d35e47d7da935f1e70d1927f0f0c/> update changelogs and READMEs for flow-fcs, flow-plots, peacoqc-rs patch release
+
 ### Commit Statistics
 
 <csr-read-only-do-not-edit/>
 
- - 6 commits contributed to the release over the course of 11 calendar days.
+ - 7 commits contributed to the release over the course of 11 calendar days.
  - 11 days passed between releases.
- - 3 commits were understood as [conventional](https://www.conventionalcommits.org).
+ - 4 commits were understood as [conventional](https://www.conventionalcommits.org).
  - 0 issues like '(#ID)' were seen in commit messages
 
 ### Commit Details
@@ -38,6 +42,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 <details><summary>view details</summary>
 
  * **Uncategorized**
+    - Update changelogs and READMEs for flow-fcs, flow-plots, peacoqc-rs patch release ([`ec0fcf8`](https://github.com/jrmoynihan/flow/commit/ec0fcf8823f4d35e47d7da935f1e70d1927f0f0c))
     - Remove deprecated attributes from MixedKeyword and StringKeyword enums ([`6d8f957`](https://github.com/jrmoynihan/flow/commit/6d8f95797fdd97e7fa1ffa34050cf3fcccb7a1f0))
     - Enhance hashing for TransformType and add consistency tests ([`d3498c2`](https://github.com/jrmoynihan/flow/commit/d3498c26ef3b77015f87fbe9fbc154d94e7fec41))
     - Merge PR #15: add PartialEq to Gate, GateNode, GateGeometry and TransformType ([`98455bc`](https://github.com/jrmoynihan/flow/commit/98455bc69a3789f5c8eb9741a3cc024451e63a3e))
@@ -45,9 +50,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - Add partialeq ([`e2ac3ec`](https://github.com/jrmoynihan/flow/commit/e2ac3ecf031a6a265c482a08f33ebed5c1f35bdd))
     - Merge pull request #14 from jrmoynihan/gpu-acceleration ([`01edbec`](https://github.com/jrmoynihan/flow/commit/01edbecfc222685a8e052eb26b001d3fae4dfe13))
 </details>
-
-<csr-unknown>
-Added a new test to verify PartialEq and Hash consistency for TransformType, ensuring equal values produce the same hash and unequal values produce different hashes.Implemented resolve_spillover_channel_names to map parameter numbers to actual channel names for instruments like IntelliCyt iQue3.Updated apply_file_compensation to utilize the new resolution method, ensuring proper handling of spillover channels.Enhanced error handling for unresolved channel names during compensation processing.<csr-unknown/>
 
 ## 0.2.1 (2026-02-15)
 
@@ -211,7 +213,7 @@ Added a new test to verify PartialEq and Hash consistency for TransformType, ens
    - Updated benchmarks to use new `MatrixOps` API
 
 <csr-unknown>
-GPU transfer overhead and kernel launch costs exceeded benefits for small-to-medium datasets (10K-1M events, 5-30 channels)CPU BLAS/LAPACK implementations are highly optimized for these matrix sizesSee GPU_BENCHMARKING.md for detailed benchmark results and analysisGPU transfer overhead and kernel launch costs exceeded benefits for small-to-medium datasets (10K-1M events, 5-30 channels)CPU BLAS/LAPACK implementations are highly optimized for these matrix sizesSee GPU_BENCHMARKING.md for detailed benchmark results and analysisGPU transfer overhead and kernel launch costs exceeded benefits for small-to-medium datasets (10K-1M events, 5-30 channels)CPU BLAS/LAPACK implementations are highly optimized for these matrix sizesSee GPU_BENCHMARKING.md for detailed benchmark results and analysisGPU transfer overhead and kernel launch costs exceeded benefits for small-to-medium datasets (10K-1M events, 5-30 channels)CPU BLAS/LAPACK implementations are highly optimized for these matrix sizesSee GPU_BENCHMARKING.md for detailed benchmark results and analysisGPU transfer overhead and kernel launch costs exceeded benefits for small-to-medium datasets (10K-1M events, 5-30 channels)CPU BLAS/LAPACK implementations are highly optimized for these matrix sizesSee GPU_BENCHMARKING.md for detailed benchmark results and analysisGPU transfer overhead and kernel launch costs exceeded benefits for small-to-medium datasets (10K-1M events, 5-30 channels)CPU BLAS/LAPACK implementations are highly optimized for these matrix sizesSee GPU_BENCHMARKING.md for detailed benchmark results and analysisGPU transfer overhead and kernel launch costs exceeded benefits for small-to-medium datasets (10K-1M events, 5-30 channels)CPU BLAS/LAPACK implementations are highly optimized for these matrix sizesSee GPU_BENCHMARKING.md for detailed benchmark results and analysisGPU transfer overhead and kernel launch costs exceeded benefits for small-to-medium datasets (10K-1M events, 5-30 channels)CPU BLAS/LAPACK implementations are highly optimized for these matrix sizesSee GPU_BENCHMARKING.md for detailed benchmark results and analysis<csr-unknown/>
+GPU transfer overhead and kernel launch costs exceeded benefits for small-to-medium datasets (10K-1M events, 5-30 channels)CPU BLAS/LAPACK implementations are highly optimized for these matrix sizesSee GPU_BENCHMARKING.md for detailed benchmark results and analysisGPU transfer overhead and kernel launch costs exceeded benefits for small-to-medium datasets (10K-1M events, 5-30 channels)CPU BLAS/LAPACK implementations are highly optimized for these matrix sizesSee GPU_BENCHMARKING.md for detailed benchmark results and analysisGPU transfer overhead and kernel launch costs exceeded benefits for small-to-medium datasets (10K-1M events, 5-30 channels)CPU BLAS/LAPACK implementations are highly optimized for these matrix sizesSee GPU_BENCHMARKING.md for detailed benchmark results and analysisGPU transfer overhead and kernel launch costs exceeded benefits for small-to-medium datasets (10K-1M events, 5-30 channels)CPU BLAS/LAPACK implementations are highly optimized for these matrix sizesSee GPU_BENCHMARKING.md for detailed benchmark results and analysisGPU transfer overhead and kernel launch costs exceeded benefits for small-to-medium datasets (10K-1M events, 5-30 channels)CPU BLAS/LAPACK implementations are highly optimized for these matrix sizesSee GPU_BENCHMARKING.md for detailed benchmark results and analysisGPU transfer overhead and kernel launch costs exceeded benefits for small-to-medium datasets (10K-1M events, 5-30 channels)CPU BLAS/LAPACK implementations are highly optimized for these matrix sizesSee GPU_BENCHMARKING.md for detailed benchmark results and analysisGPU transfer overhead and kernel launch costs exceeded benefits for small-to-medium datasets (10K-1M events, 5-30 channels)CPU BLAS/LAPACK implementations are highly optimized for these matrix sizesSee GPU_BENCHMARKING.md for detailed benchmark results and analysisGPU transfer overhead and kernel launch costs exceeded benefits for small-to-medium datasets (10K-1M events, 5-30 channels)CPU BLAS/LAPACK implementations are highly optimized for these matrix sizesSee GPU_BENCHMARKING.md for detailed benchmark results and analysisGPU transfer overhead and kernel launch costs exceeded benefits for small-to-medium datasets (10K-1M events, 5-30 channels)CPU BLAS/LAPACK implementations are highly optimized for these matrix sizesSee GPU_BENCHMARKING.md for detailed benchmark results and analysis<csr-unknown/>
 <csr-unknown/>
 
 ## 0.1.5 (2026-01-21)

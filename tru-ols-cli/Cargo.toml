@@ -24,12 +24,12 @@ name = "generate_synthetic_test_data"
 path = "examples/generate_synthetic_test_data.rs"
 
 [dependencies]
-flow-fcs = { path = "../fcs", version = "^0.2.1" }
+flow-fcs = { path = "../fcs", version = "^0.2.2" }
 flow-tru-ols = { path = "../tru-ols", version = "^0.1.0", features = ["flow-fcs", "plotting"] }
-flow-plots = { path = "../plots", version = "^0.2.1" }
+flow-plots = { path = "../plots", version = "^0.2.2" }
 flow-utils = { path = "../utils", version = "^0.1.1" }
 flow-gates = { path = "../gates", version = "^0.2.2" }
-peacoqc-rs = { path = "../peacoqc-rs", version = "^0.2.1", features = ["flow-fcs"] }
+peacoqc-rs = { path = "../peacoqc-rs", version = "^0.2.2", features = ["flow-fcs"] }
 polars = { workspace = true }
 anyhow = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
