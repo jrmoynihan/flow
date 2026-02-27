@@ -33,6 +33,9 @@ pub struct QCPlotConfig {
     /// Color for good data points
     pub good_color: RGBColor,
 
+    /// Color for bad (unstable) data points
+    pub bad_color: RGBColor,
+
     /// Color for median line
     pub median_color: RGBColor,
 
@@ -58,6 +61,7 @@ impl Default for QCPlotConfig {
             n_rows: 6,
             unstable_color: RGBColor(200, 150, 255), // Light purple
             good_color: RGBColor(128, 128, 128),     // Grey
+            bad_color: RGBColor(200, 50, 50),       // Red for bad events
             median_color: RGBColor(0, 0, 0),         // Black
             smoothed_spline_color: RGBColor(255, 0, 0), // Red
             mad_threshold_color: RGBColor(0, 0, 255), // Blue
@@ -474,17 +478,32 @@ pub fn create_qc_plots<T: PeacoQCData>(
             }
         }
 
-        // Draw scatter plot of good values (sample for performance)
+        // Draw scatter plot: bad events first (red), then good (grey), same sampling for performance
         let sample_size = 10000.min(n_events);
-        let step = n_events / sample_size;
+        let step = (n_events / sample_size.max(1)).max(1);
         let mut good_points = Vec::new();
+        let mut bad_points = Vec::new();
 
-        for i in (0..n_events).step_by(step.max(1)) {
+        for i in (0..n_events).step_by(step) {
+            let pt = (cell_indices[i], channel_data[i]);
             if qc_result.good_cells[i] {
-                good_points.push((cell_indices[i], channel_data[i]));
+                good_points.push(pt);
+            } else {
+                bad_points.push(pt);
             }
         }
 
+        if !bad_points.is_empty() {
+            chart
+                .draw_series(
+                    bad_points
+                        .iter()
+                        .map(|(x, y)| Circle::new((*x, *y), 1, config.bad_color.filled())),
+                )
+                .map_err(|e| {
+                    PeacoQCError::ExportError(format!("Failed to draw bad-event circles: {:?}", e))
+                })?;
+        }
         if !good_points.is_empty() {
             chart
                 .draw_series(
