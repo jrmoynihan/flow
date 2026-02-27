@@ -7,12 +7,47 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 0.2.3 (2026-02-26)
 
+### New Features
+
+ - <csr-id-489796d785339fdf8d2c56bd61bf383d60986106/> add example for generating QC plots with synthetic data
+   - Introduced a new example `demo_qc_plot.rs` that demonstrates how to create a QC plot using synthetic FCS-like data.
+   - The example includes functionality to visualize good and bad events, with bad events highlighted in red.
+   - Updated `QCPlotConfig` to include a new `bad_color` field for better visualization of unstable data points.
+   - Enhanced the `create_qc_plots` function to draw bad events before good events for improved clarity in the plot.
+
+### Chore
+
+ - <csr-id-2180ed40f60f01489aa7549809c69bd4efba2be0/> changelog and README for 0.2.3 (QC plot bad-events fix)
+
 ### Bug Fixes
 
  - QC channel plots now draw "bad" (unstable) events in addition to "good" events.
    - Previously only good events (grey points) were drawn; purple rectangles marked unstable regions but the underlying bad-event data was invisible.
    - Bad events are now drawn in a distinct color (red by default), configurable via `QCPlotConfig::bad_color`.
- - Added `demo_qc_plot` example to exercise QC plot rendering including good and bad events.
+- Bad events are now drawn in a distinct color (red by default), configurable via `QCPlotConfig::bad_color`.
+
+### Commit Statistics
+
+<csr-read-only-do-not-edit/>
+
+ - 3 commits contributed to the release.
+ - 2 commits were understood as [conventional](https://www.conventionalcommits.org).
+ - 0 issues like '(#ID)' were seen in commit messages
+
+### Commit Details
+
+<csr-read-only-do-not-edit/>
+
+<details><summary>view details</summary>
+
+ * **Uncategorized**
+    - Changelog and README for 0.2.3 (QC plot bad-events fix) ([`2180ed4`](https://github.com/jrmoynihan/flow/commit/2180ed40f60f01489aa7549809c69bd4efba2be0))
+    - Add example for generating QC plots with synthetic data ([`489796d`](https://github.com/jrmoynihan/flow/commit/489796d785339fdf8d2c56bd61bf383d60986106))
+    - Release flow-plots v0.2.2, peacoqc-rs v0.2.2 ([`4ab83fe`](https://github.com/jrmoynihan/flow/commit/4ab83fe18e7f67bba8c1ce2bf8163e8652a9a592))
+</details>
+
+<csr-unknown>
+Added demo_qc_plot example to exercise QC plot rendering including good and bad events.<csr-unknown/>
 
 ## 0.2.2 (2026-02-26)
 
