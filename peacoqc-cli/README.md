@@ -98,6 +98,29 @@ Options:
   -V, --version                  Print version
 ```
 
+### QC plot options
+
+When generating QC plots (`--plots` or when prompted), the following flags customize the plot image and typography. Omitted options use the library defaults.
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `--plot-dir <PLOT_DIR>` | Directory to save QC plot PNGs | Same as input file (single file) or current dir |
+| `--hide-spline-mad` | Hide spline and MAD threshold lines on channel plots | Shown |
+| `--show-bin-boundaries` | Show bin boundaries (gray vertical lines) on channel plots | Hidden |
+| `--plot-width <PIXELS>` | Plot image width in pixels | 2400 |
+| `--plot-height <PIXELS>` | Plot image height in pixels | 1800 |
+| `--plot-title-size <SIZE>` | Title (caption) font size in points | 22 |
+| `--plot-axis-size <SIZE>` | Axis label font size in points | 20 |
+| `--plot-tick-size <SIZE>` | Tick label font size in points | 17 |
+| `--plot-legend-size <SIZE>` | Legend text font size in points | 17 |
+| `--plot-font <FONT>` | Font family for all plot text (e.g. `sans-serif`, `serif`) | sans-serif |
+
+Example: larger plot and text for presentations:
+
+```bash
+peacoqc data.fcs --plots --plot-dir ./plots --plot-width 3200 --plot-height 2400 --plot-title-size 28 --plot-legend-size 20
+```
+
 ## Examples
 
 ### Process Single File

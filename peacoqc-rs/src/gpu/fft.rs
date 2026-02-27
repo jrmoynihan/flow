@@ -162,33 +162,21 @@ fn multiply_spectra_gpu(
         b_imag.push(c.im);
     }
 
-    // Create tensors - burn 0.20 API
-    // Use TensorData and from_data
+    // Create tensors - burn 0.20 API; Burn's Float is f32, so convert f64 -> f32 for tensor data
     use burn::tensor::TensorData;
-    
-    // Convert f64 to bytes for TensorData
-    let a_re_bytes: Vec<u8> = a_real.iter()
-        .flat_map(|x| x.to_le_bytes())
-        .collect();
-    let a_re_data = TensorData::new(a_re_bytes.into(), vec![n]);
+
+    let a_re_f32: Vec<f32> = a_real.iter().map(|&x| x as f32).collect();
+    let a_im_f32: Vec<f32> = a_imag.iter().map(|&x| x as f32).collect();
+    let b_re_f32: Vec<f32> = b_real.iter().map(|&x| x as f32).collect();
+    let b_im_f32: Vec<f32> = b_imag.iter().map(|&x| x as f32).collect();
+
+    let a_re_data = TensorData::new(a_re_f32.into(), vec![n]);
     let a_re_tensor = Tensor::<Backend, 1, burn::tensor::Float>::from_data(a_re_data, &device);
-    
-    let a_im_bytes: Vec<u8> = a_imag.iter()
-        .flat_map(|x| x.to_le_bytes())
-        .collect();
-    let a_im_data = TensorData::new(a_im_bytes.into(), vec![n]);
+    let a_im_data = TensorData::new(a_im_f32.into(), vec![n]);
     let a_im_tensor = Tensor::<Backend, 1, burn::tensor::Float>::from_data(a_im_data, &device);
-    
-    let b_re_bytes: Vec<u8> = b_real.iter()
-        .flat_map(|x| x.to_le_bytes())
-        .collect();
-    let b_re_data = TensorData::new(b_re_bytes.into(), vec![n]);
+    let b_re_data = TensorData::new(b_re_f32.into(), vec![n]);
     let b_re_tensor = Tensor::<Backend, 1, burn::tensor::Float>::from_data(b_re_data, &device);
-    
-    let b_im_bytes: Vec<u8> = b_imag.iter()
-        .flat_map(|x| x.to_le_bytes())
-        .collect();
-    let b_im_data = TensorData::new(b_im_bytes.into(), vec![n]);
+    let b_im_data = TensorData::new(b_im_f32.into(), vec![n]);
     let b_im_tensor = Tensor::<Backend, 1, burn::tensor::Float>::from_data(b_im_data, &device);
 
     // Complex multiplication: (a_re + i*a_im) * (b_re + i*b_im)
@@ -198,11 +186,11 @@ fn multiply_spectra_gpu(
     let im_result = a_re_tensor.clone().mul(b_im_tensor.clone())
         .add(a_im_tensor.clone().mul(b_re_tensor.clone()));
 
-    // Convert back to complex - burn 0.20 API
+    // Convert back to complex (f32 -> f64)
     let re_data = re_result.to_data();
     let im_data = im_result.to_data();
-    let re_values: Vec<f64> = re_data.as_slice::<f64>().unwrap().to_vec();
-    let im_values: Vec<f64> = im_data.as_slice::<f64>().unwrap().to_vec();
+    let re_values: Vec<f64> = re_data.as_slice::<f32>().unwrap().iter().map(|&x| x as f64).collect();
+    let im_values: Vec<f64> = im_data.as_slice::<f32>().unwrap().iter().map(|&x| x as f64).collect();
 
     let mut result = Vec::with_capacity(n);
     for i in 0..n {

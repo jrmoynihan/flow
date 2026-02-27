@@ -12,6 +12,17 @@ use plotters::prelude::*;
 use plotters::style::{BLACK, RGBAColor, RGBColor, WHITE};
 use std::path::Path;
 
+/// Default grid line color (light gray, supports reading without dominating)
+const GRID_LINE_COLOR: RGBColor = RGBColor(218, 218, 218);
+
+/// Dash length in pixels for MAD threshold lines (plot and legend)
+const MAD_DASH_LEN: u32 = 14;
+/// Gap in pixels between dashes for MAD threshold lines (plot and legend)
+const MAD_DASH_GAP: u32 = 3;
+
+/// Semi-transparent white for legend background (readable over plot)
+const LEGEND_BG_COLOR: RGBAColor = RGBAColor(255, 255, 255, 0.85);
+
 /// Configuration for QC plots
 #[derive(Debug, Clone)]
 pub struct QCPlotConfig {
@@ -50,6 +61,30 @@ pub struct QCPlotConfig {
 
     /// Show bin boundaries (gray vertical lines, default: false)
     pub show_bin_boundaries: bool,
+
+    /// Font size for axis labels (description); default 18
+    pub axis_label_size: u32,
+
+    /// Font size for tick labels; default 15 (one step down from axis labels)
+    pub tick_label_size: u32,
+
+    /// Font size for legend text; default 17
+    pub legend_font_size: u32,
+
+    /// Font size for plot title/caption; default 22
+    pub caption_font_size: u32,
+
+    /// Font family for all text (e.g. "sans-serif", "serif"); None = "sans-serif"
+    pub font_family: Option<String>,
+
+    /// Background color; None = white (light theme)
+    pub background_color: Option<RGBColor>,
+
+    /// Foreground color for text, axes, grid; None = black (for contrast on light background)
+    pub foreground_color: Option<RGBColor>,
+
+    /// Alpha for scatter points (0.0–1.0) to reduce overplotting; None = opaque
+    pub scatter_alpha: Option<f32>,
 }
 
 impl Default for QCPlotConfig {
@@ -61,12 +96,20 @@ impl Default for QCPlotConfig {
             n_rows: 6,
             unstable_color: RGBColor(200, 150, 255), // Light purple
             good_color: RGBColor(128, 128, 128),     // Grey
-            bad_color: RGBColor(200, 50, 50),       // Red for bad events
+            bad_color: RGBColor(200, 50, 50),        // Red for bad events
             median_color: RGBColor(0, 0, 0),         // Black
-            smoothed_spline_color: RGBColor(255, 0, 0), // Red
-            mad_threshold_color: RGBColor(0, 0, 255), // Blue
+            smoothed_spline_color: RGBColor(0, 0, 255), // Blue (distinct from red bad events)
+            mad_threshold_color: RGBColor(0, 200, 80), // Bright green for MAD bounds
             show_spline_and_mad: true,               // Enabled by default
             show_bin_boundaries: false,              // Disabled by default
+            axis_label_size: 20,
+            tick_label_size: 17,
+            legend_font_size: 17,
+            caption_font_size: 22,
+            font_family: None,
+            background_color: None,
+            foreground_color: None,
+            scatter_alpha: Some(0.5), // Slight transparency to show density
         }
     }
 }
@@ -252,9 +295,13 @@ pub fn create_qc_plots<T: PeacoQCData>(
         }
     };
 
+    let bg = config.background_color.unwrap_or(WHITE);
+    let fg = config.foreground_color.unwrap_or(BLACK);
+    let font_family = config.font_family.as_deref().unwrap_or("sans-serif");
+
     // Create drawing area
     let root = BitMapBackend::new(output_path, (config.width, config.height)).into_drawing_area();
-    root.fill(&WHITE)
+    root.fill(&bg)
         .map_err(|e| PeacoQCError::ExportError(format!("Failed to fill background: {:?}", e)))?;
 
     // Split root into subplot areas
@@ -309,11 +356,11 @@ pub fn create_qc_plots<T: PeacoQCData>(
 
             let y_range_clone = y_range.clone();
             let mut chart = ChartBuilder::on(&subplot_area)
-                .margin(5)
-                .caption(title_text, ("sans-serif", 14).into_font())
-                .x_label_area_size(40)
-                .y_label_area_size(50)
-                .build_cartesian_2d(x_range, y_range_clone)
+                .margin(12)
+                .caption(title_text, (font_family, config.caption_font_size).into_font().color(&fg))
+                .x_label_area_size(58)
+                .y_label_area_size(82)
+                .build_cartesian_2d(x_range.clone(), y_range_clone)
                 .map_err(|e| {
                     PeacoQCError::ExportError(format!("Failed to build chart: {:?}", e))
                 })?;
@@ -321,21 +368,46 @@ pub fn create_qc_plots<T: PeacoQCData>(
             let draw_result = if y_max_is_low {
                 chart
                     .configure_mesh()
+                    .axis_desc_style(
+                        (font_family, config.axis_label_size)
+                            .into_font()
+                            .color(&fg),
+                    )
+                    .label_style(
+                        (font_family, config.tick_label_size)
+                            .into_font()
+                            .color(&fg),
+                    )
+                    .light_line_style(GRID_LINE_COLOR.stroke_width(1))
                     .x_desc("Time")
-                    .y_desc("Nr of cells per second")
+                    .y_desc("Nº of cells per second")
+                    .x_label_formatter(&|v: &f64| format!("{:>8.1}", v))
                     .y_label_formatter(&|v: &f64| {
                         if *v >= 0.99 {
-                            "low".to_string()
+                            " low".to_string()
                         } else {
-                            format!("{v:.2}")
+                            format!("{:>6.2}", v)
                         }
                     })
                     .draw()
             } else {
                 chart
                     .configure_mesh()
+                    .axis_desc_style(
+                        (font_family, config.axis_label_size)
+                            .into_font()
+                            .color(&fg),
+                    )
+                    .label_style(
+                        (font_family, config.tick_label_size)
+                            .into_font()
+                            .color(&fg),
+                    )
+                    .light_line_style(GRID_LINE_COLOR.stroke_width(1))
                     .x_desc("Time")
-                    .y_desc("Nr of cells per second")
+                    .y_desc("Nº of cells per second")
+                    .x_label_formatter(&|v: &f64| format!("{:>8.1}", v))
+                    .y_label_formatter(&|v: &f64| format!("{:>6.2}", v))
                     .draw()
             };
             draw_result
@@ -371,10 +443,66 @@ pub fn create_qc_plots<T: PeacoQCData>(
             chart
                 .draw_series(LineSeries::new(
                     events_per_sec.iter().map(|(t, r)| (*t, *r)),
-                    BLACK.stroke_width(2),
+                    fg.stroke_width(2),
                 ))
                 .map_err(|e| {
                     PeacoQCError::ExportError(format!("Failed to draw line series: {:?}", e))
+                })?;
+
+            // Legend: Removed events (shaded regions)
+            let x_range_size = x_range.end - x_range.start;
+            let y_range_size = y_range.end - y_range.start;
+            let legend_x_start = x_range.end - (x_range_size * 0.22);
+            let legend_y_start = y_range.end - (y_range_size * 0.06);
+            let rect_w = x_range_size * 0.025;
+            let rect_h = y_range_size * 0.04;
+            let text_gap = x_range_size * 0.008;
+            let pad_x = x_range_size * 0.008;
+            let pad_y = y_range_size * 0.008;
+            // Semi-transparent white background behind legend
+            let legend_bg_left = legend_x_start - pad_x;
+            let legend_bg_bottom = legend_y_start - rect_h - pad_y;
+            let legend_bg_right = legend_x_start + rect_w + text_gap + x_range_size * 0.12;
+            let legend_bg_top = legend_y_start + pad_y;
+            chart
+                .draw_series(std::iter::once(Rectangle::new(
+                    [
+                        (legend_bg_left, legend_bg_bottom),
+                        (legend_bg_right, legend_bg_top),
+                    ],
+                    LEGEND_BG_COLOR.filled(),
+                )))
+                .map_err(|e| {
+                    PeacoQCError::ExportError(format!("Failed to draw legend background: {:?}", e))
+                })?;
+            let fill_color = RGBAColor(
+                config.unstable_color.0,
+                config.unstable_color.1,
+                config.unstable_color.2,
+                0.5,
+            );
+            chart
+                .draw_series(std::iter::once(Rectangle::new(
+                    [
+                        (legend_x_start, legend_y_start - rect_h),
+                        (legend_x_start + rect_w, legend_y_start),
+                    ],
+                    fill_color.filled(),
+                )))
+                .map_err(|e| {
+                    PeacoQCError::ExportError(format!("Failed to draw legend rect: {:?}", e))
+                })?;
+            chart
+                .plotting_area()
+                .draw(&Text::new(
+                    "Removed events".to_string(),
+                    (legend_x_start + rect_w + text_gap, legend_y_start),
+                    (font_family, config.legend_font_size)
+                        .into_font()
+                        .color(&fg),
+                ))
+                .map_err(|e| {
+                    PeacoQCError::ExportError(format!("Failed to draw legend text: {:?}", e))
                 })?;
         }
     }
@@ -440,17 +568,30 @@ pub fn create_qc_plots<T: PeacoQCData>(
         };
 
         let mut chart = ChartBuilder::on(&subplot_area)
-            .margin(5)
-            .caption(&title, ("sans-serif", 12).into_font())
-            .x_label_area_size(40)
-            .y_label_area_size(50)
+            .margin(12)
+            .caption(&title, (font_family, config.caption_font_size).into_font().color(&fg))
+            .x_label_area_size(48)
+            .y_label_area_size(82)
             .build_cartesian_2d(x_range.clone(), y_range.clone())
             .map_err(|e| PeacoQCError::ExportError(format!("Failed to build chart: {:?}", e)))?;
 
         chart
             .configure_mesh()
-            .x_desc("Cells")
-            .y_desc("Value")
+            .axis_desc_style(
+                (font_family, config.axis_label_size)
+                    .into_font()
+                    .color(&fg),
+            )
+            .label_style(
+                (font_family, config.tick_label_size)
+                    .into_font()
+                    .color(&fg),
+            )
+            .light_line_style(GRID_LINE_COLOR.stroke_width(1))
+            .x_desc("Cell index")
+            .y_desc("Signal (a.u.)")
+            .x_label_formatter(&|v: &f64| format!("{:>8.0}", v))
+            .y_label_formatter(&|v: &f64| format!("{:>8.2}", v))
             .draw()
             .map_err(|e| PeacoQCError::ExportError(format!("Failed to draw mesh: {:?}", e)))?;
 
@@ -493,24 +634,52 @@ pub fn create_qc_plots<T: PeacoQCData>(
             }
         }
 
+        let alpha: f64 = config.scatter_alpha.unwrap_or(1.0) as f64;
+        let alpha = alpha.clamp(0.0, 1.0);
+        let use_alpha = alpha < 1.0;
+
         if !bad_points.is_empty() {
             chart
-                .draw_series(
-                    bad_points
-                        .iter()
-                        .map(|(x, y)| Circle::new((*x, *y), 1, config.bad_color.filled())),
-                )
+                .draw_series(bad_points.iter().map(|(x, y)| {
+                    Circle::new(
+                        (*x, *y),
+                        1,
+                        if use_alpha {
+                            RGBAColor(
+                                config.bad_color.0,
+                                config.bad_color.1,
+                                config.bad_color.2,
+                                alpha,
+                            )
+                            .filled()
+                        } else {
+                            config.bad_color.filled()
+                        },
+                    )
+                }))
                 .map_err(|e| {
                     PeacoQCError::ExportError(format!("Failed to draw bad-event circles: {:?}", e))
                 })?;
         }
         if !good_points.is_empty() {
             chart
-                .draw_series(
-                    good_points
-                        .iter()
-                        .map(|(x, y)| Circle::new((*x, *y), 1, config.good_color.filled())),
-                )
+                .draw_series(good_points.iter().map(|(x, y)| {
+                    Circle::new(
+                        (*x, *y),
+                        1,
+                        if use_alpha {
+                            RGBAColor(
+                                config.good_color.0,
+                                config.good_color.1,
+                                config.good_color.2,
+                                alpha,
+                            )
+                            .filled()
+                        } else {
+                            config.good_color.filled()
+                        },
+                    )
+                }))
                 .map_err(|e| {
                     PeacoQCError::ExportError(format!("Failed to draw circles: {:?}", e))
                 })?;
@@ -596,16 +765,21 @@ pub fn create_qc_plots<T: PeacoQCData>(
                         let upper_threshold = median + mad_threshold * mad;
                         let lower_threshold = median - mad_threshold * mad;
 
-                        // Draw threshold lines
+                        // Draw threshold lines (dashed: longer dashes, narrower gaps)
                         let threshold_points_upper: Vec<(f64, f64)> =
                             vec![(0.0, upper_threshold), (n_events as f64, upper_threshold)];
                         let threshold_points_lower: Vec<(f64, f64)> =
                             vec![(0.0, lower_threshold), (n_events as f64, lower_threshold)];
+                        let mad_style = config.mad_threshold_color.stroke_width(2);
 
                         chart
-                            .draw_series(LineSeries::new(
-                                threshold_points_upper,
-                                config.mad_threshold_color.stroke_width(1),
+                            .draw_series(std::iter::once(
+                                plotters::element::DashedPathElement::new(
+                                    threshold_points_upper,
+                                    MAD_DASH_LEN,
+                                    MAD_DASH_GAP,
+                                    mad_style.clone(),
+                                ),
                             ))
                             .map_err(|e| {
                                 PeacoQCError::ExportError(format!(
@@ -615,9 +789,13 @@ pub fn create_qc_plots<T: PeacoQCData>(
                             })?;
 
                         chart
-                            .draw_series(LineSeries::new(
-                                threshold_points_lower,
-                                config.mad_threshold_color.stroke_width(1),
+                            .draw_series(std::iter::once(
+                                plotters::element::DashedPathElement::new(
+                                    threshold_points_lower,
+                                    MAD_DASH_LEN,
+                                    MAD_DASH_GAP,
+                                    mad_style,
+                                ),
                             ))
                             .map_err(|e| {
                                 PeacoQCError::ExportError(format!(
@@ -629,41 +807,95 @@ pub fn create_qc_plots<T: PeacoQCData>(
                 }
             }
 
-            // Draw legend in top-right corner
+            // Draw legend in top-right corner: first "Removed events" (rect), then line items
+            let legend_rects: Vec<(&str, RGBColor)> =
+                vec![("Removed events", config.unstable_color)];
             let mut legend_items: Vec<(&str, RGBColor, u32)> =
                 vec![("Median", config.median_color, 2)];
 
             if config.show_spline_and_mad {
                 legend_items.push(("Spline", config.smoothed_spline_color, 2));
-                legend_items.push(("MAD ±6", config.mad_threshold_color, 1));
+                legend_items.push(("MAD ±6", config.mad_threshold_color, 2));
             }
 
-            if !legend_items.is_empty() {
-                // Position legend in top-right corner
-                // Calculate margins as percentage of plot range
-                let x_range_size = x_range.end - x_range.start;
-                let y_range_size = y_range.end - y_range.start;
+            let x_range_size = x_range.end - x_range.start;
+            let y_range_size = y_range.end - y_range.start;
+            let legend_margin_right_pct = 0.10;
+            let legend_margin_top_pct = 0.02;
+            let legend_x_start = x_range.end - (x_range_size * legend_margin_right_pct);
+            let legend_y_step = y_range_size * 0.032;
+            let line_length = x_range_size * 0.035;
+            let text_gap = x_range_size * 0.008;
+            let rect_w = x_range_size * 0.02;
+            let rect_h = y_range_size * 0.025;
+            let legend_initial_y = y_range.end - (y_range_size * legend_margin_top_pct);
+            let n_legend_rows = legend_rects.len() + legend_items.len();
+            let pad_x = x_range_size * 0.006;
+            let pad_y = y_range_size * 0.006;
+            // Semi-transparent white background behind full legend
+            let legend_bg_left = legend_x_start - pad_x;
+            let legend_bg_right =
+                legend_x_start + line_length + text_gap + x_range_size * 0.10 + pad_x;
+            let legend_bg_bottom = legend_initial_y
+                - rect_h
+                - (n_legend_rows.saturating_sub(1) as f64 * legend_y_step)
+                - pad_y;
+            let legend_bg_top = legend_initial_y + pad_y;
+            chart
+                .draw_series(std::iter::once(Rectangle::new(
+                    [
+                        (legend_bg_left, legend_bg_bottom),
+                        (legend_bg_right, legend_bg_top),
+                    ],
+                    LEGEND_BG_COLOR.filled(),
+                )))
+                .map_err(|e| {
+                    PeacoQCError::ExportError(format!("Failed to draw legend background: {:?}", e))
+                })?;
 
-                let legend_margin_right_pct = 0.10; // 10% from right edge
-                let legend_margin_top_pct = 0.02; // 2% from top edge
+            let mut legend_y = legend_initial_y;
 
-                let legend_x_start = x_range.end - (x_range_size * legend_margin_right_pct);
-                let legend_y_start = y_range.end - (y_range_size * legend_margin_top_pct);
-                let legend_y_step = y_range_size * 0.032; // Spacing between items
-                let line_length = x_range_size * 0.035; // Length of legend line
-                let text_gap = x_range_size * 0.008; // Gap between line and text
+            for (label, color) in &legend_rects {
+                let fill_color = RGBAColor(color.0, color.1, color.2, 0.5);
+                chart
+                    .draw_series(std::iter::once(Rectangle::new(
+                        [
+                            (legend_x_start, legend_y - rect_h),
+                            (legend_x_start + rect_w, legend_y),
+                        ],
+                        fill_color.filled(),
+                    )))
+                    .map_err(|e| {
+                        PeacoQCError::ExportError(format!("Failed to draw legend rect: {:?}", e))
+                    })?;
+                chart
+                    .plotting_area()
+                    .draw(&Text::new(
+                        (*label).to_string(),
+                        (legend_x_start + rect_w + text_gap, legend_y),
+                        (font_family, config.legend_font_size)
+                            .into_font()
+                            .color(&fg),
+                    ))
+                    .map_err(|e| {
+                        PeacoQCError::ExportError(format!("Failed to draw legend text: {:?}", e))
+                    })?;
+                legend_y -= legend_y_step;
+            }
 
-                let mut legend_y = legend_y_start;
-
-                for (label, color, stroke_width) in &legend_items {
-                    // Draw legend line - use same y for both line and text baseline
+            for (label, color, stroke_width) in &legend_items {
+                let line_pts = vec![
+                    (legend_x_start, legend_y),
+                    (legend_x_start + line_length, legend_y),
+                ];
+                let stroke = color.stroke_width(*stroke_width);
+                if *label == "MAD ±6" {
                     chart
-                        .draw_series(std::iter::once(plotters::prelude::PathElement::new(
-                            vec![
-                                (legend_x_start, legend_y),
-                                (legend_x_start + line_length, legend_y),
-                            ],
-                            color.stroke_width(*stroke_width),
+                        .draw_series(std::iter::once(plotters::element::DashedPathElement::new(
+                            line_pts,
+                            MAD_DASH_LEN,
+                            MAD_DASH_GAP,
+                            stroke,
                         )))
                         .map_err(|e| {
                             PeacoQCError::ExportError(format!(
@@ -671,25 +903,31 @@ pub fn create_qc_plots<T: PeacoQCData>(
                                 e
                             ))
                         })?;
-
-                    // Draw legend text - align baseline with line y coordinate
-                    // Text position in plotters is bottom-left, so y should match line y
+                } else {
                     chart
-                        .plotting_area()
-                        .draw(&Text::new(
-                            label.to_string(),
-                            (legend_x_start + line_length + text_gap, legend_y),
-                            ("sans-serif", 10).into_font().color(&BLACK),
-                        ))
+                        .draw_series(std::iter::once(plotters::prelude::PathElement::new(
+                            line_pts, stroke,
+                        )))
                         .map_err(|e| {
                             PeacoQCError::ExportError(format!(
-                                "Failed to draw legend text: {:?}",
+                                "Failed to draw legend line: {:?}",
                                 e
                             ))
                         })?;
-
-                    legend_y -= legend_y_step;
                 }
+                chart
+                    .plotting_area()
+                    .draw(&Text::new(
+                        label.to_string(),
+                        (legend_x_start + line_length + text_gap, legend_y),
+                        (font_family, config.legend_font_size)
+                            .into_font()
+                            .color(&fg),
+                    ))
+                    .map_err(|e| {
+                        PeacoQCError::ExportError(format!("Failed to draw legend text: {:?}", e))
+                    })?;
+                legend_y -= legend_y_step;
             }
         }
     }

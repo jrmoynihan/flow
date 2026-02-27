@@ -18,30 +18,27 @@ pub fn standard_deviation_gpu(data: &[f64]) -> Result<f64> {
     }
 
     let device = WgpuDevice::default();
-    
-    // Convert to tensor - burn 0.20 API
+
+    // Burn's Float is f32; convert f64 -> f32 for tensor data
     use burn::tensor::TensorData;
-    
-    // Convert f64 to bytes for TensorData
-    let data_bytes: Vec<u8> = data.iter()
-        .flat_map(|x| x.to_le_bytes())
-        .collect();
-    let data_tensor_data = TensorData::new(data_bytes.into(), vec![data.len()]);
+
+    let data_f32: Vec<f32> = data.iter().map(|&x| x as f32).collect();
+    let data_tensor_data = TensorData::new(data_f32.into(), vec![data.len()]);
     let data_tensor = Tensor::<Backend, 1, burn::tensor::Float>::from_data(data_tensor_data, &device);
 
     // Calculate mean
     let mean = data_tensor.clone().mean();
     let mean_data = mean.to_data();
-    let mean_value = mean_data.as_slice::<f64>().unwrap()[0];
+    let mean_value = mean_data.as_slice::<f32>().unwrap()[0];
 
     // Calculate variance: mean((x - mean)^2)
     let diff = data_tensor - mean_value;
     let diff_squared = diff.powf_scalar(2.0);
     let variance = diff_squared.mean();
     let variance_data = variance.to_data();
-    let variance_value = variance_data.as_slice::<f64>().unwrap()[0];
+    let variance_value = variance_data.as_slice::<f32>().unwrap()[0];
 
-    Ok(variance_value.sqrt())
+    Ok((variance_value as f64).sqrt())
 }
 
 /// Calculate median on GPU

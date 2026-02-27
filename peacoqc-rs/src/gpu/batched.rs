@@ -150,25 +150,25 @@ fn multiply_spectra_gpu_with_context(
         b_imag.push(c.im);
     }
 
-    // Create tensors - batch the conversions
-    let a_re_bytes: Vec<u8> = a_real.iter().flat_map(|x| x.to_le_bytes()).collect();
-    let a_im_bytes: Vec<u8> = a_imag.iter().flat_map(|x| x.to_le_bytes()).collect();
-    let b_re_bytes: Vec<u8> = b_real.iter().flat_map(|x| x.to_le_bytes()).collect();
-    let b_im_bytes: Vec<u8> = b_imag.iter().flat_map(|x| x.to_le_bytes()).collect();
+    // Burn's Float is f32; use f32 tensor data to match expected shape/size
+    let a_re_f32: Vec<f32> = a_real.iter().map(|&x| x as f32).collect();
+    let a_im_f32: Vec<f32> = a_imag.iter().map(|&x| x as f32).collect();
+    let b_re_f32: Vec<f32> = b_real.iter().map(|&x| x as f32).collect();
+    let b_im_f32: Vec<f32> = b_imag.iter().map(|&x| x as f32).collect();
 
     type Backend = burn::backend::wgpu::Wgpu;
-    
+
     let a_re_tensor = Tensor::<Backend, 1, burn::tensor::Float>::from_data(
-        TensorData::new(a_re_bytes.into(), vec![n]), device
+        TensorData::new(a_re_f32.into(), vec![n]), device
     );
     let a_im_tensor = Tensor::<Backend, 1, burn::tensor::Float>::from_data(
-        TensorData::new(a_im_bytes.into(), vec![n]), device
+        TensorData::new(a_im_f32.into(), vec![n]), device
     );
     let b_re_tensor = Tensor::<Backend, 1, burn::tensor::Float>::from_data(
-        TensorData::new(b_re_bytes.into(), vec![n]), device
+        TensorData::new(b_re_f32.into(), vec![n]), device
     );
     let b_im_tensor = Tensor::<Backend, 1, burn::tensor::Float>::from_data(
-        TensorData::new(b_im_bytes.into(), vec![n]), device
+        TensorData::new(b_im_f32.into(), vec![n]), device
     );
 
     // Complex multiplication: (a_re + i*a_im) * (b_re + i*b_im)
@@ -178,11 +178,11 @@ fn multiply_spectra_gpu_with_context(
     let im_result = a_re_tensor.clone().mul(b_im_tensor.clone())
         .add(a_im_tensor.clone().mul(b_re_tensor.clone()));
 
-    // Convert back
+    // Convert back (f32 -> f64)
     let re_data = re_result.to_data();
     let im_data = im_result.to_data();
-    let re_values: Vec<f64> = re_data.as_slice::<f64>().unwrap().to_vec();
-    let im_values: Vec<f64> = im_data.as_slice::<f64>().unwrap().to_vec();
+    let re_values: Vec<f64> = re_data.as_slice::<f32>().unwrap().iter().map(|&x| x as f64).collect();
+    let im_values: Vec<f64> = im_data.as_slice::<f32>().unwrap().iter().map(|&x| x as f64).collect();
 
     let mut result = Vec::with_capacity(n);
     for i in 0..n {

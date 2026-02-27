@@ -101,6 +101,34 @@ struct Cli {
     #[arg(long)]
     show_bin_boundaries: bool,
 
+    /// Plot image width in pixels (default: 2400)
+    #[arg(long, value_name = "PIXELS")]
+    plot_width: Option<u32>,
+
+    /// Plot image height in pixels (default: 1800)
+    #[arg(long, value_name = "PIXELS")]
+    plot_height: Option<u32>,
+
+    /// Plot title (caption) font size in points (default: 22)
+    #[arg(long, value_name = "SIZE")]
+    plot_title_size: Option<u32>,
+
+    /// Plot axis label font size in points (default: 20)
+    #[arg(long, value_name = "SIZE")]
+    plot_axis_size: Option<u32>,
+
+    /// Plot tick label font size in points (default: 17)
+    #[arg(long, value_name = "SIZE")]
+    plot_tick_size: Option<u32>,
+
+    /// Plot legend font size in points (default: 17)
+    #[arg(long, value_name = "SIZE")]
+    plot_legend_size: Option<u32>,
+
+    /// Plot font family for all text (e.g. "sans-serif", "serif"; default: "sans-serif")
+    #[arg(long, value_name = "FONT")]
+    plot_font: Option<String>,
+
     /// Cofactor for arcsinh transformation (default: 2000)
     /// Lower values = more compression, higher values = less compression
     #[arg(long, default_value = "2000")]
@@ -137,6 +165,38 @@ impl From<QCModeArg> for QCMode {
             QCModeArg::None => QCMode::None,
         }
     }
+}
+
+/// Build QC plot configuration from CLI arguments.
+/// Any option not set uses the library default.
+fn build_plot_config(args: &Cli) -> QCPlotConfig {
+    let mut config = QCPlotConfig {
+        show_spline_and_mad: !args.hide_spline_mad,
+        show_bin_boundaries: args.show_bin_boundaries,
+        ..Default::default()
+    };
+    if let Some(w) = args.plot_width {
+        config.width = w;
+    }
+    if let Some(h) = args.plot_height {
+        config.height = h;
+    }
+    if let Some(s) = args.plot_title_size {
+        config.caption_font_size = s;
+    }
+    if let Some(s) = args.plot_axis_size {
+        config.axis_label_size = s;
+    }
+    if let Some(s) = args.plot_tick_size {
+        config.tick_label_size = s;
+    }
+    if let Some(s) = args.plot_legend_size {
+        config.legend_font_size = s;
+    }
+    if let Some(ref f) = args.plot_font {
+        config.font_family = Some(f.clone());
+    }
+    config
 }
 
 /// Result of processing a single file
@@ -669,7 +729,7 @@ fn main() -> Result<()> {
     let start_time = Instant::now();
 
     // Convert qc_mode once before the loop
-    let qc_mode = args.qc_mode.into();
+    let qc_mode = args.qc_mode.clone().into();
 
     // Process files with each cofactor
     let mut all_results: Vec<FileResult> = Vec::new();
@@ -895,6 +955,9 @@ fn main() -> Result<()> {
             std::fs::create_dir_all(&plot_dir)?;
             println!("\n📊 Generating QC plots...");
 
+            // Build plot config from CLI flags
+            let plot_config = build_plot_config(&args);
+
             // Generate plots for each successful file
             for result in &successful {
                 if let (Some(fcs_data), Some(qc_result)) = (&result.fcs_data, &result.qc_result) {
@@ -906,7 +969,7 @@ fn main() -> Result<()> {
                         .unwrap_or_else(|| "qc_plot.png".to_string());
                     let plot_path = plot_dir.join(&plot_filename);
 
-                    match create_qc_plots(fcs_data, qc_result, &plot_path, QCPlotConfig::default())
+                    match create_qc_plots(fcs_data, qc_result, &plot_path, plot_config.clone(), None)
                     {
                         Ok(()) => {
                             println!("   ✅ Generated plot: {}", plot_path.display());
