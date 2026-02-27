@@ -1,6 +1,6 @@
 [package]
 name="peacoqc-cli"
-version= "0.2.3"
+version= "0.2.4"
 edition.workspace=true
 authors.workspace=true
 license.workspace=true
@@ -20,7 +20,7 @@ path="src/main.rs"
 
 [dependencies]
 flow-fcs={ path="../fcs", version= "^0.2.2" }
-peacoqc-rs={ path="../peacoqc-rs", version= "^0.2.3", features=[
+peacoqc-rs={ path="../peacoqc-rs", version= "^0.2.4", features=[
     "flow-fcs",
     "gpu",
 ] }

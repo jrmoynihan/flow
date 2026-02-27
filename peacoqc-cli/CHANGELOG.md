@@ -5,6 +5,58 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.2.4 (2026-02-27)
+
+### New Features
+
+ - <csr-id-7aad630ce2e5e9ebcda2273cef86f22777efc05b/> plot aesthetics, GPU fix, CLI plot options
+   - peacoqc-rs: Plot improvements (issue #16): larger fonts, axis/legend/title
+     config; grid and MAD dashed lines; legend semi-transparent background;
+     spline blue/MAD green; scatter alpha. Add caption_font_size and
+     font_family to QCPlotConfig. Fix GPU tensor shape (Burn Float is f32).
+   - peacoqc-cli: Apply --hide-spline-mad and --show-bin-boundaries; add
+     --plot-width, --plot-height, --plot-title-size, --plot-axis-size,
+     --plot-tick-size, --plot-legend-size, --plot-font; document in README.
+
+### Documentation
+
+ - <csr-id-aa358ec2cb81c6ba271290606b34b3238977c3b9/> update README to include a citation for PeacoQC algorithm
+
+### Chore
+
+ - <csr-id-f78ada41f7d265ee456ff9e08c4299139f4683d4/> bump version to 0.2.3 in Cargo.toml and Cargo.lock
+
+### Added
+
+- **Plot options**: `--plot-width`, `--plot-height`, `--plot-title-size`, `--plot-axis-size`, `--plot-tick-size`, `--plot-legend-size`, and `--plot-font` to control QC plot dimensions and typography.
+- **Plot visibility**: `--hide-spline-mad` and `--show-bin-boundaries` to toggle spline/MAD curves and bin boundaries in QC plots.
+- README documentation for the new plot flags.
+
+### Commit Statistics
+
+<csr-read-only-do-not-edit/>
+
+ - 7 commits contributed to the release over the course of 11 calendar days.
+ - 11 days passed between releases.
+ - 3 commits were understood as [conventional](https://www.conventionalcommits.org).
+ - 0 issues like '(#ID)' were seen in commit messages
+
+### Commit Details
+
+<csr-read-only-do-not-edit/>
+
+<details><summary>view details</summary>
+
+ * **Uncategorized**
+    - Plot aesthetics, GPU fix, CLI plot options ([`7aad630`](https://github.com/jrmoynihan/flow/commit/7aad630ce2e5e9ebcda2273cef86f22777efc05b))
+    - Bump version to 0.2.3 in Cargo.toml and Cargo.lock ([`f78ada4`](https://github.com/jrmoynihan/flow/commit/f78ada41f7d265ee456ff9e08c4299139f4683d4))
+    - Release peacoqc-rs v0.2.3 ([`7600d54`](https://github.com/jrmoynihan/flow/commit/7600d54b5bdbedb4c5e8189265a6b5f20a1970cf))
+    - Release flow-fcs v0.2.2, flow-plots v0.2.2, peacoqc-rs v0.2.2 ([`cb7b98e`](https://github.com/jrmoynihan/flow/commit/cb7b98ecbc3d012df79c2e70bd2aad2f89d9c303))
+    - Release peacoqc-rs v0.2.1, flow-utils v0.1.1, flow-gates v0.2.2, flow-tru-ols v0.1.0 ([`c3d9774`](https://github.com/jrmoynihan/flow/commit/c3d97742b3f83d01f1b831eea6eb662a2511adb9))
+    - Update README to include a citation for PeacoQC algorithm ([`aa358ec`](https://github.com/jrmoynihan/flow/commit/aa358ec2cb81c6ba271290606b34b3238977c3b9))
+    - Merge pull request #14 from jrmoynihan/gpu-acceleration ([`01edbec`](https://github.com/jrmoynihan/flow/commit/01edbecfc222685a8e052eb26b001d3fae4dfe13))
+</details>
+
 ## 0.2.0 (2026-02-15)
 
 <csr-id-46bee42d4f28d185b38446c0d950c2579c422f43/>
@@ -32,7 +84,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 <csr-read-only-do-not-edit/>
 
- - 8 commits contributed to the release over the course of 24 calendar days.
+ - 9 commits contributed to the release over the course of 24 calendar days.
  - 27 days passed between releases.
  - 3 commits were understood as [conventional](https://www.conventionalcommits.org).
  - 0 issues like '(#ID)' were seen in commit messages
@@ -44,6 +96,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 <details><summary>view details</summary>
 
  * **Uncategorized**
+    - Release flow-fcs v0.2.1, flow-plots v0.2.1, flow-utils v0.1.0, flow-gates v0.2.1, peacoqc-rs v0.2.0, peacoqc-cli v0.2.0, flow-tru-ols v0.1.0, flow-tru-ols-cli v0.1.0 ([`b758024`](https://github.com/jrmoynihan/flow/commit/b7580243ad5dfba389d80f55d9d2b0a0adf26348))
     - Release flow-fcs v0.2.1, flow-plots v0.2.1, flow-utils v0.1.0, flow-gates v0.2.1, peacoqc-rs v0.2.0, peacoqc-cli v0.2.0, flow-tru-ols v0.1.0, flow-tru-ols-cli v0.1.0 ([`1e3ae1e`](https://github.com/jrmoynihan/flow/commit/1e3ae1e2a91b53f70120cb96987ba5a8f02dc21e))
     - Update changelogs prior to release ([`089feff`](https://github.com/jrmoynihan/flow/commit/089feff624625a5ddf0b1da570e4f60b6fedf09b))
     - Update dependencies and align workspace configurations ([`46bee42`](https://github.com/jrmoynihan/flow/commit/46bee42d4f28d185b38446c0d950c2579c422f43))

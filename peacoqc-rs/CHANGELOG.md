@@ -5,31 +5,37 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## 0.2.3 (2026-02-26)
+## 0.2.4 (2026-02-27)
 
-### New Features
+### Added
 
- - <csr-id-489796d785339fdf8d2c56bd61bf383d60986106/> add example for generating QC plots with synthetic data
-   - Introduced a new example `demo_qc_plot.rs` that demonstrates how to create a QC plot using synthetic FCS-like data.
-   - The example includes functionality to visualize good and bad events, with bad events highlighted in red.
-   - Updated `QCPlotConfig` to include a new `bad_color` field for better visualization of unstable data points.
-   - Enhanced the `create_qc_plots` function to draw bad events before good events for improved clarity in the plot.
+- **Plot aesthetics**: Larger default fonts; configurable axis, legend, and title styling; grid and MAD shown as dashed lines; legend with semi-transparent background; spline in blue and MAD in green; scatter alpha for readability.
+- **QCPlotConfig**: New `caption_font_size` and `font_family` options for plot typography.
 
-### Chore
+### Fixed
 
- - <csr-id-2180ed40f60f01489aa7549809c69bd4efba2be0/> changelog and README for 0.2.3 (QC plot bad-events fix)
+- **GPU**: Corrected tensor dtype for Burn backend (use f32 consistently).
 
 ### Bug Fixes
 
- - QC channel plots now draw "bad" (unstable) events in addition to "good" events.
-   - Previously only good events (grey points) were drawn; purple rectangles marked unstable regions but the underlying bad-event data was invisible.
-   - Bad events are now drawn in a distinct color (red by default), configurable via `QCPlotConfig::bad_color`.
+ - <csr-id-bf4438343008fc1f4501b1ba13e661cfe9d0c6f1/> remove duplicate entry for bad events visualization in QC plots
+
+### New Features
+
+ - <csr-id-7aad630ce2e5e9ebcda2273cef86f22777efc05b/> plot aesthetics, GPU fix, CLI plot options
+   - peacoqc-rs: Plot improvements (issue #16): larger fonts, axis/legend/title
+     config; grid and MAD dashed lines; legend semi-transparent background;
+     spline blue/MAD green; scatter alpha. Add caption_font_size and
+     font_family to QCPlotConfig. Fix GPU tensor shape (Burn Float is f32).
+   - peacoqc-cli: Apply --hide-spline-mad and --show-bin-boundaries; add
+     --plot-width, --plot-height, --plot-title-size, --plot-axis-size,
+     --plot-tick-size, --plot-legend-size, --plot-font; document in README.
 
 ### Commit Statistics
 
 <csr-read-only-do-not-edit/>
 
- - 3 commits contributed to the release.
+ - 2 commits contributed to the release.
  - 2 commits were understood as [conventional](https://www.conventionalcommits.org).
  - 0 issues like '(#ID)' were seen in commit messages
 
@@ -40,13 +46,50 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 <details><summary>view details</summary>
 
  * **Uncategorized**
+    - Plot aesthetics, GPU fix, CLI plot options ([`7aad630`](https://github.com/jrmoynihan/flow/commit/7aad630ce2e5e9ebcda2273cef86f22777efc05b))
+    - Remove duplicate entry for bad events visualization in QC plots ([`bf44383`](https://github.com/jrmoynihan/flow/commit/bf4438343008fc1f4501b1ba13e661cfe9d0c6f1))
+</details>
+
+## 0.2.3 (2026-02-26)
+
+<csr-id-2180ed40f60f01489aa7549809c69bd4efba2be0/>
+
+### New Features
+
+ - <csr-id-489796d785339fdf8d2c56bd61bf383d60986106/> add example for generating QC plots with synthetic data
+   - Introduced a new example `demo_qc_plot.rs` that demonstrates how to create a QC plot using synthetic FCS-like data.
+
+### Chore
+
+ - <csr-id-2180ed40f60f01489aa7549809c69bd4efba2be0/> changelog and README for 0.2.3 (QC plot bad-events fix)
+
+### Bug Fixes
+
+ - QC channel plots now draw "bad" (unstable) events in addition to "good" events.
+   - Previously only good events (grey points) were drawn; purple rectangles marked unstable regions but the underlying bad-event data was invisible.
+   - Bad events are now drawn in a distinct color (red by default), configurable via `QCPlotConfig::bad_color`.
+- Bad events are now drawn in a distinct color (red by default), configurable via `QCPlotConfig::bad_color`.
+
+### Commit Statistics
+
+<csr-read-only-do-not-edit/>
+
+ - 4 commits contributed to the release.
+ - 2 commits were understood as [conventional](https://www.conventionalcommits.org).
+ - 0 issues like '(#ID)' were seen in commit messages
+
+### Commit Details
+
+<csr-read-only-do-not-edit/>
+
+<details><summary>view details</summary>
+
+ * **Uncategorized**
+    - Release peacoqc-rs v0.2.3 ([`7600d54`](https://github.com/jrmoynihan/flow/commit/7600d54b5bdbedb4c5e8189265a6b5f20a1970cf))
     - Changelog and README for 0.2.3 (QC plot bad-events fix) ([`2180ed4`](https://github.com/jrmoynihan/flow/commit/2180ed40f60f01489aa7549809c69bd4efba2be0))
     - Add example for generating QC plots with synthetic data ([`489796d`](https://github.com/jrmoynihan/flow/commit/489796d785339fdf8d2c56bd61bf383d60986106))
     - Release flow-plots v0.2.2, peacoqc-rs v0.2.2 ([`4ab83fe`](https://github.com/jrmoynihan/flow/commit/4ab83fe18e7f67bba8c1ce2bf8163e8652a9a592))
 </details>
-
-<csr-unknown>
-Added demo_qc_plot example to exercise QC plot rendering including good and bad events.<csr-unknown/>
 
 ## 0.2.2 (2026-02-26)
 
