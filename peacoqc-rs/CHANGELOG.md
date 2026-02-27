@@ -24,7 +24,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  - QC channel plots now draw "bad" (unstable) events in addition to "good" events.
    - Previously only good events (grey points) were drawn; purple rectangles marked unstable regions but the underlying bad-event data was invisible.
    - Bad events are now drawn in a distinct color (red by default), configurable via `QCPlotConfig::bad_color`.
-- Bad events are now drawn in a distinct color (red by default), configurable via `QCPlotConfig::bad_color`.
 
 ### Commit Statistics
 
