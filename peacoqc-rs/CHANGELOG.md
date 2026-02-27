@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.2.3 (2026-02-26)
+
+### Bug Fixes
+
+ - QC channel plots now draw "bad" (unstable) events in addition to "good" events.
+   - Previously only good events (grey points) were drawn; purple rectangles marked unstable regions but the underlying bad-event data was invisible.
+   - Bad events are now drawn in a distinct color (red by default), configurable via `QCPlotConfig::bad_color`.
+ - Added `demo_qc_plot` example to exercise QC plot rendering including good and bad events.
+
 ## 0.2.2 (2026-02-26)
 
 <csr-id-ec0fcf8823f4d35e47d7da935f1e70d1927f0f0c/>
