@@ -1,0 +1,21 @@
+---
+description: Pre-1.0 version policy and release workflow for flow-crates
+globs: Cargo.toml, CHANGELOG.md, **/Cargo.toml, **/CHANGELOG.md
+alwaysApply: false
+---
+
+# Release Versioning (Pre-1.0)
+
+Until crates reach 1.0, use relaxed versioning:
+
+- **Minor** (0.x.0 → 0.(x+1).0): Large new features
+- **Patch** (0.x.y → 0.x.(y+1)): Bug fixes, small features, refactors, docs, breaking changes
+
+No strict semantic versioning for breaking changes before 1.0.
+
+## Release Workflow
+
+1. Dry-run: `cargo smart-release <crate-name> --update-crates-index` (or `cargo run -p <pkg> dry-release`)
+2. Polish changelogs: `cargo changelog --write <crate-name>`
+3. Update READMEs with new version
+4. Execute only after review: `cargo smart-release ... --execute`
