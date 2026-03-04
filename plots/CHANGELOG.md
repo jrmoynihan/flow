@@ -5,6 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **Scatter overlay plots** (ScatterOverlay): Discrete gate colors via `ScatterPlotData::with_gates()` and `gate_colors` option
+- **Scatter colored by z-axis** (ScatterColoredContinuous): Continuous colormap via `ScatterPlotData::with_z()` and `z_range` option
+- **Density point size**: `point_size` option now affects density heatmap (contribution radius per point), matching scatter behavior
+- **Contour plots**: KDE-based contour lines with `contour_smoothing`, `draw_outliers`, `contour_level_count`
+- **HistogramPlot**: New plot type with filled/unfilled modes, overlaid series, gate colors, baseline separation, `scale_to_peak`
+- `ScatterPlotData`, `HistogramData`, `HistogramPlotOptions` types
+
+### Changed
+
+- **Breaking**: `DensityPlot::Data` is now `ScatterPlotData` instead of `Vec<(f32, f32)>`; use `.into()` for simple data
+- **Breaking**: `render_batch` and `calculate_density_per_pixel_batch` accept `(ScatterPlotData, DensityPlotOptions)`
+
+### Dependencies
+
+- Added `flow-utils` for KDE contour support
+- Added `ndarray` for marching squares contour extraction
+
 ## 0.2.2 (2026-02-26)
 
 <csr-id-9292dc407a5eaab2aa949fdfc1d2abdfcb32798d/>
