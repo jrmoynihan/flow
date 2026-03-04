@@ -3601,7 +3601,7 @@ fn generate_tru_ols_plots(
                     let plot = DensityPlot::new();
                     let plot_bytes = plot
                         .render(
-                            pairs,
+                            pairs.into(),
                             &options,
                             &mut flow_plots::render::RenderConfig::default(),
                         )
@@ -3724,7 +3724,7 @@ fn generate_ols_comparison_plots(
                 let plot = DensityPlot::new();
                 let plot_bytes = plot
                     .render(
-                        ols_pairs,
+                        ols_pairs.into(),
                         &options,
                         &mut flow_plots::render::RenderConfig::default(),
                     )
@@ -3758,7 +3758,7 @@ fn generate_ols_comparison_plots(
                 let plot = DensityPlot::new();
                 let plot_bytes = plot
                     .render(
-                        tru_ols_pairs,
+                        tru_ols_pairs.into(),
                         &options,
                         &mut flow_plots::render::RenderConfig::default(),
                     )
@@ -4741,7 +4741,7 @@ fn generate_scatter_diagnostic_plots(
             )
             .build()?;
 
-        let bytes = plot.render(data, &options, &mut render_config)?;
+        let bytes = plot.render(data.into(), &options, &mut render_config)?;
         let output_path = plot_dir.join(format!(
             "{}_fsca_vs_ssca_before.{}",
             endmember_name, plot_format
@@ -4779,7 +4779,7 @@ fn generate_scatter_diagnostic_plots(
             )
             .build()?;
 
-        let bytes = plot.render(data, &options, &mut render_config)?;
+        let bytes = plot.render(data.into(), &options, &mut render_config)?;
         let output_path = plot_dir.join(format!(
             "{}_fsca_vs_ssca_after.{}",
             endmember_name, plot_format
@@ -4817,7 +4817,7 @@ fn generate_scatter_diagnostic_plots(
             )
             .build()?;
 
-        let bytes = plot.render(data, &options, &mut render_config)?;
+        let bytes = plot.render(data.into(), &options, &mut render_config)?;
         let output_path = plot_dir.join(format!(
             "{}_fsca_vs_fsch_before.{}",
             endmember_name, plot_format
@@ -4855,7 +4855,7 @@ fn generate_scatter_diagnostic_plots(
             )
             .build()?;
 
-        let bytes = plot.render(data, &options, &mut render_config)?;
+        let bytes = plot.render(data.into(), &options, &mut render_config)?;
         let output_path = plot_dir.join(format!(
             "{}_fsca_vs_fsch_after.{}",
             endmember_name, plot_format
@@ -4919,7 +4919,7 @@ fn generate_channel_density_plot(
         )
         .build()?;
 
-    let bytes = plot.render(data, &options, &mut render_config)?;
+    let bytes = plot.render(data.into(), &options, &mut render_config)?;
     let output_path = plot_dir.join(format!(
         "{}_channel_signals.{}",
         endmember_name, plot_format

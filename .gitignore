@@ -29,7 +29,6 @@ vite.config.ts.timestamp-*
 
 gate_cache.rs
 gate_storage.rs
-commands.rs
 
 # Generated test data and comparison output
 tru-ols-cli/synthetic_test_data/
