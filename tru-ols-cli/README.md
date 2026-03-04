@@ -4,8 +4,24 @@ Command-line tool for TRU-OLS (Truncated ReUnmixing OLS) spectral flow cytometry
 
 ## Installation
 
+### Using Cargo
+
+From the workspace (e.g. after cloning the repo):
+
 ```bash
-cargo build --release
+cargo install --path tru-ols-cli
+```
+
+After [publishing](https://crates.io/crates/tru-ols) to crates.io:
+
+```bash
+cargo install tru-ols
+```
+
+### From source
+
+```bash
+cargo build --release -p tru-ols
 # Binary will be in target/release/tru-ols
 ```
 

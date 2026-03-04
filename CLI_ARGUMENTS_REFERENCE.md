@@ -58,7 +58,7 @@ The CLI requires at least one of the following mixing matrix sources:
 
 ### Using SPILL Matrix (No Detector List Required)
 ```bash
-cargo run --package flow-tru-ols-cli --bin tru-ols -- \
+cargo run --package tru-ols --bin tru-ols -- \
   unmix \
   --stained stained.fcs \
   --unstained unstained.fcs \
@@ -69,7 +69,7 @@ cargo run --package flow-tru-ols-cli --bin tru-ols -- \
 
 ### Using Single-Stain Controls (Detector List Required)
 ```bash
-cargo run --package flow-tru-ols-cli --bin tru-ols -- \
+cargo run --package tru-ols --bin tru-ols -- \
   unmix \
   --stained stained.fcs \
   --unstained unstained.fcs \
@@ -81,7 +81,7 @@ cargo run --package flow-tru-ols-cli --bin tru-ols -- \
 
 ### Using CSV Mixing Matrix (Detector List Required)
 ```bash
-cargo run --package flow-tru-ols-cli --bin tru-ols -- \
+cargo run --package tru-ols --bin tru-ols -- \
   unmix \
   --stained stained.fcs \
   --unstained unstained.fcs \

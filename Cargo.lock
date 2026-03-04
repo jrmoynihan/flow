@@ -3197,35 +3197,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "flow-tru-ols-cli"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "clap",
- "csv",
- "faer 0.24.0",
- "faer-ext",
- "flow-fcs",
- "flow-gates",
- "flow-plots",
- "flow-tru-ols",
- "flow-utils",
- "image 0.25.9",
- "indicatif",
- "ndarray 0.16.1",
- "peacoqc-rs",
- "plotters",
- "polars",
- "rand 0.10.0",
- "rand_distr 0.6.0",
- "rayon",
- "serde",
- "serde_json",
- "tracing",
- "tracing-subscriber",
-]
-
-[[package]]
 name = "flow-utils"
 version = "0.1.1"
 dependencies = [
@@ -9117,6 +9088,35 @@ checksum = "1ad61aed86bc3faea4300c7aee358b4c6d0c8d6ccc36524c96e4c92ccf26e77e"
 dependencies = [
  "num-integer",
  "strength_reduce",
+]
+
+[[package]]
+name = "tru-ols"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "csv",
+ "faer 0.24.0",
+ "faer-ext",
+ "flow-fcs",
+ "flow-gates",
+ "flow-plots",
+ "flow-tru-ols",
+ "flow-utils",
+ "image 0.25.9",
+ "indicatif",
+ "ndarray 0.16.1",
+ "peacoqc-rs",
+ "plotters",
+ "polars",
+ "rand 0.10.0",
+ "rand_distr 0.6.0",
+ "rayon",
+ "serde",
+ "serde_json",
+ "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]
