@@ -2,8 +2,10 @@ use rustc_hash::FxHashMap;
 use serde::Serialize;
 use ts_rs::TS;
 
+use crate::options::density::default_gate_colors;
 use crate::options::{DensityPlotOptions, PlotOptions};
 use crate::plots::PlotType;
+use crate::scatter_data::ScatterPlotData;
 
 /// Optimized density calculation with pixel-based rendering
 ///
@@ -113,6 +115,135 @@ pub fn create_binary_chunk(
     })
 }
 
+/// Convert scatter points with discrete gate colors to RawPixelData (ScatterOverlay).
+pub fn scatter_to_pixels_overlay(
+    data: &ScatterPlotData,
+    width: usize,
+    height: usize,
+    options: &DensityPlotOptions,
+) -> Vec<RawPixelData> {
+    let gate_ids = match &data.gate_ids {
+        Some(ids) => ids,
+        None => return scatter_to_pixels(data.xy(), width, height, options),
+    };
+    let colors = if options.gate_colors.is_empty() {
+        default_gate_colors()
+    } else {
+        options.gate_colors.clone()
+    };
+
+    let point_size = options.point_size.max(0.5).min(4.0);
+    let radius_px = (point_size.ceil() as usize).max(1);
+
+    let scale_x = width as f32 / (*options.x_axis.range.end() - *options.x_axis.range.start());
+    let scale_y = height as f32 / (*options.y_axis.range.end() - *options.y_axis.range.start());
+
+    let mut pixels = Vec::new();
+    for (i, &(x, y)) in data.xy().iter().enumerate() {
+        let gate_id = gate_ids.get(i).copied().unwrap_or(0) as usize;
+        let (r, g, b) = colors
+            .get(gate_id)
+            .copied()
+            .unwrap_or((60, 60, 60));
+
+        let pixel_x = (((x - *options.x_axis.range.start()) * scale_x).floor() as isize)
+            .clamp(0, (width - 1) as isize) as usize;
+        let pixel_y = (((y - *options.y_axis.range.start()) * scale_y).floor() as isize)
+            .clamp(0, (height - 1) as isize) as usize;
+
+        for dy in -(radius_px as i32)..=(radius_px as i32) {
+            for dx in -(radius_px as i32)..=(radius_px as i32) {
+                let px = (pixel_x as i32 + dx).clamp(0, (width - 1) as i32) as usize;
+                let py = (pixel_y as i32 + dy).clamp(0, (height - 1) as i32) as usize;
+
+                let data_x = (px as f32 / scale_x) + *options.x_axis.range.start();
+                let data_y = (py as f32 / scale_y) + *options.y_axis.range.start();
+
+                pixels.push(RawPixelData {
+                    x: data_x,
+                    y: data_y,
+                    r,
+                    g,
+                    b,
+                });
+            }
+        }
+    }
+    pixels
+}
+
+/// Convert scatter points with continuous z-axis coloring to RawPixelData (ScatterColoredContinuous).
+pub fn scatter_to_pixels_colored(
+    data: &ScatterPlotData,
+    width: usize,
+    height: usize,
+    options: &DensityPlotOptions,
+) -> Vec<RawPixelData> {
+    let z_values = match &data.z_values {
+        Some(z) => z,
+        None => return scatter_to_pixels(data.xy(), width, height, options),
+    };
+
+    let (z_min, z_max) = match options.z_range {
+        Some((min, max)) => (min, max),
+        None => {
+            let min = z_values
+                .iter()
+                .copied()
+                .fold(f32::INFINITY, f32::min);
+            let max = z_values
+                .iter()
+                .copied()
+                .fold(f32::NEG_INFINITY, f32::max);
+            if min >= max {
+                (min, min + 1.0)
+            } else {
+                (min, max)
+            }
+        }
+    };
+    let z_range = z_max - z_min;
+
+    let point_size = options.point_size.max(0.5).min(4.0);
+    let radius_px = (point_size.ceil() as usize).max(1);
+
+    let scale_x = width as f32 / (*options.x_axis.range.end() - *options.x_axis.range.start());
+    let scale_y = height as f32 / (*options.y_axis.range.end() - *options.y_axis.range.start());
+
+    let mut pixels = Vec::new();
+    for (i, &(x, y)) in data.xy().iter().enumerate() {
+        let z = z_values.get(i).copied().unwrap_or(0.0);
+        let t = (z - z_min) / z_range;
+        let normalized = t.max(0.0).min(1.0);
+        let color = options.colormap.map(normalized);
+        let (r, g, b) = (color.0, color.1, color.2);
+
+        let pixel_x = (((x - *options.x_axis.range.start()) * scale_x).floor() as isize)
+            .clamp(0, (width - 1) as isize) as usize;
+        let pixel_y = (((y - *options.y_axis.range.start()) * scale_y).floor() as isize)
+            .clamp(0, (height - 1) as isize) as usize;
+
+        for dy in -(radius_px as i32)..=(radius_px as i32) {
+            for dx in -(radius_px as i32)..=(radius_px as i32) {
+                let px = (pixel_x as i32 + dx).clamp(0, (width - 1) as i32) as usize;
+                let py = (pixel_y as i32 + dy).clamp(0, (height - 1) as i32) as usize;
+
+                let data_x = (px as f32 / scale_x) + *options.x_axis.range.start();
+                let data_y = (py as f32 / scale_y) + *options.y_axis.range.start();
+
+                pixels.push(RawPixelData {
+                    x: data_x,
+                    y: data_y,
+                    r,
+                    g,
+                    b,
+                });
+            }
+        }
+    }
+    pixels
+}
+
 /// Convert scatter (x,y) points to RawPixelData for solid scatter plots
 ///
 /// Each point is drawn as a small square of pixels. point_size controls the radius.
@@ -128,10 +259,6 @@ pub fn scatter_to_pixels(
 
     let scale_x = width as f32 / (*options.x_axis.range.end() - *options.x_axis.range.start());
     let scale_y = height as f32 / (*options.y_axis.range.end() - *options.y_axis.range.start());
-
-    // Offset in data coordinates for multi-pixel points
-    let dx_data = 0.5 / scale_x;
-    let dy_data = 0.5 / scale_y;
 
     // Single color for scatter solid
     let (r, g, b) = (60u8, 60u8, 60u8);
@@ -166,47 +293,71 @@ pub fn scatter_to_pixels(
     pixels
 }
 
-/// Dispatch to density or scatter based on plot_type
+/// Dispatch to density, scatter, overlay, or colored scatter based on plot_type and data.
 pub fn calculate_plot_pixels(
-    data: &[(f32, f32)],
+    data: &ScatterPlotData,
     width: usize,
     height: usize,
     options: &DensityPlotOptions,
 ) -> Vec<RawPixelData> {
+    let xy = data.xy();
     match options.plot_type.canonical() {
         PlotType::ScatterSolid | PlotType::Dot => {
-            scatter_to_pixels(data, width, height, options)
+            scatter_to_pixels(xy, width, height, options)
+        }
+        PlotType::ScatterOverlay => {
+            if data.has_gates() {
+                scatter_to_pixels_overlay(data, width, height, options)
+            } else {
+                scatter_to_pixels(xy, width, height, options)
+            }
+        }
+        PlotType::ScatterColoredContinuous => {
+            if data.has_z() {
+                scatter_to_pixels_colored(data, width, height, options)
+            } else {
+                calculate_density_per_pixel(xy, width, height, options)
+            }
         }
         PlotType::Density
-        | PlotType::ScatterColoredContinuous
-        | PlotType::ScatterOverlay
         | PlotType::Contour
         | PlotType::ContourOverlay
         | PlotType::Zebra
-        | PlotType::Histogram => calculate_density_per_pixel(data, width, height, options),
+        | PlotType::Histogram => calculate_density_per_pixel(xy, width, height, options),
     }
 }
 
 /// Cancelable version of calculate_plot_pixels
 pub fn calculate_plot_pixels_cancelable(
-    data: &[(f32, f32)],
+    data: &ScatterPlotData,
     width: usize,
     height: usize,
     options: &DensityPlotOptions,
     should_cancel: impl FnMut() -> bool,
 ) -> Option<Vec<RawPixelData>> {
+    let xy = data.xy();
     match options.plot_type.canonical() {
         PlotType::ScatterSolid | PlotType::Dot => {
-            Some(scatter_to_pixels(data, width, height, options))
+            Some(scatter_to_pixels(xy, width, height, options))
+        }
+        PlotType::ScatterOverlay => Some(if data.has_gates() {
+            scatter_to_pixels_overlay(data, width, height, options)
+        } else {
+            scatter_to_pixels(xy, width, height, options)
+        }),
+        PlotType::ScatterColoredContinuous => {
+            if data.has_z() {
+                Some(scatter_to_pixels_colored(data, width, height, options))
+            } else {
+                calculate_density_per_pixel_cancelable(xy, width, height, options, should_cancel)
+            }
         }
         PlotType::Density
-        | PlotType::ScatterColoredContinuous
-        | PlotType::ScatterOverlay
         | PlotType::Contour
         | PlotType::ContourOverlay
         | PlotType::Zebra
         | PlotType::Histogram => {
-            calculate_density_per_pixel_cancelable(data, width, height, options, should_cancel)
+            calculate_density_per_pixel_cancelable(xy, width, height, options, should_cancel)
         }
     }
 }
@@ -240,12 +391,12 @@ pub fn calculate_density_per_pixel_cancelable(
 ///
 /// # Arguments
 /// * `requests` - Vector of (data, options) tuples, where each tuple contains
-///   the data points and the density plot options for one plot
+///   the scatter data and the density plot options for one plot
 ///
 /// # Returns
 /// Vector of RawPixelData vectors, one per request
 pub fn calculate_density_per_pixel_batch(
-    requests: &[(Vec<(f32, f32)>, DensityPlotOptions)],
+    requests: &[(ScatterPlotData, DensityPlotOptions)],
 ) -> Vec<Vec<RawPixelData>> {
     calculate_density_per_pixel_batch_cancelable(requests, || false)
         .expect("calculate_density_per_pixel_batch_cancelable returned None when cancellation is disabled")
@@ -263,7 +414,7 @@ pub fn calculate_density_per_pixel_batch(
 /// # Returns
 /// `Some(Vec<Vec<RawPixelData>>)` if successful, `None` if cancelled
 pub fn calculate_density_per_pixel_batch_cancelable(
-    requests: &[(Vec<(f32, f32)>, DensityPlotOptions)],
+    requests: &[(ScatterPlotData, DensityPlotOptions)],
     mut should_cancel: impl FnMut() -> bool,
 ) -> Option<Vec<Vec<RawPixelData>>> {
     if should_cancel() {
@@ -274,13 +425,13 @@ pub fn calculate_density_per_pixel_batch_cancelable(
 
 /// CPU implementation of batched density calculation
 fn calculate_density_per_pixel_batch_cpu(
-    requests: &[(Vec<(f32, f32)>, DensityPlotOptions)],
+    requests: &[(ScatterPlotData, DensityPlotOptions)],
 ) -> Vec<Vec<RawPixelData>> {
     requests
         .iter()
         .map(|(data, options)| {
             let base = options.base();
-            calculate_density_per_pixel(data, base.width as usize, base.height as usize, options)
+            calculate_plot_pixels(data, base.width as usize, base.height as usize, options)
         })
         .collect()
 }
@@ -304,11 +455,15 @@ fn calculate_density_per_pixel_cpu(
     // - 100K events: ~100µs (array) vs ~500µs (HashMap) = 5x faster
     // Sequential is faster than parallel for typical FCS sizes (parallel overhead dominates)
 
+    let point_size = options.point_size.max(0.5).min(4.0);
+    let radius_px = (point_size.ceil() as usize).max(1);
+
     let build_start = std::time::Instant::now();
     let mut density = vec![0.0f32; width * height];
 
     // Build density map using fast array access
     // Cache-friendly: sequential writes to contiguous memory
+    // Each point contributes to a square neighborhood (radius_px), matching scatter plot behavior
     let mut last_progress = std::time::Instant::now();
     for (i, &(x, y)) in data.iter().enumerate() {
         if (i % 250_000) == 0 {
@@ -337,8 +492,14 @@ fn calculate_density_per_pixel_cpu(
         let pixel_y = (((y - *options.y_axis.range.start()) * scale_y).floor() as isize)
             .clamp(0, (height - 1) as isize) as usize;
 
-        let idx = pixel_y * width + pixel_x;
-        density[idx] += 1.0;
+        for dy in -(radius_px as i32)..=(radius_px as i32) {
+            for dx in -(radius_px as i32)..=(radius_px as i32) {
+                let px = (pixel_x as i32 + dx).clamp(0, (width - 1) as i32) as usize;
+                let py = (pixel_y as i32 + dy).clamp(0, (height - 1) as i32) as usize;
+                let idx = py * width + px;
+                density[idx] += 1.0;
+            }
+        }
     }
 
     // Convert to HashMap of only non-zero pixels (sparse representation for coloring)

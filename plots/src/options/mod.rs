@@ -1,11 +1,13 @@
 pub mod axis;
 pub mod base;
 pub mod density;
+pub mod histogram;
 pub mod spectral;
 
 pub use axis::{AxisOptions, AxisOptionsBuilder};
 pub use base::{BasePlotOptions, BasePlotOptionsBuilder};
 pub use density::{DensityPlotOptions, DensityPlotOptionsBuilder};
+pub use histogram::{HistogramPlotOptions, HistogramPlotOptionsBuilder};
 pub use spectral::{SpectralSignaturePlotOptions, SpectralSignaturePlotOptionsBuilder};
 
 /// Trait for plot options types

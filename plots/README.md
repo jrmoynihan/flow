@@ -30,7 +30,95 @@ let options = DensityPlotOptions::new()
 
 let data: Vec<(f32, f32)> = vec![(100.0, 200.0), (150.0, 250.0)];
 let mut render_config = RenderConfig::default();
+let bytes = plot.render(data.into(), &options, &mut render_config)?;
+```
+
+### Scatter with Discrete Gate Colors (Overlay)
+
+Color points by which filter/gate each event belongs to:
+
+```rust
+use flow_plots::{DensityPlot, DensityPlotOptions, ScatterPlotData};
+use flow_plots::options::BasePlotOptions;
+use flow_plots::plots::PlotType;
+
+let points = vec![(100.0, 200.0), (150.0, 250.0), (200.0, 300.0)];
+let gate_ids = vec![0, 1, 0];  // gate index per point
+let data = ScatterPlotData::with_gates(points, gate_ids)?;
+
+let options = DensityPlotOptions::new()
+    .base(BasePlotOptions::new().width(800).height(600).build()?)
+    .plot_type(PlotType::ScatterOverlay)
+    .gate_colors(vec![
+        (34, 139, 34),   // green
+        (255, 165, 0),   // orange
+        (31, 119, 180),  // blue
+    ])
+    .build()?;
+
 let bytes = plot.render(data, &options, &mut render_config)?;
+```
+
+### Scatter Colored by Continuous Feature (Z-Axis)
+
+Color points by a third continuous value (e.g., expression level):
+
+```rust
+use flow_plots::{ColorMaps, DensityPlot, DensityPlotOptions, ScatterPlotData};
+use flow_plots::plots::PlotType;
+
+let points = vec![(100.0, 200.0), (150.0, 250.0)];
+let z_values = vec![0.3, 0.9];  // e.g., normalized expression
+let data = ScatterPlotData::with_z(points, z_values)?;
+
+let options = DensityPlotOptions::new()
+    .base(BasePlotOptions::new().width(800).height(600).build()?)
+    .plot_type(PlotType::ScatterColoredContinuous)
+    .colormap(ColorMaps::Viridis)
+    .z_range(Some((0.0, 1.0)))  // optional; auto from data if None
+    .build()?;
+
+let bytes = plot.render(data, &options, &mut render_config)?;
+```
+
+### Histogram (1D)
+
+Create 1D histograms from raw values, pre-binned data, or overlaid series:
+
+```rust
+use flow_plots::{HistogramPlot, HistogramData, HistogramPlotOptions};
+use flow_plots::options::{BasePlotOptions, AxisOptions};
+use flow_plots::render::RenderConfig;
+
+let plot = HistogramPlot::new();
+
+// Single histogram from raw values
+let data = HistogramData::from_values(vec![1.0, 2.0, 2.0, 3.0, 3.0, 3.0]);
+let options = HistogramPlotOptions::new()
+    .base(BasePlotOptions::new().width(800).height(600).build()?)
+    .x_axis(AxisOptions::new().range(0.0..=10.0).build()?)
+    .histogram_filled(true)
+    .num_bins(20usize)
+    .build()?;
+
+let mut render_config = RenderConfig::default();
+let bytes = plot.render(data, &options, &mut render_config)?;
+```
+
+Overlaid histograms with gate colors, baseline separation, and scale-to-peak:
+
+```rust
+let data = HistogramData::overlaid(vec![
+    (vec![1.0, 2.0, 2.0], 0),  // gate 0
+    (vec![2.5, 3.0, 3.0], 1),  // gate 1
+]);
+let options = HistogramPlotOptions::new()
+    .base(BasePlotOptions::new().width(800).height(600).build()?)
+    .histogram_filled(true)
+    .scale_to_peak(true)
+    .baseline_separation(0.2)
+    .gate_colors(vec![(34, 139, 34), (255, 165, 0)])
+    .build()?;
 ```
 
 ### With FCS File Initialization
