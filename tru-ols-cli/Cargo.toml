@@ -1,5 +1,5 @@
 [package]
-name = "flow-tru-ols-cli"
+name = "tru-ols"
 version = "0.1.0"
 edition.workspace = true
 authors.workspace = true
@@ -50,6 +50,6 @@ image = { workspace = true }
 
 [package.metadata.scripts]
 test = "cargo test"
-dry-release = "cargo smart-release flow-tru-ols-cli --update-crates-index"
-publish = "cargo smart-release flow-tru-ols-cli --update-crates-index --execute"
-changelog = "cargo changelog flow-tru-ols-cli --write"
+dry-release = "cargo smart-release tru-ols --update-crates-index --no-dependencies"
+publish = "cargo smart-release tru-ols --update-crates-index --no-dependencies --execute"
+changelog = "cargo changelog tru-ols --write"

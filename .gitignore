@@ -10,7 +10,7 @@ node_modules/
 /build
 
 # IDE
-.cursor/
+# .cursor/
 .vscode/
 
 # OS
