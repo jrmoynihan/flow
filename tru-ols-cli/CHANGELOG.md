@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.1.1 (2026-03-04)
+
+### Fixed
+
+- Compatibility with flow-plots v0.3.0 `ScatterPlotData`: add `.into()` for all density plot renders
+
+### Chore
+
+- Use `commands.rs` as primary module (rename from commands_mine.rs), remove from .gitignore
+
 ## 0.1.0 (2026-02-15)
 
 <csr-id-46bee42d4f28d185b38446c0d950c2579c422f43/>
