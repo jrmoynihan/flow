@@ -331,8 +331,6 @@ let plot_bytes = plot_bytes?;
 
 **Contour plots:** The low-level APIs (`calculate_plot_pixels`, `calculate_density_per_pixel_batch`) produce *density heatmaps* for all plot types, including `Contour` and `ContourOverlay`. To render contour lines, branch on `plot_type` and use `DensityPlot::render` (or call `flow_plots::contour::calculate_contours` + `flow_plots::render::plotters_backend::render_contour` directly).
 
-**Point size mapping:** If your UI slider uses 0.05–1.0 but the crate expects 0.1–4.0, use `flow_plots::map_point_size_from_ui(ui_value)` or the builder method `.point_size_from_ui(ui_value)` so the full range affects the plot.
-
 **Note**: While batch processing is available, sequential processing (calling `render()` in a loop) is typically faster for most use cases. See `GPU_EVALUATION.md` for performance analysis.
 
 ## Architecture

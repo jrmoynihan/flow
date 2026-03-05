@@ -126,12 +126,3 @@ impl DensityPlotOptions {
         DensityPlotOptionsBuilder::default()
     }
 }
-
-impl DensityPlotOptionsBuilder {
-    /// Set point_size by mapping from UI range [0.05, 1.0] to crate range [0.1, 4.0].
-    /// Use when your frontend slider stores 0.05–1.0 so the full crate range is used.
-    pub fn point_size_from_ui(mut self, ui_value: f32) -> Self {
-        self.point_size = Some(crate::helpers::map_point_size_from_ui(ui_value));
-        self
-    }
-}
