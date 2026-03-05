@@ -38,3 +38,34 @@ You MUST use this tool whenever writing Svelte code before sending it to the use
 
 Generates a Svelte Playground link with the provided code.
 After completing the code, ask the user if they want a playground link. Only call this tool after user confirmation and NEVER if code was written to files in their project.
+
+## Cursor Cloud specific instructions
+
+### Project structure
+
+- **Rust workspace** (8 crates): `flow-fcs`, `flow-plots`, `flow-gates`, `flow-utils`, `flow-tru-ols`, `peacoqc-rs`, `peacoqc-cli`, `flow-tru-ols-cli`
+- **SvelteKit docs site**: root `package.json`, uses bun, Svelte 5, Tailwind CSS v4, mdsvex
+
+### Rust crates
+
+- Build/test commands: `cargo check --workspace`, `cargo test --workspace --lib --bins`, `cargo clippy --workspace`
+- The `flow-tru-ols-cli` crate has a missing `commands` module (`tru-ols-cli/src/commands.rs`) — exclude it from workspace builds with `--exclude flow-tru-ols-cli` until that module is created.
+- `peacoqc-rs` tests that use GPU/KDE (via WGPU/Vulkan) will fail in headless VMs without a GPU adapter. Use `--no-default-features --features flow-fcs` when running peacoqc-rs examples to skip GPU backend.
+- System deps `libfontconfig1-dev` and `pkg-config` are required by the `plotters` crate.
+
+### SvelteKit docs site
+
+- Install: `bun install`
+- Dev server: `bun run dev` (port 5173)
+- Lint: `bun run lint` (prettier + eslint)
+- Type-check: `bun run check` (svelte-check)
+- **Known issue**: `svelte-kit sync` fails because both `src/routes/+page.svelte` and `src/routes/+page.svx` exist. This prevents SSR and `bun run check` from working until one is removed. The `prepare` script suppresses this error with `|| echo ''`.
+
+### Running tests
+
+- `cargo test -p flow-fcs --lib` — 74 tests, all pass
+- `cargo test -p flow-plots --lib` — 2 tests, all pass
+- `cargo test -p flow-gates --lib` — 64 tests, all pass
+- `cargo test -p flow-tru-ols --lib` — 13 tests, all pass
+- `cargo test -p peacoqc-rs --lib` — some tests fail without GPU; non-GPU tests pass
+- Demo example: `cargo run -p peacoqc-rs --no-default-features --features flow-fcs --example demo_qc_plot`
