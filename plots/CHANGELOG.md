@@ -26,7 +26,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added `flow-utils` for KDE contour support
 - Added `ndarray` for marching squares contour extraction
 
-## Unreleased
+## 0.3.1 (2026-03-05)
+
+<csr-id-9ab231f53ebb8a4aa8cefbc9db2542a69bbd66ca/>
 
 ### Chore
 
@@ -36,15 +38,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
  - <csr-id-bf487fdc0b7b021c358f6026e46dd2418080d51c/> point size UI mapping, contour path docs, validation example
    - Add map_point_size_from_ui() and .point_size_from_ui() for 0.05-1.0 -> 0.1-4.0
-   - Document that Contour/ContourOverlay need DensityPlot::render, not pixel APIs
-   - Add plot_types_validation example for visual validation
+- Document that Contour/ContourOverlay need DensityPlot::render, not pixel APIs
+- Add plot_types_validation example for visual validation
 
 ### Commit Statistics
 
 <csr-read-only-do-not-edit/>
 
- - 3 commits contributed to the release.
- - 1 day passed between releases.
+ - 4 commits contributed to the release.
  - 2 commits were understood as [conventional](https://www.conventionalcommits.org).
  - 0 issues like '(#ID)' were seen in commit messages
 
@@ -55,12 +56,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 <details><summary>view details</summary>
 
  * **Uncategorized**
+    - Update CHANGELOG for unreleased features and chore updates ([`44a0537`](https://github.com/jrmoynihan/flow/commit/44a0537157521ed77ee0098f6051f6e64e6f56d0))
     - Merge branch 'cursor/axis-gate-interaction-630e' into main ([`c021235`](https://github.com/jrmoynihan/flow/commit/c021235f1555962be2177f2edd5a49de646effd4))
     - Remove point size UI mapping; use backend values directly ([`9ab231f`](https://github.com/jrmoynihan/flow/commit/9ab231f53ebb8a4aa8cefbc9db2542a69bbd66ca))
     - Point size UI mapping, contour path docs, validation example ([`bf487fd`](https://github.com/jrmoynihan/flow/commit/bf487fdc0b7b021c358f6026e46dd2418080d51c))
 </details>
 
 ## 0.3.0 (2026-03-04)
+
+<csr-id-fd1cc4a76af40804018e24792dce407860302857/>
+<csr-id-a1e9c1ff01eadccf8c24e6d58d39661fb7d8a22b/>
 
 ### Chore
 
@@ -71,11 +76,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
  - <csr-id-8b26c1418137646bb311d45a678d1d43ef05a22d/> scatter overlay, z-axis coloring, density point size, contours, histograms
    - ScatterPlotData: discrete gate colors (ScatterOverlay), continuous z-axis (ScatterColoredContinuous)
-   - Density plots: point_size affects contribution radius (matches scatter behavior)
-   - Contour plots: KDE-based contours, draw_outliers, contour_smoothing
-   - HistogramPlot: filled/unfilled, overlaid with gate colors, baseline separation, scale_to_peak
-   - Breaking: DensityPlot::Data is now ScatterPlotData; use .into() for Vec<(f32,f32)>
-   - Updated tru-ols, tru-ols-cli, gates for new API
+- Density plots: point_size affects contribution radius (matches scatter behavior)
+- Contour plots: KDE-based contours, draw_outliers, contour_smoothing
+- HistogramPlot: filled/unfilled, overlaid with gate colors, baseline separation, scale_to_peak
+- Breaking: DensityPlot::Data is now ScatterPlotData; use .into() for Vec<(f32,f32)>
+- Updated tru-ols, tru-ols-cli, gates for new API
 
 ### Commit Statistics
 
