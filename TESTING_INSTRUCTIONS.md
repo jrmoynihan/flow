@@ -2,7 +2,8 @@
 
 ## Overview
 
-This document provides instructions for testing the `flow-tru-ols-cli` crate with its new features:
+This document provides instructions for testing the `tru-ols` crate with its new features:
+
 - Peak-based median selection
 - Peak biasing
 - Negative event extraction
@@ -20,7 +21,7 @@ This document provides instructions for testing the `flow-tru-ols-cli` crate wit
 2. **Environment Setup:**
    ```bash
    cd /Users/kfls271/Rust/flow-crates
-   cargo build --package flow-tru-ols-cli --release
+   cargo build --package tru-ols --release
    ```
 
 ## Basic Usage
@@ -28,7 +29,7 @@ This document provides instructions for testing the `flow-tru-ols-cli` crate wit
 ### 1. Using SPILL Matrix from FCS File
 
 ```bash
-cargo run --package flow-tru-ols-cli --bin tru-ols -- \
+cargo run --package tru-ols --bin tru-ols -- \
   unmix \
   --stained /path/to/stained.fcs \
   --unstained /path/to/unstained.fcs \
@@ -40,7 +41,7 @@ cargo run --package flow-tru-ols-cli --bin tru-ols -- \
 ### 2. Using Single-Stain Controls (Basic)
 
 ```bash
-cargo run --package flow-tru-ols-cli --bin tru-ols -- \
+cargo run --package tru-ols --bin tru-ols -- \
   unmix \
   --stained /path/to/stained.fcs \
   --unstained /path/to/unstained.fcs \
@@ -53,7 +54,7 @@ cargo run --package flow-tru-ols-cli --bin tru-ols -- \
 ### 3. Using Peak Detection (Recommended)
 
 ```bash
-cargo run --package flow-tru-ols-cli --bin tru-ols -- \
+cargo run --package tru-ols --bin tru-ols -- \
   unmix \
   --stained /path/to/stained.fcs \
   --unstained /path/to/unstained.fcs \
@@ -69,7 +70,7 @@ cargo run --package flow-tru-ols-cli --bin tru-ols -- \
 ### 4. Using Negative Events for Autofluorescence
 
 ```bash
-cargo run --package flow-tru-ols-cli --bin tru-ols -- \
+cargo run --package tru-ols --bin tru-ols -- \
   unmix \
   --stained /path/to/stained.fcs \
   --unstained /path/to/unstained.fcs \
@@ -86,7 +87,7 @@ cargo run --package flow-tru-ols-cli --bin tru-ols -- \
 ### 5. Using Hybrid Autofluorescence
 
 ```bash
-cargo run --package flow-tru-ols-cli --bin tru-ols -- \
+cargo run --package tru-ols --bin tru-ols -- \
   unmix \
   --stained /path/to/stained.fcs \
   --unstained /path/to/unstained.fcs \
@@ -103,7 +104,7 @@ cargo run --package flow-tru-ols-cli --bin tru-ols -- \
 ### 6. Using Automated Gating
 
 ```bash
-cargo run --package flow-tru-ols-cli --bin tru-ols -- \
+cargo run --package tru-ols --bin tru-ols -- \
   unmix \
   --stained /path/to/stained.fcs \
   --unstained /path/to/unstained.fcs \
@@ -118,7 +119,7 @@ cargo run --package flow-tru-ols-cli --bin tru-ols -- \
 ### 7. Full Feature Set
 
 ```bash
-cargo run --package flow-tru-ols-cli --bin tru-ols -- \
+cargo run --package tru-ols --bin tru-ols -- \
   unmix \
   --stained /path/to/stained.fcs \
   --unstained /path/to/unstained.fcs \
@@ -266,13 +267,13 @@ cargo run --package flow-tru-ols-cli --bin tru-ols -- \
 Enable verbose logging to see detailed diagnostics:
 
 ```bash
-RUST_LOG=info cargo run --package flow-tru-ols-cli --bin tru-ols -- unmix ...
+RUST_LOG=info cargo run --package tru-ols --bin tru-ols -- unmix ...
 ```
 
 For debug-level logging:
 
 ```bash
-RUST_LOG=debug cargo run --package flow-tru-ols-cli --bin tru-ols -- unmix ...
+RUST_LOG=debug cargo run --package tru-ols --bin tru-ols -- unmix ...
 ```
 
 ## Expected Log Output
