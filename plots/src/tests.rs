@@ -9,7 +9,10 @@ mod tests {
     use crate::colormap::ColorMaps;
     use crate::helpers::density_options_from_fcs;
     use crate::options::{AxisOptions, BasePlotOptions, DensityPlotOptions, PlotOptions};
+    use crate::histogram_data::HistogramData;
+    use crate::options::HistogramPlotOptions;
     use crate::plots::density::DensityPlot;
+    use crate::plots::histogram::HistogramPlot;
     use crate::render::RenderConfig;
     use flow_fcs::{Fcs, Parameter, TransformType};
     use polars::prelude::*;
@@ -404,7 +407,7 @@ mod tests {
         let mut render_config = RenderConfig::default();
 
         // Should handle empty data gracefully
-        let result = plot.render(data, &options, &mut render_config);
+        let result = plot.render(data.into(), &options, &mut render_config);
         assert!(result.is_ok());
     }
 
@@ -419,7 +422,7 @@ mod tests {
         let data: Vec<(f32, f32)> = vec![(100.0, 200.0), (150.0, 250.0), (200.0, 300.0)];
         let mut render_config = RenderConfig::default();
 
-        let result = plot.render(data, &options, &mut render_config);
+        let result = plot.render(data.into(), &options, &mut render_config);
         assert!(result.is_ok());
         let bytes = result.unwrap();
         // Should produce JPEG bytes
@@ -427,6 +430,119 @@ mod tests {
         // JPEG files start with FF D8 FF
         assert_eq!(bytes[0], 0xFF);
         assert_eq!(bytes[1], 0xD8);
+    }
+
+    // ============================================================================
+    // Histogram Plot Tests
+    // ============================================================================
+
+    #[test]
+    fn test_histogram_plot_render_raw_values() {
+        let plot = HistogramPlot::new();
+        let options = HistogramPlotOptions::new()
+            .base(BasePlotOptions::new().width(200).height(200).build().unwrap())
+            .x_axis(
+                AxisOptions::new()
+                    .range(0.0..=100.0)
+                    .build()
+                    .unwrap(),
+            )
+            .histogram_filled(true)
+            .num_bins(20usize)
+            .build()
+            .unwrap();
+        let data = HistogramData::from_values(vec![
+            10.0, 15.0, 20.0, 20.0, 25.0, 30.0, 35.0, 40.0, 45.0, 50.0,
+        ]);
+        let mut render_config = RenderConfig::default();
+
+        let result = plot.render(data, &options, &mut render_config);
+        assert!(result.is_ok());
+        let bytes = result.unwrap();
+        assert!(!bytes.is_empty());
+        assert_eq!(bytes[0], 0xFF);
+        assert_eq!(bytes[1], 0xD8);
+    }
+
+    #[test]
+    fn test_histogram_plot_render_unfilled() {
+        let plot = HistogramPlot::new();
+        let options = HistogramPlotOptions::new()
+            .base(BasePlotOptions::new().width(200).height(200).build().unwrap())
+            .x_axis(
+                AxisOptions::new()
+                    .range(0.0..=50.0)
+                    .build()
+                    .unwrap(),
+            )
+            .histogram_filled(false)
+            .num_bins(10usize)
+            .build()
+            .unwrap();
+        let data = HistogramData::from_values(vec![5.0, 10.0, 10.0, 15.0, 20.0]);
+        let mut render_config = RenderConfig::default();
+
+        let result = plot.render(data, &options, &mut render_config);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_histogram_plot_render_pre_binned() {
+        let plot = HistogramPlot::new();
+        let options = HistogramPlotOptions::new()
+            .base(BasePlotOptions::new().width(200).height(200).build().unwrap())
+            .build()
+            .unwrap();
+        let data = HistogramData::pre_binned(
+            vec![0.0, 1.0, 2.0, 3.0, 4.0],
+            vec![5.0, 10.0, 7.0, 3.0],
+        )
+        .unwrap();
+        let mut render_config = RenderConfig::default();
+
+        let result = plot.render(data, &options, &mut render_config);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_histogram_plot_render_overlaid() {
+        let plot = HistogramPlot::new();
+        let options = HistogramPlotOptions::new()
+            .base(BasePlotOptions::new().width(200).height(200).build().unwrap())
+            .x_axis(
+                AxisOptions::new()
+                    .range(0.0..=100.0)
+                    .build()
+                    .unwrap(),
+            )
+            .histogram_filled(true)
+            .scale_to_peak(true)
+            .baseline_separation(0.2)
+            .num_bins(15usize)
+            .build()
+            .unwrap();
+        let data = HistogramData::overlaid(vec![
+            (vec![10.0, 20.0, 20.0, 30.0], 0),
+            (vec![25.0, 35.0, 35.0, 45.0], 1),
+        ]);
+        let mut render_config = RenderConfig::default();
+
+        let result = plot.render(data, &options, &mut render_config);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_histogram_plot_render_empty() {
+        let plot = HistogramPlot::new();
+        let options = HistogramPlotOptions::new()
+            .base(BasePlotOptions::new().width(100).height(100).build().unwrap())
+            .build()
+            .unwrap();
+        let data = HistogramData::from_values(vec![]);
+        let mut render_config = RenderConfig::default();
+
+        let result = plot.render(data, &options, &mut render_config);
+        assert!(result.is_ok());
     }
 
     #[test]
@@ -452,7 +568,7 @@ mod tests {
             ..Default::default()
         };
 
-        let result = plot.render(data, &options, &mut render_config);
+        let result = plot.render(data.into(), &options, &mut render_config);
         assert!(result.is_ok());
         // Progress should have been called at least once
         assert!(progress_calls > 0);
@@ -518,7 +634,6 @@ mod tests {
     #[test]
     fn test_render_config_default() {
         let config = RenderConfig::default();
-        assert!(config.render_lock.is_none());
         assert!(config.progress.is_none());
     }
 
@@ -536,8 +651,9 @@ mod tests {
     #[test]
     fn test_calculate_density_per_pixel_batch_empty() {
         use crate::density_calc::calculate_density_per_pixel_batch;
+        use crate::ScatterPlotData;
 
-        let requests: Vec<(Vec<(f32, f32)>, DensityPlotOptions)> = vec![];
+        let requests: Vec<(ScatterPlotData, DensityPlotOptions)> = vec![];
         let results = calculate_density_per_pixel_batch(&requests);
         assert_eq!(results.len(), 0);
     }
@@ -545,6 +661,7 @@ mod tests {
     #[test]
     fn test_calculate_density_per_pixel_batch_single_plot() {
         use crate::density_calc::{calculate_density_per_pixel, calculate_density_per_pixel_batch};
+        use crate::ScatterPlotData;
 
         let options = DensityPlotOptions::new()
             .width(100)
@@ -554,7 +671,7 @@ mod tests {
         let data = vec![(100.0, 200.0), (150.0, 250.0), (200.0, 300.0)];
 
         // Single plot via batch
-        let batch_results = calculate_density_per_pixel_batch(&[(data.clone(), options.clone())]);
+        let batch_results = calculate_density_per_pixel_batch(&[(data.clone().into(), options.clone())]);
         assert_eq!(batch_results.len(), 1);
 
         // Single plot via direct call
@@ -567,6 +684,7 @@ mod tests {
     #[test]
     fn test_calculate_density_per_pixel_batch_multiple_plots() {
         use crate::density_calc::calculate_density_per_pixel_batch;
+        use crate::ScatterPlotData;
 
         let options1 = DensityPlotOptions::new()
             .width(100)
@@ -583,8 +701,8 @@ mod tests {
         let data2 = vec![(50.0, 100.0), (75.0, 125.0), (100.0, 150.0)];
 
         let requests = vec![
-            (data1, options1),
-            (data2, options2),
+            (data1.into(), options1),
+            (data2.into(), options2),
         ];
 
         let results = calculate_density_per_pixel_batch(&requests);
@@ -596,18 +714,19 @@ mod tests {
     #[test]
     fn test_calculate_density_per_pixel_batch_different_sizes() {
         use crate::density_calc::calculate_density_per_pixel_batch;
+        use crate::ScatterPlotData;
 
-        let requests: Vec<(Vec<(f32, f32)>, DensityPlotOptions)> = vec![
+        let requests: Vec<(ScatterPlotData, DensityPlotOptions)> = vec![
             (
-                vec![(100.0, 200.0)],
+                vec![(100.0, 200.0)].into(),
                 DensityPlotOptions::new().width(800).height(600).build().unwrap(),
             ),
             (
-                vec![(50.0, 100.0)],
+                vec![(50.0, 100.0)].into(),
                 DensityPlotOptions::new().width(1024).height(768).build().unwrap(),
             ),
             (
-                vec![(200.0, 300.0)],
+                vec![(200.0, 300.0)].into(),
                 DensityPlotOptions::new().width(640).height(480).build().unwrap(),
             ),
         ];
@@ -622,8 +741,10 @@ mod tests {
 
     #[test]
     fn test_render_batch_empty() {
+        use crate::ScatterPlotData;
+
         let plot = DensityPlot::new();
-        let requests: Vec<(Vec<(f32, f32)>, DensityPlotOptions)> = vec![];
+        let requests: Vec<(ScatterPlotData, DensityPlotOptions)> = vec![];
         let mut render_config = RenderConfig::default();
 
         let results = plot.render_batch(&requests, &mut render_config).unwrap();
@@ -632,6 +753,8 @@ mod tests {
 
     #[test]
     fn test_render_batch_single_plot() {
+        use crate::ScatterPlotData;
+
         let plot = DensityPlot::new();
         let options = DensityPlotOptions::new()
             .width(100)
@@ -639,7 +762,7 @@ mod tests {
             .build()
             .unwrap();
         let data = vec![(100.0, 200.0), (150.0, 250.0)];
-        let requests = vec![(data, options)];
+        let requests = vec![(data.into(), options)];
         let mut render_config = RenderConfig::default();
 
         let results = plot.render_batch(&requests, &mut render_config).unwrap();
@@ -652,6 +775,8 @@ mod tests {
 
     #[test]
     fn test_render_batch_multiple_plots() {
+        use crate::ScatterPlotData;
+
         let plot = DensityPlot::new();
         let options1 = DensityPlotOptions::new()
             .width(100)
@@ -668,8 +793,8 @@ mod tests {
         let data2 = vec![(50.0, 100.0), (75.0, 125.0), (100.0, 150.0)];
 
         let requests = vec![
-            (data1, options1),
-            (data2, options2),
+            (data1.into(), options1),
+            (data2.into(), options2),
         ];
         let mut render_config = RenderConfig::default();
 

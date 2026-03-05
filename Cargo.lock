@@ -3158,7 +3158,7 @@ dependencies = [
 
 [[package]]
 name = "flow-plots"
-version = "0.2.2"
+version = "0.3.0"
 dependencies = [
  "anyhow",
  "colorgrad",
@@ -3166,7 +3166,9 @@ dependencies = [
  "criterion",
  "derive_builder",
  "flow-fcs",
+ "flow-utils",
  "image 0.25.9",
+ "ndarray 0.16.1",
  "num-traits 0.2.19",
  "once_cell",
  "plotters",
@@ -9092,7 +9094,7 @@ dependencies = [
 
 [[package]]
 name = "tru-ols"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "anyhow",
  "clap",

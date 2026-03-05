@@ -1,6 +1,7 @@
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
 use flow_plots::density_calc::calculate_density_per_pixel_batch;
 use flow_plots::options::{AxisOptions, BasePlotOptions, DensityPlotOptions, PlotOptions};
+use flow_plots::ScatterPlotData;
 use rand::Rng;
 use std::hint::black_box;
 
@@ -34,11 +35,11 @@ fn benchmark_batch_density(c: &mut Criterion) {
     // Scaling benchmarks: Vary plot count (hold events constant at 50k)
     for plot_count in [5, 10, 20] {
         let event_count = 50_000;
-        let requests: Vec<(Vec<(f32, f32)>, DensityPlotOptions)> = (0..plot_count)
+        let requests: Vec<(ScatterPlotData, DensityPlotOptions)> = (0..plot_count)
             .map(|_| {
                 let data = generate_test_data(event_count);
                 let options = create_test_options(800, 600);
-                (data, options)
+                (data.into(), options)
             })
             .collect();
 
@@ -57,11 +58,11 @@ fn benchmark_batch_density(c: &mut Criterion) {
     // Scaling benchmarks: Vary event count (hold plot count constant at 10)
     for event_count in [50_000, 100_000, 500_000] {
         let plot_count = 10;
-        let requests: Vec<(Vec<(f32, f32)>, DensityPlotOptions)> = (0..plot_count)
+        let requests: Vec<(ScatterPlotData, DensityPlotOptions)> = (0..plot_count)
             .map(|_| {
                 let data = generate_test_data(event_count);
                 let options = create_test_options(800, 600);
-                (data, options)
+                (data.into(), options)
             })
             .collect();
 
@@ -85,11 +86,11 @@ fn benchmark_batch_density(c: &mut Criterion) {
     ];
 
     for (plot_count, event_count) in scenarios {
-        let requests: Vec<(Vec<(f32, f32)>, DensityPlotOptions)> = (0..plot_count)
+        let requests: Vec<(ScatterPlotData, DensityPlotOptions)> = (0..plot_count)
             .map(|_| {
                 let data = generate_test_data(event_count);
                 let options = create_test_options(800, 600);
-                (data, options)
+                (data.into(), options)
             })
             .collect();
 
@@ -112,11 +113,11 @@ fn benchmark_mixed_vs_constant_sizes(c: &mut Criterion) {
     let mut group = c.benchmark_group("batch_density_sizes");
 
     // Constant size: 10 plots, all 800×600
-    let constant_requests: Vec<(Vec<(f32, f32)>, DensityPlotOptions)> = (0..10)
+    let constant_requests: Vec<(ScatterPlotData, DensityPlotOptions)> = (0..10)
         .map(|_| {
             let data = generate_test_data(100_000);
             let options = create_test_options(800, 600);
-            (data, options)
+            (data.into(), options)
         })
         .collect();
 
@@ -131,7 +132,7 @@ fn benchmark_mixed_vs_constant_sizes(c: &mut Criterion) {
     );
 
     // Mixed sizes: 10 plots, mix of 800×600, 1024×768, 640×480
-    let mixed_requests: Vec<(Vec<(f32, f32)>, DensityPlotOptions)> = (0..10)
+    let mixed_requests: Vec<(ScatterPlotData, DensityPlotOptions)> = (0..10)
         .map(|i| {
             let data = generate_test_data(100_000);
             let (width, height) = match i % 3 {
@@ -140,7 +141,7 @@ fn benchmark_mixed_vs_constant_sizes(c: &mut Criterion) {
                 _ => (640, 480),
             };
             let options = create_test_options(width, height);
-            (data, options)
+            (data.into(), options)
         })
         .collect();
 
@@ -165,11 +166,11 @@ fn benchmark_sequential_vs_batch(c: &mut Criterion) {
     // Test with 5 plots, 50k events each
     let plot_count = 5;
     let event_count = 50_000;
-    let requests: Vec<(Vec<(f32, f32)>, DensityPlotOptions)> = (0..plot_count)
+    let requests: Vec<(ScatterPlotData, DensityPlotOptions)> = (0..plot_count)
         .map(|_| {
             let data = generate_test_data(event_count);
             let options = create_test_options(800, 600);
-            (data, options)
+            (data.into(), options)
         })
         .collect();
 
@@ -182,7 +183,7 @@ fn benchmark_sequential_vs_batch(c: &mut Criterion) {
                 for (data, options) in requests {
                     let base = options.base();
                     black_box(calculate_density_per_pixel(
-                        black_box(data),
+                        black_box(data.xy()),
                         base.width as usize,
                         base.height as usize,
                         black_box(options),

@@ -1,9 +1,12 @@
+use crate::contour::calculate_contours;
 use crate::PlotBytes;
-use crate::density_calc::calculate_density_per_pixel;
+use crate::density_calc::calculate_plot_pixels;
 use crate::options::{DensityPlotOptions, PlotOptions};
 use crate::plots::traits::Plot;
+use crate::plots::PlotType;
 use crate::render::RenderConfig;
-use crate::render::plotters_backend::render_pixels;
+use crate::render::plotters_backend::{render_contour, render_pixels};
+use crate::scatter_data::ScatterPlotData;
 use anyhow::Result;
 
 /// Density plot implementation
@@ -26,7 +29,7 @@ use anyhow::Result;
 ///     .build()?;
 /// let data: Vec<(f32, f32)> = vec![(100.0, 200.0), (150.0, 250.0)];
 /// let mut render_config = RenderConfig::default();
-/// let bytes = plot.render(data, &options, &mut render_config)?;
+/// let bytes = plot.render(data.into(), &options, &mut render_config)?;
 /// # Ok(())
 /// # }
 /// ```
@@ -52,18 +55,37 @@ impl DensityPlot {
     /// Vector of plot bytes, one per request
     pub fn render_batch(
         &self,
-        requests: &[(Vec<(f32, f32)>, DensityPlotOptions)],
+        requests: &[(ScatterPlotData, DensityPlotOptions)],
         render_config: &mut RenderConfig,
     ) -> Result<Vec<PlotBytes>> {
-        use crate::density_calc::calculate_density_per_pixel_batch;
-
-        // Calculate density for all plots
-        let raw_pixels_batch = calculate_density_per_pixel_batch(requests);
-
-        // Render each plot
         let mut results = Vec::with_capacity(requests.len());
-        for (i, raw_pixels) in raw_pixels_batch.iter().enumerate() {
-            let bytes = render_pixels(raw_pixels.clone(), &requests[i].1, render_config)?;
+        for (data, options) in requests.iter() {
+            let bytes = match options.plot_type.canonical() {
+                PlotType::Contour | PlotType::ContourOverlay => {
+                    let xy = data.xy();
+                    let x_range = (*options.x_axis.range.start(), *options.x_axis.range.end());
+                    let y_range = (*options.y_axis.range.start(), *options.y_axis.range.end());
+                    let contour_data = calculate_contours(
+                        xy,
+                        options.contour_level_count,
+                        options.contour_smoothing,
+                        options.draw_outliers,
+                        x_range,
+                        y_range,
+                    )?;
+                    render_contour(contour_data, options, render_config)?
+                }
+                _ => {
+                    let base = options.base();
+                    let raw_pixels = calculate_plot_pixels(
+                        data,
+                        base.width as usize,
+                        base.height as usize,
+                        options,
+                    );
+                    render_pixels(raw_pixels, options, render_config)?
+                }
+            };
             results.push(bytes);
         }
         Ok(results)
@@ -72,7 +94,7 @@ impl DensityPlot {
 
 impl Plot for DensityPlot {
     type Options = DensityPlotOptions;
-    type Data = Vec<(f32, f32)>;
+    type Data = ScatterPlotData;
 
     fn render(
         &self,
@@ -80,29 +102,52 @@ impl Plot for DensityPlot {
         options: &Self::Options,
         render_config: &mut RenderConfig,
     ) -> Result<PlotBytes> {
-        let density_start = std::time::Instant::now();
+        let plot_start = std::time::Instant::now();
 
-        // Calculate density per pixel
-        let base = options.base();
-        let raw_pixels = calculate_density_per_pixel(
-            &data[..],
-            base.width as usize,
-            base.height as usize,
-            options,
-        );
-
-        eprintln!(
-            "  ├─ Density calculation: {:?} ({} pixels at {}x{})",
-            density_start.elapsed(),
-            raw_pixels.len(),
-            base.width,
-            base.height
-        );
-
-        let draw_start = std::time::Instant::now();
-        let result = render_pixels(raw_pixels, options, render_config);
-        eprintln!("  └─ Draw + encode: {:?}", draw_start.elapsed());
-
-        result
+        match options.plot_type.canonical() {
+            PlotType::Contour | PlotType::ContourOverlay => {
+                let xy = data.xy();
+                let x_range = (*options.x_axis.range.start(), *options.x_axis.range.end());
+                let y_range = (*options.y_axis.range.start(), *options.y_axis.range.end());
+                let contour_data = calculate_contours(
+                    xy,
+                    options.contour_level_count,
+                    options.contour_smoothing,
+                    options.draw_outliers,
+                    x_range,
+                    y_range,
+                )?;
+                eprintln!(
+                    "  ├─ Contour calculation: {:?} ({} paths, {} outliers)",
+                    plot_start.elapsed(),
+                    contour_data.contours.len(),
+                    contour_data.outliers.len()
+                );
+                let draw_start = std::time::Instant::now();
+                let result = render_contour(contour_data, options, render_config);
+                eprintln!("  └─ Draw + encode: {:?}", draw_start.elapsed());
+                result
+            }
+            _ => {
+                let base = options.base();
+                let raw_pixels = calculate_plot_pixels(
+                    &data,
+                    base.width as usize,
+                    base.height as usize,
+                    options,
+                );
+                eprintln!(
+                    "  ├─ Plot calculation: {:?} ({} pixels at {}x{})",
+                    plot_start.elapsed(),
+                    raw_pixels.len(),
+                    base.width,
+                    base.height
+                );
+                let draw_start = std::time::Instant::now();
+                let result = render_pixels(raw_pixels, options, render_config);
+                eprintln!("  └─ Draw + encode: {:?}", draw_start.elapsed());
+                result
+            }
+        }
     }
 }

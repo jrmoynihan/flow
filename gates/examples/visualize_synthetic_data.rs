@@ -343,7 +343,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         // Render plot
         let plot = DensityPlot::new();
         let mut render_config = RenderConfig::default();
-        let image_bytes = plot.render(plot_data, &plot_options, &mut render_config)?;
+        let image_bytes = plot.render(plot_data.into(), &plot_options, &mut render_config)?;
         
         // Save to file
         let output_path = output_dir.join(format!("{}.png", name));

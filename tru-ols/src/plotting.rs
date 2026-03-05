@@ -62,7 +62,7 @@ pub fn plot_unmixed_comparison(
     let plot_data: Vec<(f32, f32)> = tru_ols_pairs;
 
     plot.render(
-        plot_data,
+        plot_data.into(),
         &options,
         &mut flow_plots::render::RenderConfig::default(),
     )
@@ -120,7 +120,7 @@ pub fn plot_abundance_distribution(
 
     let plot = DensityPlot::new();
     plot.render(
-        plot_data,
+        plot_data.into(),
         &options,
         &mut flow_plots::render::RenderConfig::default(),
     )
@@ -171,7 +171,7 @@ pub fn plot_ucm_comparison(
 
     let plot = DensityPlot::new();
     plot.render(
-        plot_data,
+        plot_data.into(),
         &options,
         &mut flow_plots::render::RenderConfig::default(),
     )

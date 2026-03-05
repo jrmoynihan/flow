@@ -1,8 +1,10 @@
 pub mod density;
+pub mod histogram;
 pub mod spectral;
 pub mod traits;
 
 pub use density::DensityPlot;
+pub use histogram::HistogramPlot;
 pub use spectral::SpectralSignaturePlot;
 pub use traits::Plot;
 

@@ -1134,7 +1134,7 @@ fn generate_peak_isolation_plots(
         let plot = DensityPlot::new();
         let mut render_config = RenderConfig::default();
         let mut plot_bytes = plot
-            .render(data, &options, &mut render_config)
+            .render(data.into(), &options, &mut render_config)
             .with_context(|| format!("Failed to render {} vs {} plot", x_channel, y_channel))?;
 
         // Add overlays if provided
@@ -1295,7 +1295,7 @@ fn generate_debugging_plots(
             // Render plot
             let plot = DensityPlot::new();
             let mut render_config = RenderConfig::default();
-            plot.render(data, &options, &mut render_config)
+            plot.render(data.into(), &options, &mut render_config)
                 .with_context(|| format!("Failed to render {} vs {} plot", x_channel, y_channel))
         };
 

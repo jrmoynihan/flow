@@ -5,34 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.1.1 (2026-03-04)
+
+### Fixed
+
+- Compatibility with flow-plots v0.3.0 `ScatterPlotData`: add `.into()` for all density plot renders
+
+### Chore
+
+- Use `commands.rs` as primary module (rename from commands_mine.rs), remove from .gitignore
+
 ## 0.1.0 (2026-02-15)
 
 <csr-id-46bee42d4f28d185b38446c0d950c2579c422f43/>
 <csr-id-c987a225570c2afae480800327d0072ab4b4e4ad/>
 <csr-id-70008ac39d1d08497c2f59e7fde438d0755433d3/>
 <csr-id-089feff624625a5ddf0b1da570e4f60b6fedf09b/>
-
-### Chore
-
- - <csr-id-46bee42d4f28d185b38446c0d950c2579c422f43/> update dependencies and align workspace configurations
-   - Updated various dependencies in Cargo.toml files across multiple crates to their latest versions for improved functionality and compatibility.
-   - Changed several dependencies to use workspace references for consistency and to reduce duplication.
-   - Notable updates include polars to version 0.53.0, faer to version 0.24, and ndarray-linalg to version 0.18.1.
-   - Adjusted dev-dependencies to utilize workspace settings for better management.
- - <csr-id-c987a225570c2afae480800327d0072ab4b4e4ad/> clean up unused imports and variables
-   - Remove unused imports in clustering and gating modules
-   - Fix unreachable code warning in DBSCAN
-   - Remove unused mut keywords
-   - Clean up warnings for better code quality
-
-### Chore
-
- - <csr-id-089feff624625a5ddf0b1da570e4f60b6fedf09b/> update changelogs prior to release
-
-### Documentation
-
- - <csr-id-292bd202b232c6f780a9cc7170cc1d53b443e05e/> add CLI reference and validation reports
-   - CLI_ARGUMENTS_REFERENCE: complete argument reference for tru-ols unmix
 
 ### New Features
 
@@ -41,14 +29,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
  - <csr-id-5c6c02a44bcc7abe9a79297d7b33ddbcd15e7fcb/> peak detection, synthetic data, and spectral unmixing
    - Peak detection enabled by default for single-stain control analysis
+   - Automated scatter and doublet gating (optional `--auto-gate`), peak-based median for single-stain controls, CLI options `--peak-detection`, `--peak-threshold`, `--peak-bias`
+   - Synthetic FCS generation example and Julia comparison utilities
+
+### Documentation
+
+ - <csr-id-292bd202b232c6f780a9cc7170cc1d53b443e05e/> add CLI reference and validation reports
+   - Complete argument reference for `tru-ols unmix` (CLI_ARGUMENTS_REFERENCE)
 
 ### Refactor
 
  - <csr-id-70008ac39d1d08497c2f59e7fde438d0755433d3/> update for faer-based fcs and tru-ols APIs
-   - Add faer-ext for ndarray↔faer conversion at boundaries
-   - Update commands.rs: MatRef for apply_spectral_unmixing, spill matrix
-   - Update compare_with_julia, export_mixing_matrix, create_mixing_matrix_csv
-   - Keep ndarray for downstream plotting/export where needed
+   - faer-ext for ndarray↔faer conversion; `MatRef` for spectral unmixing, spill matrix, and CSV export; ndarray retained for plotting/export
+
+### Chore
+
+ - <csr-id-46bee42d4f28d185b38446c0d950c2579c422f43/> update dependencies and align workspace configurations
+   - Workspace-wide dependency updates (e.g. polars 0.53, faer 0.24, ndarray-linalg 0.18); more dependencies use workspace references.
+ - <csr-id-c987a225570c2afae480800327d0072ab4b4e4ad/> clean up unused imports and variables
+   - Removed unused imports in clustering/gating modules, fixed unreachable code in DBSCAN, dropped unnecessary `mut`; general warning cleanup.
+ - <csr-id-089feff624625a5ddf0b1da570e4f60b6fedf09b/> update changelogs prior to release
 
 ### Commit Statistics
 

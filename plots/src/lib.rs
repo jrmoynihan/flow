@@ -22,7 +22,7 @@
 //!     .build()?;
 //! let data: Vec<(f32, f32)> = vec![(100.0, 200.0)];
 //! let mut render_config = RenderConfig::default();
-//! let bytes = plot.render(data, &options, &mut render_config)?;
+//! let bytes = plot.render(data.into(), &options, &mut render_config)?;
 //! # Ok(())
 //! # }
 //! ```
@@ -39,19 +39,25 @@
 //! - `helpers`: Helper functions for common initialization patterns
 
 pub mod colormap;
+pub mod contour;
 pub mod density_calc;
 pub mod helpers;
+pub mod histogram_data;
 pub mod options;
 pub mod plots;
+pub mod scatter_data;
 pub mod render;
 pub mod signal_heatmap;
 
 // Re-export commonly used types
 pub use colormap::ColorMaps;
+pub use histogram_data::{HistogramData, HistogramDataError, HistogramSeries};
 pub use options::{
-    AxisOptions, BasePlotOptions, DensityPlotOptions, PlotOptions, SpectralSignaturePlotOptions,
+    AxisOptions, BasePlotOptions, DensityPlotOptions, HistogramPlotOptions, PlotOptions,
+    SpectralSignaturePlotOptions,
 };
-pub use plots::{DensityPlot, Plot, PlotType, SpectralSignaturePlot};
+pub use plots::{DensityPlot, HistogramPlot, Plot, PlotType, SpectralSignaturePlot};
+pub use scatter_data::{ScatterDataError, ScatterPlotData};
 pub use render::{ProgressCallback, ProgressInfo, RenderConfig};
 pub use signal_heatmap::{generate_normalized_spectral_signature_plot, generate_signal_heatmap};
 
