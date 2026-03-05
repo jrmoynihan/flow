@@ -58,6 +58,7 @@ pub use options::{
 };
 pub use plots::{DensityPlot, HistogramPlot, Plot, PlotType, SpectralSignaturePlot};
 pub use scatter_data::{ScatterDataError, ScatterPlotData};
+pub use helpers::map_point_size_from_ui;
 pub use render::{ProgressCallback, ProgressInfo, RenderConfig};
 pub use signal_heatmap::{generate_normalized_spectral_signature_plot, generate_signal_heatmap};
 

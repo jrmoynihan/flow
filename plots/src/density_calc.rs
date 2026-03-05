@@ -132,8 +132,13 @@ pub fn scatter_to_pixels_overlay(
         options.gate_colors.clone()
     };
 
-    let point_size = options.point_size.max(0.5).min(4.0);
-    let radius_px = (point_size.ceil() as usize).max(1);
+    // Allow point_size down to 0.1 for very small dots; radius 0 = single pixel
+    let point_size = options.point_size.max(0.1).min(4.0);
+    let radius_px = if point_size < 0.5 {
+        0
+    } else {
+        (point_size.ceil() as usize).max(1)
+    };
 
     let scale_x = width as f32 / (*options.x_axis.range.end() - *options.x_axis.range.start());
     let scale_y = height as f32 / (*options.y_axis.range.end() - *options.y_axis.range.start());
@@ -204,8 +209,13 @@ pub fn scatter_to_pixels_colored(
     };
     let z_range = z_max - z_min;
 
-    let point_size = options.point_size.max(0.5).min(4.0);
-    let radius_px = (point_size.ceil() as usize).max(1);
+    // Allow point_size down to 0.1 for very small dots; radius 0 = single pixel
+    let point_size = options.point_size.max(0.1).min(4.0);
+    let radius_px = if point_size < 0.5 {
+        0
+    } else {
+        (point_size.ceil() as usize).max(1)
+    };
 
     let scale_x = width as f32 / (*options.x_axis.range.end() - *options.x_axis.range.start());
     let scale_y = height as f32 / (*options.y_axis.range.end() - *options.y_axis.range.start());
@@ -254,8 +264,13 @@ pub fn scatter_to_pixels(
     height: usize,
     options: &DensityPlotOptions,
 ) -> Vec<RawPixelData> {
-    let point_size = options.point_size.max(0.5).min(4.0);
-    let radius_px = (point_size.ceil() as usize).max(1);
+    // Allow point_size down to 0.1 for very small dots; radius 0 = single pixel
+    let point_size = options.point_size.max(0.1).min(4.0);
+    let radius_px = if point_size < 0.5 {
+        0
+    } else {
+        (point_size.ceil() as usize).max(1)
+    };
 
     let scale_x = width as f32 / (*options.x_axis.range.end() - *options.x_axis.range.start());
     let scale_y = height as f32 / (*options.y_axis.range.end() - *options.y_axis.range.start());
@@ -294,6 +309,12 @@ pub fn scatter_to_pixels(
 }
 
 /// Dispatch to density, scatter, overlay, or colored scatter based on plot_type and data.
+///
+/// **Important:** For `Contour` and `ContourOverlay`, this function produces a *density heatmap*
+/// (same as `PlotType::Density`), not contour lines. To render contour lines, use
+/// [`DensityPlot::render`](crate::plots::density::DensityPlot) or call
+/// [`calculate_contours`](crate::contour::calculate_contours) +
+/// [`render_contour`](crate::render::plotters_backend::render_contour) directly.
 pub fn calculate_plot_pixels(
     data: &ScatterPlotData,
     width: usize,
@@ -327,7 +348,11 @@ pub fn calculate_plot_pixels(
     }
 }
 
-/// Cancelable version of calculate_plot_pixels
+/// Cancelable version of calculate_plot_pixels.
+///
+/// Same caveat as [`calculate_plot_pixels`]: for Contour/ContourOverlay, this produces
+/// density pixels, not contour lines. Use [`DensityPlot::render`](crate::plots::density::DensityPlot)
+/// for contour rendering.
 pub fn calculate_plot_pixels_cancelable(
     data: &ScatterPlotData,
     width: usize,
@@ -455,8 +480,13 @@ fn calculate_density_per_pixel_cpu(
     // - 100K events: ~100µs (array) vs ~500µs (HashMap) = 5x faster
     // Sequential is faster than parallel for typical FCS sizes (parallel overhead dominates)
 
-    let point_size = options.point_size.max(0.5).min(4.0);
-    let radius_px = (point_size.ceil() as usize).max(1);
+    // Allow point_size down to 0.1 for very small dots; radius 0 = single pixel
+    let point_size = options.point_size.max(0.1).min(4.0);
+    let radius_px = if point_size < 0.5 {
+        0
+    } else {
+        (point_size.ceil() as usize).max(1)
+    };
 
     let build_start = std::time::Instant::now();
     let mut density = vec![0.0f32; width * height];

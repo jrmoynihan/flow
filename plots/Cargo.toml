@@ -39,6 +39,10 @@ ndarray       ={ workspace=true }
 criterion = { workspace = true }
 rand = { workspace = true }
 
+[[example]]
+name = "plot_types_validation"
+path = "examples/plot_types_validation.rs"
+
 [[bench]]
 name   ="batch_density"
 harness=false

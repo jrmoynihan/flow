@@ -3,6 +3,31 @@ use crate::options::DensityPlotOptionsBuilder;
 use anyhow::Result;
 use flow_fcs::{Fcs, Parameter, TransformType, Transformable};
 
+/// Map point size from UI range [0.05, 1.0] to crate range [0.1, 4.0].
+///
+/// Use this when your frontend slider stores values 0.05–1.0 but the crate expects 0.1–4.0.
+/// Smallest slider (0.05) → single-pixel dots (0.1); largest (1.0) → max size (4.0).
+pub fn map_point_size_from_ui(ui_value: f32) -> f32 {
+    const UI_MIN: f32 = 0.05;
+    const UI_MAX: f32 = 1.0;
+    const CRATE_MIN: f32 = 0.1;
+    const CRATE_MAX: f32 = 4.0;
+    let t = ((ui_value - UI_MIN) / (UI_MAX - UI_MIN)).clamp(0.0, 1.0);
+    CRATE_MIN + t * (CRATE_MAX - CRATE_MIN)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_map_point_size_from_ui() {
+        assert!((map_point_size_from_ui(0.05) - 0.1).abs() < 1e-6);
+        assert!((map_point_size_from_ui(1.0) - 4.0).abs() < 1e-6);
+        assert!(map_point_size_from_ui(0.5) > 0.1 && map_point_size_from_ui(0.5) < 4.0);
+    }
+}
+
 /// Create a DensityPlotOptions builder with sensible defaults based on FCS file data
 ///
 /// This helper function analyzes the FCS file and parameters to determine

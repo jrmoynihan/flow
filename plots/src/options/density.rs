@@ -47,8 +47,9 @@ pub struct DensityPlotOptions {
     #[builder(default)]
     pub plot_type: PlotType,
 
-    /// Point size in pixels for scatter and density plots (0.5–4.0).
-    /// For scatter: radius of each point. For density: radius of each point's contribution to the heatmap.
+    /// Point size in pixels for scatter and density plots (0.1–4.0).
+    /// For scatter: radius of each point; values below 0.5 draw single-pixel dots.
+    /// For density: radius of each point's contribution to the heatmap.
     #[builder(default = "1.0")]
     pub point_size: f32,
 
@@ -123,5 +124,14 @@ impl DensityPlotOptions {
     /// Create a new builder for DensityPlotOptions
     pub fn new() -> DensityPlotOptionsBuilder {
         DensityPlotOptionsBuilder::default()
+    }
+}
+
+impl DensityPlotOptionsBuilder {
+    /// Set point_size by mapping from UI range [0.05, 1.0] to crate range [0.1, 4.0].
+    /// Use when your frontend slider stores 0.05–1.0 so the full crate range is used.
+    pub fn point_size_from_ui(mut self, ui_value: f32) -> Self {
+        self.point_size = Some(crate::helpers::map_point_size_from_ui(ui_value));
+        self
     }
 }
