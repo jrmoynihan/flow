@@ -17,14 +17,12 @@ fn calculate_geometric_mean(values: &[f32]) -> Option<f32> {
         return None;
     }
 
-    // Filter to positive values only
     let positive_values: Vec<f32> = values.iter().filter(|&&v| v > 0.0).copied().collect();
 
     if positive_values.is_empty() {
         return None;
     }
 
-    // Calculate geometric mean: exp(mean(ln(values)))
     let log_sum: f64 = positive_values.iter().map(|&v| (v as f64).ln()).sum();
     let n = positive_values.len() as f64;
     Some((log_sum / n).exp() as f32)
@@ -45,12 +43,9 @@ fn _calculate_median(values: &[f32]) -> f32 {
 /// Sort channels by laser type, then wavelength
 /// Order: UV > V > B > YG > R, then by wavelength within each group
 fn sort_channels_by_laser_and_wavelength(channels: &mut [String]) {
-    // Extract laser type and wavelength from channel name
-    // Format examples: "UV379-A", "V660-A", "B510-A", "YG585-A", "UV446-A"
     fn get_laser_order(channel: &str) -> (u8, u32) {
         let upper = channel.to_uppercase();
 
-        // Determine laser type order: UV=1, V=2, B=3, YG=4, R=5, others=99
         let laser_order = if upper.starts_with("UV") {
             1
         } else if upper.starts_with("V") && !upper.starts_with("UV") {
@@ -65,9 +60,7 @@ fn sort_channels_by_laser_and_wavelength(channels: &mut [String]) {
             99
         };
 
-        // Extract wavelength number (digits after laser prefix)
         let wavelength = if upper.starts_with("UV") {
-            // Extract number after "UV"
             upper[2..]
                 .chars()
                 .take_while(|c| c.is_ascii_digit())
@@ -75,7 +68,6 @@ fn sort_channels_by_laser_and_wavelength(channels: &mut [String]) {
                 .parse::<u32>()
                 .unwrap_or(9999)
         } else if upper.starts_with("YG") {
-            // Extract number after "YG"
             upper[2..]
                 .chars()
                 .take_while(|c| c.is_ascii_digit())
@@ -83,7 +75,6 @@ fn sort_channels_by_laser_and_wavelength(channels: &mut [String]) {
                 .parse::<u32>()
                 .unwrap_or(9999)
         } else if upper.starts_with("V") || upper.starts_with("B") || upper.starts_with("R") {
-            // Extract number after single letter
             upper[1..]
                 .chars()
                 .take_while(|c| c.is_ascii_digit())
@@ -101,23 +92,67 @@ fn sort_channels_by_laser_and_wavelength(channels: &mut [String]) {
         let (order_a, wave_a) = get_laser_order(a);
         let (order_b, wave_b) = get_laser_order(b);
 
-        // First sort by laser type
         match order_a.cmp(&order_b) {
-            std::cmp::Ordering::Equal => {
-                // Then by wavelength
-                wave_a.cmp(&wave_b)
-            }
+            std::cmp::Ordering::Equal => wave_a.cmp(&wave_b),
             other => other,
         }
     });
+}
+
+/// Convert an SVG string to JPEG-encoded bytes (same helper as in charton_backend).
+fn svg_to_jpeg_bytes(svg_str: &str, width: u32, height: u32) -> Result<Vec<u8>> {
+    use resvg::tiny_skia;
+    use resvg::usvg;
+
+    let opts = usvg::Options::default();
+    let tree = usvg::Tree::from_str(svg_str, &opts)
+        .map_err(|e| anyhow::anyhow!("failed to parse SVG: {e}"))?;
+
+    let int_size = tree.size().to_int_size();
+    let target_w = if width > 0 { width } else { int_size.width() };
+    let target_h = if height > 0 { height } else { int_size.height() };
+
+    let mut pixmap = tiny_skia::Pixmap::new(target_w, target_h)
+        .ok_or_else(|| anyhow::anyhow!("failed to create pixmap {}x{}", target_w, target_h))?;
+
+    pixmap.fill(tiny_skia::Color::WHITE);
+
+    let sx = target_w as f32 / int_size.width() as f32;
+    let sy = target_h as f32 / int_size.height() as f32;
+    let transform = tiny_skia::Transform::from_scale(sx, sy);
+
+    resvg::render(&tree, transform, &mut pixmap.as_mut());
+
+    let rgba_data = pixmap.data();
+    let mut rgb_data = Vec::with_capacity((target_w * target_h * 3) as usize);
+    for chunk in rgba_data.chunks(4) {
+        rgb_data.push(chunk[0]);
+        rgb_data.push(chunk[1]);
+        rgb_data.push(chunk[2]);
+    }
+
+    let img: image::RgbImage = image::ImageBuffer::from_vec(target_w, target_h, rgb_data)
+        .ok_or_else(|| anyhow::anyhow!("RGB buffer size mismatch"))?;
+
+    let mut encoded = Vec::new();
+    let mut encoder = image::codecs::jpeg::JpegEncoder::new_with_quality(&mut encoded, 85);
+    encoder
+        .encode(
+            img.as_raw(),
+            target_w,
+            target_h,
+            image::ExtendedColorType::Rgb8,
+        )
+        .map_err(|e| anyhow::anyhow!("JPEG encoding failed: {e}"))?;
+
+    Ok(encoded)
 }
 
 /// Generate a heatmap visualization of signal intensity across channels
 ///
 /// Shows a density distribution of events across intensity levels for each channel.
 /// Each channel is a vertical column where color represents the density of events
-/// at each intensity level (y-axis). This creates a 1D vertical distribution showing
-/// where events cluster in intensity space.
+/// at each intensity level (y-axis).
 ///
 /// Returns JPEG-encoded bytes rather than writing to a file.
 pub fn generate_signal_heatmap(
@@ -126,42 +161,34 @@ pub fn generate_signal_heatmap(
     raw_signals: &HashMap<String, f32>,
     fcs_file_path: Option<&std::path::Path>,
     colormap: Option<ColorMaps>,
-    unstained_medians: Option<&HashMap<String, f32>>,
-    positive_medians: Option<&HashMap<String, f32>>,
-    positive_geometric_means: Option<&HashMap<String, f32>>,
+    _unstained_medians: Option<&HashMap<String, f32>>,
+    _positive_medians: Option<&HashMap<String, f32>>,
+    _positive_geometric_means: Option<&HashMap<String, f32>>,
 ) -> Result<Vec<u8>> {
-    // Use provided colormap or default to Spectral
-    let colormap = colormap.unwrap_or(ColorMaps::Spectral);
-    use image::RgbImage;
-    use plotters::prelude::*;
+    use charton::prelude::*;
+    use polars::prelude::*;
 
-    // Sort channels by laser type, then wavelength (UV > V > B > YG > R)
+    let colormap = colormap.unwrap_or(ColorMaps::Spectral);
+
     let mut sorted_detector_names = detector_names.to_vec();
     sort_channels_by_laser_and_wavelength(&mut sorted_detector_names);
 
     let width = 1600u32;
     let height = 600u32;
-    let margin = 80u32;
-    let x_label_area_size = 100u32;
-    let y_label_area_size = 80u32;
 
-    // Number of intensity bins for y-axis
     let n_y_bins = 200;
 
-    // Arcsinh cofactor for transformation (typical value for modern instruments)
     let arcsinh_cofactor = 200.0f32;
     let arcsinh_transform = TransformType::Arcsinh {
         cofactor: arcsinh_cofactor,
     };
 
-    // Read event data from FCS file if provided, otherwise use synthetic distribution
     let channel_densities: Vec<Vec<f32>>;
     let y_min: f32;
     let y_max: f32;
     let max_density: f32;
 
     if let Some(fcs_path) = fcs_file_path {
-        // Read actual event data from FCS file
         let fcs = Fcs::open(fcs_path.to_str().ok_or_else(|| {
             anyhow::anyhow!(
                 "FCS file path contains invalid UTF-8: {}",
@@ -170,12 +197,10 @@ pub fn generate_signal_heatmap(
         })?)
         .with_context(|| format!("Failed to read FCS file: {}", fcs_path.display()))?;
 
-        // Determine y-axis range from actual data AFTER arcsinh transformation
         let mut global_min = f32::MAX;
         let mut global_max = f32::MIN;
-        let mut global_max_raw = f32::MIN; // Track raw max for capping
+        let mut global_max_raw = f32::MIN;
 
-        // First pass: find min/max across all channels after arcsinh transformation
         for det_name in &sorted_detector_names {
             if let Ok(series) = fcs.data_frame.column(det_name) {
                 if let Ok(f32_vals) = series.f32() {
@@ -184,36 +209,26 @@ pub fn generate_signal_heatmap(
                             let transformed_val = arcsinh_transform.transform(&val);
                             global_min = global_min.min(transformed_val);
                             global_max = global_max.max(transformed_val);
-                            global_max_raw = global_max_raw.max(val); // Track raw max
+                            global_max_raw = global_max_raw.max(val);
                         }
                     }
                 }
             }
         }
 
-        // Cap y-axis at ~5e6 in original signal space (unless data exceeds it)
         let max_signal_cap = 5_000_000.0f32;
         let cap_transformed = arcsinh_transform.transform(&max_signal_cap);
 
-        // Use the larger of: actual max or cap (both in transformed space)
         let effective_max = if global_max_raw > max_signal_cap {
-            // Data exceeds cap, use actual transformed max
             global_max
         } else {
-            // Use cap in transformed space
             cap_transformed
         };
 
-        y_min = 0.0f32.max(global_min * 0.9); // Slight margin below
-        y_max = effective_max * 1.1; // 10% margin above
+        y_min = 0.0f32.max(global_min * 0.9);
+        y_max = effective_max * 1.1;
         let y_bin_size = (y_max - y_min) / n_y_bins as f32;
 
-        eprintln!(
-            "Y-axis range: [{:.3}, {:.3}], bin_size={:.6}, n_bins={}",
-            y_min, y_max, y_bin_size, n_y_bins
-        );
-
-        // Create density bins for each channel (in sorted order)
         let mut densities: Vec<Vec<f32>> = Vec::new();
 
         for det_name in &sorted_detector_names {
@@ -221,41 +236,17 @@ pub fn generate_signal_heatmap(
 
             if let Ok(series) = fcs.data_frame.column(det_name) {
                 if let Ok(f32_vals) = series.f32() {
-                    // Bin events by intensity AFTER arcsinh transformation
-                    // Only count events that fall within the y-axis range
-                    let mut event_count = 0u32;
-                    let mut bins_used = std::collections::HashSet::new();
-
                     for val_opt in f32_vals.iter() {
                         if let Some(val) = val_opt {
                             let transformed_val = arcsinh_transform.transform(&val);
-                            // Only bin if within the valid range
                             if transformed_val >= y_min && transformed_val <= y_max {
                                 let bin_idx = (((transformed_val - y_min) / y_bin_size) as usize)
                                     .min(n_y_bins - 1);
-                                // Ensure bin index is valid
                                 if bin_idx < n_y_bins {
                                     density[bin_idx] += 1.0;
-                                    bins_used.insert(bin_idx);
-                                    event_count += 1;
                                 }
                             }
                         }
-                    }
-
-                    // Debug: Print binning statistics
-                    eprintln!(
-                        "Channel {}: {} events binned into {} unique bins (out of {} total bins)",
-                        det_name,
-                        event_count,
-                        bins_used.len(),
-                        n_y_bins
-                    );
-
-                    // Ensure bins are truly zero if no events were found
-                    if event_count == 0 {
-                        // All bins should remain 0.0 (already initialized)
-                        eprintln!("  Warning: No events found for channel {}", det_name);
                     }
                 }
             }
@@ -263,8 +254,6 @@ pub fn generate_signal_heatmap(
             densities.push(density);
         }
 
-        // Apply logarithmic transformation to density values (same as regular density plots)
-        // Adding 1.0 before log to avoid log(0) = -Infinity
         let mut max_log_density = 0.0f32;
         for density in &mut densities {
             for count in density.iter_mut() {
@@ -274,25 +263,20 @@ pub fn generate_signal_heatmap(
                 }
             }
         }
-
-        // Ensure max is at least 1.0 (for log10(1.0 + 1.0) = log10(2.0) ≈ 0.301)
         max_log_density = max_log_density.max(1.0);
 
         channel_densities = densities;
         max_density = max_log_density;
     } else {
-        // Fallback: use synthetic distribution based on raw_signals
         let max_signal = raw_signals.values().fold(0.0f32, |a, &b| a.max(b)).max(1.0);
         let max_signal_cap = 5_000_000.0f32;
 
-        // Cap at 5e6 unless data exceeds it
         let capped_signal = if max_signal > max_signal_cap {
             max_signal
         } else {
             max_signal_cap
         };
 
-        // Transform the capped signal
         let capped_transformed = arcsinh_transform.transform(&capped_signal);
 
         y_min = 0.0f32;
@@ -332,8 +316,6 @@ pub fn generate_signal_heatmap(
             densities.push(density);
         }
 
-        // Apply logarithmic transformation to density values (same as regular density plots)
-        // Adding 1.0 before log to avoid log(0) = -Infinity
         let mut max_log_density = 0.0f32;
         for density in &mut densities {
             for count in density.iter_mut() {
@@ -343,8 +325,6 @@ pub fn generate_signal_heatmap(
                 }
             }
         }
-
-        // Ensure max is at least 1.0 (for log10(1.0 + 1.0) = log10(2.0) ≈ 0.301)
         max_log_density = max_log_density.max(1.0);
 
         channel_densities = densities;
@@ -353,354 +333,76 @@ pub fn generate_signal_heatmap(
 
     let y_bin_size = (y_max - y_min) / n_y_bins as f32;
 
-    let mut pixel_buffer = vec![255; (width * height * 3) as usize];
+    // Build a DataFrame with columns: channel_idx, y_center, color_hex
+    // Each row = one coloured rectangle in the heatmap.
+    let mut rect_channel: Vec<f64> = Vec::new();
+    let mut rect_y: Vec<f64> = Vec::new();
+    let mut rect_y2: Vec<f64> = Vec::new();
+    let mut rect_color: Vec<String> = Vec::new();
 
-    {
-        let backend = BitMapBackend::with_buffer(&mut pixel_buffer, (width, height));
-        let root = backend.into_drawing_area();
-        root.fill(&WHITE)
-            .map_err(|e| anyhow::anyhow!("failed to fill plot background: {e}"))?;
+    for (idx, density) in channel_densities.iter().enumerate() {
+        let x_center = idx as f64;
 
-        let x_min = -0.5f32;
-        let x_max = sorted_detector_names.len() as f32 - 0.5;
+        for (bin_idx, &density_value) in density.iter().enumerate() {
+            if density_value <= 0.0 {
+                continue;
+            }
 
-        let mut chart = ChartBuilder::on(&root)
-            .margin(margin)
-            .x_label_area_size(x_label_area_size)
-            .y_label_area_size(y_label_area_size)
-            .build_cartesian_2d(x_min..x_max, y_min..y_max)
-            .map_err(|e| anyhow::anyhow!("failed to build chart: {e}"))?;
+            let y_bottom = y_min as f64 + bin_idx as f64 * y_bin_size as f64;
+            let y_top = y_min as f64 + (bin_idx + 1) as f64 * y_bin_size as f64;
 
-        // Configure mesh with channel names (sorted)
-        let channel_names_clone = sorted_detector_names.clone();
-        let formatter = move |x: &f32| -> String {
-            let idx = x.round() as usize;
-            if idx < channel_names_clone.len() {
-                channel_names_clone[idx].clone()
+            let normalized_log_density = if max_density > 0.0 {
+                (density_value / max_density).min(1.0).max(0.0)
             } else {
-                format!("{:.0}", x)
-            }
-        };
+                0.0
+            };
 
-        chart
-            .configure_mesh()
-            .x_max_light_lines(4)
-            .y_max_light_lines(4)
-            .x_labels(sorted_detector_names.len().min(20))
-            .y_labels(10)
-            .x_label_formatter(&formatter)
-            .x_desc("Channel")
-            .y_desc("Signal Intensity (arcsinh transformed)")
-            .draw()
-            .map_err(|e| anyhow::anyhow!("failed to draw mesh: {e}"))?;
+            let inverted_density = 1.0 - normalized_log_density;
+            let c = colormap.map(inverted_density);
 
-        // Draw density heatmap for each channel
-        let column_width = 0.8;
-
-        for (idx, density) in channel_densities.iter().enumerate() {
-            let x_center = idx as f32;
-            let x_start = x_center - column_width / 2.0;
-            let x_end = x_center + column_width / 2.0;
-
-            // Draw each y-bin as a rectangle with color based on density
-            // Only draw bins that have events to show white space where no events exist
-            let mut rectangles_to_draw = Vec::new();
-
-            for (bin_idx, &density_value) in density.iter().enumerate() {
-                // Strictly skip empty bins - this creates white space
-                if density_value <= 0.0 {
-                    continue;
-                }
-
-                let y_bottom = y_min + bin_idx as f32 * y_bin_size;
-                let y_top = y_min + (bin_idx + 1) as f32 * y_bin_size;
-
-                // Density values are already log-transformed (log10)
-                // Normalize to 0-1 range for colormap
-                let normalized_log_density = if max_density > 0.0 {
-                    (density_value / max_density).min(1.0).max(0.0)
-                } else {
-                    0.0
-                };
-
-                // Invert the scale so high density maps to red (1.0) and low density maps to blue (0.0)
-                let inverted_density = 1.0 - normalized_log_density;
-
-                // Map density to color using the provided colormap
-                let color = colormap.map(inverted_density);
-
-                rectangles_to_draw.push(Rectangle::new(
-                    [(x_start, y_bottom), (x_end, y_top)],
-                    color.filled(),
-                ));
-            }
-
-            // Draw all rectangles for this channel at once
-            if !rectangles_to_draw.is_empty() {
-                chart
-                    .draw_series(rectangles_to_draw.into_iter())
-                    .map_err(|e| anyhow::anyhow!("failed to draw heatmap column: {e}"))?;
-            }
-        }
-
-        // Draw unstained medians overlay line if provided (dashed, semi-opaque grey)
-        if let Some(unstained) = unstained_medians {
-            // Create line series: (channel_index, transformed_unstained_median)
-            let unstained_overlay_points: Vec<(f32, f32)> = sorted_detector_names
-                .iter()
-                .enumerate()
-                .filter_map(|(idx, det_name)| {
-                    unstained.get(det_name).map(|&median| {
-                        // Transform unstained median using same arcsinh transform
-                        let transformed_median = arcsinh_transform.transform(&median);
-                        (idx as f32, transformed_median)
-                    })
-                })
-                .collect();
-
-            if !unstained_overlay_points.is_empty() {
-                use plotters::prelude::PathElement;
-                // Semi-opaque grey color (RGB: 128, 128, 128 with alpha ~0.7)
-                // Note: plotters RGBColor doesn't support alpha directly, so we use a lighter grey
-                let unstained_color = plotters::style::RGBColor(180, 180, 180); // Light grey
-
-                // Draw continuous dashed line across all segments
-                // Break each segment into dash-gap pattern
-                if unstained_overlay_points.len() > 1 {
-                    const DASH_LENGTH: f32 = 0.15; // Length of each dash (in data space)
-                    const GAP_LENGTH: f32 = 0.1; // Length of each gap (in data space)
-
-                    for i in 0..unstained_overlay_points.len() - 1 {
-                        let start = unstained_overlay_points[i];
-                        let end = unstained_overlay_points[i + 1];
-
-                        // Calculate segment length and direction
-                        let dx = end.0 - start.0;
-                        let dy = end.1 - start.1;
-                        let segment_length = (dx * dx + dy * dy).sqrt();
-
-                        if segment_length > 0.0 {
-                            // Unit vector along the segment
-                            let ux = dx / segment_length;
-                            let uy = dy / segment_length;
-
-                            // Draw dashes along the segment
-                            let mut current_pos = 0.0;
-                            while current_pos < segment_length {
-                                let dash_start_x = start.0 + ux * current_pos;
-                                let dash_start_y = start.1 + uy * current_pos;
-
-                                let dash_end_pos = (current_pos + DASH_LENGTH).min(segment_length);
-                                let dash_end_x = start.0 + ux * dash_end_pos;
-                                let dash_end_y = start.1 + uy * dash_end_pos;
-
-                                // Draw this dash
-                                chart
-                                    .draw_series(std::iter::once(PathElement::new(
-                                        vec![
-                                            (dash_start_x, dash_start_y),
-                                            (dash_end_x, dash_end_y),
-                                        ],
-                                        unstained_color.stroke_width(2),
-                                    )))
-                                    .map_err(|e| {
-                                        anyhow::anyhow!(
-                                            "failed to draw unstained overlay dash: {e}"
-                                        )
-                                    })?;
-
-                                // Move to next dash position (skip gap)
-                                current_pos += DASH_LENGTH + GAP_LENGTH;
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        // Draw positive medians and geometric means overlay lines with markers
-        // Show both if available, with different markers and colors
-        let mut legend_items = Vec::new();
-
-        // Draw geometric mean overlay (preferred, better for log-normal distributions)
-        if let Some(positive_geo) = positive_geometric_means {
-            // Create line series: (channel_index, transformed_geometric_mean)
-            let geo_overlay_points: Vec<(f32, f32)> = sorted_detector_names
-                .iter()
-                .enumerate()
-                .filter_map(|(idx, det_name)| {
-                    positive_geo
-                        .get(det_name)
-                        .map(|&transformed_value| (idx as f32, transformed_value))
-                })
-                .collect();
-
-            if !geo_overlay_points.is_empty() {
-                use plotters::prelude::LineSeries;
-                // Use orange for geometric mean, semi-transparent
-                let geo_color = plotters::style::RGBAColor(255, 165, 0, 0.7); // Orange, semi-transparent
-                let geo_color_opaque = plotters::style::RGBColor(255, 165, 0); // Opaque for legend
-
-                // Draw solid line connecting all points
-                chart
-                    .draw_series(LineSeries::new(
-                        geo_overlay_points.iter().copied(),
-                        geo_color.stroke_width(2),
-                    ))
-                    .map_err(|e| {
-                        anyhow::anyhow!("failed to draw geometric mean overlay line: {e}")
-                    })?;
-
-                // Draw square markers at each channel
-                chart
-                    .draw_series(geo_overlay_points.iter().map(|(x, y)| {
-                        Rectangle::new(
-                            [(x - 0.08, y - 0.12), (x + 0.08, y + 0.12)],
-                            geo_color.filled(),
-                        )
-                    }))
-                    .map_err(|e| anyhow::anyhow!("failed to draw geometric mean markers: {e}"))?;
-
-                legend_items.push(("Geometric Mean", geo_color_opaque));
-            }
-        }
-
-        // Draw median overlay (if geometric mean not available, or show both)
-        if let Some(positive_med) = positive_medians {
-            // Create line series: (channel_index, transformed_median)
-            let median_overlay_points: Vec<(f32, f32)> = sorted_detector_names
-                .iter()
-                .enumerate()
-                .filter_map(|(idx, det_name)| {
-                    positive_med
-                        .get(det_name)
-                        .map(|&transformed_value| (idx as f32, transformed_value))
-                })
-                .collect();
-
-            if !median_overlay_points.is_empty() {
-                use plotters::prelude::PathElement;
-                // Use blue for median, semi-transparent
-                let median_color = plotters::style::RGBAColor(0, 0, 255, 0.7); // Blue, semi-transparent
-                let median_color_opaque = plotters::style::RGBColor(0, 0, 255); // Opaque for legend
-
-                // Draw dashed line connecting all points (to distinguish from geometric mean)
-                if median_overlay_points.len() > 1 {
-                    const DASH_LENGTH: f32 = 0.15;
-                    const GAP_LENGTH: f32 = 0.1;
-
-                    for i in 0..median_overlay_points.len() - 1 {
-                        let start = median_overlay_points[i];
-                        let end = median_overlay_points[i + 1];
-
-                        let dx = end.0 - start.0;
-                        let dy = end.1 - start.1;
-                        let segment_length = (dx * dx + dy * dy).sqrt();
-
-                        if segment_length > 0.0 {
-                            let ux = dx / segment_length;
-                            let uy = dy / segment_length;
-
-                            let mut current_pos = 0.0;
-                            while current_pos < segment_length {
-                                let dash_start_x = start.0 + ux * current_pos;
-                                let dash_start_y = start.1 + uy * current_pos;
-
-                                let dash_end_pos = (current_pos + DASH_LENGTH).min(segment_length);
-                                let dash_end_x = start.0 + ux * dash_end_pos;
-                                let dash_end_y = start.1 + uy * dash_end_pos;
-
-                                chart
-                                    .draw_series(std::iter::once(PathElement::new(
-                                        vec![
-                                            (dash_start_x, dash_start_y),
-                                            (dash_end_x, dash_end_y),
-                                        ],
-                                        median_color.stroke_width(2),
-                                    )))
-                                    .map_err(|e| {
-                                        anyhow::anyhow!("failed to draw median overlay dash: {e}")
-                                    })?;
-
-                                current_pos += DASH_LENGTH + GAP_LENGTH;
-                            }
-                        }
-                    }
-                }
-
-                // Draw circle markers at each channel
-                chart
-                    .draw_series(
-                        median_overlay_points
-                            .iter()
-                            .map(|(x, y)| Circle::new((*x, *y), 4, median_color.filled())),
-                    )
-                    .map_err(|e| anyhow::anyhow!("failed to draw median markers: {e}"))?;
-
-                legend_items.push(("Median", median_color_opaque));
-            }
-        }
-
-        // Draw legend in top-right corner
-        if !legend_items.is_empty() {
-            let plotting_area = chart.plotting_area();
-            let (_x_range, _y_range) = plotting_area.get_pixel_range();
-
-            // Position legend in top-right corner (in data coordinates)
-            let legend_x_data = sorted_detector_names.len() as f32
-                - 0.5
-                - (sorted_detector_names.len() as f32 * 0.15);
-            let legend_y_start = y_max - (y_max - y_min) * 0.15;
-
-            for (i, (label, color)) in legend_items.iter().enumerate() {
-                let legend_y_data = legend_y_start - (i as f32 * (y_max - y_min) * 0.08);
-
-                // Draw marker in data coordinates
-                if *label == "Geometric Mean" {
-                    // Square for geometric mean
-                    chart
-                        .draw_series(std::iter::once(Rectangle::new(
-                            [
-                                (legend_x_data - 0.08, legend_y_data - 0.12),
-                                (legend_x_data + 0.08, legend_y_data + 0.12),
-                            ],
-                            color.filled(),
-                        )))
-                        .map_err(|e| anyhow::anyhow!("failed to draw legend marker: {e}"))?;
-                } else {
-                    // Circle for median
-                    chart
-                        .draw_series(std::iter::once(Circle::new(
-                            (legend_x_data, legend_y_data),
-                            4,
-                            color.filled(),
-                        )))
-                        .map_err(|e| anyhow::anyhow!("failed to draw legend marker: {e}"))?;
-                }
-
-                // Draw label text
-                let label_x = legend_x_data + 0.15;
-                chart
-                    .draw_series(std::iter::once(Text::new(
-                        label.to_string(),
-                        (label_x, legend_y_data),
-                        ("sans-serif", 12).into_font().color(color),
-                    )))
-                    .map_err(|e| anyhow::anyhow!("failed to draw legend label: {e}"))?;
-            }
+            rect_channel.push(x_center);
+            rect_y.push(y_bottom);
+            rect_y2.push(y_top);
+            rect_color.push(format!("#{:02x}{:02x}{:02x}", c.0, c.1, c.2));
         }
     }
 
-    let img: RgbImage = image::ImageBuffer::from_vec(width, height, pixel_buffer)
-        .ok_or_else(|| anyhow::anyhow!("plot image buffer had unexpected size"))?;
+    if rect_channel.is_empty() {
+        // Nothing to draw
+        let df = DataFrame::new(vec![
+            Column::new("channel".into(), vec![0.0f64]),
+            Column::new("y".into(), vec![0.0f64]),
+        ])
+        .map_err(|e| anyhow::anyhow!("empty heatmap DataFrame: {e}"))?;
 
-    let mut encoded_data = Vec::new();
-    let mut encoder = image::codecs::jpeg::JpegEncoder::new_with_quality(&mut encoded_data, 85);
-    encoder
-        .encode(img.as_raw(), width, height, image::ExtendedColorType::Rgb8)
-        .map_err(|e| anyhow::anyhow!("failed to JPEG encode plot: {e}"))?;
+        let svg = Chart::build(&df)?
+            .mark_point()
+            .encode((x("channel"), y("y")))?
+            .into_layered()
+            .with_size(width, height)
+            .to_svg()?;
 
-    Ok(encoded_data)
+        return svg_to_jpeg_bytes(&svg, width, height);
+    }
+
+    let df = DataFrame::new(vec![
+        Column::new("channel".into(), rect_channel),
+        Column::new("y".into(), rect_y),
+        Column::new("y2".into(), rect_y2),
+        Column::new("color".into(), rect_color),
+    ])
+    .map_err(|e| anyhow::anyhow!("heatmap DataFrame: {e}"))?;
+
+    let layered = Chart::build(&df)?
+        .mark_rect()
+        .encode((x("channel"), y("y"), y2("y2"), color("color")))?
+        .into_layered()
+        .with_size(width, height)
+        .with_x_label("Channel")
+        .with_y_label("Signal Intensity (arcsinh transformed)");
+
+    let svg = layered.to_svg()?;
+    svg_to_jpeg_bytes(&svg, width, height)
 }
 
 /// Generate normalized spectral signature line plot
@@ -715,14 +417,11 @@ pub fn generate_normalized_spectral_signature_plot(
     detector_signals: &HashMap<String, f64>,
     fcs_file_path: Option<&std::path::Path>,
 ) -> Result<Vec<u8>> {
-    // Sort channels by laser type, then wavelength (UV > V > B > YG > R)
     let mut sorted_detector_names = detector_names.to_vec();
     sort_channels_by_laser_and_wavelength(&mut sorted_detector_names);
 
-    // Create normalized signature data: (channel_index, normalized_intensity)
     let spectrum_data: Vec<(usize, f64)> = if detector_signals.is_empty() && fcs_file_path.is_some()
     {
-        // Calculate normalized signature from FCS data
         let fcs_path = fcs_file_path.ok_or_else(|| anyhow::anyhow!("FCS file path is None"))?;
         let fcs = Fcs::open(fcs_path.to_str().ok_or_else(|| {
             anyhow::anyhow!(
@@ -737,8 +436,6 @@ pub fn generate_normalized_spectral_signature_plot(
             cofactor: arcsinh_cofactor,
         };
 
-        // Calculate geometric means after arcsinh transformation (in sorted order)
-        // Geometric mean is better for log-normal distributions common in flow cytometry
         let mut transformed_geometric_means = HashMap::new();
         for det_name in &sorted_detector_names {
             if let Ok(series) = fcs.data_frame.column(det_name) {
@@ -755,7 +452,6 @@ pub fn generate_normalized_spectral_signature_plot(
             }
         }
 
-        // Normalize by max
         let max_signal = transformed_geometric_means
             .values()
             .fold(0.0f32, |a, &b| a.max(b));
@@ -777,7 +473,6 @@ pub fn generate_normalized_spectral_signature_plot(
             })
             .collect()
     } else {
-        // Use provided signature (in sorted order)
         sorted_detector_names
             .iter()
             .enumerate()
@@ -788,7 +483,6 @@ pub fn generate_normalized_spectral_signature_plot(
             .collect()
     };
 
-    // Pass channel names to the plot renderer (sorted)
     let channel_names = sorted_detector_names;
 
     let mut render_config = crate::render::RenderConfig::default();

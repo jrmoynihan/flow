@@ -314,7 +314,7 @@ pub fn scatter_to_pixels(
 /// (same as `PlotType::Density`), not contour lines. To render contour lines, use
 /// [`DensityPlot::render`](crate::plots::density::DensityPlot) or call
 /// [`calculate_contours`](crate::contour::calculate_contours) +
-/// [`render_contour`](crate::render::plotters_backend::render_contour) directly.
+/// [`render_contour`](crate::render::charton_backend::render_contour) directly.
 pub fn calculate_plot_pixels(
     data: &ScatterPlotData,
     width: usize,

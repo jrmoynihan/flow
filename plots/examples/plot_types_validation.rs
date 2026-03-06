@@ -73,7 +73,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     fs::write(out_dir.join("scatter_solid.png"), &bytes)?;
     println!("  scatter_solid.png");
 
-    // 3. Contour – lines (known plotters overflow with some grid configs; skip for this example)
+    // 3. Contour – lines (skip for this example; use FCS-based data for full validation)
     println!("  contour.png (skipped - use FCS-based data for full validation)");
 
     // 4. ScatterOverlay – needs gate_ids

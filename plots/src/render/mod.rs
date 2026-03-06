@@ -1,4 +1,4 @@
-pub mod plotters_backend;
+pub mod charton_backend;
 pub mod progress;
 
 pub use progress::{ProgressCallback, ProgressInfo};

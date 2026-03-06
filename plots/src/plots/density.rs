@@ -5,7 +5,7 @@ use crate::options::{DensityPlotOptions, PlotOptions};
 use crate::plots::traits::Plot;
 use crate::plots::PlotType;
 use crate::render::RenderConfig;
-use crate::render::plotters_backend::{render_contour, render_pixels};
+use crate::render::charton_backend::{render_contour, render_pixels};
 use crate::scatter_data::ScatterPlotData;
 use anyhow::Result;
 

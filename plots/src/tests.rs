@@ -199,7 +199,7 @@ mod tests {
         assert_eq!(options.base.height, 400);
         assert_eq!(*options.x_axis.range.start(), 0.0);
         assert_eq!(*options.x_axis.range.end(), 200_000.0);
-        assert!(matches!(options.colormap, ColorMaps::Viridis(_)));
+        assert!(matches!(options.colormap, ColorMaps::Viridis));
     }
 
     #[test]

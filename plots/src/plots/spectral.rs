@@ -7,7 +7,7 @@ use crate::PlotBytes;
 // Spectral plot implementation
 use crate::plots::traits::Plot;
 use crate::render::RenderConfig;
-use crate::render::plotters_backend::render_spectral_signature;
+use crate::render::charton_backend::render_spectral_signature;
 use anyhow::Result;
 
 /// Spectral signature plot implementation
