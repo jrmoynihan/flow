@@ -5,6 +5,7 @@ members = [
     "gates",
     "peacoqc-rs",
     "peacoqc-cli",
+    "peacoqc-py",
     "tru-ols",
     "tru-ols-cli",
     "utils",
