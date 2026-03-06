@@ -7,7 +7,7 @@ use crate::histogram_data::HistogramData;
 use crate::options::HistogramPlotOptions;
 use crate::plots::traits::Plot;
 use crate::PlotBytes;
-use crate::render::plotters_backend::render_histogram;
+use crate::render::kuva_backend::render_histogram;
 use crate::render::RenderConfig;
 use anyhow::Result;
 

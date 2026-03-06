@@ -199,7 +199,7 @@ mod tests {
         assert_eq!(options.base.height, 400);
         assert_eq!(*options.x_axis.range.start(), 0.0);
         assert_eq!(*options.x_axis.range.end(), 200_000.0);
-        assert!(matches!(options.colormap, ColorMaps::Viridis(_)));
+        assert!(matches!(options.colormap, ColorMaps::Viridis));
     }
 
     #[test]
@@ -425,11 +425,11 @@ mod tests {
         let result = plot.render(data.into(), &options, &mut render_config);
         assert!(result.is_ok());
         let bytes = result.unwrap();
-        // Should produce JPEG bytes
+        // Should produce PNG bytes
         assert!(!bytes.is_empty());
-        // JPEG files start with FF D8 FF
-        assert_eq!(bytes[0], 0xFF);
-        assert_eq!(bytes[1], 0xD8);
+        // PNG files start with 0x89 0x50 0x4E 0x47
+        assert_eq!(bytes[0], 0x89);
+        assert_eq!(bytes[1], 0x50);
     }
 
     // ============================================================================
@@ -460,8 +460,8 @@ mod tests {
         assert!(result.is_ok());
         let bytes = result.unwrap();
         assert!(!bytes.is_empty());
-        assert_eq!(bytes[0], 0xFF);
-        assert_eq!(bytes[1], 0xD8);
+        assert_eq!(bytes[0], 0x89);
+        assert_eq!(bytes[1], 0x50);
     }
 
     #[test]
@@ -768,9 +768,9 @@ mod tests {
         let results = plot.render_batch(&requests, &mut render_config).unwrap();
         assert_eq!(results.len(), 1);
         assert!(!results[0].is_empty());
-        // Should be JPEG bytes
-        assert_eq!(results[0][0], 0xFF);
-        assert_eq!(results[0][1], 0xD8);
+        // Should be PNG bytes
+        assert_eq!(results[0][0], 0x89);
+        assert_eq!(results[0][1], 0x50);
     }
 
     #[test]
@@ -802,9 +802,9 @@ mod tests {
         assert_eq!(results.len(), 2);
         for result in &results {
             assert!(!result.is_empty());
-            // Should be JPEG bytes
-            assert_eq!(result[0], 0xFF);
-            assert_eq!(result[1], 0xD8);
+            // Should be PNG bytes
+            assert_eq!(result[0], 0x89);
+            assert_eq!(result[1], 0x50);
         }
     }
 }

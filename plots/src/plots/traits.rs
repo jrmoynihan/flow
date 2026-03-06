@@ -60,7 +60,7 @@ pub trait Plot {
     ///
     /// # Returns
     ///
-    /// JPEG-encoded plot image bytes
+    /// PNG-encoded plot image bytes
     fn render(
         &self,
         data: Self::Data,

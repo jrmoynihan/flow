@@ -1,8 +1,15 @@
 use colorgrad::Gradient;
-use plotters::{
-    prelude::*,
-    style::colors::colormaps::{BlackWhite, Bone, MandelbrotHSL, ViridisRGB, VulcanoHSL},
-};
+
+/// An RGB color as (r, g, b) where each component is 0-255
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RgbColor(pub u8, pub u8, pub u8);
+
+impl RgbColor {
+    /// Format as a CSS hex color string like "#FF0000"
+    pub fn to_hex(&self) -> String {
+        format!("#{:02X}{:02X}{:02X}", self.0, self.1, self.2)
+    }
+}
 
 /// Color map options for density plots
 ///
@@ -22,7 +29,6 @@ use plotters::{
 /// - **Traditional**: `Rainbow`, `Jet` - colorful but use with caution
 /// - **Print-friendly**: `Bone`, `BlackWhite` - grayscale options
 pub enum ColorMaps {
-    // Perceptually uniform colormaps (from colorgrad)
     /// Viridis - perceptually uniform, colorblind-friendly (default)
     Viridis,
     /// Plasma - perceptually uniform, high contrast
@@ -41,33 +47,25 @@ pub enum ColorMaps {
     Cool,
     /// Cubehelix - perceptually uniform, customizable
     CubehelixDefault,
-
-    // Traditional colormaps (from colorgrad)
     /// Rainbow - traditional rainbow colors (use with caution)
     Rainbow,
     /// Jet - traditional jet colormap (use with caution)
     Jet,
     /// Spectral - diverging colormap
     Spectral,
-
-    // Plotters built-in colormaps (kept for backward compatibility)
-    /// Bone - grayscale colormap
-    Bone(Bone),
-    /// Mandelbrot - artistic HSL colormap
-    Mandelbrot(MandelbrotHSL),
-    /// BlackWhite - simple grayscale
-    BlackWhite(BlackWhite),
-    /// Volcano - HSL colormap
-    Volcano(VulcanoHSL),
-    /// ViridisRGB - Plotters' Viridis implementation (use Viridis instead)
-    #[deprecated(note = "Use ColorMaps::Viridis instead")]
-    ViridisRGB(ViridisRGB),
+    /// Bone - grayscale with slight blue tint
+    Bone,
+    /// Mandelbrot - artistic HSL-based colormap
+    Mandelbrot,
+    /// BlackWhite - simple linear grayscale
+    BlackWhite,
+    /// Volcano - warm orange-red colormap
+    Volcano,
 }
 
 impl Clone for ColorMaps {
     fn clone(&self) -> Self {
         match self {
-            // colorgrad colormaps are zero-sized, so we can just copy the variant
             ColorMaps::Viridis => ColorMaps::Viridis,
             ColorMaps::Plasma => ColorMaps::Plasma,
             ColorMaps::Inferno => ColorMaps::Inferno,
@@ -80,16 +78,14 @@ impl Clone for ColorMaps {
             ColorMaps::Rainbow => ColorMaps::Rainbow,
             ColorMaps::Jet => ColorMaps::Jet,
             ColorMaps::Spectral => ColorMaps::Spectral,
-            // Plotters colormaps
-            ColorMaps::Bone(_) => ColorMaps::Bone(Bone),
-            ColorMaps::Mandelbrot(_) => ColorMaps::Mandelbrot(MandelbrotHSL),
-            ColorMaps::BlackWhite(_) => ColorMaps::BlackWhite(BlackWhite),
-            ColorMaps::Volcano(_) => ColorMaps::Volcano(VulcanoHSL),
-            #[allow(deprecated)]
-            ColorMaps::ViridisRGB(_) => ColorMaps::Viridis,
+            ColorMaps::Bone => ColorMaps::Bone,
+            ColorMaps::Mandelbrot => ColorMaps::Mandelbrot,
+            ColorMaps::BlackWhite => ColorMaps::BlackWhite,
+            ColorMaps::Volcano => ColorMaps::Volcano,
         }
     }
 }
+
 impl ColorMaps {
     /// Map a normalized value (0.0 to 1.0) to an RGB color
     ///
@@ -97,133 +93,95 @@ impl ColorMaps {
     /// * `value` - Normalized density value between 0.0 and 1.0
     ///
     /// # Returns
-    /// An RGB color as `RGBColor(r, g, b)` where each component is 0-255
-    pub fn map(&self, value: f32) -> RGBColor {
-        // Clamp value to [0.0, 1.0]
+    /// An RGB color as `RgbColor(r, g, b)` where each component is 0-255
+    pub fn map(&self, value: f32) -> RgbColor {
         let clamped_value = value.max(0.0).min(1.0);
 
         match self {
-            // colorgrad colormaps (from preset module)
-            // Note: colorgrad Color has r, g, b, a as f32 in range [0.0, 1.0]
-            ColorMaps::Viridis => {
-                let grad = colorgrad::preset::viridis();
-                let color = grad.at(clamped_value);
-                RGBColor(
-                    (color.r * 255.0) as u8,
-                    (color.g * 255.0) as u8,
-                    (color.b * 255.0) as u8,
-                )
-            }
-            ColorMaps::Plasma => {
-                let grad = colorgrad::preset::plasma();
-                let color = grad.at(clamped_value);
-                RGBColor(
-                    (color.r * 255.0) as u8,
-                    (color.g * 255.0) as u8,
-                    (color.b * 255.0) as u8,
-                )
-            }
-            ColorMaps::Inferno => {
-                let grad = colorgrad::preset::inferno();
-                let color = grad.at(clamped_value);
-                RGBColor(
-                    (color.r * 255.0) as u8,
-                    (color.g * 255.0) as u8,
-                    (color.b * 255.0) as u8,
-                )
-            }
-            ColorMaps::Magma => {
-                let grad = colorgrad::preset::magma();
-                let color = grad.at(clamped_value);
-                RGBColor(
-                    (color.r * 255.0) as u8,
-                    (color.g * 255.0) as u8,
-                    (color.b * 255.0) as u8,
-                )
-            }
-            ColorMaps::Turbo => {
-                let grad = colorgrad::preset::turbo();
-                let color = grad.at(clamped_value);
-                RGBColor(
-                    (color.r * 255.0) as u8,
-                    (color.g * 255.0) as u8,
-                    (color.b * 255.0) as u8,
-                )
-            }
-            ColorMaps::Cividis => {
-                let grad = colorgrad::preset::cividis();
-                let color = grad.at(clamped_value);
-                RGBColor(
-                    (color.r * 255.0) as u8,
-                    (color.g * 255.0) as u8,
-                    (color.b * 255.0) as u8,
-                )
-            }
-            ColorMaps::Warm => {
-                let grad = colorgrad::preset::warm();
-                let color = grad.at(clamped_value);
-                RGBColor(
-                    (color.r * 255.0) as u8,
-                    (color.g * 255.0) as u8,
-                    (color.b * 255.0) as u8,
-                )
-            }
-            ColorMaps::Cool => {
-                let grad = colorgrad::preset::cool();
-                let color = grad.at(clamped_value);
-                RGBColor(
-                    (color.r * 255.0) as u8,
-                    (color.g * 255.0) as u8,
-                    (color.b * 255.0) as u8,
-                )
-            }
+            ColorMaps::Viridis => colorgrad_map(&colorgrad::preset::viridis(), clamped_value),
+            ColorMaps::Plasma => colorgrad_map(&colorgrad::preset::plasma(), clamped_value),
+            ColorMaps::Inferno => colorgrad_map(&colorgrad::preset::inferno(), clamped_value),
+            ColorMaps::Magma => colorgrad_map(&colorgrad::preset::magma(), clamped_value),
+            ColorMaps::Turbo => colorgrad_map(&colorgrad::preset::turbo(), clamped_value),
+            ColorMaps::Cividis => colorgrad_map(&colorgrad::preset::cividis(), clamped_value),
+            ColorMaps::Warm => colorgrad_map(&colorgrad::preset::warm(), clamped_value),
+            ColorMaps::Cool => colorgrad_map(&colorgrad::preset::cool(), clamped_value),
             ColorMaps::CubehelixDefault => {
-                let grad = colorgrad::preset::cubehelix_default();
-                let color = grad.at(clamped_value);
-                RGBColor(
-                    (color.r * 255.0) as u8,
-                    (color.g * 255.0) as u8,
-                    (color.b * 255.0) as u8,
-                )
+                colorgrad_map(&colorgrad::preset::cubehelix_default(), clamped_value)
             }
-            ColorMaps::Rainbow => {
-                let grad = colorgrad::preset::rainbow();
-                let color = grad.at(clamped_value);
-                RGBColor(
-                    (color.r * 255.0) as u8,
-                    (color.g * 255.0) as u8,
-                    (color.b * 255.0) as u8,
-                )
-            }
+            ColorMaps::Rainbow => colorgrad_map(&colorgrad::preset::rainbow(), clamped_value),
             ColorMaps::Jet => {
-                // colorgrad doesn't have Jet, use sinebow as a similar alternative
-                let grad = colorgrad::preset::sinebow();
-                let color = grad.at(clamped_value);
-                RGBColor(
-                    (color.r * 255.0) as u8,
-                    (color.g * 255.0) as u8,
-                    (color.b * 255.0) as u8,
-                )
+                colorgrad_map(&colorgrad::preset::sinebow(), clamped_value)
             }
-            ColorMaps::Spectral => {
-                let grad = colorgrad::preset::spectral();
-                let color = grad.at(clamped_value);
-                RGBColor(
-                    (color.r * 255.0) as u8,
-                    (color.g * 255.0) as u8,
-                    (color.b * 255.0) as u8,
-                )
+            ColorMaps::Spectral => colorgrad_map(&colorgrad::preset::spectral(), clamped_value),
+            ColorMaps::Bone => {
+                let v = clamped_value;
+                let r = (v * 0.875 * 255.0) as u8;
+                let g = (v * 0.958 * 255.0) as u8;
+                let b = (v * 255.0) as u8;
+                RgbColor(r, g, b)
             }
-            // Plotters built-in colormaps (backward compatibility)
-            ColorMaps::Bone(c) => c.get_color(clamped_value),
-            ColorMaps::Mandelbrot(c) => convert_hsl_to_rgb(c.get_color(clamped_value)),
-            ColorMaps::BlackWhite(c) => c.get_color(clamped_value),
-            ColorMaps::Volcano(c) => convert_hsl_to_rgb(c.get_color(clamped_value)),
-            #[allow(deprecated)]
-            ColorMaps::ViridisRGB(c) => c.get_color(clamped_value),
+            ColorMaps::Mandelbrot => {
+                let hue = clamped_value * 360.0;
+                hsl_to_rgb(hue, 1.0, 0.5)
+            }
+            ColorMaps::BlackWhite => {
+                let v = (clamped_value * 255.0) as u8;
+                RgbColor(v, v, v)
+            }
+            ColorMaps::Volcano => {
+                let (r, g, b) = if clamped_value < 0.33 {
+                    let t = clamped_value / 0.33;
+                    ((t * 200.0) as u8, 0u8, 0u8)
+                } else if clamped_value < 0.66 {
+                    let t = (clamped_value - 0.33) / 0.33;
+                    (200 + (t * 55.0) as u8, (t * 200.0) as u8, 0u8)
+                } else {
+                    let t = (clamped_value - 0.66) / 0.34;
+                    (255u8, 200 + (t * 55.0) as u8, (t * 255.0) as u8)
+                };
+                RgbColor(r, g, b)
+            }
         }
     }
 }
+
+fn colorgrad_map(grad: &impl Gradient, value: f32) -> RgbColor {
+    let color = grad.at(value);
+    RgbColor(
+        (color.r * 255.0) as u8,
+        (color.g * 255.0) as u8,
+        (color.b * 255.0) as u8,
+    )
+}
+
+fn hsl_to_rgb(h: f32, s: f32, l: f32) -> RgbColor {
+    let c = (1.0 - (2.0 * l - 1.0).abs()) * s;
+    let h_prime = h / 60.0;
+    let x = c * (1.0 - (h_prime % 2.0 - 1.0).abs());
+    let m = l - c / 2.0;
+
+    let (r, g, b) = if h_prime < 1.0 {
+        (c, x, 0.0)
+    } else if h_prime < 2.0 {
+        (x, c, 0.0)
+    } else if h_prime < 3.0 {
+        (0.0, c, x)
+    } else if h_prime < 4.0 {
+        (0.0, x, c)
+    } else if h_prime < 5.0 {
+        (x, 0.0, c)
+    } else {
+        (c, 0.0, x)
+    };
+
+    RgbColor(
+        ((r + m) * 255.0) as u8,
+        ((g + m) * 255.0) as u8,
+        ((b + m) * 255.0) as u8,
+    )
+}
+
 impl std::fmt::Debug for ColorMaps {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -239,153 +197,16 @@ impl std::fmt::Debug for ColorMaps {
             ColorMaps::Rainbow => write!(f, "Rainbow"),
             ColorMaps::Jet => write!(f, "Jet"),
             ColorMaps::Spectral => write!(f, "Spectral"),
-            ColorMaps::Bone(_) => write!(f, "Bone"),
-            ColorMaps::Mandelbrot(_) => write!(f, "Mandelbrot"),
-            ColorMaps::BlackWhite(_) => write!(f, "BlackWhite"),
-            ColorMaps::Volcano(_) => write!(f, "Volcano"),
-            #[allow(deprecated)]
-            ColorMaps::ViridisRGB(_) => write!(f, "ViridisRGB"),
+            ColorMaps::Bone => write!(f, "Bone"),
+            ColorMaps::Mandelbrot => write!(f, "Mandelbrot"),
+            ColorMaps::BlackWhite => write!(f, "BlackWhite"),
+            ColorMaps::Volcano => write!(f, "Volcano"),
         }
     }
 }
+
 impl Default for ColorMaps {
     fn default() -> Self {
         ColorMaps::Viridis
     }
-}
-
-fn convert_hsl_to_rgb(hsl: HSLColor) -> RGBColor {
-    let (r, g, b) = hsl.rgb();
-    RGBColor(r, g, b)
-}
-
-// Define your custom color map
-pub struct CustomColorMap;
-
-macro_rules! def_linear_colormap{
-    ($color_scale_name:ident, $color_type:ident, $doc:expr, $(($($color_value:expr),+)),*) => {
-        #[doc = $doc]
-        pub struct $color_scale_name;
-
-        impl $color_scale_name {
-            // const COLORS: [$color_type; $number_colors] = [$($color_type($($color_value),+)),+];
-            // const COLORS: [$color_type; $crate::count!($(($($color_value:expr),+))*)] = [$($color_type($($color_value),+)),+];
-            const COLORS: [$color_type; $crate::count!($(($($color_value:expr),+))*)] = $crate::define_colors_from_list_of_values_or_directly!{$color_type, $(($($color_value),+)),*};
-        }
-
-        $crate::implement_linear_interpolation_color_map!{$color_scale_name, $color_type}
-    };
-    ($color_scale_name:ident, $color_type:ident, $doc:expr, $($color_complete:tt),+) => {
-        #[doc = $doc]
-        pub struct $color_scale_name;
-
-        impl $color_scale_name {
-            const COLORS: [$color_type; $crate::count!($($color_complete)*)] = $crate::define_colors_from_list_of_values_or_directly!{$($color_complete),+};
-        }
-
-        $crate::implement_linear_interpolation_color_map!{$color_scale_name, $color_type}
-    }
-}
-
-#[macro_export]
-#[doc(hidden)]
-/// Implements the [ColorMap] trait on a given color scale.
-macro_rules! implement_linear_interpolation_color_map {
-    ($color_scale_name:ident, $color_type:ident) => {
-        impl<FloatType: std::fmt::Debug + num_traits::Float + num_traits::FromPrimitive + num_traits::ToPrimitive>
-            ColorMap<$color_type, FloatType> for $color_scale_name
-        {
-            fn get_color_normalized(
-                &self,
-                h: FloatType,
-                min: FloatType,
-                max: FloatType,
-            ) -> $color_type {
-                let (
-                    relative_difference,
-                    index_lower,
-                    index_upper
-                ) = calculate_relative_difference_index_lower_upper(
-                    h,
-                    min,
-                    max,
-                    Self::COLORS.len()
-                );
-                // Interpolate the final color linearly
-                $crate::calculate_new_color_value!(
-                    relative_difference,
-                    Self::COLORS,
-                    index_upper,
-                    index_lower,
-                    $color_type
-                )
-            }
-        }
-
-        impl $color_scale_name {
-            #[doc = "Get color value from `"]
-            #[doc = stringify!($color_scale_name)]
-            #[doc = "` by supplying a parameter 0.0 <= h <= 1.0"]
-            pub fn get_color<FloatType: std::fmt::Debug + num_traits::Float + num_traits::FromPrimitive + num_traits::ToPrimitive>(
-                h: FloatType,
-            ) -> $color_type {
-                let color_scale = $color_scale_name {};
-                color_scale.get_color(h)
-            }
-
-            #[doc = "Get color value from `"]
-            #[doc = stringify!($color_scale_name)]
-            #[doc = "` by supplying lower and upper bounds min, max and a parameter h where min <= h <= max"]
-            pub fn get_color_normalized<
-                FloatType: std::fmt::Debug + num_traits::Float + num_traits::FromPrimitive + num_traits::ToPrimitive,
-            >(
-                h: FloatType,
-                min: FloatType,
-                max: FloatType,
-            ) -> $color_type {
-                let color_scale = $color_scale_name {};
-                color_scale.get_color_normalized(h, min, max)
-            }
-        }
-    };
-}
-
-pub fn calculate_relative_difference_index_lower_upper<
-    FloatType: num_traits::Float + num_traits::FromPrimitive + num_traits::ToPrimitive,
->(
-    h: FloatType,
-    min: FloatType,
-    max: FloatType,
-    n_steps: usize,
-) -> (FloatType, usize, usize) {
-    // Ensure that we do have a value in bounds
-    let h = num_traits::clamp(h, min, max);
-    // Next calculate a normalized value between 0.0 and 1.0
-    let t = (h - min) / (max - min);
-    let approximate_index = t
-        * (FloatType::from_usize(n_steps).expect("should be able to get a float type from usize")
-            - FloatType::one())
-        .max(FloatType::zero());
-    // Calculate which index are the two most nearest of the supplied value
-    let index_lower = approximate_index
-        .floor()
-        .to_usize()
-        .expect("should be able to get the lower index");
-    let index_upper = approximate_index
-        .ceil()
-        .to_usize()
-        .expect("should be able to get the upper index");
-    // Calculate the relative difference, ie. is the actual value more towards the color of index_upper or index_lower?
-    let relative_difference = approximate_index.ceil() - approximate_index;
-    (relative_difference, index_lower, index_upper)
-}
-
-/// Converts a given color identifier and a sequence of colors to an array of them.
-macro_rules! define_colors_from_list_of_values_or_directly{
-    ($color_type:ident, $(($($color_value:expr),+)),+) => {
-        [$($color_type($($color_value),+)),+]
-    };
-    ($($color_complete:tt),+) => {
-        [$($color_complete),+]
-    };
 }
