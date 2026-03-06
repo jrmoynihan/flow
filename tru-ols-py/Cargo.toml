@@ -1,0 +1,29 @@
+[package]
+name = "tru-ols-py"
+version = "0.1.0"
+edition.workspace = true
+authors.workspace = true
+license = "MIT"
+description = "Python bindings for flow-tru-ols spectral unmixing"
+repository = "https://github.com/jrmoynihan/flow/tru-ols-py"
+keywords = [
+    "flow-cytometry",
+    "spectral-unmixing",
+    "bioinformatics",
+    "tru-ols",
+    "python",
+]
+categories = ["science", "algorithms"]
+
+[lib]
+name = "tru_ols"
+crate-type = ["cdylib"]
+
+[dependencies]
+flow-tru-ols = { path = "../tru-ols", default-features = false, features = ["flow-fcs"] }
+flow-fcs = { path = "../fcs", version = "^0.2.2" }
+polars = { workspace = true }
+faer = { workspace = true }
+pyo3 = { version = "0.27", features = ["extension-module"] }
+pyo3-polars = { version = "0.26", features = ["dtype-full"] }
+thiserror.workspace = true

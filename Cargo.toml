@@ -8,6 +8,7 @@ members = [
     "peacoqc-py",
     "tru-ols",
     "tru-ols-cli",
+    "tru-ols-py",
     "utils",
 ]
 resolver = "3"

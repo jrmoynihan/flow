@@ -9239,6 +9239,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "tru-ols-py"
+version = "0.1.0"
+dependencies = [
+ "faer 0.24.0",
+ "flow-fcs",
+ "flow-tru-ols",
+ "polars",
+ "pyo3",
+ "pyo3-polars",
+ "thiserror 2.0.18",
+]
+
+[[package]]
 name = "try-lock"
 version = "0.2.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
