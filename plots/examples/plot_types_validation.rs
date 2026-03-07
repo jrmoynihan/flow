@@ -1,7 +1,7 @@
 //! Generate one PNG per plot type for visual validation.
 //!
 //! Run: `cargo run -p flow-plots --example plot_types_validation`
-//! Output: `plot_types_output/` with density.png, scatter_solid.png, contour.png, etc.
+//! Output: `plot_types_output/` with density.png, density_log.png, scatter_solid.png, etc.
 //!
 //! Plots should look substantially different between types.
 
@@ -13,23 +13,27 @@ use flow_plots::render::RenderConfig;
 use flow_plots::{DensityPlot, Plot, PlotType, ScatterPlotData};
 use std::fs;
 use std::path::PathBuf;
+use std::time::Instant;
+
+const N_EVENTS_PER_CLUSTER: usize = 10_000;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let out_dir = PathBuf::from("plot_types_output");
     fs::create_dir_all(&out_dir)?;
     println!("Output dir: {}", out_dir.canonicalize()?.display());
 
-    // Synthetic data: two clusters
+    // Synthetic data: two clusters (more events for clearer density)
     let points: Vec<(f32, f32)> = {
-        let mut v = Vec::with_capacity(2000);
-        for _ in 0..1000 {
+        let mut v = Vec::with_capacity(2 * N_EVENTS_PER_CLUSTER);
+        for _ in 0..N_EVENTS_PER_CLUSTER {
             v.push((100.0 + rand_centered(20.0), 150.0 + rand_centered(30.0)));
         }
-        for _ in 0..1000 {
+        for _ in 0..N_EVENTS_PER_CLUSTER {
             v.push((400.0 + rand_centered(25.0), 350.0 + rand_centered(40.0)));
         }
         v
     };
+    println!("  {} events ({} per cluster)", points.len(), N_EVENTS_PER_CLUSTER);
 
     let base = BasePlotOptions::new()
         .width(600u32)
@@ -48,8 +52,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let plot = DensityPlot::new();
     let mut render_config = RenderConfig::default();
+    let mut timings: Vec<(&str, std::time::Duration)> = Vec::new();
 
-    // 1. Density (default)
+    // 1. Density (default, linear scale)
     let opts = DensityPlotOptions::new()
         .base(base.clone())
         .x_axis(x_axis.clone())
@@ -57,9 +62,41 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .plot_type(PlotType::Density)
         .point_size(0.2)
         .build()?;
+    let t = Instant::now();
     let bytes = plot.render(points.clone().into(), &opts, &mut render_config)?;
+    let elapsed = t.elapsed();
+    timings.push(("density", elapsed));
     fs::write(out_dir.join("density.png"), &bytes)?;
-    println!("  density.png");
+    println!("  density.png  {:?}", elapsed);
+
+    // 1b. Density with logarithmic axis scale (data transformed to log10, then binned)
+    let points_log: Vec<(f32, f32)> = points
+        .iter()
+        .map(|(x, y)| (x.max(1.0).log10(), y.max(1.0).log10()))
+        .collect();
+    let x_axis_log = AxisOptions::new()
+        .label("log10(X)".to_string())
+        .range(1.0..=2.7)
+        .transform(TransformType::Linear)
+        .build()?;
+    let y_axis_log = AxisOptions::new()
+        .label("log10(Y)".to_string())
+        .range(1.0..=2.7)
+        .transform(TransformType::Linear)
+        .build()?;
+    let opts_log = DensityPlotOptions::new()
+        .base(base.clone())
+        .x_axis(x_axis_log)
+        .y_axis(y_axis_log)
+        .plot_type(PlotType::Density)
+        .point_size(0.2)
+        .build()?;
+    let t = Instant::now();
+    let bytes_log = plot.render(points_log.into(), &opts_log, &mut render_config)?;
+    let elapsed = t.elapsed();
+    timings.push(("density_log", elapsed));
+    fs::write(out_dir.join("density_log.png"), &bytes_log)?;
+    println!("  density_log.png  {:?}", elapsed);
 
     // 2. ScatterSolid – small dots
     let opts = DensityPlotOptions::new()
@@ -69,9 +106,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .plot_type(PlotType::ScatterSolid)
         .point_size(0.15)
         .build()?;
+    let t = Instant::now();
     let bytes = plot.render(points.clone().into(), &opts, &mut render_config)?;
+    let elapsed = t.elapsed();
+    timings.push(("scatter_solid", elapsed));
     fs::write(out_dir.join("scatter_solid.png"), &bytes)?;
-    println!("  scatter_solid.png");
+    println!("  scatter_solid.png  {:?}", elapsed);
 
     // 3. Contour – lines (known plotters overflow with some grid configs; skip for this example)
     println!("  contour.png (skipped - use FCS-based data for full validation)");
@@ -91,9 +131,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .gate_colors(default_gate_colors())
         .point_size(0.2)
         .build()?;
+    let t = Instant::now();
     let bytes = plot.render(overlay_data.into(), &opts, &mut render_config)?;
+    let elapsed = t.elapsed();
+    timings.push(("scatter_overlay", elapsed));
     fs::write(out_dir.join("scatter_overlay.png"), &bytes)?;
-    println!("  scatter_overlay.png");
+    println!("  scatter_overlay.png  {:?}", elapsed);
 
     // 5. ScatterColoredContinuous – needs z_values
     let z_values: Vec<f32> = points.iter().map(|(x, y)| (x + y) / 2.0).collect();
@@ -107,10 +150,30 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .colormap(ColorMaps::Viridis)
         .point_size(0.2)
         .build()?;
+    let t = Instant::now();
     let bytes = plot.render(colored_data.into(), &opts, &mut render_config)?;
+    let elapsed = t.elapsed();
+    timings.push(("scatter_colored", elapsed));
     fs::write(out_dir.join("scatter_colored.png"), &bytes)?;
-    println!("  scatter_colored.png");
+    println!("  scatter_colored.png  {:?}", elapsed);
 
+    // Summary
+    let total: std::time::Duration = timings.iter().map(|(_, d)| *d).sum();
+    println!("\n--- Plot timing summary ({} events) ---", points.len());
+    for (name, d) in &timings {
+        let ms = d.as_secs_f64() * 1000.0;
+        let pct = if total.as_secs_f64() > 0.0 {
+            (d.as_secs_f64() / total.as_secs_f64()) * 100.0
+        } else {
+            0.0
+        };
+        println!("  {:20} {:8.2} ms  ({:5.1}%)", name, ms, pct);
+    }
+    println!(
+        "  {:20} {:8.2} ms  (total)",
+        "",
+        total.as_secs_f64() * 1000.0
+    );
     println!("\nDone. Inspect plots in {}/", out_dir.display());
     Ok(())
 }
