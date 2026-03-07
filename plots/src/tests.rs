@@ -545,35 +545,6 @@ mod tests {
         assert!(result.is_ok());
     }
 
-    #[test]
-    fn test_density_plot_render_with_progress_callback() {
-        let plot = DensityPlot::new();
-        let options = DensityPlotOptions::new()
-            .width(200)
-            .height(200)
-            .build()
-            .unwrap();
-
-        // Create data that will trigger progress updates
-        let data: Vec<(f32, f32)> = (0..1000)
-            .map(|i| (i as f32 * 10.0, i as f32 * 5.0))
-            .collect();
-
-        let mut progress_calls = 0;
-        let mut render_config = RenderConfig {
-            progress: Some(Box::new(move |_info| {
-                progress_calls += 1;
-                Ok(())
-            })),
-            ..Default::default()
-        };
-
-        let result = plot.render(data.into(), &options, &mut render_config);
-        assert!(result.is_ok());
-        // Progress should have been called at least once
-        assert!(progress_calls > 0);
-    }
-
     // ============================================================================
     // Transform Tests
     // ============================================================================
@@ -633,8 +604,8 @@ mod tests {
 
     #[test]
     fn test_render_config_default() {
-        let config = RenderConfig::default();
-        assert!(config.progress.is_none());
+        let _config = RenderConfig::default();
+        // Reserved for future use (e.g. verbosity)
     }
 
     #[test]

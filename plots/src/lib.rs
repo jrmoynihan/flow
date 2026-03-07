@@ -33,7 +33,7 @@
 //!
 //! - `options`: Plot configuration types using the builder pattern
 //! - `plots`: Plot implementations (currently `DensityPlot`)
-//! - `render`: Rendering infrastructure and progress reporting
+//! - `render`: Rendering infrastructure
 //! - `density`: Density calculation algorithms
 //! - `colormap`: Color map implementations
 //! - `helpers`: Helper functions for common initialization patterns
@@ -58,7 +58,7 @@ pub use options::{
 };
 pub use plots::{DensityPlot, HistogramPlot, Plot, PlotType, SpectralSignaturePlot};
 pub use scatter_data::{ScatterDataError, ScatterPlotData};
-pub use render::{ProgressCallback, ProgressInfo, RenderConfig};
+pub use render::RenderConfig;
 pub use signal_heatmap::{generate_normalized_spectral_signature_plot, generate_signal_heatmap};
 
 // Type aliases
