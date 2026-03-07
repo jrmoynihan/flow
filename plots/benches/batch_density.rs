@@ -1,14 +1,19 @@
-use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
+use criterion::{BenchmarkId, Criterion, Throughput, criterion_group, criterion_main};
+use flow_plots::ScatterPlotData;
 use flow_plots::density_calc::calculate_density_per_pixel_batch;
 use flow_plots::options::{AxisOptions, BasePlotOptions, DensityPlotOptions, PlotOptions};
-use flow_plots::ScatterPlotData;
-use rand::Rng;
+use rand::{Rng, RngExt};
 use std::hint::black_box;
 
 fn generate_test_data(n_points: usize) -> Vec<(f32, f32)> {
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rng();
     (0..n_points)
-        .map(|_| (rng.gen_range(0.0..200_000.0), rng.gen_range(0.0..200_000.0)))
+        .map(|_| {
+            (
+                rng.random_range(0.0..200_000.0),
+                rng.random_range(0.0..200_000.0),
+            )
+        })
         .collect()
 }
 
@@ -45,12 +50,17 @@ fn benchmark_batch_density(c: &mut Criterion) {
 
         group.throughput(Throughput::Elements(plot_count as u64));
         group.bench_with_input(
-            BenchmarkId::new("cpu_batch", format!("vary_plots_{}_plots_{}k_each", plot_count, event_count / 1000)),
+            BenchmarkId::new(
+                "cpu_batch",
+                format!(
+                    "vary_plots_{}_plots_{}k_each",
+                    plot_count,
+                    event_count / 1000
+                ),
+            ),
             &requests,
             |b, requests| {
-                b.iter(|| {
-                    black_box(calculate_density_per_pixel_batch(black_box(requests)))
-                });
+                b.iter(|| black_box(calculate_density_per_pixel_batch(black_box(requests))));
             },
         );
     }
@@ -68,22 +78,23 @@ fn benchmark_batch_density(c: &mut Criterion) {
 
         group.throughput(Throughput::Elements(plot_count as u64));
         group.bench_with_input(
-            BenchmarkId::new("cpu_batch", format!("vary_events_{}_plots_{}k_each", plot_count, event_count / 1000)),
+            BenchmarkId::new(
+                "cpu_batch",
+                format!(
+                    "vary_events_{}_plots_{}k_each",
+                    plot_count,
+                    event_count / 1000
+                ),
+            ),
             &requests,
             |b, requests| {
-                b.iter(|| {
-                    black_box(calculate_density_per_pixel_batch(black_box(requests)))
-                });
+                b.iter(|| black_box(calculate_density_per_pixel_batch(black_box(requests))));
             },
         );
     }
 
     // Mixed scenarios
-    let scenarios = vec![
-        (5, 100_000),
-        (10, 50_000),
-        (20, 100_000),
-    ];
+    let scenarios = vec![(5, 100_000), (10, 50_000), (20, 100_000)];
 
     for (plot_count, event_count) in scenarios {
         let requests: Vec<(ScatterPlotData, DensityPlotOptions)> = (0..plot_count)
@@ -96,12 +107,13 @@ fn benchmark_batch_density(c: &mut Criterion) {
 
         group.throughput(Throughput::Elements(plot_count as u64));
         group.bench_with_input(
-            BenchmarkId::new("cpu_batch", format!("{}_plots_{}k_each", plot_count, event_count / 1000)),
+            BenchmarkId::new(
+                "cpu_batch",
+                format!("{}_plots_{}k_each", plot_count, event_count / 1000),
+            ),
             &requests,
             |b, requests| {
-                b.iter(|| {
-                    black_box(calculate_density_per_pixel_batch(black_box(requests)))
-                });
+                b.iter(|| black_box(calculate_density_per_pixel_batch(black_box(requests))));
             },
         );
     }
@@ -125,9 +137,7 @@ fn benchmark_mixed_vs_constant_sizes(c: &mut Criterion) {
         BenchmarkId::new("cpu_batch", "constant_size_10_plots_800x600"),
         &constant_requests,
         |b, requests| {
-            b.iter(|| {
-                black_box(calculate_density_per_pixel_batch(black_box(requests)))
-            });
+            b.iter(|| black_box(calculate_density_per_pixel_batch(black_box(requests))));
         },
     );
 
@@ -149,9 +159,7 @@ fn benchmark_mixed_vs_constant_sizes(c: &mut Criterion) {
         BenchmarkId::new("cpu_batch", "mixed_size_10_plots"),
         &mixed_requests,
         |b, requests| {
-            b.iter(|| {
-                black_box(calculate_density_per_pixel_batch(black_box(requests)))
-            });
+            b.iter(|| black_box(calculate_density_per_pixel_batch(black_box(requests))));
         },
     );
 
@@ -176,7 +184,10 @@ fn benchmark_sequential_vs_batch(c: &mut Criterion) {
 
     // Sequential (baseline)
     group.bench_with_input(
-        BenchmarkId::new("sequential", format!("{}_plots_{}k_each", plot_count, event_count / 1000)),
+        BenchmarkId::new(
+            "sequential",
+            format!("{}_plots_{}k_each", plot_count, event_count / 1000),
+        ),
         &requests,
         |b, requests| {
             b.iter(|| {
@@ -195,12 +206,13 @@ fn benchmark_sequential_vs_batch(c: &mut Criterion) {
 
     // CPU Batched
     group.bench_with_input(
-        BenchmarkId::new("cpu_batched", format!("{}_plots_{}k_each", plot_count, event_count / 1000)),
+        BenchmarkId::new(
+            "cpu_batched",
+            format!("{}_plots_{}k_each", plot_count, event_count / 1000),
+        ),
         &requests,
         |b, requests| {
-            b.iter(|| {
-                black_box(calculate_density_per_pixel_batch(black_box(requests)))
-            });
+            b.iter(|| black_box(calculate_density_per_pixel_batch(black_box(requests))));
         },
     );
 
