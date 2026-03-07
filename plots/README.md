@@ -10,8 +10,7 @@ This library provides a flexible, extensible API for creating different types of
 
 - **Extensible Architecture**: Easy to add new plot types by implementing the `Plot` trait
 - **Builder Pattern**: Type-safe configuration using the builder pattern
-- **Progress Reporting**: Optional progress callbacks for streaming/progressive rendering
-- **Flexible Rendering**: Applications can inject their own execution and progress logic
+- **Fast Raster Backend**: Direct rasterization (no SVG round-trip) via the kuva backend
 
 ## Basic Usage
 
@@ -222,37 +221,6 @@ fn create_plot_from_file(path: &str) -> Result<Vec<u8>> {
 }
 ```
 
-### With Application Executor and Progress
-
-```rust
-use flow_plots::{DensityPlot, DensityPlotOptions, RenderConfig, ProgressInfo};
-use crate::plot_executor::with_render_lock;
-use crate::commands::PlotProgressEvent;
-
-let options = DensityPlotOptions::new()
-    .width(800)
-    .height(600)
-    // ... configure options
-    .build()?;
-
-// Configure rendering with app-specific concerns
-let mut render_config = RenderConfig {
-    progress: Some(Box::new(move |info: ProgressInfo| {
-        channel.send(PlotProgressEvent::Progress {
-            pixels: info.pixels,
-            percent: info.percent,
-        })?;
-        Ok(())
-    })),
-};
-
-// Wrap the render call with your executor's render lock
-let bytes = with_render_lock(|| {
-    let plot = DensityPlot::new();
-    plot.render(data, &options, &mut render_config)
-})?;
-```
-
 ### Batch Rendering
 
 For processing multiple plots together, use the batch API:
@@ -293,25 +261,24 @@ let plot_bytes: Vec<Vec<u8>> = plot.render_batch(&requests, &mut render_config)?
 
 ### Custom Batch Orchestration
 
-For applications that want to orchestrate rendering themselves (e.g., custom progress reporting, parallel rendering, etc.), use the low-level batch density calculation:
+For applications that want to orchestrate rendering themselves (e.g., parallel rendering), use the low-level batch density calculation:
 
 ```rust
 use flow_plots::density_calc::calculate_density_per_pixel_batch;
-use flow_plots::{DensityPlotOptions};
-use flow_plots::render::{RenderConfig, plotters_backend::render_pixels};
+use flow_plots::{DensityPlotOptions, ScatterPlotData};
+use flow_plots::render::{RenderConfig, kuva_backend::render_pixels};
 use anyhow::Result;
 
-// Calculate density for multiple plots
-let requests: Vec<(Vec<(f32, f32)>, DensityPlotOptions)> = vec![
-    (data1, options1),
-    (data2, options2),
-    (data3, options3),
+// Calculate density for multiple plots (data as ScatterPlotData)
+let requests: Vec<(ScatterPlotData, DensityPlotOptions)> = vec![
+    (data1.into(), options1),
+    (data2.into(), options2),
+    (data3.into(), options3),
 ];
 
 // Get raw pixel data for all plots (density calculation only)
 let raw_pixels_batch = calculate_density_per_pixel_batch(&requests);
 
-// Now you can orchestrate rendering yourself
 let mut render_config = RenderConfig::default();
 
 // Example: Render plots in parallel using rayon
@@ -320,8 +287,6 @@ let plot_bytes: Result<Vec<Vec<u8>>> = raw_pixels_batch
     .par_iter()
     .enumerate()
     .map(|(i, raw_pixels)| {
-        // Custom rendering logic here
-        // You have access to raw_pixels and requests[i].1 (options)
         render_pixels(raw_pixels.clone(), &requests[i].1, &mut render_config)
     })
     .collect();
@@ -329,7 +294,7 @@ let plot_bytes: Result<Vec<Vec<u8>>> = raw_pixels_batch
 let plot_bytes = plot_bytes?;
 ```
 
-**Contour plots:** The low-level APIs (`calculate_plot_pixels`, `calculate_density_per_pixel_batch`) produce *density heatmaps* for all plot types, including `Contour` and `ContourOverlay`. To render contour lines, branch on `plot_type` and use `DensityPlot::render` (or call `flow_plots::contour::calculate_contours` + `flow_plots::render::plotters_backend::render_contour` directly).
+**Contour plots:** The low-level APIs (`calculate_plot_pixels`, `calculate_density_per_pixel_batch`) produce *density heatmaps* for all plot types, including `Contour` and `ContourOverlay`. To render contour lines, branch on `plot_type` and use `DensityPlot::render` (or call `flow_plots::contour::calculate_contours` + `flow_plots::render::kuva_backend::render_contour` directly).
 
 **Note**: While batch processing is available, sequential processing (calling `render()` in a loop) is typically faster for most use cases. See `GPU_EVALUATION.md` for performance analysis.
 
@@ -345,9 +310,8 @@ The library is organized into several modules:
   - `DensityPlot`: 2D density plot implementation
   - `Plot` trait: Interface for all plot types
 - **`render`**: Rendering infrastructure
-  - `RenderConfig`: Configuration for rendering (progress callbacks)
-  - `ProgressInfo`: Progress information structure
-  - `plotters_backend`: Plotters-based rendering implementation
+  - `RenderConfig`: Configuration for rendering (reserved for future use)
+  - `kuva_backend`: Kuva-based raster rendering (direct to PNG, no SVG round-trip)
 - **`density`**: Density calculation algorithms
 - **`colormap`**: Color map implementations
 - **`helpers`**: Helper functions for common initialization patterns

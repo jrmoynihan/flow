@@ -56,7 +56,7 @@ pub trait Plot {
     ///
     /// * `data` - The data to plot
     /// * `options` - Plot-specific options
-    /// * `render_config` - Rendering configuration (progress callbacks, etc.)
+    /// * `render_config` - Rendering configuration (reserved for future use)
     ///
     /// # Returns
     ///
