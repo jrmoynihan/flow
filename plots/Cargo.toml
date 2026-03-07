@@ -1,6 +1,6 @@
 [package]
 name="flow-plots"
-version= "0.3.1"
+version="0.3.1"
 edition.workspace=true
 authors.workspace=true
 repository="https://github.com/jrmoynihan/flow/plots"
@@ -39,12 +39,12 @@ ndarray       ={ workspace=true }
 kuva          ={ git = "https://github.com/jrmoynihan/kuva", features = ["raster"], optional = true }
 
 [dev-dependencies]
-criterion = { workspace = true }
-rand = { workspace = true }
+criterion={ workspace=true }
+rand     ={ workspace=true }
 
 [[example]]
-name = "plot_types_validation"
-path = "examples/plot_types_validation.rs"
+name="plot_types_validation"
+path="examples/plot_types_validation.rs"
 
 [[bench]]
 name   ="batch_density"
