@@ -49,6 +49,9 @@ pub mod scatter_data;
 pub mod render;
 pub mod signal_heatmap;
 
+#[cfg(feature = "raster")]
+pub mod kuva;
+
 // Re-export commonly used types
 pub use colormap::ColorMaps;
 pub use histogram_data::{HistogramData, HistogramDataError, HistogramSeries};
