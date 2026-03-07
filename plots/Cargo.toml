@@ -17,27 +17,26 @@ categories=["science", "visualization"]
 
 [features]
 default=[]
+# Expose kuva rendering APIs (render_to_rgba, render_to_png_direct) for Tauri/zero-copy display
+raster = ["dep:kuva"]
 
 [dependencies]
 colormap      ="0.0.2"
 colorgrad     ={ version="0.8", features=["preset"] }
 derive_builder={ workspace=true }
-flow-fcs      ={ path="../fcs", version="^0.2.2" }
-flow-utils    ={ path="../utils", version="^0.1.1" }
-image         ={ workspace=true }
-# TODO: Remove this if kuva releases a new version with the arch optimizations
-# kuva={ version="0.1", features=["png"] }
-kuva={ git="https://github.com/jrmoynihan/kuva", branch="cursor/kuva-arch-optimizations", features=[
-    "png",
-] }
-anyhow={ workspace=true }
-rustc-hash={ workspace=true }
-serde={ workspace=true, features=["derive"] }
-ts-rs={ workspace=true }
-once_cell="1.20"
-rayon={ workspace=true }
-num-traits="0.2"
-ndarray={ workspace=true }
+flow-fcs      ={ path="../fcs", version= "^0.2.2" }
+flow-utils    ={ path="../utils", version= "^0.1.1" }
+image = { workspace = true }
+plotters = { workspace = true }
+anyhow        ={ workspace=true }
+rustc-hash    ={ workspace=true }
+serde         ={ workspace=true, features=["derive"] }
+ts-rs         ={ workspace=true }
+once_cell     ="1.20"
+rayon         ={ workspace=true }
+num-traits    ="0.2"
+ndarray       ={ workspace=true }
+kuva          ={ git = "https://github.com/jrmoynihan/kuva", features = ["raster"], optional = true }
 
 [dev-dependencies]
 criterion={ workspace=true }

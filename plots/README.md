@@ -333,6 +333,23 @@ let plot_bytes = plot_bytes?;
 
 **Note**: While batch processing is available, sequential processing (calling `render()` in a loop) is typically faster for most use cases. See `GPU_EVALUATION.md` for performance analysis.
 
+## Kuva raster feature
+
+Enable the `raster` feature for kuva-based rendering APIs, useful for Tauri IPC and zero-copy canvas display:
+
+```toml
+flow-plots = { version = "...", features = ["raster"] }
+```
+
+| Function | Output | Use case |
+|----------|--------|----------|
+| `flow_plots::kuva::render_to_rgba` | `(width, height, Vec<u8>)` | Tauri IPC, `ImageData`, zero-copy canvas |
+| `flow_plots::kuva::render_to_rgba_no_text` | Same, no text | Fast preview, headless |
+| `flow_plots::kuva::render_to_png_direct` | PNG bytes | Direct raster, no SVG round-trip |
+| `flow_plots::kuva::render_to_png_direct_no_text` | PNG, no text | Fast PNG export |
+
+See [`flow_plots::kuva`] for Tauri command and frontend usage examples.
+
 ## Architecture
 
 The library is organized into several modules:
