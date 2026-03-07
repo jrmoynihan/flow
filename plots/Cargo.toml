@@ -1,6 +1,6 @@
 [package]
 name="flow-plots"
-version= "0.3.1"
+version="0.3.1"
 edition.workspace=true
 authors.workspace=true
 repository="https://github.com/jrmoynihan/flow/plots"
@@ -17,31 +17,35 @@ categories=["science", "visualization"]
 
 [features]
 default=[]
+# Enable eprintln! timing/progress in density and kuva backend (off during bench by default)
+verbose_timing=[]
 
 [dependencies]
-colormap      ="0.0.2"
-colorgrad     ={ version="0.8", features=["preset"] }
+colormap="0.0.2"
+colorgrad={ version="0.8", features=["preset"] }
 derive_builder={ workspace=true }
-flow-fcs      ={ path="../fcs", version= "^0.2.2" }
-flow-utils    ={ path="../utils", version= "^0.1.1" }
-image = { workspace = true }
-kuva = { version = "0.1", features = ["png"] }
-anyhow        ={ workspace=true }
-rustc-hash    ={ workspace=true }
-serde         ={ workspace=true, features=["derive"] }
-ts-rs         ={ workspace=true }
-once_cell     ="1.20"
-rayon         ={ workspace=true }
-num-traits    ="0.2"
-ndarray       ={ workspace=true }
+flow-fcs={ path="../fcs", version="^0.2.2" }
+flow-utils={ path="../utils", version="^0.1.1" }
+image={ workspace=true }
+kuva={ git="https://github.com/jrmoynihan/kuva", branch="cursor/kuva-arch-optimizations", features=[
+    "png",
+] }
+anyhow={ workspace=true }
+rustc-hash={ workspace=true }
+serde={ workspace=true, features=["derive"] }
+ts-rs={ workspace=true }
+once_cell="1.20"
+rayon={ workspace=true }
+num-traits="0.2"
+ndarray={ workspace=true }
 
 [dev-dependencies]
-criterion = { workspace = true }
-rand = { workspace = true }
+criterion={ workspace=true }
+rand     ={ workspace=true }
 
 [[example]]
-name = "plot_types_validation"
-path = "examples/plot_types_validation.rs"
+name="plot_types_validation"
+path="examples/plot_types_validation.rs"
 
 [[bench]]
 name   ="batch_density"

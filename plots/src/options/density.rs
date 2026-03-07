@@ -48,9 +48,9 @@ pub struct DensityPlotOptions {
     pub plot_type: PlotType,
 
     /// Point size in pixels for scatter and density plots (0.1–4.0).
-    /// For scatter: radius of each point; values below 0.5 draw single-pixel dots.
+    /// For scatter: radius of each point; minimum effective size is 1px.
     /// For density: radius of each point's contribution to the heatmap.
-    #[builder(default = "1.0")]
+    #[builder(default = "0.5")]
     pub point_size: f32,
 
     /// Contour line thickness in pixels (when plot_type is Contour)
@@ -89,7 +89,7 @@ impl Default for DensityPlotOptions {
             y_axis: AxisOptions::default(),
             colormap: ColorMaps::Viridis,
             plot_type: PlotType::Density,
-            point_size: 1.0,
+            point_size: 0.5,
             contour_line_thickness: 1.0,
             contour_level_count: 5,
             contour_smoothing: 1.0,

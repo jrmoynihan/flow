@@ -102,7 +102,7 @@ impl Plot for DensityPlot {
         options: &Self::Options,
         render_config: &mut RenderConfig,
     ) -> Result<PlotBytes> {
-        let plot_start = std::time::Instant::now();
+        let _plot_start = std::time::Instant::now();
 
         match options.plot_type.canonical() {
             PlotType::Contour | PlotType::ContourOverlay => {
@@ -117,15 +117,17 @@ impl Plot for DensityPlot {
                     x_range,
                     y_range,
                 )?;
+                #[cfg(feature = "verbose_timing")]
                 eprintln!(
                     "  ├─ Contour calculation: {:?} ({} paths, {} outliers)",
-                    plot_start.elapsed(),
+                    _plot_start.elapsed(),
                     contour_data.contours.len(),
                     contour_data.outliers.len()
                 );
-                let draw_start = std::time::Instant::now();
+                let _draw_start = std::time::Instant::now();
                 let result = render_contour(contour_data, options, render_config);
-                eprintln!("  └─ Draw + encode: {:?}", draw_start.elapsed());
+                #[cfg(feature = "verbose_timing")]
+                eprintln!("  └─ Draw + encode: {:?}", _draw_start.elapsed());
                 result
             }
             _ => {
@@ -136,16 +138,18 @@ impl Plot for DensityPlot {
                     base.height as usize,
                     options,
                 );
+                #[cfg(feature = "verbose_timing")]
                 eprintln!(
                     "  ├─ Plot calculation: {:?} ({} pixels at {}x{})",
-                    plot_start.elapsed(),
+                    _plot_start.elapsed(),
                     raw_pixels.len(),
                     base.width,
                     base.height
                 );
-                let draw_start = std::time::Instant::now();
+                let _draw_start = std::time::Instant::now();
                 let result = render_pixels(raw_pixels, options, render_config);
-                eprintln!("  └─ Draw + encode: {:?}", draw_start.elapsed());
+                #[cfg(feature = "verbose_timing")]
+                eprintln!("  └─ Draw + encode: {:?}", _draw_start.elapsed());
                 result
             }
         }

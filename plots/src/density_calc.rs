@@ -132,10 +132,10 @@ pub fn scatter_to_pixels_overlay(
         options.gate_colors.clone()
     };
 
-    // Allow point_size down to 0.1 for very small dots; radius 0 = single pixel
+    // Allow point_size down to 0.1; minimum effective radius is 1px for visibility.
     let point_size = options.point_size.max(0.1).min(4.0);
     let radius_px = if point_size < 0.5 {
-        0
+        1
     } else {
         (point_size.ceil() as usize).max(1)
     };
@@ -209,10 +209,10 @@ pub fn scatter_to_pixels_colored(
     };
     let z_range = z_max - z_min;
 
-    // Allow point_size down to 0.1 for very small dots; radius 0 = single pixel
+    // Allow point_size down to 0.1; minimum effective radius is 1px for visibility.
     let point_size = options.point_size.max(0.1).min(4.0);
     let radius_px = if point_size < 0.5 {
-        0
+        1
     } else {
         (point_size.ceil() as usize).max(1)
     };
@@ -264,10 +264,10 @@ pub fn scatter_to_pixels(
     height: usize,
     options: &DensityPlotOptions,
 ) -> Vec<RawPixelData> {
-    // Allow point_size down to 0.1 for very small dots; radius 0 = single pixel
+    // Allow point_size down to 0.1; minimum effective radius is 1px for visibility.
     let point_size = options.point_size.max(0.1).min(4.0);
     let radius_px = if point_size < 0.5 {
-        0
+        1
     } else {
         (point_size.ceil() as usize).max(1)
     };
@@ -314,7 +314,7 @@ pub fn scatter_to_pixels(
 /// (same as `PlotType::Density`), not contour lines. To render contour lines, use
 /// [`DensityPlot::render`](crate::plots::density::DensityPlot) or call
 /// [`calculate_contours`](crate::contour::calculate_contours) +
-/// [`render_contour`](crate::render::plotters_backend::render_contour) directly.
+/// [`render_contour`](crate::render::kuva_backend::render_contour) directly.
 pub fn calculate_plot_pixels(
     data: &ScatterPlotData,
     width: usize,
@@ -480,15 +480,15 @@ fn calculate_density_per_pixel_cpu(
     // - 100K events: ~100µs (array) vs ~500µs (HashMap) = 5x faster
     // Sequential is faster than parallel for typical FCS sizes (parallel overhead dominates)
 
-    // Allow point_size down to 0.1 for very small dots; radius 0 = single pixel
+    // Allow point_size down to 0.1; minimum effective radius is 1px for visibility.
     let point_size = options.point_size.max(0.1).min(4.0);
     let radius_px = if point_size < 0.5 {
-        0
+        1
     } else {
         (point_size.ceil() as usize).max(1)
     };
 
-    let build_start = std::time::Instant::now();
+    let _build_start = std::time::Instant::now();
     let mut density = vec![0.0f32; width * height];
 
     // Build density map using fast array access
@@ -498,6 +498,7 @@ fn calculate_density_per_pixel_cpu(
     for (i, &(x, y)) in data.iter().enumerate() {
         if (i % 250_000) == 0 {
             if should_cancel() {
+                #[cfg(feature = "verbose_timing")]
                 eprintln!(
                     "    ├─ Density build cancelled after {} / {} points",
                     i,
@@ -506,8 +507,9 @@ fn calculate_density_per_pixel_cpu(
                 return None;
             }
 
-            // Only log progress if we're actually slow.
+            // Only log progress if we're actually slow (when verbose_timing enabled).
             if last_progress.elapsed().as_secs_f64() >= 2.0 {
+                #[cfg(feature = "verbose_timing")]
                 eprintln!(
                     "    ├─ Density build progress: {} / {} points",
                     i,
@@ -544,9 +546,10 @@ fn calculate_density_per_pixel_cpu(
         }
     }
 
+    #[cfg(feature = "verbose_timing")]
     eprintln!(
         "    ├─ Density map building: {:?} ({} unique pixels from {} total)",
-        build_start.elapsed(),
+        _build_start.elapsed(),
         density_map.len(),
         width * height
     );
@@ -556,24 +559,26 @@ fn calculate_density_per_pixel_cpu(
     // - 10K pixels: 42µs (seq) vs 315µs (par) = 7.5x slower when parallel!
     // - 50K pixels: 331µs (seq) vs 592µs (par) = 1.8x slower when parallel!
     // Adding 1.0 before log to avoid log(0) = -Infinity
-    let log_start = std::time::Instant::now();
+    let _log_start = std::time::Instant::now();
     for (_, count) in density_map.iter_mut() {
         *count = (*count + 1.0).log10();
     }
-    eprintln!("    ├─ Log transform: {:?}", log_start.elapsed());
+    #[cfg(feature = "verbose_timing")]
+    eprintln!("    ├─ Log transform: {:?}", _log_start.elapsed());
 
     // Find max density for normalization (sequential - faster for typical sizes)
-    let max_start = std::time::Instant::now();
+    let _max_start = std::time::Instant::now();
     let max_density_log = density_map
         .values()
         .fold(0.0f32, |max, &val| max.max(val))
         .max(1.0); // Ensure at least 1.0
-    eprintln!("    ├─ Find max: {:?}", max_start.elapsed());
+    #[cfg(feature = "verbose_timing")]
+    eprintln!("    ├─ Find max: {:?}", _max_start.elapsed());
 
     // Create ONE pixel per unique screen coordinate (not per data point!)
     // This is the key optimization: 100K data points → ~20K screen pixels
     // Return raw pixel data for direct buffer writing (bypass Plotters overhead)
-    let color_start = std::time::Instant::now();
+    let _color_start = std::time::Instant::now();
     let colored_pixels: Vec<RawPixelData> = density_map
         .iter()
         .map(|(&(pixel_x, pixel_y), &dens)| {
@@ -593,7 +598,8 @@ fn calculate_density_per_pixel_cpu(
             RawPixelData { x, y, r, g, b }
         })
         .collect();
-    eprintln!("    └─ Pixel coloring: {:?}", color_start.elapsed());
+    #[cfg(feature = "verbose_timing")]
+    eprintln!("    └─ Pixel coloring: {:?}", _color_start.elapsed());
 
     Some(colored_pixels)
 }
