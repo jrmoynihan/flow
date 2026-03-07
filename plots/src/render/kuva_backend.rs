@@ -1,89 +1,45 @@
 use crate::contour::ContourData;
 use crate::density_calc::RawPixelData;
 use crate::options::DensityPlotOptions;
-use crate::render::{ProgressInfo, RenderConfig};
+use crate::render::RenderConfig;
 use crate::PlotBytes;
 use anyhow::Result;
 use kuva::prelude::*;
 
-/// Render pixels to a PNG image using the kuva backend
+/// Render pixels to a PNG image using the kuva backend (direct raster path).
 ///
-/// This function handles the complete rendering pipeline:
-/// 1. Converts pre-colored pixel data to scatter point groups
-/// 2. Creates kuva ScatterPlots grouped by color
-/// 3. Renders to PNG format
-///
-/// Progress reporting is handled via the RenderConfig if provided.
+/// Uses a single ScatterPlot with per-point colors so the backend can use
+/// the CircleBatch fast path. Renders via render_to_raster (no SVG round-trip).
 pub fn render_pixels(
     pixels: Vec<RawPixelData>,
     options: &DensityPlotOptions,
-    render_config: &mut RenderConfig,
+    _render_config: &mut RenderConfig,
 ) -> Result<PlotBytes> {
     use crate::options::PlotOptions;
 
     let base = options.base();
     let width = base.width;
-    let _height = base.height;
-
-    let setup_start = std::time::Instant::now();
 
     if pixels.is_empty() {
         let scatter = ScatterPlot::new().with_data(vec![(0.0_f64, 0.0)]);
         let plots: Vec<Plot> = vec![scatter.into()];
         let layout = Layout::auto_from_plots(&plots).with_title(&base.title);
-        let png_bytes = render_to_png(plots, layout, 1.0f32)
+        let png_bytes = render_to_raster(plots, layout, 1.0f32)
             .map_err(|e| anyhow::anyhow!("failed to render empty density plot to PNG: {e}"))?;
         return Ok(png_bytes);
     }
 
-    let total_pixels = pixels.len();
-
-    render_config.report_progress(ProgressInfo {
-        pixels: pixels
-            .iter()
-            .take(1000)
-            .map(|p| RawPixelData {
-                x: p.x,
-                y: p.y,
-                r: p.r,
-                g: p.g,
-                b: p.b,
-            })
-            .collect(),
-        percent: 50.0,
-    });
-
-    // Group pixels by quantized color to create multiple colored scatter series.
-    // Quantize each channel to 4 levels (64 buckets max) for manageable series count.
-    let mut color_buckets: std::collections::HashMap<(u8, u8, u8), Vec<(f64, f64)>> =
-        std::collections::HashMap::new();
-
-    for pixel in &pixels {
-        let qr = pixel.r / 64;
-        let qg = pixel.g / 64;
-        let qb = pixel.b / 64;
-        color_buckets
-            .entry((qr, qg, qb))
-            .or_default()
-            .push((pixel.x as f64, pixel.y as f64));
-    }
-
-    let mut plots: Vec<Plot> = Vec::new();
-
-    for ((qr, qg, qb), points) in &color_buckets {
-        if points.is_empty() {
-            continue;
-        }
-        let r = qr * 64 + 32;
-        let g = qg * 64 + 32;
-        let b = qb * 64 + 32;
-        let hex_color = format!("#{:02X}{:02X}{:02X}", r, g, b);
-
-        let scatter = ScatterPlot::new()
-            .with_data(points.clone())
-            .with_color(&hex_color);
-        plots.push(scatter.into());
-    }
+    let all_points: Vec<(f64, f64)> = pixels.iter().map(|p| (p.x as f64, p.y as f64)).collect();
+    let all_colors: Vec<String> = pixels
+        .iter()
+        .map(|p| format!("#{:02x}{:02x}{:02x}", p.r, p.g, p.b))
+        .collect();
+    let point_size = (options.point_size as f64).max(0.5);
+    let scatter = ScatterPlot::new()
+        .with_data(all_points)
+        .with_colors(all_colors)
+        .with_size(point_size);
+    let plots: Vec<Plot> = vec![scatter.into()];
 
     let mut layout = Layout::auto_from_plots(&plots).with_title(&base.title);
     if let Some(ref x_label) = options.x_axis.label {
@@ -94,20 +50,14 @@ pub fn render_pixels(
     }
 
     let scale = (width as f32 / 800.0).max(1.0);
-    let png_bytes = render_to_png(plots, layout, scale)
+    let png_bytes = render_to_raster(plots, layout, scale)
         .map_err(|e| anyhow::anyhow!("failed to render density plot to PNG: {e}"))?;
 
+    #[cfg(feature = "verbose_timing")]
     eprintln!(
-        "    ├─ kuva render: {:?} ({} pixels, {} color groups)",
-        setup_start.elapsed(),
-        total_pixels,
-        color_buckets.len()
+        "    ├─ kuva render: {} pixels (raster path)",
+        pixels.len()
     );
-
-    render_config.report_progress(ProgressInfo {
-        pixels: vec![],
-        percent: 100.0,
-    });
 
     Ok(png_bytes)
 }
@@ -162,7 +112,7 @@ pub fn render_contour(
     }
 
     let scale = (width as f32 / 800.0).max(1.0);
-    let png_bytes = render_to_png(plots, layout, scale)
+    let png_bytes = render_to_raster(plots, layout, scale)
         .map_err(|e| anyhow::anyhow!("failed to render contour plot to PNG: {e}"))?;
 
     Ok(png_bytes)
@@ -226,7 +176,7 @@ pub fn render_spectral_signature(
     layout = layout.with_title(&base.title);
 
     let scale = (width as f32 / 800.0).max(1.0);
-    let png_bytes = render_to_png(plots, layout, scale)
+    let png_bytes = render_to_raster(plots, layout, scale)
         .map_err(|e| anyhow::anyhow!("failed to render spectral signature to PNG: {e}"))?;
 
     Ok(png_bytes)
@@ -354,7 +304,7 @@ pub fn render_histogram(
     layout = layout.with_y_label("Count");
 
     let scale = (width as f32 / 800.0).max(1.0);
-    let png_bytes = render_to_png(plots, layout, scale)
+    let png_bytes = render_to_raster(plots, layout, scale)
         .map_err(|e| anyhow::anyhow!("failed to render histogram to PNG: {e}"))?;
 
     Ok(png_bytes)
@@ -378,7 +328,7 @@ fn render_empty_histogram(
     layout = layout.with_y_label("Count");
 
     let scale = (width as f32 / 800.0).max(1.0);
-    let png_bytes = render_to_png(plots, layout, scale)
+    let png_bytes = render_to_raster(plots, layout, scale)
         .map_err(|e| anyhow::anyhow!("failed to render empty histogram to PNG: {e}"))?;
 
     Ok(png_bytes)
