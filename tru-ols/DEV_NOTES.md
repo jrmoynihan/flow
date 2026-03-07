@@ -6,7 +6,7 @@
 
 The current implementation uses a fixed percentile-based cutoff approach for determining relevant endmembers. Future work may benefit from:
 
-1. **Adaptive Cutoff Selection**: 
+1. **Adaptive Cutoff Selection**
    - Implement methods that automatically determine optimal cutoff values based on data characteristics
    - Consider statistical methods (e.g., elbow method, gap statistic)
    - Explore machine learning approaches for cutoff selection
@@ -34,21 +34,26 @@ These enhancements would improve the flexibility and robustness of the TRU-OLS u
 TRU-OLS supports three methods for obtaining the mixing matrix (spectral signature matrix):
 
 ### 1. CSV File (`--mixing-matrix`)
+
 A manually prepared CSV file containing the mixing matrix where:
+
 - Rows = detector channels
 - Columns = fluorophores/endmembers
 - Values = contribution of each fluorophore to each detector
 
 ### 2. SPILL Keyword (`--use-spill`)
+
 For spectral cytometry instruments, the SPILL/SPILLOVER keyword in the FCS file contains the mixing matrix directly. This is the spectral signature matrix that describes how each fluorophore's emission is distributed across all detectors.
 
 **How it works:**
+
 - The SPILL matrix is extracted from the `$SPILLOVER`, `$SPILL`, or `$COMP` keyword
 - For spectral cytometry, this matrix IS the mixing matrix (not a compensation matrix)
 - The matrix format is: detectors × fluorophores
 - Each column represents the spectral signature (reference spectrum) of one fluorophore
 
 ### 3. Single-Stain Controls (`--single-stain-controls`)
+
 Creates the mixing matrix by analyzing individual single-stain control files, where each file contains cells stained with only one fluorophore.
 
 **How Single-Stain Controls Determine Reference Spectra:**
@@ -87,6 +92,7 @@ For AF488 stained control:
 This creates the mixing matrix column: `[1.0, 0.14, 0.01]` for AF488.
 
 **Why This Works:**
+
 - Single-stain controls provide "pure" spectral signatures because only one fluorophore is present
 - Normalization ensures the mixing matrix is scale-invariant (works regardless of absolute signal levels)
 - Autofluorescence subtraction ensures the signatures represent only the fluorophore's contribution
@@ -94,6 +100,7 @@ This creates the mixing matrix column: `[1.0, 0.14, 0.01]` for AF488.
 
 **File Matching:**
 Control files are matched to endmember names by:
+
 - Filename matching (case-insensitive substring match)
 - Example: "AF488_control.fcs" matches endmember "AF488"
 - Files should be named to include the fluorophore name

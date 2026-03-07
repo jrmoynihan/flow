@@ -300,12 +300,25 @@ pub fn render_contour(
         let stroke_width = options.contour_line_thickness.max(0.5).min(5.0) as u32;
         let contour_color = RGBColor(60, 60, 60);
 
+        // Chart axis bounds for defensive clamping.  Even though
+        // calculate_contours now clips paths, belt-and-suspenders clamping
+        // here protects against any code path that supplies raw ContourData
+        // directly.  Plotters panics with integer overflow when coordinates
+        // are far outside the chart range.
+        let x_lo = x_spec.start as f64;
+        let x_hi = x_spec.end as f64;
+        let y_lo = y_spec.start as f64;
+        let y_hi = y_spec.end as f64;
+
         // Draw contour lines
         for path in &contour_data.contours {
             if path.len() < 2 {
                 continue;
             }
-            let points: Vec<(f64, f64)> = path.iter().copied().collect();
+            let points: Vec<(f64, f64)> = path
+                .iter()
+                .map(|&(x, y)| (x.clamp(x_lo, x_hi), y.clamp(y_lo, y_hi)))
+                .collect();
             chart
                 .draw_series(LineSeries::new(
                     points,
@@ -322,7 +335,13 @@ pub fn render_contour(
                     contour_data
                         .outliers
                         .iter()
-                        .map(|&(x, y)| Circle::new((x, y), 2, outlier_color.filled())),
+                        .map(|&(x, y)| {
+                            Circle::new(
+                                (x.clamp(x_lo, x_hi), y.clamp(y_lo, y_hi)),
+                                2,
+                                outlier_color.filled(),
+                            )
+                        }),
                 )
                 .map_err(|e| anyhow::anyhow!("failed to draw outliers: {e}"))?;
         }

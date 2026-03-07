@@ -807,4 +807,99 @@ mod tests {
             assert_eq!(result[1], 0xD8);
         }
     }
+
+    // ============================================================================
+    // Contour Rendering Regression Tests
+    // ============================================================================
+
+    #[test]
+    fn test_render_contour_no_panic_with_out_of_range_data() {
+        // Regression: data spread far wider than the axis range used to cause
+        // plotters to panic with "attempt to add with overflow" because contour
+        // paths from KDE extended beyond the chart coordinate range.
+        use crate::plots::PlotType;
+
+        let plot = DensityPlot::new();
+
+        // Data spread across 0..3000 but axis range is only 0..500
+        let mut data: Vec<(f32, f32)> = Vec::new();
+        for xi in 0..30 {
+            for yi in 0..30 {
+                data.push((xi as f32 * 100.0, yi as f32 * 100.0));
+            }
+        }
+
+        let options = DensityPlotOptions::new()
+            .base(BasePlotOptions::new().width(200).height(200).build().unwrap())
+            .x_axis(
+                AxisOptions::new()
+                    .range(0.0..=500.0)
+                    .transform(TransformType::Linear)
+                    .build()
+                    .unwrap(),
+            )
+            .y_axis(
+                AxisOptions::new()
+                    .range(0.0..=500.0)
+                    .transform(TransformType::Linear)
+                    .build()
+                    .unwrap(),
+            )
+            .plot_type(PlotType::Contour)
+            .contour_level_count(5u32)
+            .build()
+            .unwrap();
+
+        let mut render_config = RenderConfig::default();
+        let result = plot.render(data.into(), &options, &mut render_config);
+        assert!(result.is_ok(), "contour render panicked: {:?}", result.err());
+
+        let bytes = result.unwrap();
+        assert!(!bytes.is_empty());
+        assert_eq!(bytes[0], 0xFF); // JPEG magic
+        assert_eq!(bytes[1], 0xD8);
+    }
+
+    #[test]
+    fn test_render_contour_with_outliers_no_panic() {
+        // Same scenario but with draw_outliers enabled
+        use crate::plots::PlotType;
+
+        let plot = DensityPlot::new();
+        let mut data: Vec<(f32, f32)> = Vec::new();
+        for xi in 0..20 {
+            for yi in 0..20 {
+                data.push((50.0 + xi as f32, 50.0 + yi as f32));
+            }
+        }
+        // Add far-flung outliers
+        data.push((10000.0, 10000.0));
+        data.push((-5000.0, -5000.0));
+
+        let options = DensityPlotOptions::new()
+            .base(BasePlotOptions::new().width(200).height(200).build().unwrap())
+            .x_axis(
+                AxisOptions::new()
+                    .range(0.0..=100.0)
+                    .transform(TransformType::Linear)
+                    .build()
+                    .unwrap(),
+            )
+            .y_axis(
+                AxisOptions::new()
+                    .range(0.0..=100.0)
+                    .transform(TransformType::Linear)
+                    .build()
+                    .unwrap(),
+            )
+            .plot_type(PlotType::Contour)
+            .contour_level_count(5u32)
+            .draw_outliers(true)
+            .build()
+            .unwrap();
+
+        let mut render_config = RenderConfig::default();
+        let result = plot.render(data.into(), &options, &mut render_config);
+        assert!(result.is_ok(), "contour+outlier render panicked: {:?}", result.err());
+    }
 }
