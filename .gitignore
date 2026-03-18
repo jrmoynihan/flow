@@ -46,3 +46,4 @@ tru-ols-cli/comparison_output/
 
 # Ad-hoc debug scripts (if you create more)
 validate_metadata.rs
+.cursor/plans/qc_removal_reason_visualization.plan.md
