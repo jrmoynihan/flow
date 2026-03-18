@@ -21,8 +21,15 @@ use serde_json;
 use std::collections::HashSet;
 use std::fs;
 use std::io::{Write, stdin, stdout};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use tracing::{info, warn};
+
+/// Ensure an output directory exists and we can create it. Call this early before
+/// running computations so the user gets a clear permission/path error upfront.
+fn ensure_output_directory(path: &Path, purpose: &str) -> Result<()> {
+    std::fs::create_dir_all(path)
+        .with_context(|| format!("Cannot create {} directory: {}", purpose, path.display()))
+}
 
 /// Count delimiter characters (space, hyphen, underscore) to measure ambiguity
 fn count_delimiters(name: &str) -> usize {
@@ -537,6 +544,23 @@ fn run_unmix_command(
     auto_gate: bool,
     export_mixing_matrix: Option<&PathBuf>,
 ) -> Result<()> {
+    // Ensure output directories exist and we can create them before running computations
+    if let Some(dir) = plot_output_dir {
+        ensure_output_directory(dir, "plot output")?;
+    }
+    if stained_path.is_dir() {
+        if let Some(out) = output {
+            let output_dir = if out.is_dir() || out.extension().is_none() {
+                out.as_path()
+            } else if let Some(parent) = out.parent() {
+                parent
+            } else {
+                out.as_path()
+            };
+            ensure_output_directory(output_dir, "output")?;
+        }
+    }
+
     // Check if stained_path is a directory or file
     if stained_path.is_dir() {
         info!(
