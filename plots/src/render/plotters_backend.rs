@@ -1,3 +1,7 @@
+//! **Deprecated:** Prefer the kuva-based rendering API (`flow_plots::render::render_pixels` /
+//! `flow_plots::render::render_contour`, backed by the `kuva` crate when the `raster` feature is enabled).
+//! This module is kept for compatibility and will be removed in a future release.
+
 use crate::contour::ContourData;
 use crate::PlotBytes;
 use crate::create_axis_specs;
@@ -33,7 +37,9 @@ use plotters::{
     backend::BitMapBackend, chart::ChartBuilder, prelude::IntoDrawingArea, style::WHITE,
 };
 
-/// Render pixels to a JPEG image using the Plotters backend
+/// Render pixels to a JPEG image using the Plotters backend.
+///
+/// **Deprecated:** Use [`crate::render::render_pixels`] instead.
 ///
 /// This function handles the complete rendering pipeline:
 /// 1. Sets up Plotters chart with axes and mesh
@@ -41,6 +47,10 @@ use plotters::{
 /// 3. Encodes to JPEG format
 ///
 /// Progress reporting is handled via the RenderConfig if provided.
+#[deprecated(
+    since = "0.3.2",
+    note = "Use flow_plots::render::render_pixels instead. This plotters backend will be removed once kuva-backed rendering is implemented; see flow_plots::render::kuva_backend module doc."
+)]
 pub fn render_pixels(
     pixels: Vec<RawPixelData>,
     options: &DensityPlotOptions,
@@ -231,9 +241,15 @@ pub fn render_pixels(
     Ok(encoded_data)
 }
 
-/// Render contour plot to JPEG using Plotters LineSeries
+/// Render contour plot to JPEG using Plotters LineSeries.
+///
+/// **Deprecated:** Use [`crate::render::render_contour`] instead.
 ///
 /// Draws contour lines from KDE density estimation plus optional outlier scatter points.
+#[deprecated(
+    since = "0.3.2",
+    note = "Use flow_plots::render::render_contour instead. This plotters backend will be removed once kuva-backed rendering is implemented; see flow_plots::render::kuva_backend module doc."
+)]
 pub fn render_contour(
     contour_data: ContourData,
     options: &DensityPlotOptions,

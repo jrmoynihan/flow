@@ -55,7 +55,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .x_axis(x_axis.clone())
         .y_axis(y_axis.clone())
         .plot_type(PlotType::Density)
-        .point_size(0.2)
+        .point_size(1.2)
         .build()?;
     let bytes = plot.render(points.clone().into(), &opts, &mut render_config)?;
     fs::write(out_dir.join("density.png"), &bytes)?;
@@ -67,7 +67,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .x_axis(x_axis.clone())
         .y_axis(y_axis.clone())
         .plot_type(PlotType::ScatterSolid)
-        .point_size(0.15)
+        .point_size(1.0)
         .build()?;
     let bytes = plot.render(points.clone().into(), &opts, &mut render_config)?;
     fs::write(out_dir.join("scatter_solid.png"), &bytes)?;
@@ -89,7 +89,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .y_axis(y_axis.clone())
         .plot_type(PlotType::ScatterOverlay)
         .gate_colors(default_gate_colors())
-        .point_size(0.2)
+        .point_size(1.2)
         .build()?;
     let bytes = plot.render(overlay_data.into(), &opts, &mut render_config)?;
     fs::write(out_dir.join("scatter_overlay.png"), &bytes)?;
@@ -105,7 +105,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .y_axis(y_axis.clone())
         .plot_type(PlotType::ScatterColoredContinuous)
         .colormap(ColorMaps::Viridis)
-        .point_size(0.2)
+        .point_size(1.2)
         .build()?;
     let bytes = plot.render(colored_data.into(), &opts, &mut render_config)?;
     fs::write(out_dir.join("scatter_colored.png"), &bytes)?;

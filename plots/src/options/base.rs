@@ -47,6 +47,30 @@ pub struct BasePlotOptions {
     /// Plot title
     #[builder(default = "\"Density Plot\".to_string()")]
     pub title: String,
+
+    /// Whether to show the chart title (default true).
+    #[builder(default = "true")]
+    pub show_title: bool,
+
+    /// Whether to show the colorbar/legend (default true).
+    #[builder(default = "true")]
+    pub show_colorbar: bool,
+
+    /// Font family for title, axis labels, and ticks (e.g. "sans-serif"). None = backend default.
+    pub font_family: Option<String>,
+
+    /// Title font size in points. None = backend default.
+    pub title_size: Option<u32>,
+
+    /// Axis label font size in points. None = backend default.
+    pub label_size: Option<u32>,
+
+    /// Tick label font size in points. None = backend default.
+    pub tick_size: Option<u32>,
+
+    /// Whether to show grid lines (default true).
+    #[builder(default = "true")]
+    pub show_grid: bool,
 }
 
 impl Default for BasePlotOptions {
@@ -58,6 +82,13 @@ impl Default for BasePlotOptions {
             x_label_area_size: 50,
             y_label_area_size: 50,
             title: "Density Plot".to_string(),
+            show_title: true,
+            show_colorbar: true,
+            font_family: None,
+            title_size: None,
+            label_size: None,
+            tick_size: None,
+            show_grid: true,
         }
     }
 }

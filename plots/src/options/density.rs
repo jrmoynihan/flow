@@ -47,9 +47,11 @@ pub struct DensityPlotOptions {
     #[builder(default)]
     pub plot_type: PlotType,
 
-    /// Point size in pixels for scatter and density plots (0.1–4.0).
-    /// For scatter: radius of each point; values below 0.5 draw single-pixel dots.
-    /// For density: radius of each point's contribution to the heatmap.
+    /// Point size in pixels for scatter and density plots (1.0–4.0).
+    /// Decimals are allowed for sub-pixel resolution. Minimum 1.0 ensures at least 1 pixel is drawn.
+    /// For scatter: effective radius in pixels (1 = 1 px, 4 = larger dot).
+    /// For density (plotters): radius of each point's contribution to the heatmap.
+    /// For density (kuva/raster): controls bin count (larger → fewer bins, more smoothing).
     #[builder(default = "1.0")]
     pub point_size: f32,
 

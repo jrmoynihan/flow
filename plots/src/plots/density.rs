@@ -1,13 +1,21 @@
-use crate::contour::calculate_contours;
 use crate::PlotBytes;
-use crate::density_calc::calculate_plot_pixels;
-use crate::options::{DensityPlotOptions, PlotOptions};
-use crate::plots::traits::Plot;
+use crate::contour::calculate_contours;
+use crate::options::DensityPlotOptions;
+use crate::options::PlotOptions;
 use crate::plots::PlotType;
+use crate::plots::traits::Plot;
 use crate::render::RenderConfig;
-use crate::render::plotters_backend::{render_contour, render_pixels};
 use crate::scatter_data::ScatterPlotData;
 use anyhow::Result;
+
+#[cfg(not(feature = "raster"))]
+use crate::density_calc::calculate_plot_pixels;
+use crate::render::render_contour;
+#[cfg(not(feature = "raster"))]
+use crate::render::render_pixels;
+
+#[cfg(feature = "raster")]
+use crate::render::kuva_backend::render_density_kuva;
 
 /// Density plot implementation
 ///
@@ -76,14 +84,24 @@ impl DensityPlot {
                     render_contour(contour_data, options, render_config)?
                 }
                 _ => {
-                    let base = options.base();
-                    let raw_pixels = calculate_plot_pixels(
-                        data,
-                        base.width as usize,
-                        base.height as usize,
-                        options,
-                    );
-                    render_pixels(raw_pixels, options, render_config)?
+                    #[cfg(feature = "raster")]
+                    let bytes = {
+                        let xy = data.xy();
+                        render_density_kuva(xy, options, render_config)
+                            .map_err(|e| anyhow::anyhow!("{}", e))?
+                    };
+                    #[cfg(not(feature = "raster"))]
+                    let bytes = {
+                        let base = options.base();
+                        let raw_pixels = calculate_plot_pixels(
+                            data,
+                            base.width as usize,
+                            base.height as usize,
+                            options,
+                        );
+                        render_pixels(raw_pixels, options, render_config)?
+                    };
+                    bytes
                 }
             };
             results.push(bytes);
@@ -118,35 +136,52 @@ impl Plot for DensityPlot {
                     y_range,
                 )?;
                 eprintln!(
-                    "  ├─ Contour calculation: {:?} ({} paths, {} outliers)",
+                    "  ├─ Plotters contour: {:?} ({} paths, {} outliers)",
                     plot_start.elapsed(),
                     contour_data.contours.len(),
                     contour_data.outliers.len()
                 );
                 let draw_start = std::time::Instant::now();
                 let result = render_contour(contour_data, options, render_config);
-                eprintln!("  └─ Draw + encode: {:?}", draw_start.elapsed());
+                eprintln!("  └─ Plotters draw + encode: {:?}", draw_start.elapsed());
                 result
             }
             _ => {
-                let base = options.base();
-                let raw_pixels = calculate_plot_pixels(
-                    &data,
-                    base.width as usize,
-                    base.height as usize,
-                    options,
-                );
-                eprintln!(
-                    "  ├─ Plot calculation: {:?} ({} pixels at {}x{})",
-                    plot_start.elapsed(),
-                    raw_pixels.len(),
-                    base.width,
-                    base.height
-                );
-                let draw_start = std::time::Instant::now();
-                let result = render_pixels(raw_pixels, options, render_config);
-                eprintln!("  └─ Draw + encode: {:?}", draw_start.elapsed());
-                result
+                #[cfg(feature = "raster")]
+                {
+                    let xy = data.xy();
+                    eprintln!(
+                        "  ├─ Kuva density (linear axes, original-value ticks): {} points",
+                        xy.len()
+                    );
+                    let draw_start = std::time::Instant::now();
+                    let result = render_density_kuva(xy, options, render_config)
+                        .map_err(|e| anyhow::anyhow!("{}", e));
+                    eprintln!("  └─ Kuva draw + encode: {:?}", draw_start.elapsed());
+                    return result;
+                }
+
+                #[cfg(not(feature = "raster"))]
+                {
+                    let base = &options.base;
+                    let raw_pixels = calculate_plot_pixels(
+                        &data,
+                        base.width as usize,
+                        base.height as usize,
+                        options,
+                    );
+                    eprintln!(
+                        "  ├─ Plotters density (pixel calc): {:?} ({} pixels at {}x{})",
+                        plot_start.elapsed(),
+                        raw_pixels.len(),
+                        base.width,
+                        base.height
+                    );
+                    let draw_start = std::time::Instant::now();
+                    let result = render_pixels(raw_pixels, options, render_config);
+                    eprintln!("  └─ Plotters draw + encode: {:?}", draw_start.elapsed());
+                    result
+                }
             }
         }
     }

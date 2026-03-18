@@ -29,7 +29,7 @@ pub struct RawPixelData {
 
 /// Binary pixel chunk for efficient data transfer
 /// Contains raw RGB data with metadata for direct canvas rendering
-#[derive(Clone, Serialize, TS)]
+#[derive(Clone, Debug, Serialize, TS)]
 #[ts(export)]
 pub struct BinaryPixelChunk {
     /// Raw RGB pixel data: [r,g,b,r,g,b,...] for each pixel
@@ -132,13 +132,10 @@ pub fn scatter_to_pixels_overlay(
         options.gate_colors.clone()
     };
 
-    // Allow point_size down to 0.1 for very small dots; radius 0 = single pixel
-    let point_size = options.point_size.max(0.1).min(4.0);
-    let radius_px = if point_size < 0.5 {
-        0
-    } else {
-        (point_size.ceil() as usize).max(1)
-    };
+    // Point size 1.0–4.0: 1 = 1 pixel (radius 0), 2→1, 3→2, 4→3
+    let point_size = options.point_size.max(1.0).min(4.0);
+    let radius_px = ((point_size - 1.0) / 3.0 * 3.0).round() as usize;
+    let radius_px = radius_px.min(3);
 
     let scale_x = width as f32 / (*options.x_axis.range.end() - *options.x_axis.range.start());
     let scale_y = height as f32 / (*options.y_axis.range.end() - *options.y_axis.range.start());
@@ -209,13 +206,10 @@ pub fn scatter_to_pixels_colored(
     };
     let z_range = z_max - z_min;
 
-    // Allow point_size down to 0.1 for very small dots; radius 0 = single pixel
-    let point_size = options.point_size.max(0.1).min(4.0);
-    let radius_px = if point_size < 0.5 {
-        0
-    } else {
-        (point_size.ceil() as usize).max(1)
-    };
+    // Point size 1.0–4.0: 1 = 1 pixel (radius 0), 2→1, 3→2, 4→3
+    let point_size = options.point_size.max(1.0).min(4.0);
+    let radius_px = ((point_size - 1.0) / 3.0 * 3.0).round() as usize;
+    let radius_px = radius_px.min(3);
 
     let scale_x = width as f32 / (*options.x_axis.range.end() - *options.x_axis.range.start());
     let scale_y = height as f32 / (*options.y_axis.range.end() - *options.y_axis.range.start());
@@ -256,7 +250,7 @@ pub fn scatter_to_pixels_colored(
 
 /// Convert scatter (x,y) points to RawPixelData for solid scatter plots
 ///
-/// Each point is drawn as a small square of pixels. point_size controls the radius.
+/// Each point is drawn as a small square of pixels. point_size (1–4) controls the radius.
 /// Uses a single color (dark gray) for all points.
 pub fn scatter_to_pixels(
     data: &[(f32, f32)],
@@ -264,13 +258,10 @@ pub fn scatter_to_pixels(
     height: usize,
     options: &DensityPlotOptions,
 ) -> Vec<RawPixelData> {
-    // Allow point_size down to 0.1 for very small dots; radius 0 = single pixel
-    let point_size = options.point_size.max(0.1).min(4.0);
-    let radius_px = if point_size < 0.5 {
-        0
-    } else {
-        (point_size.ceil() as usize).max(1)
-    };
+    // Point size 1.0–4.0: 1 = 1 pixel (radius 0), 2→1, 3→2, 4→3
+    let point_size = options.point_size.max(1.0).min(4.0);
+    let radius_px = ((point_size - 1.0) / 3.0 * 3.0).round() as usize;
+    let radius_px = radius_px.min(3);
 
     let scale_x = width as f32 / (*options.x_axis.range.end() - *options.x_axis.range.start());
     let scale_y = height as f32 / (*options.y_axis.range.end() - *options.y_axis.range.start());
@@ -480,13 +471,10 @@ fn calculate_density_per_pixel_cpu(
     // - 100K events: ~100µs (array) vs ~500µs (HashMap) = 5x faster
     // Sequential is faster than parallel for typical FCS sizes (parallel overhead dominates)
 
-    // Allow point_size down to 0.1 for very small dots; radius 0 = single pixel
-    let point_size = options.point_size.max(0.1).min(4.0);
-    let radius_px = if point_size < 0.5 {
-        0
-    } else {
-        (point_size.ceil() as usize).max(1)
-    };
+    // Point size 1.0–4.0: 1 = 1 pixel (radius 0), 2→1, 3→2, 4→3
+    let point_size = options.point_size.max(1.0).min(4.0);
+    let radius_px = ((point_size - 1.0) / 3.0 * 3.0).round() as usize;
+    let radius_px = radius_px.min(3);
 
     let build_start = std::time::Instant::now();
     let mut density = vec![0.0f32; width * height];

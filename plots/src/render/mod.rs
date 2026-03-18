@@ -1,7 +1,14 @@
+pub mod kuva_backend;
+#[cfg(feature = "raster")]
+pub mod kuva_axis;
 pub mod plotters_backend;
 pub mod progress;
 
 pub use progress::{ProgressCallback, ProgressInfo};
+
+/// Density/contour rendering. Currently plotters-backed; see `kuva_backend` module doc for gap to kuva.
+#[allow(deprecated)]
+pub use plotters_backend::{render_contour, render_pixels};
 
 /// Configuration for plot rendering
 ///

@@ -45,12 +45,9 @@ pub mod helpers;
 pub mod histogram_data;
 pub mod options;
 pub mod plots;
-pub mod scatter_data;
 pub mod render;
+pub mod scatter_data;
 pub mod signal_heatmap;
-
-#[cfg(feature = "raster")]
-pub mod kuva;
 
 // Re-export commonly used types
 pub use colormap::ColorMaps;
@@ -60,9 +57,13 @@ pub use options::{
     SpectralSignaturePlotOptions,
 };
 pub use plots::{DensityPlot, HistogramPlot, Plot, PlotType, SpectralSignaturePlot};
-pub use scatter_data::{ScatterDataError, ScatterPlotData};
 pub use render::{ProgressCallback, ProgressInfo, RenderConfig};
+pub use scatter_data::{ScatterDataError, ScatterPlotData};
 pub use signal_heatmap::{generate_normalized_spectral_signature_plot, generate_signal_heatmap};
+
+/// Kuva raster API (render_to_rgba, Layout, Plot). Re-export of [`render::kuva_backend`].
+#[cfg(feature = "raster")]
+pub use render::kuva_backend as kuva;
 
 // Type aliases
 pub type PlotBytes = Vec<u8>;
