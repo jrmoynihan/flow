@@ -7,7 +7,8 @@
 
 use crate::PeacoQCData;
 use crate::error::{PeacoQCError, Result};
-use crate::qc::peacoqc::PeacoQCResult;
+use crate::qc::peacoqc::{PeacoQCResult, RemovalReason};
+use crate::qc::peaks::create_breaks;
 use plotters::prelude::*;
 use plotters::style::{BLACK, RGBAColor, RGBColor, WHITE};
 use std::path::Path;
@@ -38,13 +39,22 @@ pub struct QCPlotConfig {
     /// Number of rows in the plot grid
     pub n_rows: usize,
 
-    /// Color for unstable regions (RGBA)
+    /// Color for unstable regions (used when removal reason is not available)
     pub unstable_color: RGBColor,
+
+    /// Color for regions/points removed by Isolation Tree (None = use unstable_color / bad_color)
+    pub unstable_color_it: Option<RGBColor>,
+
+    /// Color for regions/points removed by MAD (None = use unstable_color / bad_color)
+    pub unstable_color_mad: Option<RGBColor>,
+
+    /// Color for regions/points removed by consecutive filter (None = use unstable_color / bad_color)
+    pub unstable_color_consecutive: Option<RGBColor>,
 
     /// Color for good data points
     pub good_color: RGBColor,
 
-    /// Color for bad (unstable) data points
+    /// Color for bad (unstable) data points (used when removal reason is not available)
     pub bad_color: RGBColor,
 
     /// Color for median line
@@ -87,6 +97,16 @@ pub struct QCPlotConfig {
     pub scatter_alpha: Option<f32>,
 }
 
+/// Resolve color for a removal reason (region or point). Falls back to unstable_color / bad_color when reason-specific color is None.
+fn color_for_removal_reason(config: &QCPlotConfig, reason: RemovalReason, fallback: RGBColor) -> RGBColor {
+    let c = match reason {
+        RemovalReason::IsolationTree => config.unstable_color_it,
+        RemovalReason::MAD => config.unstable_color_mad,
+        RemovalReason::Consecutive => config.unstable_color_consecutive,
+    };
+    c.unwrap_or(fallback)
+}
+
 impl Default for QCPlotConfig {
     fn default() -> Self {
         Self {
@@ -95,6 +115,9 @@ impl Default for QCPlotConfig {
             n_cols: 4,
             n_rows: 6,
             unstable_color: RGBColor(200, 150, 255), // Light purple
+            unstable_color_it: Some(RGBColor(255, 165, 0)),   // Orange
+            unstable_color_mad: Some(RGBColor(200, 150, 255)), // Purple (legacy default)
+            unstable_color_consecutive: Some(RGBColor(255, 200, 100)), // Amber
             good_color: RGBColor(128, 128, 128),     // Grey
             bad_color: RGBColor(200, 50, 50),        // Red for bad events
             median_color: RGBColor(0, 0, 0),         // Black
@@ -220,6 +243,15 @@ fn calculate_grid_dimensions(n_plots: usize) -> (usize, usize) {
     (n_rows, n_cols)
 }
 
+/// Priority for removal reason (higher = prefer when an event is in multiple bad bins)
+fn removal_reason_priority(r: RemovalReason) -> u8 {
+    match r {
+        RemovalReason::IsolationTree => 3,
+        RemovalReason::MAD => 2,
+        RemovalReason::Consecutive => 1,
+    }
+}
+
 /// Find unstable regions (ranges of cell indices where good_cells is false)
 fn find_unstable_regions(good_cells: &[bool]) -> Vec<(usize, usize)> {
     let mut regions = Vec::new();
@@ -246,6 +278,53 @@ fn find_unstable_regions(good_cells: &[bool]) -> Vec<(usize, usize)> {
     }
 
     regions
+}
+
+/// Regions with reason: (start_cell, end_cell, reason). One entry per bad bin (overlapping bins may produce overlapping regions).
+pub(crate) fn regions_by_reason(
+    n_events: usize,
+    events_per_bin: usize,
+    removal_reason_per_bin: &[Option<RemovalReason>],
+) -> Vec<(usize, usize, RemovalReason)> {
+    let breaks = create_breaks(n_events, events_per_bin);
+    let mut out = Vec::new();
+    for (bin_idx, &reason_opt) in removal_reason_per_bin.iter().enumerate() {
+        if let Some(reason) = reason_opt {
+            if let Some(&(start, end)) = breaks.get(bin_idx) {
+                out.push((start, end, reason));
+            }
+        }
+    }
+    out
+}
+
+/// Per-event primary removal reason (None = good event). For bad events in overlapping bins, uses highest-priority reason.
+pub(crate) fn event_removal_reasons(
+    n_events: usize,
+    events_per_bin: usize,
+    good_cells: &[bool],
+    removal_reason_per_bin: &[Option<RemovalReason>],
+) -> Vec<Option<RemovalReason>> {
+    let breaks = create_breaks(n_events, events_per_bin);
+    let mut event_reason: Vec<Option<RemovalReason>> = (0..n_events).map(|_| None).collect();
+    for (bin_idx, &reason_opt) in removal_reason_per_bin.iter().enumerate() {
+        if let Some(reason) = reason_opt {
+            if let Some(&(start, end)) = breaks.get(bin_idx) {
+                for i in start..end.min(n_events) {
+                    if !good_cells.get(i).copied().unwrap_or(true) {
+                        let replace = match event_reason[i] {
+                            None => true,
+                            Some(existing) => removal_reason_priority(reason) > removal_reason_priority(existing),
+                        };
+                        if replace {
+                            event_reason[i] = Some(reason);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    event_reason
 }
 
 /// Create QC plots and save to file
@@ -413,29 +492,55 @@ pub fn create_qc_plots<T: PeacoQCData>(
             draw_result
                 .map_err(|e| PeacoQCError::ExportError(format!("Failed to draw mesh: {:?}", e)))?;
 
-            // Highlight unstable regions on time plot
-            let unstable_regions = find_unstable_regions(&qc_result.good_cells);
+            // Highlight unstable regions on time plot (by reason when available)
             let time_values = get_channel_data(fcs, &time_channel)?;
+            let n_events = qc_result.good_cells.len();
+            let mut reasons_in_legend = std::collections::HashSet::new();
 
-            for (start_idx, end_idx) in unstable_regions {
-                if start_idx < time_values.len() && end_idx <= time_values.len() {
-                    let start_time = time_values[start_idx];
-                    let end_time = time_values[(end_idx - 1).min(time_values.len() - 1)];
-
-                    let fill_color = RGBAColor(
-                        config.unstable_color.0,
-                        config.unstable_color.1,
-                        config.unstable_color.2,
-                        0.3,
-                    );
-                    chart
-                        .draw_series(std::iter::once(Rectangle::new(
-                            [(start_time, y_range.start), (end_time, y_range.end)],
-                            fill_color.filled(),
-                        )))
-                        .map_err(|e| {
-                            PeacoQCError::ExportError(format!("Failed to draw rectangle: {:?}", e))
-                        })?;
+            if let Some(ref reasons) = qc_result.removal_reason_per_bin {
+                if reasons.len() == qc_result.n_bins {
+                    let regions = regions_by_reason(n_events, qc_result.events_per_bin, reasons);
+                    for (start_idx, end_idx, reason) in regions {
+                        if start_idx < time_values.len() && end_idx > 0 {
+                            let start_time = time_values[start_idx.min(time_values.len() - 1)];
+                            let end_time = time_values[(end_idx - 1).min(time_values.len() - 1)];
+                            let color = color_for_removal_reason(&config, reason, config.unstable_color);
+                            let fill_color = RGBAColor(color.0, color.1, color.2, 0.3);
+                            chart
+                                .draw_series(std::iter::once(Rectangle::new(
+                                    [(start_time, y_range.start), (end_time, y_range.end)],
+                                    fill_color.filled(),
+                                )))
+                                .map_err(|e| {
+                                    PeacoQCError::ExportError(format!("Failed to draw rectangle: {:?}", e))
+                                })?;
+                            reasons_in_legend.insert(reason);
+                        }
+                    }
+                }
+            }
+            if reasons_in_legend.is_empty() {
+                // Fallback: single color for all removed regions
+                let unstable_regions = find_unstable_regions(&qc_result.good_cells);
+                for (start_idx, end_idx) in unstable_regions {
+                    if start_idx < time_values.len() && end_idx <= time_values.len() {
+                        let start_time = time_values[start_idx];
+                        let end_time = time_values[(end_idx - 1).min(time_values.len() - 1)];
+                        let fill_color = RGBAColor(
+                            config.unstable_color.0,
+                            config.unstable_color.1,
+                            config.unstable_color.2,
+                            0.3,
+                        );
+                        chart
+                            .draw_series(std::iter::once(Rectangle::new(
+                                [(start_time, y_range.start), (end_time, y_range.end)],
+                                fill_color.filled(),
+                            )))
+                            .map_err(|e| {
+                                PeacoQCError::ExportError(format!("Failed to draw rectangle: {:?}", e))
+                            })?;
+                    }
                 }
             }
 
@@ -449,20 +554,55 @@ pub fn create_qc_plots<T: PeacoQCData>(
                     PeacoQCError::ExportError(format!("Failed to draw line series: {:?}", e))
                 })?;
 
-            // Legend: Removed events (shaded regions)
+            // Legend: Removed events (by reason when available); use legible layout
             let x_range_size = x_range.end - x_range.start;
             let y_range_size = y_range.end - y_range.start;
-            let legend_x_start = x_range.end - (x_range_size * 0.22);
-            let legend_y_start = y_range.end - (y_range_size * 0.06);
-            let rect_w = x_range_size * 0.025;
-            let rect_h = y_range_size * 0.04;
-            let text_gap = x_range_size * 0.008;
-            let pad_x = x_range_size * 0.008;
-            let pad_y = y_range_size * 0.008;
-            // Semi-transparent white background behind legend
+            const LEGEND_MARGIN_RIGHT_PCT: f64 = 0.22;
+            const LEGEND_TEXT_WIDTH_PCT: f64 = 0.18;
+            const LEGEND_ROW_HEIGHT_PCT: f64 = 0.055;
+            const LEGEND_RECT_W_PCT: f64 = 0.025;
+            const LEGEND_RECT_H_PCT: f64 = 0.04;
+            const LEGEND_TEXT_GAP_PCT: f64 = 0.01;
+            const LEGEND_PAD_PCT: f64 = 0.01;
+
+            let legend_x_start = x_range.end - (x_range_size * LEGEND_MARGIN_RIGHT_PCT);
+            let rect_w = x_range_size * LEGEND_RECT_W_PCT;
+            let rect_h = y_range_size * LEGEND_RECT_H_PCT;
+            let text_gap = x_range_size * LEGEND_TEXT_GAP_PCT;
+            let pad_x = x_range_size * LEGEND_PAD_PCT;
+            let pad_y = y_range_size * LEGEND_PAD_PCT;
+            let legend_y_step = y_range_size * LEGEND_ROW_HEIGHT_PCT;
+
+            let legend_labels: Vec<(&str, RGBColor)> = if reasons_in_legend.is_empty() {
+                vec![("Removed events", config.unstable_color)]
+            } else {
+                let mut labels = Vec::new();
+                if reasons_in_legend.contains(&RemovalReason::IsolationTree) {
+                    labels.push((
+                        "Removed (Isolation Tree)",
+                        color_for_removal_reason(&config, RemovalReason::IsolationTree, config.unstable_color),
+                    ));
+                }
+                if reasons_in_legend.contains(&RemovalReason::MAD) {
+                    labels.push((
+                        "Removed (MAD)",
+                        color_for_removal_reason(&config, RemovalReason::MAD, config.unstable_color),
+                    ));
+                }
+                if reasons_in_legend.contains(&RemovalReason::Consecutive) {
+                    labels.push((
+                        "Removed (Consecutive)",
+                        color_for_removal_reason(&config, RemovalReason::Consecutive, config.unstable_color),
+                    ));
+                }
+                labels
+            };
+
+            let n_rows = legend_labels.len();
+            let legend_y_start = y_range.end - (y_range_size * 0.02);
             let legend_bg_left = legend_x_start - pad_x;
-            let legend_bg_bottom = legend_y_start - rect_h - pad_y;
-            let legend_bg_right = legend_x_start + rect_w + text_gap + x_range_size * 0.12;
+            let legend_bg_bottom = legend_y_start - rect_h - (n_rows.saturating_sub(1) as f64 * legend_y_step) - pad_y;
+            let legend_bg_right = legend_x_start + rect_w + text_gap + (x_range_size * LEGEND_TEXT_WIDTH_PCT) + pad_x;
             let legend_bg_top = legend_y_start + pad_y;
             chart
                 .draw_series(std::iter::once(Rectangle::new(
@@ -475,35 +615,35 @@ pub fn create_qc_plots<T: PeacoQCData>(
                 .map_err(|e| {
                     PeacoQCError::ExportError(format!("Failed to draw legend background: {:?}", e))
                 })?;
-            let fill_color = RGBAColor(
-                config.unstable_color.0,
-                config.unstable_color.1,
-                config.unstable_color.2,
-                0.5,
-            );
-            chart
-                .draw_series(std::iter::once(Rectangle::new(
-                    [
-                        (legend_x_start, legend_y_start - rect_h),
-                        (legend_x_start + rect_w, legend_y_start),
-                    ],
-                    fill_color.filled(),
-                )))
-                .map_err(|e| {
-                    PeacoQCError::ExportError(format!("Failed to draw legend rect: {:?}", e))
-                })?;
-            chart
-                .plotting_area()
-                .draw(&Text::new(
-                    "Removed events".to_string(),
-                    (legend_x_start + rect_w + text_gap, legend_y_start),
-                    (font_family, config.legend_font_size)
-                        .into_font()
-                        .color(&fg),
-                ))
-                .map_err(|e| {
-                    PeacoQCError::ExportError(format!("Failed to draw legend text: {:?}", e))
-                })?;
+
+            let mut legend_y = legend_y_start;
+            for (label, color) in &legend_labels {
+                let fill_color = RGBAColor(color.0, color.1, color.2, 0.5);
+                chart
+                    .draw_series(std::iter::once(Rectangle::new(
+                        [
+                            (legend_x_start, legend_y - rect_h),
+                            (legend_x_start + rect_w, legend_y),
+                        ],
+                        fill_color.filled(),
+                    )))
+                    .map_err(|e| {
+                        PeacoQCError::ExportError(format!("Failed to draw legend rect: {:?}", e))
+                    })?;
+                chart
+                    .plotting_area()
+                    .draw(&Text::new(
+                        (*label).to_string(),
+                        (legend_x_start + rect_w + text_gap, legend_y),
+                        (font_family, config.legend_font_size)
+                            .into_font()
+                            .color(&fg),
+                    ))
+                    .map_err(|e| {
+                        PeacoQCError::ExportError(format!("Failed to draw legend text: {:?}", e))
+                    })?;
+                legend_y -= legend_y_step;
+            }
         }
     }
 
@@ -595,42 +735,86 @@ pub fn create_qc_plots<T: PeacoQCData>(
             .draw()
             .map_err(|e| PeacoQCError::ExportError(format!("Failed to draw mesh: {:?}", e)))?;
 
-        // Highlight unstable regions
-        let unstable_regions = find_unstable_regions(&qc_result.good_cells);
-        for (start_idx, end_idx) in unstable_regions {
-            if start_idx < n_events {
-                let start_cell = start_idx as f64;
-                let end_cell = (end_idx.min(n_events)) as f64;
-
-                let fill_color = RGBAColor(
-                    config.unstable_color.0,
-                    config.unstable_color.1,
-                    config.unstable_color.2,
-                    0.3,
-                );
-                chart
-                    .draw_series(std::iter::once(Rectangle::new(
-                        [(start_cell, y_range.start), (end_cell, y_range.end)],
-                        fill_color.filled(),
-                    )))
-                    .map_err(|e| {
-                        PeacoQCError::ExportError(format!("Failed to draw rectangle: {:?}", e))
-                    })?;
+        // Highlight unstable regions (by reason when available)
+        let has_reason_data = qc_result
+            .removal_reason_per_bin
+            .as_ref()
+            .map(|r| r.len() == qc_result.n_bins)
+            .unwrap_or(false);
+        if has_reason_data {
+            let reasons = qc_result.removal_reason_per_bin.as_ref().unwrap();
+            let regions = regions_by_reason(n_events, qc_result.events_per_bin, reasons);
+            for (start_idx, end_idx, reason) in regions {
+                if start_idx < n_events {
+                    let start_cell = start_idx as f64;
+                    let end_cell = (end_idx.min(n_events)) as f64;
+                    let color = color_for_removal_reason(&config, reason, config.unstable_color);
+                    let fill_color = RGBAColor(color.0, color.1, color.2, 0.3);
+                    chart
+                        .draw_series(std::iter::once(Rectangle::new(
+                            [(start_cell, y_range.start), (end_cell, y_range.end)],
+                            fill_color.filled(),
+                        )))
+                        .map_err(|e| {
+                            PeacoQCError::ExportError(format!("Failed to draw rectangle: {:?}", e))
+                        })?;
+                }
+            }
+        } else {
+            let unstable_regions = find_unstable_regions(&qc_result.good_cells);
+            for (start_idx, end_idx) in unstable_regions {
+                if start_idx < n_events {
+                    let start_cell = start_idx as f64;
+                    let end_cell = (end_idx.min(n_events)) as f64;
+                    let fill_color = RGBAColor(
+                        config.unstable_color.0,
+                        config.unstable_color.1,
+                        config.unstable_color.2,
+                        0.3,
+                    );
+                    chart
+                        .draw_series(std::iter::once(Rectangle::new(
+                            [(start_cell, y_range.start), (end_cell, y_range.end)],
+                            fill_color.filled(),
+                        )))
+                        .map_err(|e| {
+                            PeacoQCError::ExportError(format!("Failed to draw rectangle: {:?}", e))
+                        })?;
+                }
             }
         }
 
-        // Draw scatter plot: bad events first (red), then good (grey), same sampling for performance
+        // Draw scatter: good (grey); bad by reason when available, else single bad_color
         let sample_size = 10000.min(n_events);
         let step = (n_events / sample_size.max(1)).max(1);
         let mut good_points = Vec::new();
-        let mut bad_points = Vec::new();
+        let mut bad_by_reason: std::collections::HashMap<RemovalReason, Vec<(f64, f64)>> =
+            std::collections::HashMap::new();
+        let mut bad_points_fallback = Vec::new();
+
+        let event_reasons = if has_reason_data {
+            Some(event_removal_reasons(
+                n_events,
+                qc_result.events_per_bin,
+                &qc_result.good_cells,
+                qc_result.removal_reason_per_bin.as_ref().unwrap(),
+            ))
+        } else {
+            None
+        };
 
         for i in (0..n_events).step_by(step) {
             let pt = (cell_indices[i], channel_data[i]);
             if qc_result.good_cells[i] {
                 good_points.push(pt);
+            } else if let Some(ref reasons) = event_reasons {
+                if let Some(Some(reason)) = reasons.get(i).copied() {
+                    bad_by_reason.entry(reason).or_default().push(pt);
+                } else {
+                    bad_points_fallback.push(pt);
+                }
             } else {
-                bad_points.push(pt);
+                bad_points_fallback.push(pt);
             }
         }
 
@@ -638,9 +822,29 @@ pub fn create_qc_plots<T: PeacoQCData>(
         let alpha = alpha.clamp(0.0, 1.0);
         let use_alpha = alpha < 1.0;
 
-        if !bad_points.is_empty() {
+        for (reason, points) in &bad_by_reason {
+            if !points.is_empty() {
+                let color = color_for_removal_reason(&config, *reason, config.bad_color);
+                chart
+                    .draw_series(points.iter().map(|(x, y)| {
+                        Circle::new(
+                            (*x, *y),
+                            1,
+                            if use_alpha {
+                                RGBAColor(color.0, color.1, color.2, alpha).filled()
+                            } else {
+                                color.filled()
+                            },
+                        )
+                    }))
+                    .map_err(|e| {
+                        PeacoQCError::ExportError(format!("Failed to draw bad-event circles: {:?}", e))
+                    })?;
+            }
+        }
+        if !bad_points_fallback.is_empty() {
             chart
-                .draw_series(bad_points.iter().map(|(x, y)| {
+                .draw_series(bad_points_fallback.iter().map(|(x, y)| {
                     Circle::new(
                         (*x, *y),
                         1,
@@ -807,9 +1011,35 @@ pub fn create_qc_plots<T: PeacoQCData>(
                 }
             }
 
-            // Draw legend in top-right corner: first "Removed events" (rect), then line items
-            let legend_rects: Vec<(&str, RGBColor)> =
-                vec![("Removed events", config.unstable_color)];
+            // Draw legend: removal reasons (when available) then line items; legible row spacing and width
+            let legend_rects: Vec<(&str, RGBColor)> = if has_reason_data {
+                let mut rects = Vec::new();
+                if bad_by_reason.contains_key(&RemovalReason::IsolationTree) {
+                    rects.push((
+                        "Removed (Isolation Tree)",
+                        color_for_removal_reason(&config, RemovalReason::IsolationTree, config.unstable_color),
+                    ));
+                }
+                if bad_by_reason.contains_key(&RemovalReason::MAD) {
+                    rects.push((
+                        "Removed (MAD)",
+                        color_for_removal_reason(&config, RemovalReason::MAD, config.unstable_color),
+                    ));
+                }
+                if bad_by_reason.contains_key(&RemovalReason::Consecutive) {
+                    rects.push((
+                        "Removed (Consecutive)",
+                        color_for_removal_reason(&config, RemovalReason::Consecutive, config.unstable_color),
+                    ));
+                }
+                if rects.is_empty() {
+                    vec![("Removed events", config.unstable_color)]
+                } else {
+                    rects
+                }
+            } else {
+                vec![("Removed events", config.unstable_color)]
+            };
             let mut legend_items: Vec<(&str, RGBColor, u32)> =
                 vec![("Median", config.median_color, 2)];
 
@@ -820,22 +1050,24 @@ pub fn create_qc_plots<T: PeacoQCData>(
 
             let x_range_size = x_range.end - x_range.start;
             let y_range_size = y_range.end - y_range.start;
-            let legend_margin_right_pct = 0.10;
+            const CHAN_LEGEND_MARGIN_RIGHT_PCT: f64 = 0.10;
+            const CHAN_LEGEND_ROW_HEIGHT_PCT: f64 = 0.050;
+            const CHAN_LEGEND_TEXT_WIDTH_PCT: f64 = 0.18;
+            let legend_margin_right_pct = CHAN_LEGEND_MARGIN_RIGHT_PCT;
             let legend_margin_top_pct = 0.02;
             let legend_x_start = x_range.end - (x_range_size * legend_margin_right_pct);
-            let legend_y_step = y_range_size * 0.032;
+            let legend_y_step = y_range_size * CHAN_LEGEND_ROW_HEIGHT_PCT;
             let line_length = x_range_size * 0.035;
-            let text_gap = x_range_size * 0.008;
-            let rect_w = x_range_size * 0.02;
-            let rect_h = y_range_size * 0.025;
+            let text_gap = x_range_size * 0.01;
+            let rect_w = x_range_size * 0.022;
+            let rect_h = y_range_size * 0.028;
             let legend_initial_y = y_range.end - (y_range_size * legend_margin_top_pct);
             let n_legend_rows = legend_rects.len() + legend_items.len();
-            let pad_x = x_range_size * 0.006;
-            let pad_y = y_range_size * 0.006;
-            // Semi-transparent white background behind full legend
+            let pad_x = x_range_size * 0.008;
+            let pad_y = y_range_size * 0.008;
             let legend_bg_left = legend_x_start - pad_x;
             let legend_bg_right =
-                legend_x_start + line_length + text_gap + x_range_size * 0.10 + pad_x;
+                legend_x_start + line_length + text_gap + (x_range_size * CHAN_LEGEND_TEXT_WIDTH_PCT) + pad_x;
             let legend_bg_bottom = legend_initial_y
                 - rect_h
                 - (n_legend_rows.saturating_sub(1) as f64 * legend_y_step)
@@ -956,6 +1188,47 @@ mod tests {
         assert_eq!(medians.len(), 4);
         assert_eq!(medians[0], (0, 1.5));
         assert_eq!(medians[1], (1, 3.5));
+    }
+
+    #[test]
+    fn test_regions_by_reason() {
+        let n_events = 10_usize;
+        let events_per_bin = 4_usize;
+        // create_breaks(10, 4): overlap=2, step=2 -> (0,4), (2,6), (4,8), (6,10) = 4 bins
+        let reasons = vec![
+            None,
+            Some(RemovalReason::MAD),
+            None,
+            Some(RemovalReason::Consecutive),
+        ];
+        let regions = regions_by_reason(n_events, events_per_bin, &reasons);
+        assert_eq!(regions.len(), 2);
+        assert!(regions.contains(&(2, 6, RemovalReason::MAD)));
+        assert!(regions.contains(&(6, 10, RemovalReason::Consecutive)));
+    }
+
+    #[test]
+    fn test_event_removal_reasons() {
+        let n_events = 10_usize;
+        let events_per_bin = 4_usize;
+        let mut good_cells = vec![true; n_events];
+        good_cells[3] = false;
+        good_cells[7] = false;
+        let reasons = vec![
+            None,
+            Some(RemovalReason::MAD),
+            None,
+            Some(RemovalReason::Consecutive),
+        ];
+        let event_reasons = event_removal_reasons(n_events, events_per_bin, &good_cells, &reasons);
+        assert_eq!(event_reasons.len(), n_events);
+        assert_eq!(event_reasons[3], Some(RemovalReason::MAD));
+        assert_eq!(event_reasons[7], Some(RemovalReason::Consecutive));
+        for (i, &r) in event_reasons.iter().enumerate() {
+            if i != 3 && i != 7 {
+                assert_eq!(r, None, "event {} should have no reason", i);
+            }
+        }
     }
 
     #[test]

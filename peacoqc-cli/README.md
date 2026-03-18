@@ -94,9 +94,27 @@ Options:
   --export-json <JSON_PATH>      Export QC metadata as JSON
   --csv-column-name <NAME>       Column name for CSV exports (default: "PeacoQC")
   -v, --verbose                  Verbose output
+  -q, --quiet                    Disable all logging (tracing) output
+  --benchmark                    Run benchmark: one file, four scenarios; print mean timings (see below)
   -h, --help                     Print help
   -V, --version                  Print version
 ```
+
+### Performance and benchmarking
+
+- **`--quiet`** (`-q`): Disables all logging (tracing) output. Use this to reduce I/O and measure the impact of logging on run time.
+- **`--benchmark`**: Processes a single input file and reports mean timings for four scenarios (minimal pipeline, + FCS write, + CSV export, + plot generation). Requires exactly one input file. Logging is automatically disabled during the benchmark. Example:
+
+  ```bash
+  peacoqc --benchmark sample.fcs
+  ```
+
+  To measure **logging overhead**, compare wall time of two runs with the same file and options (e.g. with `time` or `hyperfine`):
+
+  ```bash
+  time peacoqc file.fcs -o out --plots --plot-dir out
+  time peacoqc --quiet file.fcs -o out --plots --plot-dir out
+  ```
 
 ### QC plot options
 

@@ -129,6 +129,18 @@ impl Default for PeacoQCConfig {
     }
 }
 
+/// Reason a bin (and its events) was flagged for removal.
+/// Priority for display: IT > MAD > Consecutive when a bin is flagged by multiple methods.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum RemovalReason {
+    /// Flagged by Isolation Tree (anomalous in multi-channel peak space)
+    IsolationTree,
+    /// Flagged by MAD (smoothed trajectory outside ±MAD threshold)
+    MAD,
+    /// Flagged by consecutive filter (short run of "good" bins converted to bad)
+    Consecutive,
+}
+
 /// PeacoQC result
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PeacoQCResult {
@@ -136,6 +148,11 @@ pub struct PeacoQCResult {
     /// Stored separately as binary; skipped in JSON serialization.
     #[serde(skip)]
     pub good_cells: Vec<bool>,
+
+    /// Per-bin removal reason (same length as n_bins). None = good bin, Some(reason) = bad bin.
+    /// Used for plotting: color removed regions by reason. Priority IT > MAD > Consecutive.
+    #[serde(skip)]
+    pub removal_reason_per_bin: Option<Vec<Option<RemovalReason>>>,
 
     /// Percentage of cells removed
     pub percentage_removed: f64,
@@ -560,8 +577,26 @@ pub fn peacoqc<T: PeacoQCData>(fcs: &T, config: &PeacoQCConfig) -> Result<PeacoQ
         }
     }
 
+    // Per-bin removal reason for plotting (priority: IT > MAD > Consecutive)
+    let removal_reason_per_bin: Vec<Option<RemovalReason>> = (0..n_bins)
+        .map(|i| {
+            if !outlier_bins[i] {
+                return None;
+            }
+            let reason = if it_outliers[i] {
+                RemovalReason::IsolationTree
+            } else if mad_outliers[i] {
+                RemovalReason::MAD
+            } else {
+                RemovalReason::Consecutive
+            };
+            Some(reason)
+        })
+        .collect();
+
     Ok(PeacoQCResult {
         good_cells,
+        removal_reason_per_bin: Some(removal_reason_per_bin),
         percentage_removed,
         it_percentage,
         mad_percentage,

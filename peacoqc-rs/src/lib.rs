@@ -101,8 +101,9 @@ pub mod fcs;
 pub use error::{PeacoQCError, Result};
 pub use qc::{
     DoubletConfig, DoubletResult, MarginConfig, MarginResult, PeacoQCConfig, PeacoQCResult,
-    QCExportFormat, QCExportOptions, QCMode, QCPlotConfig, create_qc_plots, export_csv_boolean,
-    export_csv_numeric, export_json_metadata, peacoqc, remove_doublets, remove_margins,
+    QCExportFormat, QCExportOptions, QCMode, QCPlotConfig, RemovalReason, create_qc_plots,
+    export_csv_boolean, export_csv_boolean_from_mask, export_csv_numeric, export_csv_numeric_from_mask,
+    export_json_metadata, peacoqc, remove_doublets, remove_margins,
 };
 
 #[cfg(feature = "flow-fcs")]

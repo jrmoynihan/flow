@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+### Added
+
+- **Removal reason visualization**: QC plots can now show why regions were removed by color-coding:
+  - `PeacoQCResult::removal_reason_per_bin` (optional) exposes per-bin reason: Isolation Tree, MAD, or Consecutive.
+  - Time and channel plots draw shaded regions and scatter points by reason when this data is present (orange = IT, purple = MAD, amber = Consecutive by default).
+  - `QCPlotConfig`: optional `unstable_color_it`, `unstable_color_mad`, `unstable_color_consecutive` for custom colors; fallback to `unstable_color` / `bad_color` when not set.
+- **Legend legibility**: Legend row spacing and text width increased so multiple entries (e.g. "Removed (Isolation Tree)", "Removed (MAD)", "Removed (Consecutive)", Median, Spline, MAD ±6) no longer overlap.
+- **`RemovalReason`** enum and re-export for use in custom tooling or plots.
+
 ## 0.2.4 (2026-02-27)
 
 ### Added

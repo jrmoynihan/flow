@@ -265,6 +265,106 @@ pub fn export_csv_numeric(
     Ok(())
 }
 
+/// Export a full-length good/bad mask as boolean CSV (0/1 values)
+///
+/// Use this when the mask length matches the original event count (e.g. after
+/// expanding margin/doublet-removed events into the "bad" bin so output has one row per input event).
+///
+/// # Arguments
+///
+/// * `mask` - Boolean mask (true = good/keep, false = bad/remove), length = original event count
+/// * `path` - Output file path
+/// * `column_name` - Optional column name (default: "PeacoQC")
+pub fn export_csv_boolean_from_mask(
+    mask: &[bool],
+    path: impl AsRef<Path>,
+    column_name: Option<&str>,
+) -> Result<()> {
+    let path = path.as_ref();
+    let column_name = column_name.unwrap_or("PeacoQC");
+
+    if mask.is_empty() {
+        return Err(PeacoQCError::ExportError(
+            "Cannot export empty mask".to_string(),
+        ));
+    }
+
+    let file = File::create(path).map_err(|e| {
+        PeacoQCError::WriteError(format!("Failed to create file {}: {}", path.display(), e))
+    })?;
+
+    let mut writer = BufWriter::new(file);
+
+    writeln!(writer, "{}", column_name).map_err(|e| {
+        PeacoQCError::WriteError(format!("Failed to write header: {}", e))
+    })?;
+
+    for &is_good in mask {
+        let value = if is_good { 1 } else { 0 };
+        writeln!(writer, "{}", value).map_err(|e| {
+            PeacoQCError::WriteError(format!("Failed to write data: {}", e))
+        })?;
+    }
+
+    writer.flush().map_err(|e| {
+        PeacoQCError::WriteError(format!("Failed to flush file: {}", e))
+    })?;
+
+    Ok(())
+}
+
+/// Export a full-length good/bad mask as numeric CSV (e.g. 2000/6000)
+///
+/// Use this when the mask length matches the original event count (e.g. after
+/// expanding margin/doublet-removed events into the "bad" bin so output has one row per input event).
+///
+/// # Arguments
+///
+/// * `mask` - Boolean mask (true = good/keep, false = bad/remove), length = original event count
+/// * `path` - Output file path
+/// * `good_value` - Value for good events (e.g. 2000)
+/// * `bad_value` - Value for bad events (e.g. 6000)
+/// * `column_name` - Optional column name (default: "PeacoQC")
+pub fn export_csv_numeric_from_mask(
+    mask: &[bool],
+    path: impl AsRef<Path>,
+    good_value: u16,
+    bad_value: u16,
+    column_name: Option<&str>,
+) -> Result<()> {
+    let path = path.as_ref();
+    let column_name = column_name.unwrap_or("PeacoQC");
+
+    if mask.is_empty() {
+        return Err(PeacoQCError::ExportError(
+            "Cannot export empty mask".to_string(),
+        ));
+    }
+
+    let file = File::create(path).map_err(|e| {
+        PeacoQCError::WriteError(format!("Failed to create file {}: {}", path.display(), e))
+    })?;
+
+    let mut writer = BufWriter::new(file);
+
+    writeln!(writer, "{}", column_name).map_err(|e| {
+        PeacoQCError::WriteError(format!("Failed to write header: {}", e))
+    })?;
+
+    for &is_good in mask {
+        let value = if is_good { good_value } else { bad_value };
+        writeln!(writer, "{}", value).map_err(|e| {
+            PeacoQCError::WriteError(format!("Failed to write data: {}", e))
+        })?;
+    }
+
+    writer.flush().map_err(|e| {
+        PeacoQCError::WriteError(format!("Failed to flush file: {}", e))
+    })?;
+
+    Ok(())
+}
+
 /// Export QC results as JSON metadata
 ///
 /// This format includes comprehensive QC metrics and configuration,
@@ -387,6 +487,7 @@ mod tests {
     fn create_test_result() -> PeacoQCResult {
         PeacoQCResult {
             good_cells: vec![true, true, false, true, false],
+            removal_reason_per_bin: None,
             percentage_removed: 40.0,
             it_percentage: Some(20.0),
             mad_percentage: Some(20.0),
@@ -470,6 +571,7 @@ mod tests {
         let path = temp_dir.path().join("test_empty.csv");
         let result = PeacoQCResult {
             good_cells: vec![],
+            removal_reason_per_bin: None,
             percentage_removed: 0.0,
             it_percentage: None,
             mad_percentage: None,

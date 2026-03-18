@@ -168,6 +168,7 @@ fn remove_doublets<T: PeacoQCData>(fcs: &T, config: &DoubletConfig) -> Result<Do
 
 - `PeacoQCResult`: Complete QC results
   - `good_cells`: Boolean mask (true = keep, false = remove)
+  - `removal_reason_per_bin`: Optional per-bin removal reason (Isolation Tree, MAD, Consecutive) for plotting
   - `percentage_removed`: Percentage of events removed
   - `peaks`: Peak detection results per channel
   - `n_bins`: Number of bins used
@@ -175,6 +176,7 @@ fn remove_doublets<T: PeacoQCData>(fcs: &T, config: &DoubletConfig) -> Result<Do
   - `export_csv_boolean()`: Export as boolean CSV (0/1 values)
   - `export_csv_numeric()`: Export as numeric CSV (2000/6000 values, R-compatible)
   - `export_json_metadata()`: Export comprehensive QC metrics as JSON
+- `RemovalReason`: Enum for why a bin was flagged (Isolation Tree, MAD, Consecutive); used when plotting removal reasons
 
 ## Export Formats
 

@@ -13,12 +13,13 @@ pub mod plots;
 pub use consecutive::{ConsecutiveConfig, remove_short_regions};
 pub use doublets::{DoubletConfig, DoubletResult, remove_doublets};
 pub use export::{
-    QCExportFormat, QCExportOptions, export_csv_boolean, export_csv_numeric, export_json_metadata,
+    export_csv_boolean, export_csv_boolean_from_mask, export_csv_numeric,
+    export_csv_numeric_from_mask, export_json_metadata, QCExportFormat, QCExportOptions,
 };
 pub use isolation_tree::{IsolationTreeConfig, IsolationTreeResult, isolation_tree_detect};
 pub use mad::{MADConfig, MADResult, mad_outlier_method};
 pub use margins::{MarginConfig, MarginResult, remove_margins};
 pub use monotonic::{MonotonicConfig, MonotonicResult, find_increasing_decreasing_channels};
-pub use peacoqc::{PeacoQCConfig, PeacoQCResult, QCMode, peacoqc};
+pub use peacoqc::{PeacoQCConfig, PeacoQCResult, QCMode, RemovalReason, peacoqc};
 pub use peaks::{ChannelPeakFrame, PeakDetectionConfig, PeakInfo, determine_peaks_all_channels};
 pub use plots::{QCPlotConfig, create_qc_plots};

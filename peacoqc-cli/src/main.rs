@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{Context, Result};
 use clap::Parser;
 use dialoguer::{Confirm, Input};
 use flow_fcs::{Fcs, write_fcs_file};
@@ -142,6 +142,14 @@ struct Cli {
     /// Verbose output
     #[arg(short, long)]
     verbose: bool,
+
+    /// Disable all logging (tracing) output
+    #[arg(short, long)]
+    quiet: bool,
+
+    /// Run benchmark: process one file with four scenarios (minimal, +FCS write, +CSV export, +plots) and print mean timings. Requires exactly one input file. Logging is disabled during benchmark.
+    #[arg(long)]
+    benchmark: bool,
 }
 
 #[derive(Debug, Clone, clap::ValueEnum)]
@@ -207,6 +215,7 @@ struct FileResult {
     output_path: Option<PathBuf>,
     n_events_before: usize,
     n_events_after: usize,
+    n_parameters: usize,
     percentage_removed: f64,
     it_percentage: Option<f64>,
     mad_percentage: Option<f64>,
@@ -217,6 +226,13 @@ struct FileResult {
     // Store data needed for plot generation
     fcs_data: Option<Fcs>,
     qc_result: Option<peacoqc_rs::PeacoQCResult>,
+}
+
+/// Ensure an output directory exists and we can create it. Call this early before
+/// running computations so the user gets a clear permission/path error upfront.
+fn ensure_output_directory(path: &Path, purpose: &str) -> Result<()> {
+    std::fs::create_dir_all(path)
+        .with_context(|| format!("Cannot create {} directory: {}", purpose, path.display()))
 }
 
 /// Collect all FCS files from input paths (handles files and directories)
@@ -281,6 +297,7 @@ fn process_single_file(
             output_path,
             n_events_before: result.n_events_before,
             n_events_after: result.n_events_after,
+            n_parameters: result.n_parameters,
             percentage_removed: result.percentage_removed,
             it_percentage: result.it_percentage,
             mad_percentage: result.mad_percentage,
@@ -297,6 +314,7 @@ fn process_single_file(
             output_path,
             n_events_before: 0,
             n_events_after: 0,
+            n_parameters: 0,
             percentage_removed: 0.0,
             it_percentage: None,
             mad_percentage: None,
@@ -314,6 +332,7 @@ fn process_single_file(
 struct InternalResult {
     n_events_before: usize,
     n_events_after: usize,
+    n_parameters: usize,
     percentage_removed: f64,
     it_percentage: Option<f64>,
     mad_percentage: Option<f64>,
@@ -351,7 +370,10 @@ fn process_file_internal(
     output_path: Option<&Path>,
     config: &ProcessingConfig,
 ) -> Result<InternalResult> {
-    use peacoqc_rs::{export_csv_boolean, export_csv_numeric, export_json_metadata};
+    use peacoqc_rs::{
+        export_csv_boolean, export_csv_boolean_from_mask, export_csv_numeric,
+        export_csv_numeric_from_mask, export_json_metadata,
+    };
     // Load FCS file
     let fcs = Fcs::open(
         input_path
@@ -437,7 +459,11 @@ fn process_file_internal(
 
     // R's preprocessing order: RemoveMargins → RemoveDoublets → Compensate → Transform
     // This order matters because margin/doublet removal should happen on raw data
-    // before transformation affects the values
+    // before transformation affects the values.
+    // We keep margin/doublet masks so CSV (and other) exports can emit one row per original
+    // event, with margin/doublet-removed events assigned to the "bad" bin.
+    let mut margin_mask: Option<Vec<bool>> = None;
+    let mut doublet_mask: Option<Vec<bool>> = None;
 
     // Step 1: Remove margins (optional) - BEFORE transformation
     if config.remove_margins {
@@ -452,6 +478,7 @@ fn process_file_internal(
         };
 
         let margin_result = remove_margins(&current_fcs, &margin_config)?;
+        margin_mask = Some(margin_result.mask.clone());
 
         if margin_result.percentage_removed > 0.0 {
             current_fcs = current_fcs.filter(&margin_result.mask)?;
@@ -481,6 +508,7 @@ fn process_file_internal(
 
         match remove_doublets(&current_fcs, &doublet_config) {
             Ok(doublet_result) => {
+                doublet_mask = Some(doublet_result.mask.clone());
                 if doublet_result.percentage_removed > 0.0 {
                     current_fcs = current_fcs.filter(&doublet_result.mask)?;
                     let n_events_after_doublets = current_fcs.get_event_count_from_dataframe();
@@ -511,6 +539,7 @@ fn process_file_internal(
         info!(
             "Applying compensation and biexponential transformation (matching R PeacoQC: compensate + estimateLogicle)"
         );
+        let fcs_before_preprocess = current_fcs.clone();
         match peacoqc_rs::preprocess_fcs(current_fcs, true, true, cofactor) {
             Ok(preprocessed_fcs) => {
                 current_fcs = preprocessed_fcs;
@@ -525,12 +554,7 @@ fn process_file_internal(
                     "Failed to apply preprocessing: {}, continuing with raw data (MAD results may differ from R)",
                     e
                 );
-                // Re-open the file if preprocessing failed
-                current_fcs = Fcs::open(
-                    input_path
-                        .to_str()
-                        .ok_or_else(|| anyhow::anyhow!("Invalid path"))?,
-                )?;
+                current_fcs = fcs_before_preprocess;
             }
         }
     } else {
@@ -539,6 +563,7 @@ fn process_file_internal(
             "No compensation available, applying arcsinh transformation only (cofactor={})",
             cofactor
         );
+        let fcs_before_preprocess = current_fcs.clone();
         match peacoqc_rs::preprocess_fcs(current_fcs, false, true, cofactor) {
             Ok(preprocessed_fcs) => {
                 current_fcs = preprocessed_fcs;
@@ -552,12 +577,7 @@ fn process_file_internal(
                     "Failed to apply transformation: {}, continuing with raw data (MAD results may differ from R)",
                     e
                 );
-                // Re-open the file if transformation failed
-                current_fcs = Fcs::open(
-                    input_path
-                        .to_str()
-                        .ok_or_else(|| anyhow::anyhow!("Invalid path"))?,
-                )?;
+                current_fcs = fcs_before_preprocess;
             }
         }
     }
@@ -586,7 +606,43 @@ fn process_file_internal(
         info!("Successfully wrote cleaned FCS file");
     }
 
-    // Export QC results if requested
+    // Build full-length good/bad mask (one entry per original event) when we removed
+    // margins or doublets, so CSV exports have one row per input event and
+    // margin/doublet-removed events are assigned to the bad bin.
+    let use_full_mask = margin_mask.is_some() || doublet_mask.is_some();
+    let full_export_mask: Option<Vec<bool>> = if use_full_mask {
+        let mut full_mask = vec![false; n_events_initial];
+        for i in 0..n_events_initial {
+            let kept_after_margin = margin_mask
+                .as_ref()
+                .map(|m| m[i])
+                .unwrap_or(true);
+            if !kept_after_margin {
+                continue;
+            }
+            let margin_idx = margin_mask
+                .as_ref()
+                .map(|m| m[0..i].iter().filter(|&&x| x).count())
+                .unwrap_or(i);
+            let kept_after_doublet = doublet_mask
+                .as_ref()
+                .map(|d| d[margin_idx])
+                .unwrap_or(true);
+            if !kept_after_doublet {
+                continue;
+            }
+            let qc_idx = doublet_mask
+                .as_ref()
+                .map(|d| d[0..margin_idx].iter().filter(|&&x| x).count())
+                .unwrap_or(margin_idx);
+            full_mask[i] = peacoqc_result.good_cells[qc_idx];
+        }
+        Some(full_mask)
+    } else {
+        None
+    };
+
+    // Export QC results if requested (one row per original input event)
     let input_stem = input_path
         .file_stem()
         .and_then(|s| s.to_str())
@@ -598,8 +654,13 @@ fn process_file_internal(
         } else {
             csv_path.clone()
         };
-        export_csv_boolean(&peacoqc_result, &export_path, Some(&config.csv_column_name))
-            .map_err(|e| anyhow::anyhow!("Failed to export CSV: {}", e))?;
+        if let Some(ref mask) = full_export_mask {
+            export_csv_boolean_from_mask(mask, &export_path, Some(&config.csv_column_name))
+                .map_err(|e| anyhow::anyhow!("Failed to export CSV: {}", e))?;
+        } else {
+            export_csv_boolean(&peacoqc_result, &export_path, Some(&config.csv_column_name))
+                .map_err(|e| anyhow::anyhow!("Failed to export CSV: {}", e))?;
+        }
         info!("Exported boolean CSV to: {}", export_path.display());
     }
 
@@ -609,14 +670,25 @@ fn process_file_internal(
         } else {
             csv_numeric_path.clone()
         };
-        export_csv_numeric(
-            &peacoqc_result,
-            &export_path,
-            2000,
-            6000,
-            Some(&config.csv_column_name),
-        )
-        .map_err(|e| anyhow::anyhow!("Failed to export numeric CSV: {}", e))?;
+        if let Some(ref mask) = full_export_mask {
+            export_csv_numeric_from_mask(
+                mask,
+                &export_path,
+                2000,
+                6000,
+                Some(&config.csv_column_name),
+            )
+            .map_err(|e| anyhow::anyhow!("Failed to export numeric CSV: {}", e))?;
+        } else {
+            export_csv_numeric(
+                &peacoqc_result,
+                &export_path,
+                2000,
+                6000,
+                Some(&config.csv_column_name),
+            )
+            .map_err(|e| anyhow::anyhow!("Failed to export numeric CSV: {}", e))?;
+        }
         info!("Exported numeric CSV to: {}", export_path.display());
     }
 
@@ -626,14 +698,25 @@ fn process_file_internal(
         } else {
             json_path.clone()
         };
-        export_json_metadata(&peacoqc_result, &peacoqc_config, &export_path)
-            .map_err(|e| anyhow::anyhow!("Failed to export JSON: {}", e))?;
+        if let Some(ref mask) = full_export_mask {
+            let json_result = peacoqc_rs::PeacoQCResult {
+                good_cells: mask.clone(),
+                ..peacoqc_result.clone()
+            };
+            export_json_metadata(&json_result, &peacoqc_config, &export_path)
+                .map_err(|e| anyhow::anyhow!("Failed to export JSON: {}", e))?;
+        } else {
+            export_json_metadata(&peacoqc_result, &peacoqc_config, &export_path)
+                .map_err(|e| anyhow::anyhow!("Failed to export JSON: {}", e))?;
+        }
         info!("Exported JSON metadata to: {}", export_path.display());
     }
 
+    let n_parameters = current_fcs.get_parameter_count_from_dataframe();
     Ok(InternalResult {
         n_events_before: n_events_initial,
         n_events_after: n_events_final,
+        n_parameters,
         percentage_removed: peacoqc_result.percentage_removed,
         it_percentage: peacoqc_result.it_percentage,
         mad_percentage: peacoqc_result.mad_percentage,
@@ -644,16 +727,139 @@ fn process_file_internal(
     })
 }
 
+const BENCHMARK_ITERATIONS: usize = 3;
+
+/// Run benchmark: one file, four scenarios (minimal, +FCS write, +CSV export, +plots), report mean ± std.
+fn run_benchmark(args: &Cli) -> Result<()> {
+    let input_files = collect_input_files(&args.input)?;
+    if input_files.len() != 1 {
+        return Err(anyhow::anyhow!(
+            "--benchmark requires exactly one input file (got {})",
+            input_files.len()
+        ));
+    }
+    let input_path = &input_files[0];
+    println!("Benchmarking: {}", input_path.display());
+
+    let temp_dir = tempfile::TempDir::new()?;
+    let qc_mode: QCMode = args.qc_mode.clone().into();
+    let remove_margins = !args.keep_margins;
+    let remove_doublets = !args.keep_doublets;
+
+    let base_config = ProcessingConfig {
+        channels: args.channels.clone(),
+        qc_mode,
+        mad: args.mad,
+        it_limit: args.it_limit,
+        consecutive_bins: args.consecutive_bins,
+        remove_zeros: args.remove_zeros,
+        remove_margins,
+        remove_doublets,
+        doublet_nmad: args.doublet_nmad,
+        export_csv: None,
+        export_csv_numeric: None,
+        export_json: None,
+        csv_column_name: args.csv_column_name.clone(),
+        cofactor: args.cofactor,
+        generate_plots: false,
+        plot_dir: None,
+    };
+
+    fn mean_std(times_ms: &[u128]) -> (f64, f64) {
+        if times_ms.is_empty() {
+            return (0.0, 0.0);
+        }
+        let n = times_ms.len() as f64;
+        let mean = times_ms.iter().map(|&t| t as f64).sum::<f64>() / n;
+        let variance = times_ms
+            .iter()
+            .map(|&t| (t as f64 - mean).powi(2))
+            .sum::<f64>()
+            / n;
+        let std = variance.sqrt();
+        (mean, std)
+    }
+
+    // Scenario 1: minimal (no outputs)
+    let mut times_minimal = Vec::with_capacity(BENCHMARK_ITERATIONS);
+    for _ in 0..BENCHMARK_ITERATIONS {
+        let result = process_single_file(input_path, None, &base_config);
+        times_minimal.push(result.processing_time_ms);
+    }
+    let (mean_min, std_min) = mean_std(&times_minimal);
+
+    // Scenario 2: + FCS write
+    let mut times_fcs = Vec::with_capacity(BENCHMARK_ITERATIONS);
+    for _ in 0..BENCHMARK_ITERATIONS {
+        let result = process_single_file(input_path, Some(temp_dir.path()), &base_config);
+        times_fcs.push(result.processing_time_ms);
+    }
+    let (mean_fcs, std_fcs) = mean_std(&times_fcs);
+
+    // Scenario 3: + CSV export (no FCS write)
+    let csv_dir = temp_dir.path().to_path_buf();
+    let config_csv = ProcessingConfig {
+        export_csv: Some(csv_dir.clone()),
+        export_csv_numeric: Some(csv_dir),
+        ..base_config.clone()
+    };
+    let mut times_csv = Vec::with_capacity(BENCHMARK_ITERATIONS);
+    for _ in 0..BENCHMARK_ITERATIONS {
+        let result = process_single_file(input_path, None, &config_csv);
+        times_csv.push(result.processing_time_ms);
+    }
+    let (mean_csv, std_csv) = mean_std(&times_csv);
+
+    // Scenario 4: + plots (create_qc_plots is not inside process_single_file; time it separately)
+    let result_minimal = process_single_file(input_path, None, &base_config);
+    let (fcs_data, qc_result) = match (result_minimal.fcs_data, result_minimal.qc_result) {
+        (Some(fcs), Some(qc)) => (fcs, qc),
+        _ => {
+            return Err(anyhow::anyhow!(
+                "Benchmark minimal run failed or did not return data for plot scenario"
+            ));
+        }
+    };
+    let plot_config = build_plot_config(args);
+    let plot_path = temp_dir.path().join("bench_qc_plot.png");
+    let mut times_plots = Vec::with_capacity(BENCHMARK_ITERATIONS);
+    for _ in 0..BENCHMARK_ITERATIONS {
+        let t0 = std::time::Instant::now();
+        create_qc_plots(&fcs_data, &qc_result, &plot_path, plot_config.clone(), None)
+            .map_err(|e| anyhow::anyhow!("Plot generation failed: {}", e))?;
+        times_plots.push(t0.elapsed().as_millis());
+    }
+    let (mean_plots, std_plots) = mean_std(&times_plots);
+
+    println!("\nScenario          Mean (ms)   Std (ms)");
+    println!("{:18} {:>10.1}   {:>8.1}", "minimal", mean_min, std_min);
+    println!("{:18} {:>10.1}   {:>8.1}", "+ FCS write", mean_fcs, std_fcs);
+    println!("{:18} {:>10.1}   {:>8.1}", "+ CSV export", mean_csv, std_csv);
+    println!("{:18} {:>10.1}   {:>8.1}", "+ plots", mean_plots, std_plots);
+    println!("\nTo measure logging overhead, compare wall time of:");
+    println!("  peacoqc <file> -o out  vs  peacoqc --quiet <file> -o out");
+    Ok(())
+}
+
 fn main() -> Result<()> {
-    // Initialize tracing subscriber with environment filter
-    let filter = tracing_subscriber::EnvFilter::try_from_default_env()
-        .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info"));
+    let args = Cli::parse();
+
+    // Initialize tracing subscriber after parsing so --quiet / --benchmark can disable logging
+    let filter = if args.quiet || args.benchmark {
+        tracing_subscriber::EnvFilter::new("off")
+    } else {
+        tracing_subscriber::EnvFilter::try_from_default_env()
+            .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info"))
+    };
     tracing_subscriber::fmt()
         .with_env_filter(filter)
         .with_target(false)
         .init();
 
-    let args = Cli::parse();
+    if args.benchmark {
+        run_benchmark(&args)?;
+        return Ok(());
+    }
 
     println!("🧬 PeacoQC - Flow Cytometry Quality Control");
     println!("============================================\n");
@@ -668,9 +874,34 @@ fn main() -> Result<()> {
 
     println!("📂 Found {} file(s) to process\n", input_files.len());
 
-    // Create output directory if specified
+    // Ensure all output directories exist and we can create them before running computations
     if let Some(ref output_dir) = args.output {
-        std::fs::create_dir_all(output_dir)?;
+        ensure_output_directory(output_dir, "output")?;
+    }
+    if let Some(ref dir) = args.plot_dir {
+        ensure_output_directory(dir, "plot")?;
+    }
+    if let Some(ref report_path) = args.report {
+        let used_as_dir = report_path.is_dir()
+            || report_path.extension().is_none();
+        if used_as_dir {
+            ensure_output_directory(report_path, "report")?;
+        }
+    }
+    for (path, purpose) in [
+        (args.export_csv.as_ref(), "export CSV"),
+        (args.export_csv_numeric.as_ref(), "export CSV numeric"),
+        (args.export_json.as_ref(), "export JSON"),
+    ] {
+        if let Some(ref p) = path {
+            if p.is_dir() || p.extension().is_none() {
+                ensure_output_directory(p, purpose)?;
+            } else if let Some(parent) = p.parent() {
+                if !parent.as_os_str().is_empty() {
+                    ensure_output_directory(parent, purpose)?;
+                }
+            }
+        }
     }
 
     // Determine cofactors to use
@@ -744,7 +975,7 @@ fn main() -> Result<()> {
         let remove_margins = !args.keep_margins;
         let remove_doublets = !args.keep_doublets;
 
-        let mut processing_config = ProcessingConfig {
+        let processing_config = ProcessingConfig {
             channels: args.channels.clone(),
             qc_mode: qc_mode,
             mad: args.mad,
@@ -801,12 +1032,26 @@ fn main() -> Result<()> {
         println!("   Failed: {}", failed.len());
     }
     println!("   ⏱️  Total time: {:.2}s", total_time);
-    
-    // Report per-file timing for multi-file processing
-    if results.len() > 1 && !successful.is_empty() {
-        let total_processing_ms: u128 = successful.iter().map(|r| r.processing_time_ms).sum();
-        let avg_time_ms = total_processing_ms / successful.len() as u128;
-        println!("   ⏱️  Average time per file: {:.2}s", avg_time_ms as f64 / 1000.0);
+    let n_files = successful.len();
+    if n_files > 0 {
+        let avg_time_per_file = total_time / n_files as f64;
+        println!("   ⏱️  Average time per file: {:.2}s", avg_time_per_file);
+        let total_events: usize = successful.iter().map(|r| r.n_events_after).sum();
+        let total_params: usize = successful.iter().map(|r| r.n_parameters).sum();
+        let total_observations: usize = successful
+            .iter()
+            .map(|r| r.n_events_after * r.n_parameters)
+            .sum();
+        println!("   📊 Average parameters per file: {:.1}", total_params as f64 / n_files as f64);
+        println!("   📊 Average events per file: {:.0}", total_events as f64 / n_files as f64);
+        println!("   📊 Total events: {}", total_events);
+        println!("   📊 Total observations (events × parameters): {}", total_observations);
+        if total_time > 0.0 {
+            println!(
+                "   📊 Throughput: {:.0} observations/s",
+                total_observations as f64 / total_time
+            );
+        }
     }
     println!();
 
@@ -903,56 +1148,11 @@ fn main() -> Result<()> {
         }
     }
 
-    // Handle plot generation
+    // Handle plot generation (use generate_plots and plot_dir already decided earlier in main)
     if successful.is_empty() {
         // No successful files to plot
-    } else {
-        // Determine if plots should be generated
-        let generate_plots = if let Some(plots_flag) = args.plots {
-            plots_flag
-        } else {
-            // Prompt user interactively
-            Confirm::new()
-                .with_prompt("Generate QC plots?")
-                .default(true)
-                .interact()
-                .unwrap_or(false)
-        };
-
-        if generate_plots {
-            // Determine plot directory
-            let plot_dir = if let Some(ref dir) = args.plot_dir {
-                dir.clone()
-            } else {
-                // Prompt for directory with default
-                let default_dir = if successful.len() == 1 {
-                    // Single file: use same directory as input file
-                    successful[0]
-                        .input_path
-                        .parent()
-                        .unwrap_or(Path::new("."))
-                        .to_path_buf()
-                } else {
-                    // Multiple files: use current directory or first file's directory
-                    successful[0]
-                        .input_path
-                        .parent()
-                        .unwrap_or(Path::new("."))
-                        .to_path_buf()
-                };
-
-                let default_str = default_dir.to_string_lossy().to_string();
-                let dir_input: String = Input::new()
-                    .with_prompt(format!("Plot directory (default: {})", default_str))
-                    .default(default_str)
-                    .interact()
-                    .unwrap_or_default();
-
-                PathBuf::from(dir_input)
-            };
-
-            // Create plot directory if it doesn't exist
-            std::fs::create_dir_all(&plot_dir)?;
+    } else if let Some(ref plot_dir) = plot_dir {
+            std::fs::create_dir_all(plot_dir)?;
             println!("\n📊 Generating QC plots...");
 
             // Build plot config from CLI flags
@@ -984,7 +1184,6 @@ fn main() -> Result<()> {
                 }
             }
             println!();
-        }
     }
 
     // Exit with error code if any files failed
