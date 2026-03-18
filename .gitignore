@@ -10,7 +10,7 @@ node_modules/
 /build
 
 # IDE
-# .cursor/
+.cursor/plans
 .vscode/
 
 # OS
@@ -40,6 +40,7 @@ gate_storage.rs
 # Generated test data and comparison output
 tru-ols-cli/synthetic_test_data/
 tru-ols-cli/comparison_output/
+plot_types_output/
 
 # Research papers (large binaries)
 *.pdf
