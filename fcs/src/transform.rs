@@ -98,11 +98,13 @@ impl Transformable for TransformType {
         match self {
             TransformType::Linear => *value,
             TransformType::Arcsinh { cofactor } => {
+                #[cfg(debug_assertions)]
                 eprintln!(
                     "🔧 [INVERSE_TRANSFORM] Arcsinh inverse: value={}, cofactor={}",
                     value, cofactor
                 );
                 let final_result = (*value).sinh() * *cofactor;
+                #[cfg(debug_assertions)]
                 eprintln!(
                     "🔧 [INVERSE_TRANSFORM] final result: {} * {} = {}",
                     value.sinh(),
