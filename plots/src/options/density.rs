@@ -81,6 +81,12 @@ pub struct DensityPlotOptions {
     /// If None, min/max of z_values is used.
     #[builder(default)]
     pub z_range: Option<(f32, f32)>,
+
+    /// When set (e.g. `Some(99.0)`), scale the colormap to this percentile of non-zero bin
+    /// log-densities instead of the global maximum. Prevents a few saturated margin bins from
+    /// dominating the scale so the main population stays visible (typical for FSC/SSC with ADC saturation).
+    #[builder(default)]
+    pub density_normalization_percentile: Option<f32>,
 }
 
 impl Default for DensityPlotOptions {
@@ -98,6 +104,7 @@ impl Default for DensityPlotOptions {
             draw_outliers: false,
             gate_colors: Vec::new(),
             z_range: None,
+            density_normalization_percentile: None,
         }
     }
 }

@@ -396,7 +396,12 @@ pub fn render_spectral_signature(
     let width = base.width;
     let height = base.height;
     let margin = base.margin;
-    let x_label_area_size = base.x_label_area_size;
+    // Reserve enough space for rotated x-axis labels when showing every channel
+    let x_label_area_size = if channel_names.len() > 10 {
+        base.x_label_area_size.max(80)
+    } else {
+        base.x_label_area_size
+    };
     let y_label_area_size = base.y_label_area_size;
 
     // Create RGB buffer
@@ -474,16 +479,25 @@ pub fn render_spectral_signature(
             mesh.x_label_formatter(formatter);
         }
 
-        // Set number of x labels to match number of channels for better readability
+        // Show every channel bin on the x-axis; rotate labels 90° so they fit without overlapping
         let x_label_count = if !channel_names_clone.is_empty() {
-            channel_names_clone.len().min(20) // Show all channels if <= 20, otherwise show 20
+            channel_names_clone.len()
         } else {
             10
         };
 
         mesh.x_labels(x_label_count)
-            .y_labels(10)
-            .draw()
+            .y_labels(10);
+
+        // Rotate x-axis labels 90° when showing all channels (plotters has no 45° option)
+        if x_label_count > 1 {
+            use plotters::style::{FontTransform, TextStyle};
+            let rotated = TextStyle::from(("sans-serif", 12).into_font())
+                .transform(FontTransform::Rotate90);
+            mesh.x_label_style(rotated);
+        }
+
+        mesh.draw()
             .map_err(|e| anyhow::anyhow!("failed to draw mesh: {e}"))?;
 
         // Draw the spectral signature line

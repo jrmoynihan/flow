@@ -550,12 +550,26 @@ fn calculate_density_per_pixel_cpu(
     }
     eprintln!("    ├─ Log transform: {:?}", log_start.elapsed());
 
-    // Find max density for normalization (sequential - faster for typical sizes)
+    // Find max density for normalization (sequential - faster for typical sizes).
+    // Optional percentile cap avoids one saturated margin bin setting the scale (see
+    // `DensityPlotOptions::density_normalization_percentile`).
     let max_start = std::time::Instant::now();
-    let max_density_log = density_map
+    let raw_max_log = density_map
         .values()
         .fold(0.0f32, |max, &val| max.max(val))
         .max(1.0); // Ensure at least 1.0
+    let max_density_log = match options.density_normalization_percentile {
+        Some(p) if p > 0.0 && p <= 100.0 && density_map.len() > 1 => {
+            let mut vals: Vec<f32> = density_map.values().copied().collect();
+            vals.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+            let n = vals.len();
+            let idx = ((n - 1) as f32 * p / 100.0).round() as usize;
+            let idx = idx.min(n - 1);
+            // Cap at percentile so bins above map to max color (colormap clamps normalized > 1).
+            vals[idx].max(1.0)
+        }
+        _ => raw_max_log,
+    };
     eprintln!("    ├─ Find max: {:?}", max_start.elapsed());
 
     // Create ONE pixel per unique screen coordinate (not per data point!)

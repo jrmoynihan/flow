@@ -110,6 +110,31 @@ pub fn calculate_contours(
     })
 }
 
+/// Extract ordered closed contour path(s) from a pre-computed KDE at a single threshold.
+///
+/// Intended for gating: returns polygon(s) in data space (no clipping). Use the path
+/// that encloses the main population (e.g. the one containing the most events).
+///
+/// # Arguments
+/// * `kde` - Pre-computed 2D kernel density estimate (e.g. from `KernelDensity2D::estimate`)
+/// * `threshold_fraction` - Contour level as fraction of max density (e.g. 0.5 for 50%)
+///
+/// # Returns
+/// Zero or more closed contour paths. Each path is ordered and forms a polygon.
+pub fn contour_paths_at_threshold(
+    kde: &KernelDensity2D,
+    threshold_fraction: f64,
+) -> Vec<ContourPath> {
+    let max_density = kde
+        .z
+        .iter()
+        .cloned()
+        .fold(f64::NEG_INFINITY, f64::max)
+        .max(1e-300);
+    let density_threshold = threshold_fraction * max_density;
+    marching_squares_contours(&kde.x, &kde.y, &kde.z, density_threshold)
+}
+
 /// Clamp contour path points to the given axis range and drop degenerate paths.
 ///
 /// Uses simple point-clamping: each point's x is clamped to `[x_min, x_max]` and y to
@@ -303,6 +328,29 @@ fn chain_segments_into_paths(segments: Vec<((f64, f64), (f64, f64))>) -> Vec<Con
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_contour_paths_at_threshold() {
+        // Dense 2D blob -> KDE; contour_paths_at_threshold returns ordered closed path(s).
+        // test_contour_clustered_data already validates that calculate_contours (same KDE + marching
+        // squares) produces non-empty contours for this data; here we check the direct API.
+        let mut data_x = Vec::with_capacity(400);
+        let mut data_y = Vec::with_capacity(400);
+        for xi in 0..20 {
+            for yi in 0..20 {
+                data_x.push(100.0 + xi as f64 * 2.0);
+                data_y.push(100.0 + yi as f64 * 2.0);
+            }
+        }
+        let kde = KernelDensity2D::estimate(&data_x, &data_y, 1.0, 128).unwrap();
+        let paths = contour_paths_at_threshold(&kde, 0.5);
+        assert!(
+            !paths.is_empty(),
+            "dense blob KDE should produce at least one contour path"
+        );
+        // Paths are ordered (x,y) points; gates use paths with len >= 3 for polygon, else ellipse
+        assert!(paths.iter().all(|p| p.len() >= 2), "each path has at least 2 points");
+    }
 
     #[test]
     fn test_contour_empty_data() {
