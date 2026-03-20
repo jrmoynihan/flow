@@ -513,6 +513,16 @@ Most types in this library are thread-safe:
 - `Gate`, `GateGeometry`, `GateNode`: Clone to share between threads
 - `GateHierarchy`: Use synchronization primitives for concurrent access
 
+## Testing
+
+The automated gating tests include an optional integration test that validates the DensityContour scatter gate on a control file that previously yielded "Scatter gate: 0 events passed" when using unordered contour points. To run it when the file is available:
+
+```bash
+cargo test -p flow-gates --test automated_gating -- --ignored
+```
+
+The test expects the file at the path defined in `BEADS_CONTROL_FCS_PATH` in `tests/automated_gating.rs`. Running automated gating (e.g. via tru-ols-cli control cleanup) on that file should report "Scatter gate: N events passed" with N > 0.
+
 ## License
 
 MIT

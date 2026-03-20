@@ -5,7 +5,9 @@
 
 use crate::{Gate, GateError, GateResult, GateStatistics};
 use crate::geometry::{create_ellipse_geometry, create_polygon_geometry};
+use crate::polygon::point_in_polygon;
 use flow_fcs::Fcs;
+use flow_plots::contour::contour_paths_at_threshold;
 use flow_utils::kde::KernelDensity2D;
 use ndarray::Array2;
 use std::sync::Arc;
@@ -232,20 +234,41 @@ fn create_density_contour_gate(
             source: None,
         })?;
     
-    // Find density contour at threshold level
-    let contour_points = kde2d.find_contour(threshold);
-    
-    if contour_points.len() < 3 {
-        // Fall back to ellipse if contour is too simple
+    // Ordered closed contour path(s) via marching squares (flow-plots)
+    let paths = contour_paths_at_threshold(&kde2d, threshold);
+    let valid_paths: Vec<_> = paths.into_iter().filter(|p| p.len() >= 3).collect();
+
+    if valid_paths.is_empty() {
         return create_ellipse_fit_gate(data, config);
     }
-    
-    // Create polygon gate from contour
-    let coords: Vec<(f32, f32)> = contour_points
+
+    // When multiple paths (e.g. disconnected regions), choose the one containing the most events
+    let best_path = if valid_paths.len() == 1 {
+        valid_paths.into_iter().next().unwrap()
+    } else {
+        let polygon_f32 = |path: &[(f64, f64)]| path.iter().map(|(x, y)| (*x as f32, *y as f32)).collect::<Vec<_>>();
+        valid_paths
+            .into_iter()
+            .max_by_key(|path| {
+                let poly = polygon_f32(path);
+                (0..data.nrows())
+                    .filter(|&i| point_in_polygon(data[[i, 0]] as f32, data[[i, 1]] as f32, &poly))
+                    .count()
+            })
+            .unwrap()
+    };
+
+    // Filter out non-finite points (marching squares can produce -inf in edge cases)
+    let coords: Vec<(f32, f32)> = best_path
         .iter()
         .map(|(x, y)| (*x as f32, *y as f32))
+        .filter(|(x, y)| x.is_finite() && y.is_finite())
         .collect();
-    
+
+    if coords.len() < 3 {
+        return create_ellipse_fit_gate(data, config);
+    }
+
     let geometry = create_polygon_geometry(
         coords,
         &config.fsc_channel,
