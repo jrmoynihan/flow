@@ -1,55 +1,63 @@
 [package]
-name = "tru-ols"
-version = "0.1.1"
-edition.workspace = true
-authors.workspace = true
-repository = "https://github.com/jrmoynihan/flow/tru-ols-cli"
-license = "MIT"
-description = "Command-line tool for TRU-OLS flow cytometry unmixing"
-keywords = [
+name="tru-ols"
+version="0.1.1"
+edition.workspace=true
+authors.workspace=true
+repository="https://github.com/jrmoynihan/flow/tru-ols-cli"
+license="MIT"
+description="Command-line tool for TRU-OLS flow cytometry unmixing"
+keywords=[
     "flow-cytometry",
     "unmixing",
     "compensation",
     "bioinformatics",
     "command-line",
 ]
-categories = ["science", "command-line-utilities"]
+categories=["science", "command-line-utilities"]
 
 [[bin]]
-name = "tru-ols"
-path = "src/main.rs"
+name="tru-ols"
+path="src/main.rs"
 
 [[example]]
-name = "generate_synthetic_test_data"
-path = "examples/generate_synthetic_test_data.rs"
+name="generate_synthetic_test_data"
+path="examples/generate_synthetic_test_data.rs"
 
 [dependencies]
-flow-fcs = { path = "../fcs", version = "^0.2.2" }
-flow-tru-ols = { path = "../tru-ols", version = "^0.1.0", features = ["flow-fcs", "plotting"] }
-flow-plots = { path = "../plots", version = "^0.3.1" }
-flow-utils = { path = "../utils", version = "^0.1.1" }
-flow-gates = { path = "../gates", version = "^0.2.2" }
-peacoqc-rs = { path = "../peacoqc-rs", version = "^0.2.4", features = ["flow-fcs"] }
-polars = { workspace = true }
-anyhow = { workspace = true }
-serde = { workspace = true, features = ["derive"] }
-serde_json = { workspace = true }
-clap = { workspace = true }
-indicatif = { workspace = true }
-rayon = { workspace = true }
-tracing = { workspace = true }
-tracing-subscriber = { workspace = true }
-ndarray = { workspace = true }
-faer = { workspace = true }
-faer-ext = { workspace = true }
-csv = { workspace = true }
-rand = { workspace = true }
-rand_distr = { workspace = true }
-plotters = { workspace = true }
-image = { workspace = true }
+flow-fcs={ path="../fcs", version="^0.2.2" }
+flow-tru-ols={ path="../tru-ols", version="^0.1.0", features=[
+    "flow-fcs",
+    "plotting",
+] }
+# Plotters backend until kuva stabilizes (omit default "raster" feature)
+flow-plots={ path="../plots", version="^0.3.1", default-features=false }
+flow-utils={ path="../utils", version="^0.1.1" }
+flow-gates={ path="../gates", version="^0.2.2" }
+peacoqc-rs={ path="../peacoqc-rs", version="^0.2.4", features=[
+    "flow-fcs",
+] }
+polars={ workspace=true }
+anyhow={ workspace=true }
+serde={ workspace=true, features=["derive"] }
+serde_json={ workspace=true }
+clap={ workspace=true }
+indicatif={ workspace=true }
+rayon={ workspace=true }
+tracing={ workspace=true }
+tracing-subscriber={ workspace=true }
+ndarray={ workspace=true }
+faer={ workspace=true }
+faer-ext={ workspace=true }
+csv={ workspace=true }
+rand={ workspace=true }
+rand_distr={ workspace=true }
+plotters={ workspace=true }
+image={ workspace=true }
+inquire="0.9"
+shellexpand="3.1.2"
 
 [package.metadata.scripts]
-test = "cargo test"
-dry-release = "cargo smart-release tru-ols --update-crates-index --no-dependencies"
-publish = "cargo smart-release tru-ols --update-crates-index --no-dependencies --execute"
-changelog = "cargo changelog tru-ols --write"
+test       ="cargo test"
+dry-release="cargo smart-release tru-ols --update-crates-index --no-dependencies"
+publish    ="cargo smart-release tru-ols --update-crates-index --no-dependencies --execute"
+changelog  ="cargo changelog tru-ols --write"

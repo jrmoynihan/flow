@@ -2,22 +2,23 @@
 //!
 //! Creates synthetic single-stain controls and mixed samples with known ground truth
 //! to test unmixing algorithms and diagnostic plots.
+//! Used by examples (e.g. generate_synthetic_test_data, process_compensation_controls).
+
+#![allow(dead_code)]
+#![allow(unused_imports)] // imports used by example-only code paths
 
 use anyhow::{Context, Result};
-use flow_fcs::Transformable;
 use flow_fcs::file::AccessWrapper;
 use flow_fcs::parameter::ParameterMap;
 use flow_fcs::{Fcs, Header, Metadata, Parameter, TransformType, write_fcs_file};
 use flow_plots::colormap::ColorMaps;
-use flow_plots::options::{
-    AxisOptions, BasePlotOptions, DensityPlotOptions, SpectralSignaturePlotOptions,
-};
+use flow_plots::options::{AxisOptions, BasePlotOptions, DensityPlotOptions, SpectralSignaturePlotOptions};
 use flow_plots::render::RenderConfig;
 use flow_plots::{DensityPlot, Plot, SpectralSignaturePlot};
 use flow_plots::{generate_normalized_spectral_signature_plot, generate_signal_heatmap};
 use ndarray::Array2;
 use polars::prelude::*;
-use rand::{Rng, RngExt};
+use rand::RngExt;
 use rand_distr::{Distribution, Normal};
 use std::collections::HashMap;
 use std::fs;
@@ -902,7 +903,7 @@ pub fn generate_test_synthetic_data_with_plots(
 
         println!("Generating synthetic control: {}", signature.name);
 
-        let raw_signals = generate_single_stain_control_with_plots(
+        let _raw_signals = generate_single_stain_control_with_plots(
             signature,
             &detector_names,
             50000, // n_events
@@ -924,7 +925,7 @@ pub fn generate_test_synthetic_data_with_plots(
 
     // Also create an unstained control
     let unstained_path = controls_dir.join("Unstained.fcs");
-    let mut unstained_signature = SpectralSignature {
+    let unstained_signature = SpectralSignature {
         name: "Unstained".to_string(),
         primary_detector: "UV1-A".to_string(),
         detector_signals: HashMap::new(), // No signal, only autofluorescence

@@ -3,12 +3,11 @@
 use anyhow::{Context, Result};
 use clap::Subcommand;
 use faer::Mat;
-use flow_fcs::{EventDataFrame, Fcs};
+use flow_fcs::{EventDataFrame, Fcs, TransformType};
 use flow_gates::automated::{
-    DoubletGateConfig, DoubletMethod, PreprocessingConfig, PreprocessingGates, ScatterGateConfig,
+    DoubletGateConfig, DoubletMethod, PreprocessingConfig, ScatterGateConfig,
     ScatterGateMethod, create_preprocessing_gates,
 };
-use flow_gates::filtering::EventIndex;
 use flow_plots::options::{
     AxisOptions, BasePlotOptions, DensityPlotOptions, SpectralSignaturePlotOptions,
 };
@@ -60,6 +59,7 @@ fn find_most_ambiguous_endmember(control_files: &[(String, PathBuf)]) -> Option<
 }
 
 /// Infer delimiter preference from a chosen fragment and original name.
+/// Used by interactive fragment selection and tests.
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct DelimiterPreference {
     use_space: bool,
@@ -67,6 +67,7 @@ struct DelimiterPreference {
     use_underscore: bool,
 }
 
+#[allow(dead_code)] // used in tests and interactive path
 impl DelimiterPreference {
     fn infer(original: &str, chosen: &str) -> Self {
         if original == chosen {
@@ -239,6 +240,9 @@ fn print_detailed_help() {
     println!("  --auto-gate");
     println!("      Enable automated scatter and doublet gating before processing");
     println!("      Default: false\n");
+    println!("  --debug-control-plots");
+    println!("      Write FSC-A vs SSC-A at each cleanup stage and per-endmember spectral-from-peak plots");
+    println!("      Requires --plot-output-dir when using single-stain controls.\n");
 
     println!("USAGE EXAMPLES");
     println!("--------------\n");
@@ -445,7 +449,15 @@ pub enum Command {
         /// Applies gates to single-stain controls and unstained control
         #[arg(long, default_value_t = true)]
         auto_gate: bool,
+
+        /// Generate debug plots for each control: FSC-A vs SSC-A at each cleanup stage
+        /// (pre-gating, post-margin, post-doublet, post-debris) and per-endmember spectral from peak events.
+        /// Requires --plot-output-dir when using single-stain controls.
+        #[arg(long)]
+        debug_control_plots: bool,
     },
+    /// Interactive step-by-step prompts for unmix options
+    Interactive,
 }
 
 /// Run a command
@@ -455,6 +467,7 @@ pub fn run_command(command: &Command) -> Result<()> {
             print_detailed_help();
             Ok(())
         }
+        Command::Interactive => crate::interactive::run_interactive(),
         Command::Unmix {
             stained,
             unstained,
@@ -482,6 +495,7 @@ pub fn run_command(command: &Command) -> Result<()> {
             af_weight,
             min_negative_events,
             auto_gate,
+            debug_control_plots,
             export_mixing_matrix,
         } => run_unmix_command(
             stained,
@@ -510,12 +524,14 @@ pub fn run_command(command: &Command) -> Result<()> {
             *af_weight,
             *min_negative_events,
             *auto_gate,
+            *debug_control_plots,
             export_mixing_matrix.as_ref(),
         ),
     }
 }
 
-fn run_unmix_command(
+/// Run unmix with the given parameters. Public for use by the interactive subcommand.
+pub(crate) fn run_unmix_command(
     stained_path: &PathBuf,
     unstained_path: Option<&PathBuf>,
     controls_dir: Option<&PathBuf>,
@@ -542,6 +558,7 @@ fn run_unmix_command(
     af_weight: f64,
     min_negative_events: usize,
     auto_gate: bool,
+    debug_control_plots: bool,
     export_mixing_matrix: Option<&PathBuf>,
 ) -> Result<()> {
     // Ensure output directories exist and we can create them before running computations
@@ -594,6 +611,7 @@ fn run_unmix_command(
             af_weight,
             min_negative_events,
             auto_gate,
+            debug_control_plots,
             export_mixing_matrix,
         )
     } else {
@@ -625,6 +643,7 @@ fn run_unmix_command(
             af_weight,
             min_negative_events,
             auto_gate,
+            debug_control_plots,
             export_mixing_matrix,
         )
     }
@@ -641,7 +660,7 @@ fn process_single_stained_file(
     detectors: &[String],
     endmembers: &[String],
     autofluorescence: &str,
-    cutoff_percentile: f64,
+    _cutoff_percentile: f64,
     strategy_str: &str,
     output: Option<&PathBuf>,
     plot: bool,
@@ -658,6 +677,7 @@ fn process_single_stained_file(
     af_weight: f64,
     min_negative_events: usize,
     auto_gate: bool,
+    debug_control_plots: bool,
     export_mixing_matrix: Option<&PathBuf>,
 ) -> Result<()> {
     info!("Loading FCS files...");
@@ -697,7 +717,7 @@ fn process_single_stained_file(
     };
 
     // Auto-detect endmembers and detectors if using single-stain-controls/controls and not provided
-    let (final_detectors, mut final_endmembers) = if let Some(controls_dir) =
+    let (final_detectors, final_endmembers) = if let Some(controls_dir) =
         &single_stain_controls_dir_final
     {
         if detectors.is_empty() || endmembers.is_empty() {
@@ -713,7 +733,6 @@ fn process_single_stained_file(
             };
 
             let mut final_endmembers = if endmembers.is_empty() {
-                info!("Auto-detected endmembers: {}", auto_endmembers.join(", "));
                 auto_endmembers
             } else {
                 endmembers.to_vec()
@@ -757,68 +776,76 @@ fn process_single_stained_file(
     };
 
     // Determine mixing matrix source
-    let (mixing_matrix, detector_names_from_matrix, mut primary_detector_info) = if use_spill {
-        info!("Extracting mixing matrix from SPILL keyword...");
-        let (matrix, detectors) =
-            extract_mixing_matrix_from_spill(&stained_fcs, &final_endmembers)?;
-        // For SPILL matrix, create placeholder primary detector info
-        let mut info = Vec::new();
-        for endmember in &final_endmembers {
-            info.push(PrimaryDetectorInfo {
-                endmember_name: endmember.clone(),
-                is_autofluorescence: endmember == autofluorescence,
-                primary_detector_name: None,
-                primary_detector_pn_name: None,
-                primary_detector_pn_label: None,
-                selected_marker_name: None,
-                selected_fluor_name: None,
-            });
-        }
-        (matrix, detectors, info)
-    } else if let Some(controls_dir) = &single_stain_controls_dir_final {
-        info!("Creating mixing matrix from single-stain controls...");
-        let single_stain_config = SingleStainConfig {
-            peak_detection,
-            peak_threshold,
-            peak_bias,
-            peak_bias_negative,
-            use_negative_events,
-            autofluorescence_mode: autofluorescence_mode.to_string(),
-            af_weight,
-            min_negative_events,
+    let (mixing_matrix, detector_names_from_matrix, primary_detector_info, used_single_stain_controls) =
+        if use_spill {
+            info!("Step 1/2: Extracting mixing matrix from SPILL keyword...");
+            let (matrix, detectors) =
+                extract_mixing_matrix_from_spill(&stained_fcs, &final_endmembers)?;
+            // For SPILL matrix, create placeholder primary detector info
+            let mut info = Vec::new();
+            for endmember in &final_endmembers {
+                info.push(PrimaryDetectorInfo {
+                    endmember_name: endmember.clone(),
+                    is_autofluorescence: endmember == autofluorescence,
+                    primary_detector_name: None,
+                    primary_detector_pn_name: None,
+                    primary_detector_pn_label: None,
+                    selected_marker_name: None,
+                    selected_fluor_name: None,
+                });
+            }
+            (matrix, detectors, info, false)
+        } else if let Some(controls_dir) = &single_stain_controls_dir_final {
+            info!("Step 1/3: Identifying autofluorescence from unstained control");
+            info!("Creating mixing matrix from single-stain controls...");
+            let single_stain_config = SingleStainConfig {
+                peak_detection,
+                peak_threshold,
+                peak_bias,
+                peak_bias_negative,
+                use_negative_events,
+                autofluorescence_mode: autofluorescence_mode.to_string(),
+                af_weight,
+                min_negative_events,
+            };
+            let (matrix, detectors, info, _) = create_mixing_matrix_from_single_stains(
+                controls_dir,
+                &unstained_fcs,
+                &final_detectors,
+                &final_endmembers,
+                &autofluorescence,
+                &single_stain_config,
+                auto_gate,
+                debug_control_plots,
+                if debug_control_plots {
+                    plot_output_dir
+                } else {
+                    None
+                },
+            )?;
+            (matrix, detectors, info, true)
+        } else if let Some(matrix_path) = mixing_matrix_path {
+            info!("Step 1/2: Loading mixing matrix from CSV file...");
+            let matrix = load_mixing_matrix(matrix_path)?;
+            // For CSV matrix, create placeholder primary detector info
+            let mut info = Vec::new();
+            for endmember in &final_endmembers {
+                info.push(PrimaryDetectorInfo {
+                    endmember_name: endmember.clone(),
+                    is_autofluorescence: endmember == autofluorescence,
+                    primary_detector_name: None,
+                    primary_detector_pn_name: None,
+                    primary_detector_pn_label: None,
+                    selected_marker_name: None,
+                    selected_fluor_name: None,
+                });
+            }
+            (matrix, final_detectors.clone(), info, false)
+        } else {
+            return Err(anyhow::anyhow!(
+                "Must provide one of: --mixing-matrix, --use-spill, or --single-stain-controls"
+            ));
         };
-        create_mixing_matrix_from_single_stains(
-            controls_dir,
-            &unstained_fcs,
-            &final_detectors,
-            &final_endmembers,
-            &autofluorescence,
-            &single_stain_config,
-            auto_gate,
-            None, // diagnostic_plot_dir - not available in single-file processing
-        )?
-    } else if let Some(matrix_path) = mixing_matrix_path {
-        info!("Loading mixing matrix from CSV file...");
-        let matrix = load_mixing_matrix(matrix_path)?;
-        // For CSV matrix, create placeholder primary detector info
-        let mut info = Vec::new();
-        for endmember in &final_endmembers {
-            info.push(PrimaryDetectorInfo {
-                endmember_name: endmember.clone(),
-                is_autofluorescence: endmember == autofluorescence,
-                primary_detector_name: None,
-                primary_detector_pn_name: None,
-                primary_detector_pn_label: None,
-                selected_marker_name: None,
-                selected_fluor_name: None,
-            });
-        }
-        (matrix, final_detectors.clone(), info)
-    } else {
-        return Err(anyhow::anyhow!(
-            "Must provide one of: --mixing-matrix, --use-spill, or --single-stain-controls"
-        ));
-    };
 
     // Use detector names from matrix if available, otherwise use provided/auto-detected detectors
     let detector_names: Vec<String> = if !detector_names_from_matrix.is_empty() {
@@ -941,6 +968,11 @@ fn process_single_stained_file(
         filtered_detector_names.iter().map(|s| s.as_str()).collect();
     let endmember_names: Vec<&str> = endmember_names.iter().map(|s| s.as_str()).collect();
 
+    if used_single_stain_controls {
+        info!("Step 3/3: Unmixing stained sample (1 file)");
+    } else {
+        info!("Step 2/2: Unmixing stained sample (1 file)");
+    }
     info!("Running TRU-OLS unmixing...");
 
     // Convert Array2 to faer Mat for tru-ols
@@ -988,12 +1020,13 @@ fn process_single_stained_file(
             generate_ols_comparison_plots(
                 &stained_fcs,
                 &unstained_fcs,
-                &mixing_matrix,
+                &filtered_mixing_matrix,
                 &detector_names_slices,
                 &endmember_names,
                 &unmixed_fcs.data_frame,
                 &plot_dir,
                 plot_format,
+                stained_path.file_name().and_then(|s| s.to_str()),
             )?;
         } else if plot {
             info!("Generating TRU-OLS plots...");
@@ -1037,6 +1070,7 @@ fn process_directory_of_stained_files(
     af_weight: f64,
     min_negative_events: usize,
     auto_gate: bool,
+    debug_control_plots: bool,
     export_mixing_matrix: Option<&PathBuf>,
 ) -> Result<()> {
     use std::fs;
@@ -1064,8 +1098,9 @@ fn process_directory_of_stained_files(
     // Sort files for consistent processing order
     stained_files.sort();
 
-    info!("Found {} FCS files to process", stained_files.len());
+    info!("Found {} FCS files to unmix", stained_files.len());
     info!("Preparing mixing matrix and configuration (this will be reused for all files)...");
+    info!("Loading first FCS and controls to build matrix (this may take a moment)...");
 
     // Determine output directory
     let output_dir = if let Some(output_path) = output {
@@ -1093,28 +1128,51 @@ fn process_directory_of_stained_files(
             .context("Invalid stained file path")?,
     )?;
 
-    let (mixing_matrix, detector_names, endmember_names, unstained_fcs, primary_detector_info) =
-        prepare_mixing_matrix_for_batch(
-            &first_stained_fcs,
-            unstained_path,
-            controls_dir,
-            mixing_matrix_path,
-            use_spill,
-            single_stain_controls_dir,
-            detectors,
-            endmembers,
-            autofluorescence,
-            peak_detection,
-            peak_threshold,
-            peak_bias,
-            peak_bias_negative,
-            use_negative_events,
-            autofluorescence_mode,
-            af_weight,
-            min_negative_events,
-            auto_gate,
-            export_mixing_matrix,
-        )?;
+    // When debug_control_plots is set, use plot_output_dir or default to output_dir/plots
+    let diagnostic_plot_dir: Option<PathBuf> = if debug_control_plots {
+        plot_output_dir.cloned().or_else(|| {
+            output_dir
+                .as_ref()
+                .map(|out_dir| {
+                    let mut p = out_dir.clone();
+                    p.push("plots");
+                    p
+                })
+        })
+    } else {
+        None
+    };
+
+    let (
+        mixing_matrix,
+        detector_names,
+        endmember_names,
+        unstained_fcs,
+        primary_detector_info,
+        used_single_stain_controls,
+    ) = prepare_mixing_matrix_for_batch(
+        &first_stained_fcs,
+        unstained_path,
+        controls_dir,
+        mixing_matrix_path,
+        use_spill,
+        single_stain_controls_dir,
+        detectors,
+        endmembers,
+        autofluorescence,
+        peak_detection,
+        peak_threshold,
+        peak_bias,
+        peak_bias_negative,
+        use_negative_events,
+        autofluorescence_mode,
+        af_weight,
+        min_negative_events,
+        auto_gate,
+        debug_control_plots,
+        diagnostic_plot_dir.as_ref(),
+        export_mixing_matrix,
+    )?;
 
     // Convert strategy string to enum
     let strategy = match strategy_str {
@@ -1122,15 +1180,28 @@ fn process_directory_of_stained_files(
         _ => UnmixingStrategy::Zero,
     };
 
+    let n_stained = stained_files.len();
+    if used_single_stain_controls {
+        info!(
+            "Step 3/3: Unmixing stained samples ({} files)",
+            n_stained
+        );
+    } else {
+        info!(
+            "Step 2/2: Unmixing stained samples ({} files)",
+            n_stained
+        );
+    }
+
     // Process each file using the pre-computed matrix
     let mut success_count = 0;
     let mut error_count = 0;
 
     for (idx, stained_file) in stained_files.iter().enumerate() {
         info!(
-            "\n[{}/{}] Processing: {}",
+            "\nUnmixing stained samples [{}/{}]: {}",
             idx + 1,
-            stained_files.len(),
+            n_stained,
             stained_file.display()
         );
 
@@ -1230,6 +1301,8 @@ fn prepare_mixing_matrix_for_batch(
     af_weight: f64,
     min_negative_events: usize,
     auto_gate: bool,
+    debug_control_plots: bool,
+    diagnostic_plot_dir: Option<&PathBuf>,
     export_mixing_matrix: Option<&PathBuf>,
 ) -> Result<(
     Array2<f64>,
@@ -1237,6 +1310,7 @@ fn prepare_mixing_matrix_for_batch(
     Vec<String>,
     Fcs,
     Vec<PrimaryDetectorInfo>,
+    bool, // used_single_stain_controls: true => 3-step flow, false => 2-step flow
 )> {
     // Determine unstained control path
     let unstained_path_final = if let Some(path) = unstained_path {
@@ -1270,7 +1344,7 @@ fn prepare_mixing_matrix_for_batch(
     };
 
     // Auto-detect endmembers and detectors if needed
-    let (final_detectors, mut final_endmembers) = if let Some(controls_dir) =
+    let (final_detectors, final_endmembers) = if let Some(controls_dir) =
         &single_stain_controls_dir_final
     {
         if detectors.is_empty() || endmembers.is_empty() {
@@ -1291,7 +1365,6 @@ fn prepare_mixing_matrix_for_batch(
             };
 
             let mut final_endmembers = if endmembers.is_empty() {
-                info!("Auto-detected endmembers: {}", auto_endmembers.join(", "));
                 auto_endmembers
             } else {
                 endmembers.to_vec()
@@ -1334,9 +1407,11 @@ fn prepare_mixing_matrix_for_batch(
     };
 
     // Determine mixing matrix source
-    let (mixing_matrix, detector_names_from_matrix, primary_detector_info) = if use_spill {
-        info!("Extracting mixing matrix from SPILL keyword...");
-        let (matrix, detectors) = extract_mixing_matrix_from_spill(sample_fcs, &final_endmembers)?;
+    let (mixing_matrix, detector_names_from_matrix, primary_detector_info, used_single_stain_controls) =
+        if use_spill {
+            info!("Step 1/2: Extracting mixing matrix from SPILL keyword...");
+            let (matrix, detectors) =
+                extract_mixing_matrix_from_spill(sample_fcs, &final_endmembers)?;
         // For SPILL matrix, create placeholder primary detector info
         let mut info = Vec::new();
         for endmember in &final_endmembers {
@@ -1350,8 +1425,9 @@ fn prepare_mixing_matrix_for_batch(
                 selected_fluor_name: None,
             });
         }
-        (matrix, detectors, info)
+        (matrix, detectors, info, false)
     } else if let Some(controls_dir) = &single_stain_controls_dir_final {
+        info!("Step 1/3: Identifying autofluorescence from unstained control");
         info!("Creating mixing matrix from single-stain controls...");
         let single_stain_config = SingleStainConfig {
             peak_detection,
@@ -1363,7 +1439,7 @@ fn prepare_mixing_matrix_for_batch(
             af_weight,
             min_negative_events,
         };
-        create_mixing_matrix_from_single_stains(
+        let (matrix, detectors, info, _) = create_mixing_matrix_from_single_stains(
             controls_dir,
             &unstained_fcs,
             &final_detectors,
@@ -1371,10 +1447,16 @@ fn prepare_mixing_matrix_for_batch(
             &autofluorescence,
             &single_stain_config,
             auto_gate,
-            None, // diagnostic_plot_dir - not available in single-file processing
-        )?
+            debug_control_plots,
+            if debug_control_plots {
+                diagnostic_plot_dir
+            } else {
+                None
+            },
+        )?;
+        (matrix, detectors, info, true)
     } else if let Some(matrix_path) = mixing_matrix_path {
-        info!("Loading mixing matrix from CSV file...");
+        info!("Step 1/2: Loading mixing matrix from CSV file...");
         let matrix = load_mixing_matrix(matrix_path)?;
         // For CSV matrix, create placeholder primary detector info
         let mut info = Vec::new();
@@ -1389,7 +1471,7 @@ fn prepare_mixing_matrix_for_batch(
                 selected_fluor_name: None,
             });
         }
-        (matrix, final_detectors.clone(), info)
+        (matrix, final_detectors.clone(), info, false)
     } else {
         return Err(anyhow::anyhow!(
             "Must provide --mixing-matrix, --use-spill, or --single-stain-controls/--controls"
@@ -1449,6 +1531,7 @@ fn prepare_mixing_matrix_for_batch(
         final_endmembers,
         unstained_fcs,
         primary_detector_info,
+        used_single_stain_controls,
     ))
 }
 
@@ -1462,7 +1545,7 @@ fn process_stained_file_with_matrix(
     unstained_fcs: &Fcs,
     primary_detector_info: &[PrimaryDetectorInfo],
     autofluorescence: &str,
-    cutoff_percentile: f64,
+    _cutoff_percentile: f64,
     strategy: &UnmixingStrategy,
     output: Option<&PathBuf>,
     plot: bool,
@@ -1595,12 +1678,13 @@ fn process_stained_file_with_matrix(
             generate_ols_comparison_plots(
                 &stained_fcs,
                 unstained_fcs,
-                mixing_matrix,
+                &filtered_mixing_matrix,
                 &detector_names_str,
                 &endmember_names_str,
                 &unmixed_fcs.data_frame,
                 &plot_dir,
                 plot_format,
+                stained_path.file_name().and_then(|s| s.to_str()),
             )?;
         } else {
             // Generate TRU-OLS plots only
@@ -1758,6 +1842,95 @@ fn find_unstained_control(controls_dir: &PathBuf) -> Result<PathBuf> {
     Ok(unstained_candidates[0].clone())
 }
 
+/// Strip "Reference Group_<well> " and optional " (Beads)_*" from a control stem so
+/// marker names that contain underscores (e.g. CD14_CD19_dump) are not broken by
+/// taking only the last underscore-segment.
+fn control_stem_to_content(stem: &str) -> &str {
+    let before_beads = stem
+        .split(" (Beads)_")
+        .next()
+        .unwrap_or(stem)
+        .trim();
+    let after_ref = before_beads
+        .strip_prefix("Reference Group_")
+        .or_else(|| before_beads.strip_prefix("Reference group_"))
+        .unwrap_or(before_beads);
+    let rest = if let Some(space_pos) = after_ref.find(' ') {
+        let after_space = after_ref[space_pos + 1..].trim();
+        if !after_space.is_empty() {
+            after_space
+        } else {
+            after_ref
+        }
+    } else {
+        after_ref
+    };
+    if rest.is_empty() {
+        before_beads
+    } else {
+        rest
+    }
+}
+
+/// Extract marker and fluor from a control FCS (using $PnS when useful, else filename).
+/// Returns (marker_name, fluor_name) for use in short log labels.
+fn extract_marker_and_fluor_from_control(
+    control_fcs: &Fcs,
+    detector_names: &[String],
+    control_filename: &str,
+    endmember_name: &str,
+) -> (String, String) {
+    use std::sync::Arc;
+
+    for det_name in detector_names.iter() {
+        if let Some(param) = control_fcs.parameters.get(&Arc::from(det_name.as_str())) {
+            if !param.label_name.is_empty() {
+                let pns_label = param.label_name.to_string();
+                if !is_detector_channel_name(&pns_label) {
+                    let (m, f) = extract_marker_and_fluor_from_text(&pns_label);
+                    if !m.is_empty() && !f.is_empty() {
+                        info!(
+                            "Using $PnS label '{}' from detector {} for marker/fluor extraction",
+                            pns_label, det_name
+                        );
+                        return (m, f);
+                    }
+                }
+            }
+        }
+    }
+
+    info!("No useful $PnS labels found, using filename extraction");
+    let text_to_parse = if control_filename.contains('(') {
+        control_stem_to_content(control_filename)
+    } else {
+        control_filename
+    };
+    let (mut marker, mut fluor) = extract_marker_and_fluor_from_text(text_to_parse);
+
+    if marker.is_empty() {
+        marker = endmember_name.to_string();
+    }
+    if fluor.is_empty() {
+        fluor = marker.clone();
+    }
+    (marker, fluor)
+}
+
+/// Derive a short display label from a control file stem (e.g. "CD45 Spark UV 387" from
+/// "Reference Group_A2 CD45 Spark UV 387 (Beads)_2026_03_05_11_55_59"). Uses marker/fluor
+/// extraction heuristics; falls back to the full stem if parsing fails.
+fn short_label_from_control_stem(stem: &str) -> String {
+    let content = control_stem_to_content(stem);
+    let (marker, fluor) = extract_marker_and_fluor_from_text(content);
+    let label = format!("{} {}", marker, fluor).trim().to_string();
+    if label.is_empty() {
+        stem.to_string()
+    } else {
+        label
+    }
+}
+
 /// Auto-detect detectors and endmembers from single-stain control files
 ///
 /// Returns (detectors, endmembers) where:
@@ -1831,17 +2004,23 @@ fn auto_detect_from_single_stains(
     // Sort endmembers for consistent ordering
     endmembers.sort();
 
+    let short_labels: Vec<String> = endmembers
+        .iter()
+        .map(|s| short_label_from_control_stem(s))
+        .collect();
     info!(
         "Auto-detected {} detectors and {} endmembers from single-stain controls",
         detectors.len(),
         endmembers.len()
     );
+    info!("Auto-detected endmembers: {}", short_labels.join(", "));
 
     Ok((detectors, endmembers))
 }
 
 /// Split a candidate name into fragments using common delimiters and
 /// return a list of unique candidate fragments (including the full name).
+#[allow(dead_code)] // used in tests and by extract_fluor_candidates
 fn candidate_fragments(name: &str) -> Vec<String> {
     let mut parts: Vec<String> = Vec::new();
     let full = name.trim().to_string();
@@ -1874,6 +2053,7 @@ fn candidate_fragments(name: &str) -> Vec<String> {
 
 /// Extract fluor/dye name candidates from a filename or label
 /// This is specialized for fluorophore naming patterns and keeps multi-word names together
+#[allow(dead_code)] // used by choose_fragment_interactive and examples
 fn extract_fluor_candidates(filename: &str, pn_label: Option<&str>) -> Vec<String> {
     let mut candidates: Vec<String> = Vec::new();
 
@@ -2060,6 +2240,7 @@ fn extract_marker_and_fluor_from_text(text: &str) -> (String, String) {
 }
 
 /// Check if a string looks like a fluorophore/dye name
+#[allow(dead_code)] // used by extract_fluor_candidates
 fn is_likely_fluor_name(s: &str) -> bool {
     let s_trim = s.trim();
 
@@ -2087,6 +2268,7 @@ fn is_likely_fluor_name(s: &str) -> bool {
 
 /// If multiple candidate fragments exist, prompt the user to choose one.
 /// Returns the selected fragment and inferred delimiter preference.
+#[allow(dead_code)] // used when interactive marker selection is enabled
 fn choose_fragment_interactive(
     control_path: &PathBuf,
     candidates: &[String],
@@ -2134,13 +2316,26 @@ fn choose_fragment_interactive(
     (choice, pref)
 }
 
+/// Per-endmember data used to resolve shared-primary conflicts (swap to second-highest peak).
+#[derive(Clone)]
+/// Per-endmember data used to resolve shared primary detector conflicts (e.g. swap to second-highest peak).
+#[allow(dead_code)]
+pub struct EndmemberConflictData {
+    pub corrected_medians: Vec<f32>,
+    pub primary_idx: usize,
+    pub second_idx: usize,
+    pub alternate_primary_info: PrimaryDetectorInfo,
+}
+
 /// Metadata about primary detector for an endmember
 /// Used to generate unmixed output channel names and labels
 #[derive(Debug, Clone)]
 pub struct PrimaryDetectorInfo {
     /// Name of the endmember
+    #[allow(dead_code)] // populated for API/export; not yet read in CLI
     pub endmember_name: String,
     /// Is this the autofluorescence endmember (no primary detector)
+    #[allow(dead_code)]
     pub is_autofluorescence: bool,
     /// Name of the primary detector (e.g., "UV1"), None for autofluorescence
     pub primary_detector_name: Option<String>,
@@ -2193,6 +2388,82 @@ impl Default for SingleStainConfig {
     }
 }
 
+/// Build map: detector name -> list of endmember names that have it as primary.
+fn detector_to_endmembers(
+    primary_detector_info: &[PrimaryDetectorInfo],
+    endmember_names: &[String],
+) -> std::collections::HashMap<String, Vec<String>> {
+    let mut map: std::collections::HashMap<String, Vec<String>> =
+        std::collections::HashMap::new();
+    for (idx, info) in primary_detector_info.iter().enumerate() {
+        if let Some(ref det) = info.primary_detector_name {
+            map.entry(det.clone())
+                .or_default()
+                .push(endmember_names[idx].clone());
+        }
+    }
+    map
+}
+
+/// Swap one endmember in a conflict group to its second-highest peak. Returns true if a swap was done.
+fn apply_one_swap(
+    mixing_matrix: &mut Array2<f64>,
+    primary_detector_info: &mut [PrimaryDetectorInfo],
+    conflict_data: &mut [Option<EndmemberConflictData>],
+    detector_to_endmembers: &std::collections::HashMap<String, Vec<String>>,
+    endmember_names: &[String],
+) -> bool {
+    for (detector, endmembers) in detector_to_endmembers.iter() {
+        if endmembers.len() <= 1 {
+            continue;
+        }
+        // Find endmember indices and their (primary_median, second_median) from conflict_data
+        let mut candidates: Vec<(usize, f32, f32)> = Vec::new();
+        for endmember_name in endmembers {
+            let idx = match endmember_names.iter().position(|n| n == endmember_name) {
+                Some(i) => i,
+                None => continue,
+            };
+            let data = match conflict_data.get(idx).and_then(|o| o.as_ref()) {
+                Some(d) => d,
+                None => continue,
+            };
+            let primary_median = data.corrected_medians[data.primary_idx];
+            let second_median = data.corrected_medians[data.second_idx];
+            if second_median <= 0.0 {
+                continue;
+            }
+            candidates.push((idx, primary_median, second_median));
+        }
+        if candidates.is_empty() {
+            continue;
+        }
+        // Swap the one with smallest gap (second peak closest to first = most ambiguous)
+        let (swap_idx, _primary_m, _second_median) = candidates
+            .iter()
+            .min_by(|(_, a1, a2), (_, b1, b2)| {
+                let gap_a = a1 - a2;
+                let gap_b = b1 - b2;
+                gap_a.partial_cmp(&gap_b).unwrap_or(std::cmp::Ordering::Equal)
+            })
+            .copied()
+            .unwrap();
+        let data = conflict_data[swap_idx].take().unwrap();
+        let norm = data.corrected_medians[data.second_idx].max(1e-10);
+        for (detector_idx, &val) in data.corrected_medians.iter().enumerate() {
+            mixing_matrix[(detector_idx, swap_idx)] = (val / norm) as f64;
+        }
+        primary_detector_info[swap_idx] = data.alternate_primary_info;
+        info!(
+            "Resolved shared primary '{}': swapped endmember '{}' to second-highest peak",
+            detector,
+            endmember_names[swap_idx]
+        );
+        return true;
+    }
+    false
+}
+
 /// Create mixing matrix from single-stain control FCS files
 /// Each control file should contain events stained with one fluorophore
 /// Returns (mixing_matrix, detector_names, primary_detector_info)
@@ -2209,8 +2480,9 @@ pub fn create_mixing_matrix_from_single_stains(
     autofluorescence_name: &str,
     config: &SingleStainConfig,
     auto_gate: bool,
+    debug_control_plots: bool,
     diagnostic_plot_dir: Option<&PathBuf>,
-) -> Result<(Array2<f64>, Vec<String>, Vec<PrimaryDetectorInfo>)> {
+) -> Result<(Array2<f64>, Vec<String>, Vec<PrimaryDetectorInfo>, Vec<Option<EndmemberConflictData>>)> {
     use std::fs;
 
     info!(
@@ -2261,7 +2533,7 @@ pub fn create_mixing_matrix_from_single_stains(
     info!("Found {} single-stain control files", control_files.len());
 
     // Detect the most ambiguous file (most delimiters) for interactive marker selection
-    let mut delimiter_preference = DelimiterPreference {
+    let _delimiter_preference = DelimiterPreference {
         use_space: true,
         use_hyphen: true,
         use_underscore: true,
@@ -2308,6 +2580,8 @@ pub fn create_mixing_matrix_from_single_stains(
     let mut autofluorescence_idx: Option<usize> = None;
     // Initialize primary_detector_info with None values, to be filled in by endmember index
     let mut primary_detector_info: Vec<Option<PrimaryDetectorInfo>> = vec![None; n_endmembers];
+    // Per-endmember data for resolving shared-primary conflicts (second-highest peak swap).
+    let mut conflict_data: Vec<Option<EndmemberConflictData>> = vec![None; n_endmembers];
     // Track the primary detectors used (for filtering returned detector list)
     let mut primary_detectors_used: Vec<(usize, String)> = Vec::new();
 
@@ -2343,6 +2617,12 @@ pub fn create_mixing_matrix_from_single_stains(
     }
     let autofluorescence_idx = autofluorescence_idx.unwrap();
 
+    let n_controls = fluorophore_endmembers.len();
+    info!(
+        "Step 2/3: Extracting fluor spectra from single-stain controls ({} controls)",
+        n_controls
+    );
+
     // Process fluorophore endmembers (skip autofluorescence)
     for (control_file_idx, (endmember_idx, endmember_name)) in
         fluorophore_endmembers.iter().enumerate()
@@ -2359,10 +2639,15 @@ pub fn create_mixing_matrix_from_single_stains(
                 )
             })?;
 
+        let control_filename_only = control_path
+            .file_name()
+            .map(|s| s.to_string_lossy())
+            .unwrap_or_else(|| endmember_name.into());
         info!(
-            "Processing single-stain control: {} -> {}",
-            endmember_name,
-            control_path.display()
+            "Control {}/{}: {}",
+            control_file_idx + 1,
+            n_controls,
+            control_filename_only
         );
         info!("  auto_gate enabled: {}", auto_gate);
 
@@ -2370,10 +2655,43 @@ pub fn create_mixing_matrix_from_single_stains(
         let control_fcs_before_gating =
             Fcs::open(control_path.to_str().context("Invalid control file path")?)?;
 
+        let control_filename = control_path
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or(endmember_name);
+
+        // Extract marker and fluor early so we can use a short label in logs (e.g. "CD45 Spark UV 387")
+        let (marker_name, fluor_name) = extract_marker_and_fluor_from_control(
+            &control_fcs_before_gating,
+            detector_names,
+            control_filename,
+            endmember_name,
+        );
+        let control_short_label = {
+            let s = format!("{} {}", marker_name, fluor_name).trim().to_string();
+            if s.is_empty() {
+                endmember_name.to_string()
+            } else {
+                s
+            }
+        };
+
+        // When generating debug control plots we need intermediate stages; otherwise use normal path
+        let stages_for_plot: Option<(Fcs, Fcs, Fcs)> =
+            if auto_gate && debug_control_plots && diagnostic_plot_dir.is_some() {
+                Some(clean_fcs_data_with_stages(&control_fcs_before_gating)?)
+            } else {
+                None
+            };
+
         // Apply automated gating if enabled
         let control_fcs = if auto_gate {
-            info!("Applying automated gating to {} control...", endmember_name);
-            apply_automated_gating(&control_fcs_before_gating)?
+            info!("Applying automated gating to {} control...", control_short_label);
+            if let Some((_post_margin, _post_doublet, post_debris)) = &stages_for_plot {
+                apply_preprocessing_gates_to_cleaned(&post_debris)?
+            } else {
+                apply_automated_gating(&control_fcs_before_gating)?
+            }
         } else {
             control_fcs_before_gating.clone()
         };
@@ -2441,86 +2759,16 @@ pub fn create_mixing_matrix_from_single_stains(
         let mut medians: Vec<f32> = Vec::new();
         let mut mads: Vec<f32> = Vec::new(); // Median Absolute Deviation
 
-        // DIAGNOSTIC: Track expected detector for this control
-        // Try to extract marker and fluor names intelligently:
-        // 1. First try using $PnS (parameter label) from control file if available and useful
-        // 2. Fall back to filename parsing if $PnS is unhelpful (e.g., "B1-A" detector codes)
-
-        // Get filename for fallback
-        let control_filename = control_path
-            .file_stem()
+        let control_display = control_path
+            .file_name()
             .and_then(|s| s.to_str())
             .unwrap_or(endmember_name);
-
-        // Extract marker and fluor names BEFORE processing detectors
-        // We need to check all detectors' $PnS labels to find one that's useful
-        // Strategy: Try each detector's $PnS, use the first one that's not a detector code
-        let (marker_name, fluor_name) = {
-            let mut marker = String::new();
-            let mut fluor = String::new();
-            let mut found_useful_pns = false;
-
-            // Try to extract from $PnS labels of control file
-            use std::sync::Arc;
-            for det_name in detector_names.iter() {
-                if let Some(param) = control_fcs.parameters.get(&Arc::from(det_name.as_str())) {
-                    if !param.label_name.is_empty() {
-                        let pns_label = param.label_name.to_string();
-
-                        // Check if this looks like a useful label (not just a detector code like "B1-A")
-                        if !is_detector_channel_name(&pns_label) {
-                            // Try to extract marker and fluor from this label
-                            let (m, f) = extract_marker_and_fluor_from_text(&pns_label);
-                            if !m.is_empty() && !f.is_empty() {
-                                marker = m;
-                                fluor = f;
-                                found_useful_pns = true;
-                                info!(
-                                    "Using $PnS label '{}' from detector {} for marker/fluor extraction",
-                                    pns_label, det_name
-                                );
-                                break;
-                            }
-                        }
-                    }
-                }
-            }
-
-            // Fallback to filename if no useful $PnS found
-            if !found_useful_pns {
-                info!("No useful $PnS labels found, using filename extraction");
-                let text_to_parse = if let Some(paren_start) = control_filename.find('(') {
-                    let before_paren = control_filename[..paren_start].trim();
-                    let sections: Vec<&str> = before_paren.split('_').collect();
-                    if sections.len() >= 2 {
-                        sections[sections.len() - 1].trim()
-                    } else {
-                        before_paren
-                    }
-                } else {
-                    control_filename
-                };
-
-                let (m, f) = extract_marker_and_fluor_from_text(text_to_parse);
-                marker = m;
-                fluor = f;
-            }
-
-            // Final fallback if extraction failed
-            if marker.is_empty() {
-                marker = endmember_name.to_string();
-            }
-            if fluor.is_empty() {
-                fluor = marker.clone();
-            }
-
-            (marker, fluor)
-        };
-
+        info!("");
         info!(
-            "=== Analyzing control: {} (marker: {}, fluor: {}) ===",
-            endmember_name, marker_name, fluor_name
+            "========== Analyzing control: {} (marker: {}, fluor: {}) ==========",
+            control_display, marker_name, fluor_name
         );
+        info!("");
 
         for detector_name in detector_names.iter() {
             let values = control_fcs
@@ -2561,7 +2809,7 @@ pub fn create_mixing_matrix_from_single_stains(
                             ((peak_median - simple_median).abs() / simple_median.max(1.0)) * 100.0;
                         info!(
                             "Peak-based median for {} in {}: {:.2} (simple: {:.2}, diff: {:.1}%)",
-                            detector_name, endmember_name, peak_median, simple_median, diff_percent
+                            detector_name, control_short_label, peak_median, simple_median, diff_percent
                         );
                         peak_median
                     }
@@ -2569,7 +2817,7 @@ pub fn create_mixing_matrix_from_single_stains(
                         // Fallback to simple median if peak detection fails
                         warn!(
                             "Peak detection failed for {} in {}, falling back to simple median",
-                            detector_name, endmember_name
+                            detector_name, control_short_label
                         );
                         calculate_simple_median(values)
                     }
@@ -2754,6 +3002,47 @@ pub fn create_mixing_matrix_from_single_stains(
             },
         });
 
+        // Store conflict-resolution data: second-highest peak for shared-primary swap
+        if sorted_corrected.len() >= 2 {
+            let second_idx = sorted_corrected[1].0;
+            let second_detector_name = detector_names[second_idx].clone();
+            let mut alt_pn: Option<String> = None;
+            let mut alt_label: Option<String> = None;
+            {
+                use std::sync::Arc;
+                if let Some(param) = control_fcs
+                    .parameters
+                    .get(&Arc::from(second_detector_name.as_str()))
+                {
+                    if !param.channel_name.is_empty() {
+                        alt_pn = Some(param.channel_name.to_string());
+                    }
+                    if !param.label_name.is_empty() {
+                        alt_label = Some(param.label_name.to_string());
+                    }
+                }
+            }
+            let alternate_primary_info = PrimaryDetectorInfo {
+                endmember_name: endmember_name.clone(),
+                is_autofluorescence: false,
+                primary_detector_name: Some(second_detector_name.clone()),
+                primary_detector_pn_name: alt_pn,
+                primary_detector_pn_label: alt_label.clone(),
+                selected_marker_name: Some(marker_name.clone()),
+                selected_fluor_name: if fluor_name.is_empty() {
+                    alt_label
+                } else {
+                    Some(fluor_name.clone())
+                },
+            };
+            conflict_data[*endmember_idx] = Some(EndmemberConflictData {
+                corrected_medians: corrected_medians.clone(),
+                primary_idx,
+                second_idx,
+                alternate_primary_info,
+            });
+        }
+
         // Normalize by primary detector to create spectral signature
         // This creates the mixing matrix column for this endmember
         for (detector_idx, corrected_median) in corrected_medians.iter().enumerate() {
@@ -2819,27 +3108,46 @@ pub fn create_mixing_matrix_from_single_stains(
         }
         // #endregion
 
-        // Generate diagnostic plots if requested
+        // Generate diagnostic or debug control plots if requested
         if let Some(plot_dir) = diagnostic_plot_dir {
-            // Extract normalized signature for plotting
-            let normalized_signature: Vec<f64> = corrected_medians
-                .iter()
-                .map(|&val| (val / primary_median) as f64)
-                .collect();
+            if debug_control_plots {
+                if let Err(e) = generate_control_cleanup_debug_plots(
+                    &control_fcs_before_gating,
+                    stages_for_plot.as_ref(),
+                    &control_fcs,
+                    endmember_name,
+                    detector_names,
+                    primary_idx,
+                    config,
+                    plot_dir,
+                    "jpg",
+                ) {
+                    warn!(
+                        "Failed to generate debug control plots for {}: {}",
+                        endmember_name, e
+                    );
+                }
+            } else {
+                // Extract normalized signature for plotting
+                let normalized_signature: Vec<f64> = corrected_medians
+                    .iter()
+                    .map(|&val| (val / primary_median) as f64)
+                    .collect();
 
-            if let Err(e) = generate_control_diagnostic_plots(
-                &control_fcs_before_gating,
-                &control_fcs,
-                endmember_name,
-                detector_names,
-                &normalized_signature,
-                plot_dir,
-                "jpg", // Default format
-            ) {
-                warn!(
-                    "Failed to generate diagnostic plots for {}: {}",
-                    endmember_name, e
-                );
+                if let Err(e) = generate_control_diagnostic_plots(
+                    &control_fcs_before_gating,
+                    &control_fcs,
+                    endmember_name,
+                    detector_names,
+                    &normalized_signature,
+                    plot_dir,
+                    "jpg", // Default format
+                ) {
+                    warn!(
+                        "Failed to generate diagnostic plots for {}: {}",
+                        endmember_name, e
+                    );
+                }
             }
         }
 
@@ -3089,12 +3397,12 @@ pub fn create_mixing_matrix_from_single_stains(
 
     // DIAGNOSTIC: Report primary detector assignments
     info!("Primary detector assignments:");
-    let mut detector_to_endmembers: std::collections::HashMap<String, Vec<String>> =
+    let mut primary_assignments: std::collections::HashMap<String, Vec<String>> =
         std::collections::HashMap::new();
     for (endmember_idx, endmember_name) in endmember_names.iter().enumerate() {
         if let Some(Some(info)) = primary_detector_info.get(endmember_idx) {
             if let Some(ref primary_det) = info.primary_detector_name {
-                detector_to_endmembers
+                primary_assignments
                     .entry(primary_det.clone())
                     .or_insert_with(Vec::new)
                     .push(endmember_name.clone());
@@ -3107,7 +3415,7 @@ pub fn create_mixing_matrix_from_single_stains(
     }
 
     // Warn about shared primary detectors
-    for (detector, endmembers) in detector_to_endmembers.iter() {
+    for (detector, endmembers) in primary_assignments.iter() {
         if endmembers.len() > 1 {
             warn!(
                 "⚠️  {} endmembers share primary detector '{}' - may indicate weak control signals or cross-reactivity:",
@@ -3132,7 +3440,7 @@ pub fn create_mixing_matrix_from_single_stains(
     });
 
     // Convert Option<PrimaryDetectorInfo> to PrimaryDetectorInfo (all should be Some now)
-    let primary_detector_info: Vec<PrimaryDetectorInfo> = primary_detector_info
+    let mut primary_detector_info: Vec<PrimaryDetectorInfo> = primary_detector_info
         .into_iter()
         .map(|opt| {
             opt.unwrap_or_else(|| {
@@ -3141,12 +3449,65 @@ pub fn create_mixing_matrix_from_single_stains(
         })
         .collect();
 
-    // Return full mixing matrix and all detector names
-    // Filtering by stained-file detectors happens during file processing
+    let mut mixing_matrix = mixing_matrix;
+    let mut conflict_data = conflict_data;
+
+    // Resolve shared primary detector: retry with peak bias disabled, then swap to second-highest peak
+    let mut dt = detector_to_endmembers(&primary_detector_info, endmember_names);
+    if dt.iter().any(|(_, v)| v.len() > 1)
+        && config.peak_detection
+        && config.peak_bias < 1.0 - 1e-9
+    {
+        info!("Retrying with peak bias disabled to resolve shared primary detector...");
+        let no_bias_config = SingleStainConfig {
+            peak_bias: 1.0,
+            peak_bias_negative: 1.0,
+            ..config.clone()
+        };
+        match create_mixing_matrix_from_single_stains(
+            controls_dir,
+            unstained_fcs,
+            detector_names,
+            endmember_names,
+            autofluorescence_name,
+            &no_bias_config,
+            auto_gate,
+            debug_control_plots,
+            diagnostic_plot_dir,
+        ) {
+            Ok((m2, d2, i2, cd2)) => {
+                let dt2 = detector_to_endmembers(&i2, endmember_names);
+                if !dt2.iter().any(|(_, v)| v.len() > 1) {
+                    return Ok((m2, d2, i2, cd2));
+                }
+                mixing_matrix = m2;
+                primary_detector_info = i2;
+                conflict_data = cd2;
+                dt = dt2;
+            }
+            Err(e) => return Err(e),
+        }
+    }
+
+    while dt.iter().any(|(_, v)| v.len() > 1) {
+        if !apply_one_swap(
+            &mut mixing_matrix,
+            &mut primary_detector_info,
+            &mut conflict_data,
+            &dt,
+            endmember_names,
+        ) {
+            break;
+        }
+        dt = detector_to_endmembers(&primary_detector_info, endmember_names);
+    }
+
+    // Return full mixing matrix, detector names, primary info, and conflict data (for diagnostics)
     Ok((
         mixing_matrix,
         detector_names.to_vec(),
         primary_detector_info,
+        conflict_data,
     ))
 }
 
@@ -3214,8 +3575,6 @@ fn extract_negative_event_autofluorescence(
     endmember_name: &str,
     config: &SingleStainConfig,
 ) -> Result<Option<Vec<f32>>> {
-    use std::collections::HashSet;
-
     // Find the primary detector (highest signal detector) to identify negative events
     // We'll use peak detection on the primary detector to find the negative peak
     let mut primary_detector_idx = 0;
@@ -3531,21 +3890,35 @@ fn generate_tru_ols_plots(
     use flow_plots::{DensityPlot, DensityPlotOptions};
     use flow_tru_ols::plot_abundance_distribution;
 
+    // TRU-OLS unmixed FCS uses column names like "Unmixed_<marker>", not full control filenames
+    let unmixed_col_names: Vec<String> = unmixed_df
+        .get_column_names()
+        .into_iter()
+        .filter(|s| s.starts_with("Unmixed_"))
+        .map(|s| s.to_string())
+        .collect();
+
+    if unmixed_col_names.len() != endmember_names.len() {
+        anyhow::bail!(
+            "TRU-OLS unmixed columns ({}) don't match endmember count ({}); cannot generate plots",
+            unmixed_col_names.len(),
+            endmember_names.len()
+        );
+    }
+
     // Convert DataFrame to Array2 for plotting
     let n_events = unmixed_df.height();
     let n_endmembers = endmember_names.len();
     let mut unmixed_array = Array2::<f64>::zeros((n_events, n_endmembers));
 
-    // Extract data from DataFrame columns using actual endmember names
-    for (idx, &endmember_name) in endmember_names.iter().enumerate() {
+    for (idx, col_name) in unmixed_col_names.iter().enumerate() {
         let series = unmixed_df
-            .column(endmember_name)
-            .with_context(|| format!("Failed to find column for endmember: {}", endmember_name))?;
+            .column(col_name.as_str())
+            .with_context(|| format!("Failed to find column for endmember {}: {}", idx, col_name))?;
 
-        // TRU-OLS returns f32, not f64
         let values = series
             .f32()
-            .with_context(|| format!("Failed to extract f32 values for {}", endmember_name))?;
+            .with_context(|| format!("Failed to extract f32 values for {}", col_name))?;
 
         for (event_idx, opt_val) in values.iter().enumerate() {
             if let Some(val) = opt_val {
@@ -3582,13 +3955,11 @@ fn generate_tru_ols_plots(
 
     // Generate pairwise comparison plots for first few endmembers
     if endmember_names.len() >= 2 {
-        // Plot pairs of endmembers using actual names
         for i in 0..(endmember_names.len().min(4)) {
             for j in (i + 1)..(endmember_names.len().min(4)) {
-                let x_col = endmember_names[i];
-                let y_col = endmember_names[j];
+                let x_col = unmixed_col_names[i].as_str();
+                let y_col = unmixed_col_names[j].as_str();
 
-                // Extract pairs from DataFrame
                 let x_series = unmixed_df
                     .column(x_col)
                     .with_context(|| format!("Failed to find column: {}", x_col))?;
@@ -3596,7 +3967,6 @@ fn generate_tru_ols_plots(
                     .column(y_col)
                     .with_context(|| format!("Failed to find column: {}", y_col))?;
 
-                // TRU-OLS returns f32
                 let x_values = x_series
                     .f32()
                     .with_context(|| format!("Failed to extract f32 values for {}", x_col))?;
@@ -3652,7 +4022,98 @@ fn generate_tru_ols_plots(
     Ok(())
 }
 
-/// Generate OLS comparison plots
+/// Linear axis ranges for 2D unmixed-abundance plots (OLS vs TRU-OLS on the same stained sample).
+/// Uses combined OLS + TRU-OLS pairs so the two plots for a given endmember pair share comparable scales.
+fn unmixed_abundance_axis_ranges(
+    ols_pairs: &[(f32, f32)],
+    tru_ols_pairs: &[(f32, f32)],
+) -> (f32, f32, f32, f32) {
+    let mut min_x = f32::INFINITY;
+    let mut max_x = f32::NEG_INFINITY;
+    let mut min_y = f32::INFINITY;
+    let mut max_y = f32::NEG_INFINITY;
+    for (x, y) in ols_pairs.iter().chain(tru_ols_pairs.iter()) {
+        if x.is_finite() {
+            min_x = min_x.min(*x);
+            max_x = max_x.max(*x);
+        }
+        if y.is_finite() {
+            min_y = min_y.min(*y);
+            max_y = max_y.max(*y);
+        }
+    }
+    if !min_x.is_finite() || !max_x.is_finite() || !min_y.is_finite() || !max_y.is_finite() {
+        return (0.0, 1.0, 0.0, 1.0);
+    }
+    if min_x > max_x {
+        std::mem::swap(&mut min_x, &mut max_x);
+    }
+    if min_y > max_y {
+        std::mem::swap(&mut min_y, &mut max_y);
+    }
+    let pad_x = ((max_x - min_x).max(1e-12)) * 0.05 + 1e-9;
+    let pad_y = ((max_y - min_y).max(1e-12)) * 0.05 + 1e-9;
+    let x0 = min_x - pad_x;
+    let mut x1 = max_x + pad_x;
+    let y0 = min_y - pad_y;
+    let mut y1 = max_y + pad_y;
+    if (x1 - x0).abs() < 1e-15 {
+        x1 = x0 + 1.0;
+    }
+    if (y1 - y0).abs() < 1e-15 {
+        y1 = y0 + 1.0;
+    }
+    (x0, x1, y0, y1)
+}
+
+fn density_plot_options_unmixed_endmember_pair(
+    method_label: &str,
+    stained_sample_label: Option<&str>,
+    endmember_x: &str,
+    endmember_y: &str,
+    x_min: f32,
+    x_max: f32,
+    y_min: f32,
+    y_max: f32,
+) -> Result<DensityPlotOptions> {
+    let sample = stained_sample_label.unwrap_or("stained sample");
+    // Title + axis labels: each point = one event; axes = unmixed abundance for two endmembers.
+    let title = format!(
+        "{} — unmixed abundances (each point = one event): {} vs {} — {}",
+        method_label, endmember_x, endmember_y, sample
+    );
+    let base = BasePlotOptions::new()
+        .width(800u32)
+        .height(600u32)
+        .title(title)
+        .build()
+        .context("Failed to create base plot options")?;
+    let x_label = format!("Unmixed abundance: {}", endmember_x);
+    let y_label = format!("Unmixed abundance: {}", endmember_y);
+    DensityPlotOptions::new()
+        .base(base)
+        .x_axis(
+            AxisOptions::new()
+                .label(x_label)
+                .range(x_min..=x_max)
+                .transform(TransformType::Linear)
+                .build()
+                .context("Failed to build x-axis options")?,
+        )
+        .y_axis(
+            AxisOptions::new()
+                .label(y_label)
+                .range(y_min..=y_max)
+                .transform(TransformType::Linear)
+                .build()
+                .context("Failed to build y-axis options")?,
+        )
+        .density_normalization_percentile(99.0)
+        .build()
+        .context("Failed to create density plot options")
+}
+
+/// Generate OLS comparison plots (2D density of unmixed abundances for endmember pairs on the stained file).
 fn generate_ols_comparison_plots(
     stained_fcs: &Fcs,
     _unstained_fcs: &Fcs,
@@ -3662,10 +4123,14 @@ fn generate_ols_comparison_plots(
     tru_ols_unmixed_df: &EventDataFrame,
     plot_dir: &PathBuf,
     plot_format: &str,
+    stained_sample_label: Option<&str>,
 ) -> Result<()> {
-    use flow_plots::{DensityPlot, DensityPlotOptions};
+    use flow_plots::DensityPlot;
 
-    info!("Running OLS unmixing for comparison...");
+    info!(
+        "Running OLS unmixing for comparison (stained sample: {})...",
+        stained_sample_label.unwrap_or("unknown file")
+    );
 
     // Convert mixing matrix to faer Mat<f32> for OLS unmixing
     let mixing_matrix_f32 =
@@ -3682,43 +4147,62 @@ fn generate_ols_comparison_plots(
         )
         .context("Failed to run OLS unmixing")?;
 
+    // TRU-OLS unmixed FCS uses column names like "Unmixed_<marker>" (not full control filenames).
+    // Collect Unmixed_* columns in order so we can index by endmember position.
+    let tru_ols_unmixed_col_names: Vec<String> = tru_ols_unmixed_df
+        .get_column_names()
+        .into_iter()
+        .filter(|s| s.starts_with("Unmixed_"))
+        .map(|s| s.to_string())
+        .collect();
+
+    if tru_ols_unmixed_col_names.len() != endmember_names.len() {
+        anyhow::bail!(
+            "TRU-OLS unmixed columns ({}) don't match endmember count ({}); cannot generate comparison plots",
+            tru_ols_unmixed_col_names.len(),
+            endmember_names.len()
+        );
+    }
+
     // Generate comparison plots for first few endmember pairs
     for i in 0..(endmember_names.len().min(4)) {
         for j in (i + 1)..(endmember_names.len().min(4)) {
-            // Both OLS and TRU-OLS now use actual endmember names
-            let x_col = endmember_names[i];
-            let y_col = endmember_names[j];
+            // OLS uses endmember names as column names; TRU-OLS uses Unmixed_<marker>
+            let ols_x_col = endmember_names[i];
+            let ols_y_col = endmember_names[j];
+            let tru_ols_x_col = tru_ols_unmixed_col_names[i].as_str();
+            let tru_ols_y_col = tru_ols_unmixed_col_names[j].as_str();
 
             // Extract pairs from OLS DataFrame
             let ols_x_series = ols_unmixed_df
-                .column(x_col)
-                .with_context(|| format!("Failed to find OLS column: {}", x_col))?;
+                .column(ols_x_col)
+                .with_context(|| format!("Failed to find OLS column: {}", ols_x_col))?;
             let ols_y_series = ols_unmixed_df
-                .column(y_col)
-                .with_context(|| format!("Failed to find OLS column: {}", y_col))?;
+                .column(ols_y_col)
+                .with_context(|| format!("Failed to find OLS column: {}", ols_y_col))?;
 
             // Both unmixing methods return f32 values
             let ols_x_values = ols_x_series
                 .f32()
-                .with_context(|| format!("Failed to extract f32 values for OLS {}", x_col))?;
+                .with_context(|| format!("Failed to extract f32 values for OLS {}", ols_x_col))?;
             let ols_y_values = ols_y_series
                 .f32()
-                .with_context(|| format!("Failed to extract f32 values for OLS {}", y_col))?;
+                .with_context(|| format!("Failed to extract f32 values for OLS {}", ols_y_col))?;
 
-            // Extract pairs from TRU-OLS DataFrame
+            // Extract pairs from TRU-OLS DataFrame (use actual column names)
             let tru_ols_x_series = tru_ols_unmixed_df
-                .column(x_col)
-                .with_context(|| format!("Failed to find TRU-OLS column: {}", x_col))?;
+                .column(tru_ols_x_col)
+                .with_context(|| format!("Failed to find TRU-OLS column: {}", tru_ols_x_col))?;
             let tru_ols_y_series = tru_ols_unmixed_df
-                .column(y_col)
-                .with_context(|| format!("Failed to find TRU-OLS column: {}", y_col))?;
+                .column(tru_ols_y_col)
+                .with_context(|| format!("Failed to find TRU-OLS column: {}", tru_ols_y_col))?;
 
             let tru_ols_x_values = tru_ols_x_series
                 .f32()
-                .with_context(|| format!("Failed to extract f32 values for TRU-OLS {}", x_col))?;
+                .with_context(|| format!("Failed to extract f32 values for TRU-OLS {}", tru_ols_x_col))?;
             let tru_ols_y_values = tru_ols_y_series
                 .f32()
-                .with_context(|| format!("Failed to extract f32 values for TRU-OLS {}", y_col))?;
+                .with_context(|| format!("Failed to extract f32 values for TRU-OLS {}", tru_ols_y_col))?;
 
             // Create pairs for both methods
             let ols_pairs: Vec<(f32, f32)> = ols_x_values
@@ -3733,17 +4217,21 @@ fn generate_ols_comparison_plots(
                 .filter_map(|(x_opt, y_opt)| x_opt.and_then(|x| y_opt.map(|y| (x, y))))
                 .collect();
 
-            // Generate separate plots for OLS and TRU-OLS
+            let (x_min, x_max, y_min, y_max) =
+                unmixed_abundance_axis_ranges(&ols_pairs, &tru_ols_pairs);
+
+            // Generate separate plots for OLS and TRU-OLS (shared linear axis bounds; labels explain quantities).
             if !ols_pairs.is_empty() {
-                let base = BasePlotOptions::new()
-                    .width(800u32)
-                    .height(600u32)
-                    .build()
-                    .context("Failed to create base plot options")?;
-                let options = DensityPlotOptions::new()
-                    .base(base)
-                    .build()
-                    .context("Failed to create plot options")?;
+                let options = density_plot_options_unmixed_endmember_pair(
+                    "OLS",
+                    stained_sample_label,
+                    endmember_names[i],
+                    endmember_names[j],
+                    x_min,
+                    x_max,
+                    y_min,
+                    y_max,
+                )?;
 
                 let plot = DensityPlot::new();
                 let plot_bytes = plot
@@ -3765,19 +4253,25 @@ fn generate_ols_comparison_plots(
                 fs::write(&filepath, plot_bytes)
                     .with_context(|| format!("Failed to write plot to {}", filepath.display()))?;
 
-                info!("Saved OLS plot: {}", filepath.display());
+                info!(
+                    "Saved OLS comparison plot (unmixed {} vs {} on stained sample): {}",
+                    endmember_names[i],
+                    endmember_names[j],
+                    filepath.display()
+                );
             }
 
             if !tru_ols_pairs.is_empty() {
-                let base = BasePlotOptions::new()
-                    .width(800u32)
-                    .height(600u32)
-                    .build()
-                    .context("Failed to create base plot options")?;
-                let options = DensityPlotOptions::new()
-                    .base(base)
-                    .build()
-                    .context("Failed to create plot options")?;
+                let options = density_plot_options_unmixed_endmember_pair(
+                    "TRU-OLS",
+                    stained_sample_label,
+                    endmember_names[i],
+                    endmember_names[j],
+                    x_min,
+                    x_max,
+                    y_min,
+                    y_max,
+                )?;
 
                 let plot = DensityPlot::new();
                 let plot_bytes = plot
@@ -3799,12 +4293,82 @@ fn generate_ols_comparison_plots(
                 fs::write(&filepath, plot_bytes)
                     .with_context(|| format!("Failed to write plot to {}", filepath.display()))?;
 
-                info!("Saved TRU-OLS plot: {}", filepath.display());
+                info!(
+                    "Saved TRU-OLS comparison plot (unmixed {} vs {} on stained sample): {}",
+                    endmember_names[i],
+                    endmember_names[j],
+                    filepath.display()
+                );
             }
         }
     }
 
     Ok(())
+}
+
+/// Returns intermediate Fcs after each cleaning stage: (post_margin, post_doublet, post_debris).
+/// Used when generating debug control plots.
+pub fn clean_fcs_data_with_stages(fcs: &Fcs) -> Result<(Fcs, Fcs, Fcs)> {
+    use peacoqc_rs::{DoubletConfig, FcsFilter, MarginConfig, remove_doublets, remove_margins};
+
+    let mut post_margin = fcs.clone();
+
+    // Step 1: Remove margin events using peacoqc-rs.
+    // Include FSC-A and SSC-A so scatter debug plots show the main population, not edge events.
+    let mut margin_channels: Vec<String> = post_margin
+        .parameters
+        .values()
+        .filter(|p| p.is_fluorescence())
+        .map(|p| p.channel_name.to_string())
+        .collect();
+    for scatter in ["FSC-A", "SSC-A"] {
+        if post_margin.parameters.values().any(|p| p.channel_name.as_ref() == scatter)
+            && !margin_channels.contains(&scatter.to_string())
+        {
+            margin_channels.push(scatter.to_string());
+        }
+    }
+
+    if !margin_channels.is_empty() {
+        let margin_config = MarginConfig {
+            channels: margin_channels.clone(),
+            ..Default::default()
+        };
+        if let Ok(margin_result) = remove_margins(&post_margin, &margin_config) {
+            if margin_result.percentage_removed > 0.0 {
+                post_margin = post_margin
+                    .filter(&margin_result.mask)
+                    .map_err(|e| anyhow::anyhow!("Failed to filter margin events: {}", e))?;
+                info!(
+                    "PeacoQC margin removal: removed {:.2}% events",
+                    margin_result.percentage_removed
+                );
+            }
+        }
+
+        // Step 2: Remove doublets using peacoqc-rs
+        let mut post_doublet = post_margin.clone();
+        let doublet_config = DoubletConfig::default();
+        if let Ok(doublet_result) = remove_doublets(&post_doublet, &doublet_config) {
+            if doublet_result.percentage_removed > 0.0 {
+                post_doublet = post_doublet
+                    .filter(&doublet_result.mask)
+                    .map_err(|e| anyhow::anyhow!("Failed to filter doublet events: {}", e))?;
+                info!(
+                    "PeacoQC doublet removal: removed {:.2}% events",
+                    doublet_result.percentage_removed
+                );
+            }
+        }
+
+        // Step 3: Remove debris from bottom-left corner
+        let post_debris = remove_debris_heuristic(&post_doublet)?;
+        Ok((post_margin, post_doublet, post_debris))
+    } else {
+        // No fluorescence channels: skip margin/doublet, only debris
+        let post_debris = remove_debris_heuristic(&post_margin)?;
+        Ok((post_margin.clone(), post_margin, post_debris))
+    }
 }
 
 /// Apply automated preprocessing gates to an FCS file
@@ -3818,68 +4382,15 @@ fn generate_ols_comparison_plots(
 ///
 /// Returns cleaned FCS file
 pub fn clean_fcs_data(fcs: &Fcs) -> Result<Fcs> {
-    use peacoqc_rs::{DoubletConfig, FcsFilter, MarginConfig, remove_doublets, remove_margins};
-
-    let mut cleaned_fcs = fcs.clone();
-
-    // Step 1: Remove margin events using peacoqc-rs
-    let fluorescence_channels: Vec<String> = cleaned_fcs
-        .parameters
-        .values()
-        .filter(|p| p.is_fluorescence())
-        .map(|p| p.channel_name.to_string())
-        .collect();
-
-    if !fluorescence_channels.is_empty() {
-        let margin_config = MarginConfig {
-            channels: fluorescence_channels.clone(),
-            ..Default::default()
-        };
-        if let Ok(margin_result) = remove_margins(&cleaned_fcs, &margin_config) {
-            if margin_result.percentage_removed > 0.0 {
-                cleaned_fcs = cleaned_fcs
-                    .filter(&margin_result.mask)
-                    .map_err(|e| anyhow::anyhow!("Failed to filter margin events: {}", e))?;
-                info!(
-                    "PeacoQC margin removal: removed {:.2}% events",
-                    margin_result.percentage_removed
-                );
-            }
-        }
-
-        // Step 2: Remove doublets using peacoqc-rs
-        let doublet_config = DoubletConfig::default();
-        if let Ok(doublet_result) = remove_doublets(&cleaned_fcs, &doublet_config) {
-            if doublet_result.percentage_removed > 0.0 {
-                cleaned_fcs = cleaned_fcs
-                    .filter(&doublet_result.mask)
-                    .map_err(|e| anyhow::anyhow!("Failed to filter doublet events: {}", e))?;
-                info!(
-                    "PeacoQC doublet removal: removed {:.2}% events",
-                    doublet_result.percentage_removed
-                );
-            }
-        }
-    }
-
-    // Step 3: Remove debris from bottom-left corner
-    cleaned_fcs = remove_debris_heuristic(&cleaned_fcs)?;
-
-    Ok(cleaned_fcs)
+    let (_post_margin, _post_doublet, post_debris) = clean_fcs_data_with_stages(fcs)?;
+    Ok(post_debris)
 }
 
-/// Creates scatter gate and doublet exclusion gate, then filters events.
-/// Also applies peacoqc-rs cleaning (margin removal and doublet removal) before gating.
-/// Returns a new FCS file with only cleaned and gated events.
-fn apply_automated_gating(fcs: &Fcs) -> Result<Fcs> {
+/// Applies scatter and doublet gates to an already-cleaned FCS.
+/// Used when we have intermediate cleaning stages and only need to apply gates to post_debris.
+fn apply_preprocessing_gates_to_cleaned(cleaned_fcs: &Fcs) -> Result<Fcs> {
     use flow_gates::filtering::filter_events_by_gate;
 
-    // Use unified cleaning function
-    let cleaned_fcs = clean_fcs_data(fcs)?;
-
-    // Step 4: Apply scatter gate and doublet exclusion gate (flow-gates)
-
-    // Configure preprocessing gates
     let scatter_config = ScatterGateConfig {
         fsc_channel: "FSC-A".to_string(),
         ssc_channel: "SSC-A".to_string(),
@@ -3924,7 +4435,7 @@ fn apply_automated_gating(fcs: &Fcs) -> Result<Fcs> {
         info!("Scatter gate: {} events passed", scatter_indices.len());
     } else {
         // No scatter gate created, include all events
-        let n_events = fcs.data_frame.height();
+        let n_events = cleaned_fcs.data_frame.height();
         gated_indices.extend(0..n_events);
     }
 
@@ -3945,10 +4456,16 @@ fn apply_automated_gating(fcs: &Fcs) -> Result<Fcs> {
     // Get number of events from cleaned data frame
     let n_events = cleaned_fcs.data_frame.height();
 
+    let pct = if n_events > 0 {
+        (gated_indices.len() as f64 / n_events as f64) * 100.0
+    } else {
+        0.0
+    };
     info!(
-        "Automated gating complete: {} events passed gates (out of {})",
+        "Automated gating complete: {} events passed gates (out of {}) ({:.1}%)",
         gated_indices.len(),
-        n_events
+        n_events,
+        pct
     );
 
     // Create boolean mask: true = keep event, false = remove
@@ -3991,6 +4508,14 @@ fn apply_automated_gating(fcs: &Fcs) -> Result<Fcs> {
     Ok(filtered_fcs)
 }
 
+/// Creates scatter gate and doublet exclusion gate, then filters events.
+/// Also applies peacoqc-rs cleaning (margin removal and doublet removal) before gating.
+/// Returns a new FCS file with only cleaned and gated events.
+fn apply_automated_gating(fcs: &Fcs) -> Result<Fcs> {
+    let cleaned_fcs = clean_fcs_data(fcs)?;
+    apply_preprocessing_gates_to_cleaned(&cleaned_fcs)
+}
+
 /// Remove debris from bottom-left corner using clustering-based detection
 ///
 /// This function uses K-means clustering to identify the smallest cluster (debris)
@@ -3998,7 +4523,6 @@ fn apply_automated_gating(fcs: &Fcs) -> Result<Fcs> {
 /// more sophisticated gating methods. This is more robust than percentile-based thresholds.
 pub fn remove_debris_heuristic(fcs: &Fcs) -> Result<Fcs> {
     use flow_utils::clustering::{KMeans, KMeansConfig};
-    use ndarray::Array2;
     use polars::prelude::Series;
     use std::sync::Arc;
 
@@ -4615,7 +5139,9 @@ pub fn isolate_positive_peak_mask(
     Ok(mask)
 }
 
-/// Apply a boolean mask to filter an FCS file
+/// Apply a boolean mask to filter an FCS file.
+/// Used by examples (e.g. process_compensation_controls).
+#[allow(dead_code)]
 pub fn apply_mask_to_fcs(fcs: &Fcs, mask: &[bool]) -> Result<Fcs> {
     use polars::prelude::Series;
     use std::sync::Arc;
@@ -4655,6 +5181,184 @@ pub fn apply_mask_to_fcs(fcs: &Fcs, mask: &[bool]) -> Result<Fcs> {
     }
 
     Ok(filtered_fcs)
+}
+
+/// Generate debug plots for control cleanup stages and spectral from peak events.
+///
+/// **All FSC-A vs SSC-A plots show events REMAINING (kept) after each step**, not events removed.
+/// - Pre-gating: all events from the raw control file.
+/// - Post-margin / post-doublet / post-debris: events kept after each cleaning step.
+/// - Post-gating: events that passed the final scatter/doublet gates.
+///
+/// Plots: (1) pre-gating FSC-A vs SSC-A, (2) post-margin, (3) post-doublet, (4) post-debris,
+/// (5) post-gating (final), (6) per-endmember spectral (median per channel from peak events).
+///
+/// FSC-A vs SSC-A density uses a 99th-percentile colormap cap so saturated margin bins do not
+/// flatten the rest of the population to “blank” (global max normalization).
+fn generate_control_cleanup_debug_plots(
+    raw_fcs: &Fcs,
+    stages: Option<&(Fcs, Fcs, Fcs)>,
+    control_fcs: &Fcs,
+    endmember_name: &str,
+    detector_names: &[String],
+    primary_idx: usize,
+    config: &SingleStainConfig,
+    plot_dir: &PathBuf,
+    plot_format: &str,
+) -> Result<()> {
+    use std::fs;
+
+    let control_plot_dir = plot_dir.join(endmember_name);
+    fs::create_dir_all(&control_plot_dir)?;
+
+    info!(
+        "Generating debug control plots for {} in {}",
+        endmember_name,
+        control_plot_dir.display()
+    );
+
+    let mut render_config = RenderConfig::default();
+    let plot = DensityPlot::new();
+
+    // Helper to write one FSC-A vs SSC-A density plot (events REMAINING at this stage, not removed)
+    let mut write_fsca_ssca = |fcs: &Fcs, label: &str| -> Result<()> {
+        let fsc_a = fcs.get_parameter_events_slice("FSC-A").ok();
+        let ssc_a = fcs.get_parameter_events_slice("SSC-A").ok();
+        if let (Some(fsc_a), Some(ssc_a)) = (fsc_a, ssc_a) {
+            let n_events = fsc_a.len();
+            info!("  Plot {}: {} events (remaining after this step)", label, n_events);
+            let data: Vec<(f32, f32)> = fsc_a
+                .iter()
+                .zip(ssc_a.iter())
+                .map(|(a, b)| (*a, *b))
+                .collect();
+            let base_opts = BasePlotOptions::new()
+                .width(800u32)
+                .height(600u32)
+                .title(format!("{} - FSC-A vs SSC-A ({})", endmember_name, label))
+                .build()?;
+            let options = DensityPlotOptions::new()
+                .base(base_opts)
+                .x_axis(
+                    AxisOptions::new()
+                        .label("FSC-A".to_string())
+                        .range(0.0..=262144.0)
+                        .transform(flow_fcs::TransformType::Linear)
+                        .build()?,
+                )
+                .y_axis(
+                    AxisOptions::new()
+                        .label("SSC-A".to_string())
+                        .range(0.0..=262144.0)
+                        .transform(flow_fcs::TransformType::Linear)
+                        .build()?,
+                )
+                // 99th-percentile colormap cap: saturated margin bins no longer crush the scale.
+                .density_normalization_percentile(99.0)
+                .build()?;
+            let bytes = plot.render(data.into(), &options, &mut render_config)?;
+            let path = control_plot_dir.join(format!("{}_fsca_vs_ssca_{}.{}", endmember_name, label, plot_format));
+            std::fs::write(&path, bytes)?;
+            info!("  ✓ Saved: {}", path.display());
+        }
+        Ok(())
+    };
+
+    // 1. Pre-gating FSC-A vs SSC-A (all events from raw file)
+    write_fsca_ssca(raw_fcs, "pre_gating")?;
+
+    // 2–4. Post-margin, post-doublet, post-debris (only when we have stages)
+    if let Some((post_margin, post_doublet, post_debris)) = stages {
+        write_fsca_ssca(post_margin, "post_margin")?;
+        write_fsca_ssca(post_doublet, "post_doublet")?;
+        write_fsca_ssca(post_debris, "post_debris")?;
+    }
+
+    // 5. Post-gating FSC-A vs SSC-A (final retained events after scatter/doublet gates)
+    write_fsca_ssca(control_fcs, "post_gating")?;
+
+    // 6. Spectral from peak events: median per channel over peak events, normalized, title = endmember
+    let primary_detector = &detector_names[primary_idx];
+    let primary_values: Vec<f64> = control_fcs
+        .get_parameter_events_slice(primary_detector)
+        .with_context(|| format!("Missing primary detector {} in control", primary_detector))?
+        .iter()
+        .map(|&v| v as f64)
+        .collect();
+    let peak_mask = isolate_positive_peak_mask(
+        &primary_values,
+        config.peak_threshold,
+        config.peak_bias,
+    )?;
+    let n_events = peak_mask.len();
+    let peak_count = peak_mask.iter().filter(|&&b| b).count();
+    if peak_count == 0 {
+        warn!("No peak events for {} spectral-from-peak plot, skipping", endmember_name);
+        return Ok(());
+    }
+    let mut medians_from_peak: Vec<f64> = Vec::with_capacity(detector_names.len());
+    for det_name in detector_names {
+        let values = control_fcs
+            .get_parameter_events_slice(det_name)
+            .with_context(|| format!("Missing {} in control", det_name))?;
+        let peak_values: Vec<f64> = values
+            .iter()
+            .enumerate()
+            .filter(|(i, _)| *i < n_events && peak_mask[*i])
+            .map(|(_, &v)| v as f64)
+            .collect();
+        let median = if peak_values.is_empty() {
+            0.0
+        } else {
+            let mut sorted = peak_values;
+            sorted.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+            sorted[sorted.len() / 2]
+        };
+        medians_from_peak.push(median);
+    }
+    let max_median = medians_from_peak
+        .iter()
+        .cloned()
+        .fold(0.0f64, f64::max);
+    let normalized: Vec<f64> = if max_median > 0.0 {
+        medians_from_peak.iter().map(|&v| v / max_median).collect()
+    } else {
+        medians_from_peak.clone()
+    };
+    let spectrum_data: Vec<(usize, f64)> = normalized.iter().enumerate().map(|(i, &v)| (i, v)).collect();
+    let mut render_config_spec = RenderConfig::default();
+    let spec_plot = SpectralSignaturePlot::new();
+    let base_opts = BasePlotOptions::new()
+        .width(1200u32)
+        .height(600u32)
+        .title(endmember_name.to_string())
+        .build()?;
+    let options = SpectralSignaturePlotOptions::new()
+        .base(base_opts)
+        .x_axis(Some(
+            AxisOptions::new()
+                .label("Channel".to_string())
+                .build()?,
+        ))
+        .y_axis(Some(
+            AxisOptions::new()
+                .label("Normalized Intensity (1.0 to 0.0)".to_string())
+                .build()?,
+        ))
+        .line_color("#1f77b4".to_string())
+        .line_width(2.0)
+        .show_grid(true)
+        .build()?;
+    let bytes = spec_plot.render(
+        (spectrum_data, detector_names.to_vec()),
+        &options,
+        &mut render_config_spec,
+    )?;
+    let path = control_plot_dir.join(format!("{}_spectral_from_peak_events.{}", endmember_name, plot_format));
+    std::fs::write(&path, bytes)?;
+    info!("  ✓ Saved: {}", path.display());
+
+    Ok(())
 }
 
 /// Generate diagnostic plots for a control file
@@ -4763,6 +5467,7 @@ fn generate_scatter_diagnostic_plots(
                     .transform(TransformType::Linear)
                     .build()?,
             )
+            .density_normalization_percentile(99.0)
             .build()?;
 
         let bytes = plot.render(data.into(), &options, &mut render_config)?;
@@ -4801,6 +5506,7 @@ fn generate_scatter_diagnostic_plots(
                     .transform(TransformType::Linear)
                     .build()?,
             )
+            .density_normalization_percentile(99.0)
             .build()?;
 
         let bytes = plot.render(data.into(), &options, &mut render_config)?;

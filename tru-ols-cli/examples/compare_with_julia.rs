@@ -466,7 +466,7 @@ fn generate_mixing_matrix_from_controls(
     };
 
     // Call the function to create the mixing matrix
-    let (matrix, detector_names_from_func, _) = create_mixing_matrix_from_single_stains(
+    let (matrix, detector_names_from_func, _, _) = create_mixing_matrix_from_single_stains(
         controls_dir,
         unstained_fcs,
         &detector_names,

@@ -1,5 +1,6 @@
 mod commands;
 mod config;
+mod interactive;
 mod output;
 mod synthetic_data;
 

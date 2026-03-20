@@ -2,6 +2,7 @@
 
 pub mod commands;
 pub mod config;
+pub mod interactive;
 pub mod output;
 pub mod synthetic_data;
 

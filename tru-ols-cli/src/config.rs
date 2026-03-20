@@ -2,7 +2,8 @@
 
 use serde::{Deserialize, Serialize};
 
-/// Configuration for TRU-OLS unmixing
+/// Configuration for TRU-OLS unmixing (reserved for config-file / future use).
+#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UnmixingConfig {
     /// Cutoff percentile for determining irrelevant endmembers

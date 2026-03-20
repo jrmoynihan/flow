@@ -37,6 +37,7 @@ tru-ols unmix \
 ```
 
 This automatically:
+
 - Detects the unstained control (looks for "unstained" in filename)
 - Detects single-stain controls (all other .fcs files in directory)
 - Auto-detects detector channels (fluorescent parameters, excluding FSC/SSC/Time)
@@ -115,19 +116,20 @@ You must provide **one** of these mixing matrix sources:
    - Auto-detects unstained control (filename contains "unstained")
    - Auto-detects single-stain controls (all other .fcs files)
    - Auto-detects detectors and endmembers
-   
+  
 2. **`--single-stain-controls <PATH>`** + **`--unstained <PATH>`**: Separate directories
    - Allows explicit specification of unstained control
    - Still auto-detects detectors and endmembers
-   
+
 3. **`--use-spill`** + **`--unstained <PATH>`**: Use embedded SPILL matrix
    - Extracts mixing matrix from FCS SPILL keyword
    - Must provide `--endmembers` manually
-   
+
 4. **`--mixing-matrix <PATH>`** + **`--unstained <PATH>`**: Pre-computed matrix
    - Requires `--detectors` and `--endmembers` arguments
 
 **Always required:**
+
 - **`--stained <PATH>`**: Path to stained sample(s) - file or directory
 
 ### Optional Arguments
@@ -158,11 +160,13 @@ You must provide **one** of these mixing matrix sources:
 ## Mixing Matrix Format
 
 If providing a pre-computed mixing matrix CSV:
+
 - Rows: Detectors (channels)
 - Columns: Endmembers (fluorophores)
 - Values: Spectral signatures (typically 0 to 1, normalized)
 
 Example:
+
 ```csv
 0.9,0.1,0.05,0.0
 0.1,0.9,0.1,0.0
@@ -179,12 +183,14 @@ Output FCS files contain columns for each endmember with actual names (e.g., "CD
 ### Plots
 
 When using `--plot-both --compare-ols`, generates:
+
 - `comparison_ols_<endmember1>_vs_<endmember2>.png`: Standard OLS results
 - `comparison_tru_ols_<endmember1>_vs_<endmember2>.png`: TRU-OLS results
 
 ## Help
 
 For detailed argument information:
+
 ```bash
 tru-ols unmix --help
 # Or see the built-in reference:
