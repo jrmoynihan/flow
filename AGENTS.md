@@ -43,13 +43,13 @@ After completing the code, ask the user if they want a playground link. Only cal
 
 ### Project structure
 
-- **Rust workspace** (8 crates): `flow-fcs`, `flow-plots`, `flow-gates`, `flow-utils`, `flow-tru-ols`, `peacoqc-rs`, `peacoqc-cli`, `flow-tru-ols-cli`
+- **Rust workspace** (9 crates): `flow-fcs`, `flow-plots`, `flow-gates`, `flow-utils`, `flow-tru-ols`, `peacoqc-rs`, `peacoqc-cli`, `peacoqc-py`, `tru-ols-cli`
 - **SvelteKit docs site**: root `package.json`, uses bun, Svelte 5, Tailwind CSS v4, mdsvex
 
 ### Rust crates
 
 - Build/test commands: `cargo check --workspace`, `cargo test --workspace --lib --bins`, `cargo clippy --workspace`
-- The `flow-tru-ols-cli` crate has a missing `commands` module (`tru-ols-cli/src/commands.rs`) — exclude it from workspace builds with `--exclude flow-tru-ols-cli` until that module is created.
+- The TRU-OLS CLI crate path is `tru-ols-cli/`; Cargo package name is `tru-ols` (`cargo run -p tru-ols`, `cargo check -p tru-ols`).
 - `peacoqc-rs` tests that use GPU/KDE (via WGPU/Vulkan) will fail in headless VMs without a GPU adapter. Use `--no-default-features --features flow-fcs` when running peacoqc-rs examples to skip GPU backend.
 - System deps `libfontconfig1-dev` and `pkg-config` are required by the `plotters` crate.
 
@@ -69,3 +69,15 @@ After completing the code, ask the user if they want a playground link. Only cal
 - `cargo test -p flow-tru-ols --lib` — 13 tests, all pass
 - `cargo test -p peacoqc-rs --lib` — some tests fail without GPU; non-GPU tests pass
 - Demo example: `cargo run -p peacoqc-rs --no-default-features --features flow-fcs --example demo_qc_plot`
+
+---
+
+## Learned User Preferences
+
+- When writing or editing this codebase, do not describe implementations as derived from or inspired by a named third-party tool or publication in code comments, API documentation, commit messages, or user-facing copy; use neutral technical descriptions of behavior instead.
+
+---
+
+## Learned Workspace Facts
+
+- Older guidance to exclude the TRU-OLS CLI from workspace builds is obsolete; `tru-ols-cli` is a normal workspace member and the Cargo package name is `tru-ols`.

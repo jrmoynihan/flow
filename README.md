@@ -2,7 +2,15 @@
 
 # flow
 
-Flow cytometry analysis tools, oxidized. Libraries for reading FCS files, creating plots, working with gates, QC'ing data, and performing unmixing written in Rust.
+Flow cytometry analysis tools, _oxidized_.  The aim of this workspace is to leverage the blazing-fast speed, memory and type safety, and fearless concurrency of the Rust language to scale-up to modern flow cytometry workflows requiring millions of events without breaking a sweat.  Biological daa can be unpredictable; the tools to analyze it shouldn't be.
+
+The workspace includes libaries for:
+
+- Reading FCS files
+- Creating plots
+- Working with gates
+- QC'ing data
+- Performing unmixing
 
 :construction: 
 > **⚠️ Under Construction**: This workspace is actively under development. APIs may change, and some features may be incomplete. Use with caution in production environments.
@@ -14,7 +22,6 @@ Flow cytometry analysis tools, oxidized. Libraries for reading FCS files, creati
 
 ## Overview
 
-
 This workspace contains multiple crates for flow cytometry analysis:
 
 - **`flow-fcs`**: A comprehensive, type-safe API for reading, parsing, and manipulating Flow Cytometry Standard (FCS) files. Built on top of [Polars](https://www.pola.rs/) for efficient columnar data operations, with zero-copy data access, SIMD-accelerated operations, and support for common flow cytometry data transformations.
@@ -22,6 +29,8 @@ This workspace contains multiple crates for flow cytometry analysis:
 - **`flow-gates`**: Package for drawing and interacting with gates in flow cytometry data.
 - **`peacoqc-rs`**: A reimplementation of the PeacoQC (R) algorithm from the Saeys lab, parallelized in Rust.
 - **`peacoqc-cli`**: A command-line interface (CLI) tool for using `peacoqc-rs`.
+- **`flow-tru-ols`**: TRU-OLS (Truncated ReUnmixing OLS) algorithm for flow cytometry unmixing; optional integration with `flow-fcs` and `flow-plots`.
+- **`tru-ols-cli`**: Command-line tool for TRU-OLS unmixing (batch or single-file, with optional QC and plot output).
 
 ## Contributing
 
@@ -41,4 +50,5 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 - [Polars](https://www.pola.rs/): Fast DataFrame library
 - [faer](https://github.com/sarah-ek/faer): Pure-Rust linear algebra library
-
+- [PeacoQC](https://github.com/saeyslab/PeacoQC): Peak-based selection of high quality cytometry data
+- 
