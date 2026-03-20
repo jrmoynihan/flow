@@ -17,7 +17,7 @@ The current implementation uses a fixed percentile-based cutoff approach for det
    - Consider hierarchical clustering approaches for endmember grouping
    - Explore methods that account for spectral overlap and crosstalk
 
-3. **Dynamic Strategy Selection**:
+3. **Dynamic Str ategy Selection**:
    - Automatically choose between "zero" and "ucm" strategies based on data characteristics
    - Implement hybrid approaches that combine multiple strategies
    - Add validation metrics to guide strategy selection

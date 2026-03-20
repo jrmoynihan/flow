@@ -41,4 +41,3 @@ The mathematical execution of the unmixing process is where the two approaches d
 
 * **TRU-OLS:** By default, TRU-OLS sets irrelevant abundances to exactly zero. This can cause visualization issues where negative events collapse onto the axis or a single point (0,0) 24, 25\. To remedy this, TRU-OLS can map irrelevant abundances back to the distribution of the unstained control to create a natural-looking negative population for visualization purposes 26, 27\.  
 * **AutoSpectral:** Encodes the selected AF signature and spectral variants into the FCS file, maintaining continuous distributions without the "bermuda region" (a gap between negative and positive populations) sometimes caused by the hard cutoffs in TRU-OLS 23, 28\.
-

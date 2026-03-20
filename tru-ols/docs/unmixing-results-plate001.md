@@ -93,7 +93,7 @@ Donor 12_H1 (D12) - 15 MB ✓
 1. **tru-ols-cli/src/commands.rs**
    - Line 1727: Enabled peak detection by default
 
-2. **tru-ols/PEAK_DETECTION_VALIDATION.md**
+2. **tru-ols/docs/peak-detection-validation.md**
    - Complete validation report of peak detection implementation
 
 ## Next Steps
