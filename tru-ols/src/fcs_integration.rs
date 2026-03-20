@@ -58,6 +58,32 @@ pub fn extract_detector_data(fcs: &Fcs, detector_names: &[&str]) -> Result<Mat<f
     Ok(result)
 }
 
+/// Derive a short display name from an endmember stem (e.g. control filename without extension).
+/// Strips "Reference Group_<well> " and " (Beads)_*" so marker names that contain underscores
+/// (e.g. CD14_CD19_dump) are kept whole instead of taking only the last segment.
+#[cfg(feature = "flow-fcs")]
+fn short_name_from_endmember_stem(stem: &str) -> String {
+    let s = stem
+        .strip_prefix("Reference Group_")
+        .or_else(|| stem.strip_prefix("Reference group_"))
+        .unwrap_or(stem);
+    let s = if let Some(space_pos) = s.find(' ') {
+        s[space_pos + 1..].trim()
+    } else {
+        s.trim()
+    };
+    let s = if let Some(beads) = s.find(" (Beads)_") {
+        s[..beads].trim()
+    } else {
+        s
+    };
+    if s.is_empty() {
+        stem.to_string()
+    } else {
+        s.to_string()
+    }
+}
+
 /// Extension trait for Fcs to enable TRU-OLS unmixing.
 #[cfg(feature = "flow-fcs")]
 pub trait TruOlsUnmixing {
@@ -295,8 +321,11 @@ impl TruOlsUnmixing for Fcs {
                 .map(|event_idx| unmixed_abundances[(event_idx, endmember_idx)])
                 .collect();
 
-            // Convert to f32 for DataFrame (consistent with FCS data type)
-            let f32_values: Vec<f32> = f64_values.iter().map(|&x| x as f32).collect();
+            // Convert to f32 and clamp to non-negative to avoid large negative display from overextraction
+            let f32_values: Vec<f32> = f64_values
+                .iter()
+                .map(|&x| (x as f32).max(0.0))
+                .collect();
 
             // Determine naming and labels for this unmixed column
             // Look up which detector this endmember maps to in the stained file
@@ -336,31 +365,12 @@ impl TruOlsUnmixing for Fcs {
                 .get(endmember_idx)
                 .and_then(|opt| opt.clone())
                 .unwrap_or_else(|| {
-                    // Fallback to old extraction logic if no selected marker name
                     if endmember_name.contains("Autofluorescence")
                         || endmember_name.eq("Autofluorescence")
                     {
                         "Autofluorescence".to_string()
                     } else {
-                        // Parse endmember filename to extract marker name
-                        // Format is typically: "Reference Group_A2 HLA-DR_DQ Spark UV 387 (Beads)_Plate_001..."
-                        let parts: Vec<&str> = endmember_name.split_whitespace().collect();
-                        if parts.len() >= 3 {
-                            // Second word is usually position (e.g., "A2"), third is usually marker (e.g., "CD4")
-                            let candidate = parts[2];
-                            if candidate.chars().any(|c| c.is_alphabetic()) && candidate.len() < 30
-                            {
-                                candidate.to_string()
-                            } else if parts.len() >= 4
-                                && parts[3].chars().any(|c| c.is_alphabetic())
-                            {
-                                parts[3].to_string()
-                            } else {
-                                endmember_name.chars().take(20).collect::<String>()
-                            }
-                        } else {
-                            endmember_name.to_string()
-                        }
+                        short_name_from_endmember_stem(endmember_name)
                     }
                 }); // Robust precedence for unmixed column naming:
             // 1) User-selected marker name from interactive prompt (most explicit from user)
@@ -498,7 +508,10 @@ impl TruOlsUnmixing for Fcs {
             let f64_values: Vec<f64> = (0..n_events)
                 .map(|event_idx| unmixed_abundances[(event_idx, af_idx)])
                 .collect();
-            let f32_values: Vec<f32> = f64_values.iter().map(|&x| x as f32).collect();
+            let f32_values: Vec<f32> = f64_values
+                .iter()
+                .map(|&x| (x as f32).max(0.0))
+                .collect();
 
             let af_column_name = "Unmixed_Autofluorescence";
             let column = Column::new(af_column_name.into(), f32_values);

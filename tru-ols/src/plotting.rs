@@ -33,8 +33,8 @@ pub fn plot_unmixed_comparison(
     x_param: &str,
     y_param: &str,
 ) -> Result<PlotBytes, TruOlsError> {
-    // Get data pairs for both datasets
-    let ols_pairs = ols_data.get_xy_pairs(x_param, y_param).map_err(|e| {
+    // Get data pairs for both datasets (validate OLS has the params; only TRU-OLS is plotted)
+    let _ols_pairs = ols_data.get_xy_pairs(x_param, y_param).map_err(|e| {
         TruOlsError::InsufficientData(format!("Failed to get OLS data pairs: {}", e))
     })?;
 
@@ -146,8 +146,8 @@ pub fn plot_ucm_comparison(
     x_param: &str,
     y_param: &str,
 ) -> Result<PlotBytes, TruOlsError> {
-    // Similar to plot_unmixed_comparison but for UCM vs Zero
-    let zero_pairs = zero_data.get_xy_pairs(x_param, y_param).map_err(|e| {
+    // Similar to plot_unmixed_comparison but for UCM vs Zero (validate zero has params; only UCM is plotted)
+    let _zero_pairs = zero_data.get_xy_pairs(x_param, y_param).map_err(|e| {
         TruOlsError::InsufficientData(format!("Failed to get zero strategy data pairs: {}", e))
     })?;
 

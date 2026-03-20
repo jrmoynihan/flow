@@ -1,7 +1,8 @@
 //! Performance benchmarks for TRU-OLS unmixing
 
-use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
+use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
 use faer::Mat;
+use std::hint::black_box;
 use flow_tru_ols::TruOls;
 use rand::RngExt;
 
@@ -74,15 +75,24 @@ fn benchmark_f32_to_f64_conversion(c: &mut Criterion) {
 
 fn benchmark_parallel_vs_sequential(c: &mut Criterion) {
     let mut group = c.benchmark_group("parallel_vs_sequential");
-    
-    // Test with dataset that should trigger parallel processing
-    let (mixing_matrix, unstained, observations) = generate_test_data(50000, 10, 10);
-    let tru_ols = TruOls::new(mixing_matrix, unstained, 0).unwrap();
-    
-    group.bench_function("unmix_large_dataset", |b| {
-        b.iter(|| tru_ols.unmix(black_box(observations.as_ref())).unwrap());
+    // PARALLEL_THRESHOLD in unmixing.rs is 10_000; below = sequential, above = parallel
+    const PARALLEL_THRESHOLD: usize = 10_000;
+
+    // Sequential path: 8k events (< threshold)
+    let (mixing_matrix, unstained, observations_8k) =
+        generate_test_data(PARALLEL_THRESHOLD - 2000, 10, 10);
+    let tru_ols_seq = TruOls::new(mixing_matrix, unstained, 0).unwrap();
+    group.bench_function("unmix_8k_events_sequential", |b| {
+        b.iter(|| tru_ols_seq.unmix(black_box(observations_8k.as_ref())).unwrap());
     });
-    
+
+    // Parallel path: 50k events (> threshold)
+    let (mixing_matrix, unstained, observations_50k) = generate_test_data(50000, 10, 10);
+    let tru_ols_par = TruOls::new(mixing_matrix, unstained, 0).unwrap();
+    group.bench_function("unmix_50k_events_parallel", |b| {
+        b.iter(|| tru_ols_par.unmix(black_box(observations_50k.as_ref())).unwrap());
+    });
+
     group.finish();
 }
 
