@@ -3149,7 +3149,7 @@ pub fn create_mixing_matrix_from_single_stains(
                 unstained_fcs,
                 "Unstained (Autofluorescence)",
                 detector_names,
-                0,
+                None, // no "primary detector" for unstained AF
                 config,
                 plot_dir,
                 "jpg",
@@ -3177,6 +3177,9 @@ pub fn create_mixing_matrix_from_single_stains(
             .clone()
             .or_else(|| diagnostic_plot_dir.map(|p| p.to_path_buf()));
         qc_cfg.debug_plot_dir = plot_dir;
+        // Per-control plot prefix prevents peacoqc_overview.png / scatter_post_debris.png
+        // from overwriting each other as the loop sweeps through controls.
+        qc_cfg.debug_plot_label = Some(format!("unstained_{}", unstained_label));
 
         match crate::qc_pipeline::run_qc_pipeline(&unstained_fcs, &qc_cfg) {
             Ok(report) => {
@@ -3200,7 +3203,7 @@ pub fn create_mixing_matrix_from_single_stains(
                         &report.final_fcs,
                         "Unstained (Autofluorescence)",
                         detector_names,
-                        0, // arbitrary primary_idx for AF (not used for gating)
+                        None, // no "primary detector" for unstained AF
                         config,
                         diagnostic_plot_dir.unwrap(),
                         "jpg",
@@ -3377,6 +3380,7 @@ pub fn create_mixing_matrix_from_single_stains(
                 .clone()
                 .or_else(|| diagnostic_plot_dir.map(|p| p.to_path_buf()));
             qc_cfg.debug_plot_dir = plot_dir;
+            qc_cfg.debug_plot_label = Some(format!("{}", control_filename));
         }
 
         let (control_fcs, stages_for_plot) = if auto_gate {
@@ -3852,7 +3856,7 @@ pub fn create_mixing_matrix_from_single_stains(
                     &control_fcs,
                     endmember_name,
                     detector_names,
-                    primary_idx,
+                    Some(primary_idx),
                     config,
                     plot_dir,
                     "jpg",
@@ -5847,7 +5851,10 @@ fn generate_control_cleanup_debug_plots(
     control_fcs: &Fcs,
     endmember_name: &str,
     detector_names: &[String],
-    primary_idx: usize,
+    // `None` for the unstained control (or any control without a meaningful primary detector):
+    // skips the primary-vs-SSC-A plot and the peak-events spectral plot, which aren't meaningful
+    // for autofluorescence.
+    primary_idx: Option<usize>,
     config: &SingleStainConfig,
     plot_dir: &PathBuf,
     plot_format: &str,
@@ -6000,7 +6007,11 @@ fn generate_control_cleanup_debug_plots(
 
     // 06. Primary channel vs SSC-A on final gated events. This visualises signal strength on the
     //     detector actually used for the spectral median, which is useful for sanity-checking the
-    //     selected primary detector against the population.
+    //     selected primary detector against the population. Skipped for the unstained control
+    //     (primary_idx = None), where "primary detector" is not meaningful.
+    let Some(primary_idx) = primary_idx else {
+        return Ok(());
+    };
     if let Some(primary_detector) = detector_names.get(primary_idx) {
         let primary_range = channel_range(primary_detector);
         write_density(
@@ -6013,7 +6024,7 @@ fn generate_control_cleanup_debug_plots(
         )?;
     }
 
-    // 6. Spectral from peak events: median per channel over peak events, normalized, title = endmember
+    // 07. Spectral from peak events: median per channel over peak events, normalized, title = endmember
     let primary_detector = &detector_names[primary_idx];
     let primary_values: Vec<f64> = control_fcs
         .get_parameter_events_slice(primary_detector)
