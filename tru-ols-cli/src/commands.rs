@@ -3133,6 +3133,35 @@ pub fn create_mixing_matrix_from_single_stains(
     let unstained_label = unstained_control_label(unstained_fcs);
     let want_unstained_snapshots =
         auto_gate && debug_control_plots && diagnostic_plot_dir.is_some();
+    // When the AF mode doesn't require a clean unstained control (e.g. `negative-events` uses
+    // per-control negatives, `universal`-with-`use_negative_events` extracts AF per-endmember),
+    // a broken unstained should degrade gracefully rather than halting the whole run.
+    let unstained_optional = matches!(config.autofluorescence_mode.as_str(), "negative-events")
+        || (config.autofluorescence_mode == "universal" && config.use_negative_events);
+
+    // Always write the pre-gating plot for the unstained control before running the pipeline, so
+    // the user can inspect the input even if gating blows up partway through.
+    if debug_control_plots {
+        if let Some(plot_dir) = diagnostic_plot_dir {
+            if let Err(e) = generate_control_cleanup_debug_plots(
+                unstained_fcs,
+                None, // no staged snapshots yet
+                unstained_fcs,
+                "Unstained (Autofluorescence)",
+                detector_names,
+                0,
+                config,
+                plot_dir,
+                "jpg",
+            ) {
+                warn!(
+                    "Failed to generate pre-gating debug plot for unstained control: {}",
+                    e
+                );
+            }
+        }
+    }
+
     let unstained_for_af = if auto_gate {
         info!(
             "Applying QC pipeline to unstained control '{}' for autofluorescence extraction...",
@@ -3149,44 +3178,57 @@ pub fn create_mixing_matrix_from_single_stains(
             .or_else(|| diagnostic_plot_dir.map(|p| p.to_path_buf()));
         qc_cfg.debug_plot_dir = plot_dir;
 
-        let report = crate::qc_pipeline::run_qc_pipeline(&unstained_fcs, &qc_cfg)
-            .with_context(|| {
-                format!(
-                    "QC pipeline failed for unstained control '{}'",
-                    unstained_label
-                )
-            })?;
-
-        // Generate debug plots for unstained control if requested
-        if want_unstained_snapshots {
-            let snap = |name: &str| {
-                report
-                    .stage_snapshots
-                    .iter()
-                    .find(|(n, _)| n == name)
-                    .map(|(_, f)| f.clone())
-                    .unwrap_or_else(|| report.final_fcs.clone())
-            };
-            let stages = (
-                snap("post_margins"),
-                snap("post_raw_doublets"),
-                report.final_fcs.clone(),
-            );
-            if let Err(e) = generate_control_cleanup_debug_plots(
-                &unstained_fcs,
-                Some(&stages),
-                &report.final_fcs,
-                "Unstained (Autofluorescence)",
-                detector_names,
-                0, // arbitrary primary_idx for AF (not used for gating)
-                config,
-                diagnostic_plot_dir.unwrap(),
-                "jpg",
-            ) {
-                warn!("Failed to generate debug plots for unstained control: {}", e);
+        match crate::qc_pipeline::run_qc_pipeline(&unstained_fcs, &qc_cfg) {
+            Ok(report) => {
+                if want_unstained_snapshots {
+                    let snap = |name: &str| {
+                        report
+                            .stage_snapshots
+                            .iter()
+                            .find(|(n, _)| n == name)
+                            .map(|(_, f)| f.clone())
+                            .unwrap_or_else(|| report.final_fcs.clone())
+                    };
+                    let stages = (
+                        snap("post_margins"),
+                        snap("post_raw_doublets"),
+                        report.final_fcs.clone(),
+                    );
+                    if let Err(e) = generate_control_cleanup_debug_plots(
+                        &unstained_fcs,
+                        Some(&stages),
+                        &report.final_fcs,
+                        "Unstained (Autofluorescence)",
+                        detector_names,
+                        0, // arbitrary primary_idx for AF (not used for gating)
+                        config,
+                        diagnostic_plot_dir.unwrap(),
+                        "jpg",
+                    ) {
+                        warn!("Failed to generate debug plots for unstained control: {}", e);
+                    }
+                }
+                report.final_fcs
+            }
+            Err(e) if unstained_optional => {
+                // Mode doesn't require AF from the unstained, so downgrade to a warning and
+                // fall back to ungated data. The pre-gating plot above is still on disk so the
+                // user can inspect what happened.
+                warn!(
+                    "QC pipeline failed for unstained control '{}' ({}); continuing with ungated unstained because autofluorescence_mode='{}' does not require it. Error: {:#}",
+                    unstained_label, e, config.autofluorescence_mode, e
+                );
+                unstained_fcs.clone()
+            }
+            Err(e) => {
+                return Err(e).with_context(|| {
+                    format!(
+                        "QC pipeline failed for unstained control '{}'. To skip the unstained gate and proceed, set --autofluorescence-mode=negative-events (or enable --use-negative-events) so AF is derived from the single-stain controls' negative events instead.",
+                        unstained_label
+                    )
+                });
             }
         }
-        report.final_fcs
     } else {
         unstained_fcs.clone()
     };
