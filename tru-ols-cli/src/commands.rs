@@ -31,6 +31,22 @@ fn ensure_output_directory(path: &Path, purpose: &str) -> Result<()> {
         .with_context(|| format!("Cannot create {} directory: {}", purpose, path.display()))
 }
 
+/// Best-effort display label for an unstained control. Used in logs and QC-pipeline error
+/// contexts so the user can identify which file triggered a failure even though the `Fcs`
+/// struct doesn't carry its path.
+///
+/// Prefers `$FIL` (the FCS-standard source filename keyword); falls back to a static label.
+fn unstained_control_label(fcs: &Fcs) -> String {
+    use flow_fcs::keyword::StringableKeyword;
+    if let Ok(kw) = fcs.metadata.get_string_keyword("$FIL") {
+        let fil = kw.get_str().trim().to_string();
+        if !fil.is_empty() {
+            return fil;
+        }
+    }
+    "unstained control".to_string()
+}
+
 fn qc_cli_options_from_unmix_args(
     qc_preset: &str,
     auto_gate: bool,
@@ -3114,10 +3130,14 @@ pub fn create_mixing_matrix_from_single_stains(
 
     // Extract autofluorescence medians from unstained control (universal AF)
     // Gate unstained control to match single-stain controls when auto_gate is enabled
+    let unstained_label = unstained_control_label(unstained_fcs);
     let want_unstained_snapshots =
         auto_gate && debug_control_plots && diagnostic_plot_dir.is_some();
     let unstained_for_af = if auto_gate {
-        info!("Applying QC pipeline to unstained control for autofluorescence extraction...");
+        info!(
+            "Applying QC pipeline to unstained control '{}' for autofluorescence extraction...",
+            unstained_label
+        );
         let mut qc_cfg = crate::qc_pipeline::QcPipelineConfig::literature_default();
         qc_cfg.apply_qc_cli_options(&config.qc_options);
         if want_unstained_snapshots {
@@ -3129,7 +3149,13 @@ pub fn create_mixing_matrix_from_single_stains(
             .or_else(|| diagnostic_plot_dir.map(|p| p.to_path_buf()));
         qc_cfg.debug_plot_dir = plot_dir;
 
-        let report = crate::qc_pipeline::run_qc_pipeline(&unstained_fcs, &qc_cfg)?;
+        let report = crate::qc_pipeline::run_qc_pipeline(&unstained_fcs, &qc_cfg)
+            .with_context(|| {
+                format!(
+                    "QC pipeline failed for unstained control '{}'",
+                    unstained_label
+                )
+            })?;
 
         // Generate debug plots for unstained control if requested
         if want_unstained_snapshots {
@@ -3312,7 +3338,21 @@ pub fn create_mixing_matrix_from_single_stains(
         }
 
         let (control_fcs, stages_for_plot) = if auto_gate {
-            let report = crate::qc_pipeline::run_qc_pipeline(&control_fcs_before_gating, &qc_cfg)?;
+            info!(
+                "Applying QC pipeline to control '{}' ({}/{})",
+                control_filename_only,
+                control_file_idx + 1,
+                n_controls
+            );
+            let report = crate::qc_pipeline::run_qc_pipeline(&control_fcs_before_gating, &qc_cfg)
+                .with_context(|| {
+                    format!(
+                        "QC pipeline failed for single-stain control '{}' ({}) [endmember: {}]",
+                        control_filename_only,
+                        control_path.display(),
+                        endmember_name
+                    )
+                })?;
             let stages_for_plot = if want_stage_snapshots {
                 let snap = |name: &str| {
                     report
