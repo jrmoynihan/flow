@@ -102,8 +102,8 @@ pub use error::{PeacoQCError, Result};
 pub use qc::{
     DoubletConfig, DoubletResult, MarginConfig, MarginResult, PeacoQCConfig, PeacoQCResult,
     QCExportFormat, QCExportOptions, QCMode, QCPlotConfig, RemovalReason, create_qc_plots,
-    export_csv_boolean, export_csv_boolean_from_mask, export_csv_numeric, export_csv_numeric_from_mask,
-    export_json_metadata, peacoqc, remove_doublets, remove_margins,
+    export_csv_boolean, export_csv_boolean_from_mask, export_csv_numeric,
+    export_csv_numeric_from_mask, export_json_metadata, peacoqc, remove_doublets, remove_margins,
 };
 
 #[cfg(feature = "flow-fcs")]
@@ -215,7 +215,7 @@ pub trait FcsFilter: Sized {
 #[cfg(feature = "flow-fcs")]
 mod flow_fcs_impl {
     use super::*;
-    use flow_fcs::{file::Fcs, keyword::FloatableKeyword};
+    use flow_fcs::{file::Fcs, keyword::IntegerKeyword};
     use polars::prelude::*;
     use std::sync::Arc;
 
@@ -238,9 +238,15 @@ mod flow_fcs_impl {
                 .values()
                 .find(|p| p.channel_name.as_ref() == channel)?;
 
-            // Get range from metadata using $PnR keyword
-            let key = format!("$P{}R", param.parameter_number);
-            let max_range = self.metadata.get_float_keyword(&key).ok()?.get_f32();
+            // Get range from metadata using $PnR keyword (stored as IntegerKeyword::PnR).
+            // Parameter indexing is 1-based in FCS keywords.
+            let kw = self
+                .metadata
+                .get_parameter_numeric_metadata(param.parameter_number, "R")
+                .ok()?;
+            let IntegerKeyword::PnR(max_range) = kw else {
+                return None;
+            };
 
             Some((0.0, *max_range as f64))
         }
@@ -363,7 +369,9 @@ mod flow_fcs_impl {
             fcs.data_frame = compensated_df;
             info!("Applied compensation from $SPILLOVER keyword");
         } else if apply_compensation && !fcs.has_compensation() {
-            info!("No $SPILLOVER keyword found; skipping compensation (will use arcsinh transform)");
+            info!(
+                "No $SPILLOVER keyword found; skipping compensation (will use arcsinh transform)"
+            );
         }
 
         // Step 2: Apply transformation (if requested)

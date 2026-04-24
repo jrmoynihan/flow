@@ -1,6 +1,7 @@
 use crate::PeacoQCData;
 use crate::error::{PeacoQCError, Result};
 use std::collections::HashMap;
+use tracing::warn;
 
 /// Configuration for margin removal
 #[derive(Debug, Clone, PartialEq)]
@@ -95,9 +96,8 @@ pub fn remove_margins<T: PeacoQCData>(fcs: &T, config: &MarginConfig) -> Result<
             }
         } else {
             // Get from FCS metadata via trait
-            fcs.get_channel_range(channel).unwrap_or_else(|| {
-                (data_min.min(0.0), data_max.max(262144.0))
-            })
+            fcs.get_channel_range(channel)
+                .unwrap_or_else(|| (data_min.min(0.0), data_max.max(262144.0)))
         };
 
         let mut min_removed = 0;
@@ -115,15 +115,16 @@ pub fn remove_margins<T: PeacoQCData>(fcs: &T, config: &MarginConfig) -> Result<
             }
         }
 
-        // Check maximum margins
-        // R: max_margin_ev <- e[, d] > min(meta[d, "maxRange"], max(e[, d]))
-        // Note: R uses > (strictly greater than), not >=
+        // Check maximum margins.
+        // Saturated events typically pile up AT the detector's max_range (clipped to
+        // $PnR), so we need `>=` to catch them. Using R's strict `>` lets saturation
+        // bins through when data_max == max_range, which is the common case on
+        // spectral cytometers that clip at $PnR (e.g., 4.2e6).
         if remove_max.contains(channel) {
             let threshold = max_range.min(data_max);
 
             for (i, &v) in values.iter().enumerate() {
-                // Remove events strictly above the threshold (matching R's > operator)
-                if v > threshold && mask[i] {
+                if v >= threshold && mask[i] {
                     mask[i] = false;
                     max_removed += 1;
                 }
@@ -138,9 +139,9 @@ pub fn remove_margins<T: PeacoQCData>(fcs: &T, config: &MarginConfig) -> Result<
 
     // Warn if more than 10% removed
     if percentage_removed > 10.0 {
-        eprintln!(
-            "Warning: More than {:.2}% of events removed as margin events. This should be verified.",
-            percentage_removed
+        warn!(
+            percentage_removed,
+            "more than 10% of events removed as margin events; verify gate settings"
         );
     }
 
@@ -162,11 +163,13 @@ mod tests {
     #[test]
     fn test_remove_margins_basic() {
         // Create test data
-        let df = Arc::new(df![
-            "FSC-A" => &[100.0, 200.0, 300.0, 0.0, 262144.0, 150.0],
-            "SSC-A" => &[50.0, 100.0, 150.0, 200.0, 250.0, 300.0],
-        ]
-        .unwrap());
+        let df = Arc::new(
+            df![
+                "FSC-A" => &[100.0, 200.0, 300.0, 0.0, 262144.0, 150.0],
+                "SSC-A" => &[50.0, 100.0, 150.0, 200.0, 250.0, 300.0],
+            ]
+            .unwrap(),
+        );
 
         let mut metadata = HashMap::new();
         metadata.insert(
