@@ -3,9 +3,9 @@
 //! Provides algorithms for automatically identifying viable cell populations
 //! in scatter plots, supporting multi-population detection.
 
-use crate::{Gate, GateError, GateResult, GateStatistics};
 use crate::geometry::{create_ellipse_geometry, create_polygon_geometry};
 use crate::polygon::point_in_polygon;
+use crate::{Gate, GateError, GateResult, GateStatistics};
 use flow_fcs::Fcs;
 use flow_plots::contour::contour_paths_at_threshold;
 use flow_utils::kde::KernelDensity2D;
@@ -66,6 +66,45 @@ pub struct ScatterGateResult {
     pub method_used: String,
 }
 
+/// Thresholds for flagging scatter gating outcomes that may warrant a fallback (e.g. FSC-only debris).
+#[derive(Debug, Clone)]
+pub struct ScatterQualityPolicy {
+    /// Below this fraction of events kept inside the gate, the result is suspicious (too aggressive or broken).
+    pub min_retention_fraction: f64,
+    /// Above this fraction kept, the result is suspicious (almost no exclusion).
+    pub max_retention_fraction: f64,
+}
+
+impl Default for ScatterQualityPolicy {
+    fn default() -> Self {
+        Self {
+            min_retention_fraction: 0.02,
+            max_retention_fraction: 0.999,
+        }
+    }
+}
+
+impl ScatterGateResult {
+    /// Fraction of events marked inside the gate (`population_mask == true`).
+    pub fn retention_fraction(&self) -> f64 {
+        let n = self.population_mask.len();
+        if n == 0 {
+            return 0.0;
+        }
+        self.population_mask
+            .iter()
+            .filter(|&&inside| inside)
+            .count() as f64
+            / n as f64
+    }
+
+    /// Whether retention falls outside `[min_retention_fraction, max_retention_fraction]`.
+    pub fn is_suspicious(&self, policy: &ScatterQualityPolicy) -> bool {
+        let r = self.retention_fraction();
+        r < policy.min_retention_fraction || r > policy.max_retention_fraction
+    }
+}
+
 // GateStatistics is imported from crate::statistics
 
 /// Create automated scatter gate
@@ -76,10 +115,7 @@ pub struct ScatterGateResult {
 ///
 /// # Returns
 /// ScatterGateResult with gate and statistics
-pub fn create_scatter_gate(
-    fcs: &Fcs,
-    config: &ScatterGateConfig,
-) -> GateResult<ScatterGateResult> {
+pub fn create_scatter_gate(fcs: &Fcs, config: &ScatterGateConfig) -> GateResult<ScatterGateResult> {
     // Extract FSC/SSC data (NO transformation - raw values)
     // Fcs API returns f32 slices, convert to f64 for processing
     let fsc_data_f32 = fcs
@@ -94,7 +130,7 @@ pub fn create_scatter_gate(
             message: format!("Failed to get SSC channel {}: {}", config.ssc_channel, e),
             source: None, // anyhow::Error doesn't implement StdError, use message only
         })?;
-    
+
     // Convert to f64 for processing
     let fsc_data: Vec<f64> = fsc_data_f32.iter().map(|&x| x as f64).collect();
     let ssc_data: Vec<f64> = ssc_data_f32.iter().map(|&x| x as f64).collect();
@@ -143,39 +179,38 @@ pub fn create_scatter_gate(
     // Calculate statistics using GateStatistics
     // Note: GateStatistics::calculate requires a gate
     let statistics = if let Some(ref gate) = gate {
-        GateStatistics::calculate(fcs, gate)
-            .unwrap_or_else(|_| {
-                // Create empty statistics manually if calculation fails
-                GateStatistics {
-                    event_count: 0,
-                    percentage: 0.0,
-                    centroid: (0.0, 0.0),
-                    x_stats: crate::statistics::ParameterStatistics {
-                        parameter: config.fsc_channel.clone(),
-                        mean: 0.0,
-                        geometric_mean: 0.0,
-                        median: 0.0,
-                        std_dev: 0.0,
-                        min: 0.0,
-                        max: 0.0,
-                        q1: 0.0,
-                        q3: 0.0,
-                        cv: 0.0,
-                    },
-                    y_stats: crate::statistics::ParameterStatistics {
-                        parameter: config.ssc_channel.clone(),
-                        mean: 0.0,
-                        geometric_mean: 0.0,
-                        median: 0.0,
-                        std_dev: 0.0,
-                        min: 0.0,
-                        max: 0.0,
-                        q1: 0.0,
-                        q3: 0.0,
-                        cv: 0.0,
-                    },
-                }
-            })
+        GateStatistics::calculate(fcs, gate).unwrap_or_else(|_| {
+            // Create empty statistics manually if calculation fails
+            GateStatistics {
+                event_count: 0,
+                percentage: 0.0,
+                centroid: (0.0, 0.0),
+                x_stats: crate::statistics::ParameterStatistics {
+                    parameter: config.fsc_channel.clone(),
+                    mean: 0.0,
+                    geometric_mean: 0.0,
+                    median: 0.0,
+                    std_dev: 0.0,
+                    min: 0.0,
+                    max: 0.0,
+                    q1: 0.0,
+                    q3: 0.0,
+                    cv: 0.0,
+                },
+                y_stats: crate::statistics::ParameterStatistics {
+                    parameter: config.ssc_channel.clone(),
+                    mean: 0.0,
+                    geometric_mean: 0.0,
+                    median: 0.0,
+                    std_dev: 0.0,
+                    min: 0.0,
+                    max: 0.0,
+                    q1: 0.0,
+                    q3: 0.0,
+                    cv: 0.0,
+                },
+            }
+        })
     } else {
         // Create empty statistics if no gate
         GateStatistics {
@@ -226,14 +261,15 @@ fn create_density_contour_gate(
     // Extract FSC and SSC values
     let fsc_values: Vec<f64> = data.column(0).iter().copied().collect();
     let ssc_values: Vec<f64> = data.column(1).iter().copied().collect();
-    
+
     // Use 2D KDE for better density estimation
-    let kde2d = KernelDensity2D::estimate(&fsc_values, &ssc_values, 1.0, 128)
-        .map_err(|e| GateError::Other {
+    let kde2d = KernelDensity2D::estimate(&fsc_values, &ssc_values, 1.0, 128).map_err(|e| {
+        GateError::Other {
             message: format!("2D KDE failed: {:?}", e),
             source: None,
-        })?;
-    
+        }
+    })?;
+
     // Ordered closed contour path(s) via marching squares (flow-plots)
     let paths = contour_paths_at_threshold(&kde2d, threshold);
     let valid_paths: Vec<_> = paths.into_iter().filter(|p| p.len() >= 3).collect();
@@ -246,7 +282,11 @@ fn create_density_contour_gate(
     let best_path = if valid_paths.len() == 1 {
         valid_paths.into_iter().next().unwrap()
     } else {
-        let polygon_f32 = |path: &[(f64, f64)]| path.iter().map(|(x, y)| (*x as f32, *y as f32)).collect::<Vec<_>>();
+        let polygon_f32 = |path: &[(f64, f64)]| {
+            path.iter()
+                .map(|(x, y)| (*x as f32, *y as f32))
+                .collect::<Vec<_>>()
+        };
         valid_paths
             .into_iter()
             .max_by_key(|path| {
@@ -269,12 +309,8 @@ fn create_density_contour_gate(
         return create_ellipse_fit_gate(data, config);
     }
 
-    let geometry = create_polygon_geometry(
-        coords,
-        &config.fsc_channel,
-        &config.ssc_channel,
-    )?;
-    
+    let geometry = create_polygon_geometry(coords.clone(), &config.fsc_channel, &config.ssc_channel)?;
+
     let gate = Gate::new(
         "scatter-gate",
         "Automated Scatter Gate (Density Contour)",
@@ -282,16 +318,14 @@ fn create_density_contour_gate(
         Arc::from(config.fsc_channel.as_str()),
         Arc::from(config.ssc_channel.as_str()),
     );
-    
-    // Create mask using density threshold
+
+    // Build mask by point-in-polygon against the chosen contour. Using the density
+    // threshold here would also keep any dense region (e.g. a debris centroid) outside
+    // the selected polygon, which is exactly what the polygon was chosen to exclude.
     let mask: Vec<bool> = (0..data.nrows())
-        .map(|i| {
-            let density = kde2d.density_at(data[[i, 0]], data[[i, 1]]);
-            let max_density = kde2d.z.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
-            density >= threshold * max_density
-        })
+        .map(|i| point_in_polygon(data[[i, 0]] as f32, data[[i, 1]] as f32, &coords))
         .collect();
-    
+
     Ok((Some(gate), mask, "DensityContour".to_string()))
 }
 
@@ -301,8 +335,8 @@ fn create_clustering_gate(
     config: &ScatterGateConfig,
     algorithm: ClusterAlgorithm,
 ) -> GateResult<(Option<Gate>, Vec<bool>, String)> {
-    use flow_utils::clustering::{KMeans, KMeansConfig, Gmm, GmmConfig};
-    
+    use flow_utils::clustering::{Gmm, GmmConfig, KMeans, KMeansConfig};
+
     match algorithm {
         ClusterAlgorithm::KMeans => {
             // Use K-means to identify main population
@@ -310,40 +344,40 @@ fn create_clustering_gate(
             let data_rows: Vec<Vec<f64>> = (0..data.nrows())
                 .map(|i| data.row(i).iter().copied().collect())
                 .collect();
-            
+
             let kmeans_config = KMeansConfig {
                 n_clusters: 2, // Main population + debris/noise
                 max_iterations: 100,
                 tolerance: 1e-4,
                 seed: None,
             };
-            
-            let result = KMeans::fit_from_rows(data_rows, &kmeans_config)
-                .map_err(|e| GateError::Other {
+
+            let result =
+                KMeans::fit_from_rows(data_rows, &kmeans_config).map_err(|e| GateError::Other {
                     message: format!("K-means clustering failed: {:?}", e),
                     source: None,
                 })?;
-            
+
             // Find largest cluster (main population)
             let mut cluster_counts = vec![0; result.centroids.nrows()];
             for &assignment in &result.assignments {
                 cluster_counts[assignment] += 1;
             }
-            
+
             let main_cluster = cluster_counts
                 .iter()
                 .enumerate()
                 .max_by(|(_, a), (_, b)| a.cmp(b))
                 .map(|(idx, _)| idx)
                 .unwrap_or(0);
-            
+
             // Create mask for main cluster
             let mask: Vec<bool> = result
                 .assignments
                 .iter()
                 .map(|&cluster| cluster == main_cluster)
                 .collect();
-            
+
             // Create ellipse gate around main cluster
             let mut sum_x = 0.0;
             let mut sum_y = 0.0;
@@ -355,14 +389,14 @@ fn create_clustering_gate(
                     count += 1;
                 }
             }
-            
+
             if count == 0 {
                 return create_ellipse_fit_gate(data, config);
             }
-            
+
             let center_x = sum_x / count as f64;
             let center_y = sum_y / count as f64;
-            
+
             // Calculate spread
             let mut sum_dist_x = 0.0;
             let mut sum_dist_y = 0.0;
@@ -372,10 +406,10 @@ fn create_clustering_gate(
                     sum_dist_y += (data[[i, 1]] - center_y).abs();
                 }
             }
-            
+
             let radius_x = sum_dist_x / count as f64 * 2.0;
             let radius_y = sum_dist_y / count as f64 * 2.0;
-            
+
             // Create ellipse gate
             let center = (center_x as f32, center_y as f32);
             let right = ((center_x + radius_x) as f32, center_y as f32);
@@ -383,13 +417,10 @@ fn create_clustering_gate(
             let left = ((center_x - radius_x) as f32, center_y as f32);
             let bottom = (center_x as f32, (center_y - radius_y) as f32);
             let coords = vec![center, right, top, left, bottom];
-            
-            let geometry = create_ellipse_geometry(
-                coords,
-                &config.fsc_channel,
-                &config.ssc_channel,
-            )?;
-            
+
+            let geometry =
+                create_ellipse_geometry(coords, &config.fsc_channel, &config.ssc_channel)?;
+
             let gate = Gate::new(
                 "scatter-gate",
                 "Automated Scatter Gate (K-means)",
@@ -397,7 +428,7 @@ fn create_clustering_gate(
                 Arc::from(config.fsc_channel.as_str()),
                 Arc::from(config.ssc_channel.as_str()),
             );
-            
+
             Ok((Some(gate), mask, "Clustering(KMeans)".to_string()))
         }
         ClusterAlgorithm::Gmm => {
@@ -406,40 +437,40 @@ fn create_clustering_gate(
             let data_rows: Vec<Vec<f64>> = (0..data.nrows())
                 .map(|i| data.row(i).iter().copied().collect())
                 .collect();
-            
+
             let gmm_config = GmmConfig {
                 n_components: 2,
                 max_iterations: 100,
                 tolerance: 1e-3,
                 seed: None,
             };
-            
-            let result = Gmm::fit_from_rows(data_rows, &gmm_config)
-                .map_err(|e| GateError::Other {
+
+            let result =
+                Gmm::fit_from_rows(data_rows, &gmm_config).map_err(|e| GateError::Other {
                     message: format!("GMM clustering failed: {:?}", e),
                     source: None,
                 })?;
-            
+
             // Find largest component (main population)
             let mut component_counts = vec![0; result.means.nrows()];
             for &assignment in &result.assignments {
                 component_counts[assignment] += 1;
             }
-            
+
             let main_component = component_counts
                 .iter()
                 .enumerate()
                 .max_by(|(_, a), (_, b)| a.cmp(b))
                 .map(|(idx, _)| idx)
                 .unwrap_or(0);
-            
+
             // Create mask for main component
             let mask: Vec<bool> = result
                 .assignments
                 .iter()
                 .map(|&component| component == main_component)
                 .collect();
-            
+
             // Create ellipse gate around main component (similar to K-means)
             let mut sum_x = 0.0;
             let mut sum_y = 0.0;
@@ -451,14 +482,14 @@ fn create_clustering_gate(
                     count += 1;
                 }
             }
-            
+
             if count == 0 {
                 return create_ellipse_fit_gate(data, config);
             }
-            
+
             let center_x = sum_x / count as f64;
             let center_y = sum_y / count as f64;
-            
+
             let mut sum_dist_x = 0.0;
             let mut sum_dist_y = 0.0;
             for (i, &in_component) in mask.iter().enumerate() {
@@ -467,23 +498,20 @@ fn create_clustering_gate(
                     sum_dist_y += (data[[i, 1]] - center_y).abs();
                 }
             }
-            
+
             let radius_x = sum_dist_x / count as f64 * 2.0;
             let radius_y = sum_dist_y / count as f64 * 2.0;
-            
+
             let center = (center_x as f32, center_y as f32);
             let right = ((center_x + radius_x) as f32, center_y as f32);
             let top = (center_x as f32, (center_y + radius_y) as f32);
             let left = ((center_x - radius_x) as f32, center_y as f32);
             let bottom = (center_x as f32, (center_y - radius_y) as f32);
             let coords = vec![center, right, top, left, bottom];
-            
-            let geometry = create_ellipse_geometry(
-                coords,
-                &config.fsc_channel,
-                &config.ssc_channel,
-            )?;
-            
+
+            let geometry =
+                create_ellipse_geometry(coords, &config.fsc_channel, &config.ssc_channel)?;
+
             let gate = Gate::new(
                 "scatter-gate",
                 "Automated Scatter Gate (GMM)",
@@ -491,13 +519,14 @@ fn create_clustering_gate(
                 Arc::from(config.fsc_channel.as_str()),
                 Arc::from(config.ssc_channel.as_str()),
             );
-            
+
             Ok((Some(gate), mask, "Clustering(GMM)".to_string()))
         }
         ClusterAlgorithm::Dbscan => {
             // DBSCAN is temporarily disabled
             Err(GateError::Other {
-                message: "DBSCAN clustering is temporarily unavailable. Please use K-means or GMM.".to_string(),
+                message: "DBSCAN clustering is temporarily unavailable. Please use K-means or GMM."
+                    .to_string(),
                 source: None,
             })
         }
@@ -512,15 +541,25 @@ fn create_ellipse_fit_gate(
     // Calculate center (mean)
     let center_x = data.column(0).iter().sum::<f64>() / data.nrows() as f64;
     let center_y = data.column(1).iter().sum::<f64>() / data.nrows() as f64;
-    
+
     // Calculate standard deviations for ellipse radii
-    let var_x: f64 = data.column(0).iter().map(|x| (x - center_x).powi(2)).sum::<f64>() / data.nrows() as f64;
-    let var_y: f64 = data.column(1).iter().map(|y| (y - center_y).powi(2)).sum::<f64>() / data.nrows() as f64;
-    
+    let var_x: f64 = data
+        .column(0)
+        .iter()
+        .map(|x| (x - center_x).powi(2))
+        .sum::<f64>()
+        / data.nrows() as f64;
+    let var_y: f64 = data
+        .column(1)
+        .iter()
+        .map(|y| (y - center_y).powi(2))
+        .sum::<f64>()
+        / data.nrows() as f64;
+
     // Use 2 standard deviations for ellipse (covers ~95% of data)
     let radius_x = var_x.sqrt() * 2.0;
     let radius_y = var_y.sqrt() * 2.0;
-    
+
     // Create ellipse gate
     // create_ellipse_geometry expects Vec<(f32, f32)> coordinates
     // Create coordinates: center, right, top, left, bottom
@@ -530,13 +569,9 @@ fn create_ellipse_fit_gate(
     let left = ((center_x - radius_x) as f32, center_y as f32);
     let bottom = (center_x as f32, (center_y - radius_y) as f32);
     let coords = vec![center, right, top, left, bottom];
-    
-    let geometry = create_ellipse_geometry(
-        coords,
-        &config.fsc_channel,
-        &config.ssc_channel,
-    )?;
-    
+
+    let geometry = create_ellipse_geometry(coords, &config.fsc_channel, &config.ssc_channel)?;
+
     let gate = Gate::new(
         "scatter-gate",
         "Automated Scatter Gate (Ellipse Fit)",
@@ -544,7 +579,7 @@ fn create_ellipse_fit_gate(
         Arc::from(config.fsc_channel.as_str()),
         Arc::from(config.ssc_channel.as_str()),
     );
-    
+
     // Create mask
     let mask: Vec<bool> = (0..data.nrows())
         .map(|i| {
@@ -553,6 +588,6 @@ fn create_ellipse_fit_gate(
             dx * dx + dy * dy <= 1.0
         })
         .collect();
-    
+
     Ok((Some(gate), mask, "EllipseFit".to_string()))
 }
