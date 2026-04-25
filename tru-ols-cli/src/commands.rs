@@ -3255,6 +3255,26 @@ pub fn create_mixing_matrix_from_single_stains(
         autofluorescence_medians.push(median);
     }
 
+    // Emit a raw-scale AF spectrum plot for the unstained control when debug plots are enabled.
+    // The standard spectral plot is normalised to max=1.0, which is right for fluorophore
+    // signatures but hides the actual values that will be subtracted. For AF the caller needs
+    // to see the concrete per-detector medians, so this plot uses the raw data scale.
+    if debug_control_plots {
+        if let Some(plot_dir) = diagnostic_plot_dir {
+            if let Err(e) = generate_af_medians_plot(
+                plot_dir,
+                "Unstained (Autofluorescence)",
+                detector_names,
+                &autofluorescence_medians,
+            ) {
+                warn!(
+                    "Failed to generate raw AF medians plot for unstained control: {}",
+                    e
+                );
+            }
+        }
+    }
+
     // Store negative event autofluorescence per endmember (if enabled)
     // Map: endmember_name -> detector_name -> median AF from negative events
     let mut negative_event_af: std::collections::HashMap<String, Vec<f32>> =
@@ -6107,6 +6127,76 @@ fn generate_control_cleanup_debug_plots(
     std::fs::write(&path, bytes)?;
     info!("  ✓ Saved: {}", path.display());
 
+    Ok(())
+}
+
+/// Render per-detector autofluorescence medians on a raw data scale.
+///
+/// The standard spectral plot (`SpectralSignaturePlot`) normalises to max=1.0, which is right for
+/// fluorophore signatures but hides the absolute values that will be subtracted from each control
+/// during unmixing. For the unstained control the caller needs to see the concrete medians so they
+/// can reason about AF magnitude (and whether it's plausible for a given detector). The title
+/// includes the max median so the per-detector bar heights are easy to anchor.
+fn generate_af_medians_plot(
+    plot_dir: &PathBuf,
+    endmember_name: &str,
+    detector_names: &[String],
+    medians: &[f32],
+) -> Result<()> {
+    let control_plot_dir = plot_dir.join(endmember_name);
+    std::fs::create_dir_all(&control_plot_dir)?;
+
+    let spectrum_data: Vec<(usize, f64)> = medians
+        .iter()
+        .enumerate()
+        .map(|(i, &v)| (i, v as f64))
+        .collect();
+
+    let max_median = medians.iter().copied().fold(0.0f32, f32::max);
+    // Give 10% headroom above the peak so the top value isn't pinned to the frame.
+    // When every channel is at zero we still want a non-zero axis range so plotters is happy.
+    let y_max = if max_median > 0.0 {
+        max_median * 1.1
+    } else {
+        1.0
+    };
+
+    let base_opts = BasePlotOptions::new()
+        .width(1200u32)
+        .height(600u32)
+        .title(format!(
+            "{} - AF medians (max={:.1})",
+            endmember_name, max_median
+        ))
+        .build()?;
+    let options = SpectralSignaturePlotOptions::new()
+        .base(base_opts)
+        .x_axis(Some(
+            AxisOptions::new().label("Channel".to_string()).build()?,
+        ))
+        .y_axis(Some(
+            AxisOptions::new()
+                .label("Raw AF median (detector units)".to_string())
+                .range(0.0..=y_max)
+                .build()?,
+        ))
+        .line_color("#d62728".to_string())
+        .line_width(2.0)
+        .show_grid(true)
+        .build()?;
+
+    let mut render_config = RenderConfig::default();
+    let bytes = SpectralSignaturePlot::new().render(
+        (spectrum_data, detector_names.to_vec()),
+        &options,
+        &mut render_config,
+    )?;
+    let path = control_plot_dir.join(format!(
+        "08_af_medians_raw_{}.jpg",
+        endmember_name
+    ));
+    std::fs::write(&path, bytes)?;
+    info!("  ✓ Saved: {}", path.display());
     Ok(())
 }
 

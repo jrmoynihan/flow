@@ -2,8 +2,8 @@
 //! `flow_plots::render::render_contour`, backed by the `kuva` crate when the `raster` feature is enabled).
 //! This module is kept for compatibility and will be removed in a future release.
 
-use crate::contour::ContourData;
 use crate::PlotBytes;
+use crate::contour::ContourData;
 use crate::create_axis_specs;
 use crate::density_calc::RawPixelData;
 use crate::options::DensityPlotOptions;
@@ -281,12 +281,10 @@ pub fn render_contour(
 
         let x_transform_clone = options.x_axis.transform.clone();
         let y_transform_clone = options.y_axis.transform.clone();
-        let x_formatter = move |x: &f64| -> String {
-            format_transform_value(&x_transform_clone, &(*x as f32))
-        };
-        let y_formatter = move |y: &f64| -> String {
-            format_transform_value(&y_transform_clone, &(*y as f32))
-        };
+        let x_formatter =
+            move |x: &f64| -> String { format_transform_value(&x_transform_clone, &(*x as f32)) };
+        let y_formatter =
+            move |y: &f64| -> String { format_transform_value(&y_transform_clone, &(*y as f32)) };
 
         let mut chart = ChartBuilder::on(&root)
             .margin(margin)
@@ -347,18 +345,13 @@ pub fn render_contour(
         if !contour_data.outliers.is_empty() {
             let outlier_color = RGBColor(150, 150, 150);
             chart
-                .draw_series(
-                    contour_data
-                        .outliers
-                        .iter()
-                        .map(|&(x, y)| {
-                            Circle::new(
-                                (x.clamp(x_lo, x_hi), y.clamp(y_lo, y_hi)),
-                                2,
-                                outlier_color.filled(),
-                            )
-                        }),
-                )
+                .draw_series(contour_data.outliers.iter().map(|&(x, y)| {
+                    Circle::new(
+                        (x.clamp(x_lo, x_hi), y.clamp(y_lo, y_hi)),
+                        2,
+                        outlier_color.filled(),
+                    )
+                }))
                 .map_err(|e| anyhow::anyhow!("failed to draw outliers: {e}"))?;
         }
 
@@ -366,13 +359,11 @@ pub fn render_contour(
             .map_err(|e| anyhow::anyhow!("failed to present plotters buffer: {e}"))?;
     }
 
-    let img: RgbImage =
-        image::ImageBuffer::from_vec(width, height, pixel_buffer)
-            .ok_or_else(|| anyhow::anyhow!("plot image buffer had unexpected size"))?;
+    let img: RgbImage = image::ImageBuffer::from_vec(width, height, pixel_buffer)
+        .ok_or_else(|| anyhow::anyhow!("plot image buffer had unexpected size"))?;
 
     let mut encoded_data = Vec::new();
-    let mut encoder =
-        image::codecs::jpeg::JpegEncoder::new_with_quality(&mut encoded_data, 85);
+    let mut encoder = image::codecs::jpeg::JpegEncoder::new_with_quality(&mut encoded_data, 85);
     encoder
         .encode(img.as_raw(), width, height, image::ExtendedColorType::Rgb8)
         .map_err(|e| anyhow::anyhow!("failed to JPEG encode plot: {e}"))?;
@@ -414,8 +405,20 @@ pub fn render_spectral_signature(
         .map(|(idx, _)| *idx as f32)
         .fold(0.0f32, f32::max)
         .max(1.0);
-    let y_min = 0.0f32;
-    let y_max = 1.0f32;
+    // Default scale is the normalised [0, 1] spectral signature. Callers that want a
+    // different y-axis (e.g. raw AF medians) must explicitly set the y_axis range to
+    // something other than AxisOptions::default() (0..=200_000); that default value is
+    // treated as "unset" here so existing normalised-spectrum call sites keep their 0..1 axis.
+    let default_axis = crate::options::axis::AxisOptions::default();
+    let (y_min, y_max) = match options.y_axis.as_ref() {
+        Some(ya)
+            if !(*ya.range.start() == *default_axis.range.start()
+                && *ya.range.end() == *default_axis.range.end()) =>
+        {
+            (*ya.range.start(), *ya.range.end())
+        }
+        _ => (0.0f32, 1.0f32),
+    };
 
     // Clone channel_names for the closure
     let channel_names_clone = channel_names.clone();
@@ -486,14 +489,13 @@ pub fn render_spectral_signature(
             10
         };
 
-        mesh.x_labels(x_label_count)
-            .y_labels(10);
+        mesh.x_labels(x_label_count).y_labels(10);
 
         // Rotate x-axis labels 90° when showing all channels (plotters has no 45° option)
         if x_label_count > 1 {
             use plotters::style::{FontTransform, TextStyle};
-            let rotated = TextStyle::from(("sans-serif", 12).into_font())
-                .transform(FontTransform::Rotate90);
+            let rotated =
+                TextStyle::from(("sans-serif", 12).into_font()).transform(FontTransform::Rotate90);
             mesh.x_label_style(rotated);
         }
 
@@ -550,7 +552,7 @@ pub fn render_histogram(
     options: &crate::options::HistogramPlotOptions,
     _render_config: &mut RenderConfig,
 ) -> Result<PlotBytes> {
-    use crate::histogram_data::{bin_values, BinnedHistogram, HistogramData, HistogramSeries};
+    use crate::histogram_data::{BinnedHistogram, HistogramData, HistogramSeries, bin_values};
     use crate::options::PlotOptions;
     use plotters::prelude::*;
 
@@ -611,7 +613,14 @@ pub fn render_histogram(
     if series.is_empty() {
         // Empty plot - still render axes
         return render_empty_histogram(
-            options, width, height, margin, x_label_area_size, y_label_area_size, x_min, x_max,
+            options,
+            width,
+            height,
+            margin,
+            x_label_area_size,
+            y_label_area_size,
+            x_min,
+            x_max,
         );
     }
 
@@ -667,7 +676,8 @@ pub fn render_histogram(
             .map_err(|e| anyhow::anyhow!("failed to build histogram chart: {e}"))?;
 
         let mut mesh = chart.configure_mesh();
-        mesh.x_max_light_lines(4).y_max_light_lines(4)
+        mesh.x_max_light_lines(4)
+            .y_max_light_lines(4)
             .x_labels(10)
             .y_labels(10);
 
