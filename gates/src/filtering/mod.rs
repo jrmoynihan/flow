@@ -13,11 +13,53 @@
 //! - Much faster than O(n) linear scans
 
 use crate::error::{GateError, Result};
-use crate::types::{Gate, GateGeometry};
+use crate::types::{Gate, GateCoordinateSpace, GateGeometry};
 use flow_fcs::Fcs;
 use geo::{Coord, LineString, Point, Polygon as GeoPolygon};
 use rstar::{AABB, RTree, primitives::GeomWithData};
 use std::sync::Arc;
+
+/// A pair of parameter slices tagged with the coordinate space they're in.
+///
+/// `filter_events_by_gate` requires this wrapper (rather than `&Fcs`) so that the
+/// caller must explicitly decide whether to pass raw, compensated, or unmixed
+/// data. If the space doesn't match the gate's `coordinate_space`, the filter
+/// returns `Err(GateError::SpaceMismatch)` rather than silently producing wrong
+/// results. See `GateCoordinateSpace` for rationale.
+#[derive(Debug, Clone, Copy)]
+pub struct EventData<'a> {
+    pub space: GateCoordinateSpace,
+    pub x: &'a [f32],
+    pub y: &'a [f32],
+}
+
+impl<'a> EventData<'a> {
+    pub fn new(space: GateCoordinateSpace, x: &'a [f32], y: &'a [f32]) -> Self {
+        Self { space, x, y }
+    }
+
+    /// Convenience constructor for raw-space data sourced directly from an FCS.
+    /// Errors if either parameter is missing or not a contiguous f32 slice.
+    pub fn raw_from_fcs(fcs: &'a Fcs, x_param: &str, y_param: &str) -> Result<Self> {
+        let x = fcs.get_parameter_events_slice(x_param).map_err(|e| {
+            GateError::filtering_error(format!(
+                "Failed to get raw parameter data for {}: {}",
+                x_param, e
+            ))
+        })?;
+        let y = fcs.get_parameter_events_slice(y_param).map_err(|e| {
+            GateError::filtering_error(format!(
+                "Failed to get raw parameter data for {}: {}",
+                y_param, e
+            ))
+        })?;
+        Ok(Self {
+            space: GateCoordinateSpace::Raw,
+            x,
+            y,
+        })
+    }
+}
 
 /// Trait for resolving gate IDs to gate references.
 ///
@@ -161,6 +203,7 @@ impl EventIndex {
             }
             GateGeometry::Rectangle { .. } => Ok(self.filter_by_rectangle(gate)),
             GateGeometry::Ellipse { .. } => Ok(self.filter_by_ellipse(gate)),
+            GateGeometry::Range { .. } => Ok(self.filter_by_range(gate)),
             GateGeometry::Boolean { .. } => Err(GateError::filtering_error(
                 "Boolean gates require a resolver. Use filter_by_gate_with_resolver() instead.",
             )),
@@ -229,6 +272,7 @@ impl EventIndex {
             }
             GateGeometry::Rectangle { .. } => Ok(self.filter_by_rectangle(gate)),
             GateGeometry::Ellipse { .. } => Ok(self.filter_by_ellipse(gate)),
+            GateGeometry::Range { .. } => Ok(self.filter_by_range(gate)),
             GateGeometry::Boolean {
                 operation,
                 operands,
@@ -308,11 +352,9 @@ impl EventIndex {
             })
             .collect();
 
-        let results = crate::batch_filtering::filter_by_polygon_batch(
-            &candidate_points,
-            &polygon_coords,
-        )
-        .unwrap_or_default();
+        let results =
+            crate::batch_filtering::filter_by_polygon_batch(&candidate_points, &polygon_coords)
+                .unwrap_or_default();
 
         // Map results back to indices
         candidates
@@ -433,6 +475,46 @@ impl EventIndex {
         }
     }
 
+    /// Filter by range gate (1D — only x coordinate checked)
+    fn filter_by_range(&self, gate: &Gate) -> Vec<usize> {
+        if let GateGeometry::Range { min, max } = &gate.geometry {
+            let min_x = match min.get_coordinate(gate.x_parameter_channel_name()) {
+                Some(x) => x,
+                None => return Vec::new(),
+            };
+            let max_x = match max.get_coordinate(gate.x_parameter_channel_name()) {
+                Some(x) => x,
+                None => return Vec::new(),
+            };
+
+            let aabb = AABB::from_corners(
+                Point::new(min_x, f32::MIN),
+                Point::new(max_x, f32::MAX),
+            );
+            let candidates: Vec<_> = self.rtree.locate_in_envelope(&aabb).collect();
+
+            let candidate_points: Vec<(f32, f32)> = candidates
+                .iter()
+                .map(|geom| {
+                    let point = geom.geom();
+                    (point.x(), point.y())
+                })
+                .collect();
+
+            let results =
+                crate::batch_filtering::filter_by_range_batch(&candidate_points, (min_x, max_x))
+                    .unwrap_or_default();
+
+            candidates
+                .into_iter()
+                .zip(results.into_iter())
+                .filter_map(|(geom, inside)| if inside { Some(geom.data) } else { None })
+                .collect()
+        } else {
+            Vec::new()
+        }
+    }
+
     /// Build a geo::Polygon from gate nodes
     fn _build_geo_polygon(&self, gate: &Gate) -> Option<GeoPolygon<f32>> {
         if let GateGeometry::Polygon { nodes, closed } = &gate.geometry {
@@ -542,33 +624,18 @@ impl EventIndex {
 /// # }
 /// ```
 pub fn filter_events_by_gate(
-    fcs: &Fcs,
+    data: EventData<'_>,
     gate: &Gate,
     spatial_index: Option<&EventIndex>,
 ) -> Result<Vec<usize>> {
-    // Get parameter data as slices (zero-copy when possible)
-    let x_param = gate.x_parameter_channel_name();
-    let y_param = gate.y_parameter_channel_name();
+    if data.space != gate.coordinate_space {
+        return Err(GateError::space_mismatch(gate.coordinate_space, data.space));
+    }
 
-    let x_slice = fcs.get_parameter_events_slice(x_param).map_err(|e| {
-        GateError::filtering_error(format!(
-            "Failed to get parameter data for {}: {}",
-            x_param, e
-        ))
-    })?;
-    let y_slice = fcs.get_parameter_events_slice(y_param).map_err(|e| {
-        GateError::filtering_error(format!(
-            "Failed to get parameter data for {}: {}",
-            y_param, e
-        ))
-    })?;
-
-    // Use provided index or build one
     let indices = if let Some(index) = spatial_index {
         index.filter_by_gate(gate)?
     } else {
-        // Build index from slices (zero-copy)
-        let index = EventIndex::build(x_slice, y_slice)?;
+        let index = EventIndex::build(data.x, data.y)?;
         index.filter_by_gate(gate)?
     };
 
@@ -634,40 +701,37 @@ pub fn filter_events_by_gate(
 /// # Ok(())
 /// # }
 /// ```
+///
+/// Currently this helper only supports `coordinate_space == Raw` gates. For
+/// compensated/unmixed boolean gates, fetch the appropriate per-operand data at
+/// the call site and use `filter_events_by_gate` directly. This reflects the
+/// fact that boolean-gate operands can each live in a different parameter space;
+/// a single `EventData` wrapper can't represent "heterogeneous" data.
 pub fn filter_events_by_gate_with_resolver<R: GateResolver>(
     fcs: &Fcs,
     gate: &Gate,
     spatial_index: Option<&EventIndex>,
     resolver: Option<&R>,
 ) -> Result<Vec<usize>> {
-    // Get parameter data as slices (zero-copy when possible)
-    let x_param = gate.x_parameter_channel_name();
-    let y_param = gate.y_parameter_channel_name();
+    if gate.coordinate_space != GateCoordinateSpace::Raw {
+        return Err(GateError::filtering_error(format!(
+            "filter_events_by_gate_with_resolver only supports Raw gates; got {:?}. \
+             Use filter_events_by_gate with EventData for compensated/unmixed gates.",
+            gate.coordinate_space
+        )));
+    }
 
-    let x_slice = fcs.get_parameter_events_slice(x_param).map_err(|e| {
-        GateError::filtering_error(format!(
-            "Failed to get parameter data for {}: {}",
-            x_param, e
-        ))
-    })?;
-    let y_slice = fcs.get_parameter_events_slice(y_param).map_err(|e| {
-        GateError::filtering_error(format!(
-            "Failed to get parameter data for {}: {}",
-            y_param, e
-        ))
-    })?;
-
-    // Handle boolean gates separately (they need resolver and filter operand gates)
+    // Handle boolean gates separately (they need resolver and filter operand gates).
     if matches!(gate.geometry, GateGeometry::Boolean { .. }) {
         return filter_boolean_gate_with_resolver(fcs, gate, resolver);
     }
 
-    // For geometric gates, use provided index or build one
+    let data = EventData::raw_from_fcs(fcs, gate.x_parameter_channel_name(), gate.y_parameter_channel_name())?;
+
     let indices = if let Some(index) = spatial_index {
         index.filter_by_gate(gate)?
     } else {
-        // Build index from slices (zero-copy)
-        let index = EventIndex::build(x_slice, y_slice)?;
+        let index = EventIndex::build(data.x, data.y)?;
         index.filter_by_gate(gate)?
     };
 
@@ -707,6 +771,29 @@ fn filter_boolean_gate_with_resolver<R: GateResolver>(
     } else {
         Err(GateError::filtering_error("Expected boolean gate geometry"))
     }
+}
+
+/// Internal helper: filter a gate that must be in `Raw` space, fetching data
+/// from the FCS as raw slices. Used by the `_with_resolver` and `combine_*`
+/// variants that still operate on `&Fcs`.
+///
+/// Errors if the gate is not in Raw space; callers wanting to filter compensated
+/// or unmixed gates should construct an `EventData` and call
+/// `filter_events_by_gate` directly.
+fn filter_events_by_gate_raw(fcs: &Fcs, gate: &Gate) -> Result<Vec<usize>> {
+    if gate.coordinate_space != GateCoordinateSpace::Raw {
+        return Err(GateError::filtering_error(format!(
+            "This filter path requires Raw gates; got {:?}. Use filter_events_by_gate \
+             with EventData for compensated/unmixed gates.",
+            gate.coordinate_space
+        )));
+    }
+    let data = EventData::raw_from_fcs(
+        fcs,
+        gate.x_parameter_channel_name(),
+        gate.y_parameter_channel_name(),
+    )?;
+    filter_events_by_gate(data, gate, None)
 }
 
 /// Filter events through a hierarchy of gates with caching support.
@@ -762,21 +849,30 @@ fn filter_boolean_gate_with_resolver<R: GateResolver>(
 /// # Ok(())
 /// # }
 /// ```
-pub fn filter_events_by_hierarchy(
-    fcs: &Fcs,
+/// Filter events through a hierarchy of geometric gates.
+///
+/// The `filter_one_gate` callback is invoked once per gate in the chain. It must
+/// fetch whatever event data the gate needs (matching the gate's
+/// `coordinate_space`), build an `EventData`, and call `filter_events_by_gate`
+/// itself — returning the resulting indices. This callback-style avoids
+/// lifetime gymnastics where a caller would otherwise try to return a borrowed
+/// `EventData` from owned Vecs.
+pub fn filter_events_by_hierarchy<F>(
+    total_event_count: usize,
     gate_chain: &[&Gate],
+    mut filter_one_gate: F,
     filter_cache: Option<&dyn FilterCache>,
     file_guid: Option<&str>,
-) -> Result<Vec<usize>> {
+) -> Result<Vec<usize>>
+where
+    F: FnMut(&Gate) -> Result<Vec<usize>>,
+{
     if gate_chain.is_empty() {
-        // No gates - return all indices
-        let event_count = fcs.data_frame.height();
-        return Ok((0..event_count).collect());
+        return Ok((0..total_event_count).collect());
     }
 
-    // Try to get from cache if cache is provided
+    // Try cache.
     if let (Some(cache), Some(guid)) = (filter_cache, file_guid) {
-        // For hierarchical gates, use the last gate ID and parent chain
         if let Some(last_gate) = gate_chain.last() {
             let parent_chain: Vec<Arc<str>> = gate_chain[..gate_chain.len() - 1]
                 .iter()
@@ -789,47 +885,37 @@ pub fn filter_events_by_hierarchy(
                 FilterCacheKey::new(guid, last_gate.id.as_ref(), parent_chain)
             };
 
-            // Try to get from cache
             if let Some(cached_indices) = cache.get(&cache_key) {
                 return Ok((*cached_indices).clone());
             }
         }
     }
 
-    // Cache miss or no cache - compute the result
+    // Cache miss — filter each gate and intersect.
     let mut current_indices: Option<Vec<usize>> = None;
-
     for gate in gate_chain {
-        // Check if gate is boolean (would require resolver)
         if matches!(gate.geometry, GateGeometry::Boolean { .. }) {
             return Err(GateError::filtering_error(
                 "Hierarchy contains boolean gates. Use filter_events_by_hierarchy_with_resolver() instead.",
             ));
         }
 
-        if let Some(indices) = &current_indices {
-            // Filter the already-filtered events
-            // This is more complex - we'd need to subset the FCS data
-            // For now, we'll filter from scratch and intersect
-            let gate_indices = filter_events_by_gate(fcs, gate, None)?;
+        let gate_indices = filter_one_gate(gate)?;
 
-            // Intersect with current indices
-            let indices_set: std::collections::HashSet<_> = indices.iter().copied().collect();
-            current_indices = Some(
+        current_indices = Some(match current_indices {
+            None => gate_indices,
+            Some(prev) => {
+                let prev_set: std::collections::HashSet<_> = prev.iter().copied().collect();
                 gate_indices
                     .into_iter()
-                    .filter(|idx| indices_set.contains(idx))
-                    .collect(),
-            );
-        } else {
-            // First gate - filter all events
-            current_indices = Some(filter_events_by_gate(fcs, gate, None)?);
-        }
+                    .filter(|idx| prev_set.contains(idx))
+                    .collect()
+            }
+        });
     }
 
     let result = current_indices.unwrap_or_default();
 
-    // Store in cache if cache is provided
     if let (Some(cache), Some(guid)) = (filter_cache, file_guid) {
         if let Some(last_gate) = gate_chain.last() {
             let parent_chain: Vec<Arc<str>> = gate_chain[..gate_chain.len() - 1]
@@ -961,7 +1047,7 @@ pub fn filter_events_by_hierarchy_with_resolver<R: GateResolver>(
             filter_boolean_gate_with_resolver(fcs, gate, resolver)?
         } else {
             // Geometric gate - use standard filtering
-            filter_events_by_gate(fcs, gate, None)?
+            filter_events_by_gate_raw(fcs, gate)?
         };
 
         if let Some(indices) = &current_indices {
@@ -1049,12 +1135,12 @@ pub fn combine_gates_and(
     }
 
     // Filter with first gate
-    let first_indices = filter_events_by_gate(fcs, gates[0], None)?;
+    let first_indices = filter_events_by_gate_raw(fcs, gates[0])?;
     let mut result_set: std::collections::HashSet<usize> = first_indices.iter().copied().collect();
 
     // Intersect with remaining gates
     for gate in &gates[1..] {
-        let gate_indices = filter_events_by_gate(fcs, gate, None)?;
+        let gate_indices = filter_events_by_gate_raw(fcs, gate)?;
         let gate_set: std::collections::HashSet<usize> = gate_indices.iter().copied().collect();
 
         result_set = result_set.intersection(&gate_set).copied().collect();
@@ -1113,7 +1199,7 @@ pub fn combine_gates_or(
     let mut result_set: std::collections::HashSet<usize> = std::collections::HashSet::new();
 
     for gate in gates {
-        let gate_indices = filter_events_by_gate(fcs, gate, None)?;
+        let gate_indices = filter_events_by_gate_raw(fcs, gate)?;
         result_set.extend(gate_indices);
     }
 
@@ -1155,7 +1241,7 @@ pub fn combine_gates_not(
     fcs: &Fcs,
     _cache: Option<&dyn FilterCache>,
 ) -> Result<Vec<usize>> {
-    let gate_indices = filter_events_by_gate(fcs, gate, None)?;
+    let gate_indices = filter_events_by_gate_raw(fcs, gate)?;
     let gate_set: std::collections::HashSet<usize> = gate_indices.iter().copied().collect();
 
     let total_events = fcs.data_frame.height();
@@ -1258,6 +1344,7 @@ mod tests {
             },
             "x",
             "y",
+            GateCoordinateSpace::Raw,
         );
 
         let filtered = index.filter_by_gate(&gate).expect("filter should succeed");
@@ -1293,6 +1380,7 @@ mod tests {
             },
             "x",
             "y",
+            GateCoordinateSpace::Raw,
         );
 
         let filtered = index.filter_by_gate(&gate).expect("filter should succeed");
