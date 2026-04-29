@@ -39,6 +39,18 @@ pub fn filter_by_range_batch(
         .collect())
 }
 
+/// Batch 1D range filter on the Y axis
+pub fn filter_by_range_y_batch(
+    points: &[(f32, f32)],
+    bounds: (f32, f32),
+) -> Result<Vec<bool>> {
+    let (min_y, max_y) = bounds;
+    Ok(points
+        .par_iter()
+        .map(|&(_, y)| y >= min_y && y <= max_y)
+        .collect())
+}
+
 /// Batch point-in-ellipse query
 pub fn filter_by_ellipse_batch(
     points: &[(f32, f32)],

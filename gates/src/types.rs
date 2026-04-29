@@ -496,13 +496,19 @@ impl GateGeometry {
                 )
             }
             GateGeometry::Range { min, max } => {
-                let min_x = min
-                    .get_coordinate(x_param)
-                    .ok_or_else(|| GateError::missing_parameter(x_param, "range min"))?;
-                let max_x = max
-                    .get_coordinate(x_param)
-                    .ok_or_else(|| GateError::missing_parameter(x_param, "range max"))?;
-                crate::batch_filtering::filter_by_range_batch(points, (min_x, max_x))
+                let range = crate::range::RangeGateGeometry {
+                    min: min.clone(),
+                    max: max.clone(),
+                };
+                let (axis, lo, hi) = range.resolve_bounds(x_param, y_param)?;
+                match axis {
+                    crate::range::RangeAxis::X => {
+                        crate::batch_filtering::filter_by_range_batch(points, (lo, hi))
+                    }
+                    crate::range::RangeAxis::Y => {
+                        crate::batch_filtering::filter_by_range_y_batch(points, (lo, hi))
+                    }
+                }
             }
             GateGeometry::Boolean { .. } => {
                 // Boolean gates require resolving referenced gates - can't check containment directly
