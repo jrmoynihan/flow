@@ -120,7 +120,10 @@ pub use filtering::{
 };
 
 /// Geometry construction helpers
-pub use geometry::{create_ellipse_geometry, create_polygon_geometry, create_rectangle_geometry};
+pub use geometry::{
+    create_ellipse_geometry, create_polygon_geometry, create_range_geometry,
+    create_rectangle_geometry,
+};
 
 /// Gate hierarchy management
 pub use hierarchy::GateHierarchy;

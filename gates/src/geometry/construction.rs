@@ -133,6 +133,43 @@ pub fn create_rectangle_geometry(
     })
 }
 
+/// Create a range geometry from min/max x values
+///
+/// Range gates are 1D — they define a region on a single parameter.
+/// The gate nodes only store the x_param coordinate.
+///
+/// # Errors
+/// Returns `GateError::InvalidGeometry` if min_x >= max_x or values are not finite.
+pub fn create_range_geometry(
+    min_x: f32,
+    max_x: f32,
+    x_param: &str,
+) -> Result<GateGeometry> {
+    if !min_x.is_finite() {
+        return Err(GateError::invalid_coordinate("range_min", min_x));
+    }
+    if !max_x.is_finite() {
+        return Err(GateError::invalid_coordinate("range_max", max_x));
+    }
+    if min_x >= max_x {
+        return Err(GateError::invalid_geometry(format!(
+            "Range min ({}) must be less than max ({})",
+            min_x, max_x
+        )));
+    }
+
+    let mut min_node = GateNode::new("range_min");
+    min_node.set_coordinate(Arc::from(x_param), min_x);
+
+    let mut max_node = GateNode::new("range_max");
+    max_node.set_coordinate(Arc::from(x_param), max_x);
+
+    Ok(GateGeometry::Range {
+        min: min_node,
+        max: max_node,
+    })
+}
+
 /// Create an ellipse geometry from raw coordinates
 ///
 /// # Arguments
@@ -239,4 +276,3 @@ pub fn create_ellipse_geometry(
         angle,
     })
 }
-

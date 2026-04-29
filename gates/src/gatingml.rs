@@ -106,8 +106,8 @@ fn write_gate_to_xml(writer: &mut Writer<Cursor<Vec<u8>>>, gate: &Gate) -> Resul
         } => {
             write_ellipse_gate(writer, center, *radius_x, *radius_y, *angle)?;
         }
-        GateGeometry::Range { .. } => {
-            todo!("Range gate GatingML serialization — Task 5")
+        GateGeometry::Range { min, max } => {
+            write_range_gate(writer, min, max)?;
         }
         GateGeometry::Boolean {
             operation,
@@ -160,6 +160,22 @@ fn write_rectangle_gate(
     write_vertex(writer, max)?;
 
     writer.write_event(Event::End(BytesEnd::new("gating:RectangleGate")))?;
+    Ok(())
+}
+
+/// Write a range gate to XML
+fn write_range_gate(
+    writer: &mut Writer<Cursor<Vec<u8>>>,
+    min: &GateNode,
+    max: &GateNode,
+) -> Result<()> {
+    let range_start = BytesStart::new("gating:RangeGate");
+    writer.write_event(Event::Start(range_start))?;
+
+    write_vertex(writer, min)?;
+    write_vertex(writer, max)?;
+
+    writer.write_event(Event::End(BytesEnd::new("gating:RangeGate")))?;
     Ok(())
 }
 
@@ -325,6 +341,11 @@ pub fn gatingml_to_gates(xml: &str) -> Result<Vec<Gate>> {
                     if let Some(gate) = parse_ellipse_gate_v1_5(&mut reader, e, &mut depth)? {
                         gates.push(gate);
                     }
+                } else if name.as_ref() == b"gating:RangeGate" || name.as_ref() == b"RangeGate"
+                {
+                    if let Some(gate) = parse_range_gate_v1_5(&mut reader, e, &mut depth)? {
+                        gates.push(gate);
+                    }
                 } else if name.as_ref() == b"gating:BooleanGate" || name.as_ref() == b"BooleanGate"
                 {
                     if let Some(gate) = parse_boolean_gate_v1_5(&mut reader, e, &mut depth)? {
@@ -417,6 +438,9 @@ fn parse_gate_geometry_v2(
                 } else if name.as_ref() == b"gating:EllipseGate" || name.as_ref() == b"EllipseGate"
                 {
                     return Ok(Some(parse_ellipse_geometry_v2(reader, e, depth)?));
+                } else if name.as_ref() == b"gating:RangeGate" || name.as_ref() == b"RangeGate"
+                {
+                    return Ok(Some(parse_range_geometry_v2(reader, e, depth)?));
                 } else if name.as_ref() == b"gating:BooleanGate" || name.as_ref() == b"BooleanGate"
                 {
                     return Ok(Some(parse_boolean_geometry_v2(reader, e, depth)?));
@@ -537,6 +561,178 @@ fn parse_rectangle_gate_v1_5(
         y_param,
         GateCoordinateSpace::Raw,
     )))
+}
+
+/// Parse range gate in v1.5 format
+fn parse_range_gate_v1_5(
+    reader: &mut Reader<&[u8]>,
+    gate_start: &BytesStart,
+    depth: &mut u32,
+) -> Result<Option<Gate>> {
+    let id = gate_start
+        .attributes()
+        .find(|attr| {
+            let attr = attr.as_ref().unwrap();
+            attr.key.as_ref() == b"gating:id" || attr.key.as_ref() == b"id"
+        })
+        .and_then(|attr| String::from_utf8(attr.unwrap().value.into_owned()).ok())
+        .ok_or_else(|| GateError::Other {
+            message: "RangeGate missing id attribute".to_string(),
+            source: None,
+        })?;
+
+    let start_depth = *depth;
+    let mut vertices = Vec::new();
+    let mut buf = Vec::new();
+
+    loop {
+        match reader.read_event_into(&mut buf) {
+            Ok(Event::Start(ref e)) => {
+                *depth += 1;
+                let name = e.name();
+
+                if name.as_ref() == b"gating:vertex" || name.as_ref() == b"vertex" {
+                    let vertex = parse_range_vertex(reader, depth)?;
+                    vertices.push(vertex);
+                }
+            }
+            Ok(Event::End(_)) => {
+                if *depth <= start_depth {
+                    break;
+                }
+                *depth -= 1;
+            }
+            Ok(Event::Eof) => break,
+            Err(e) => return Err(e.into()),
+            _ => {}
+        }
+        buf.clear();
+    }
+
+    if vertices.len() < 2 {
+        return Ok(None);
+    }
+
+    let min_node = vertices.remove(0);
+    let max_node = vertices.remove(0);
+
+    let x_param: String = min_node
+        .coordinates
+        .keys()
+        .next()
+        .map(|k| k.as_ref().to_string())
+        .unwrap_or_default();
+
+    let id_clone = id.clone();
+    Ok(Some(Gate::new(
+        id,
+        id_clone,
+        GateGeometry::Range {
+            min: min_node,
+            max: max_node,
+        },
+        x_param.clone(),
+        x_param,
+        GateCoordinateSpace::Raw,
+    )))
+}
+
+/// Parse a vertex node for range gates (single coordinate)
+fn parse_range_vertex(reader: &mut Reader<&[u8]>, depth: &mut u32) -> Result<GateNode> {
+    let start_depth = *depth;
+    let mut node = GateNode::new("range_node");
+    let mut buf = Vec::new();
+
+    loop {
+        match reader.read_event_into(&mut buf) {
+            Ok(Event::Empty(ref e)) | Ok(Event::Start(ref e)) => {
+                let name = e.name();
+                if name.as_ref() == b"gating:coordinate" || name.as_ref() == b"coordinate" {
+                    let param = e
+                        .attributes()
+                        .find(|attr| {
+                            let a = attr.as_ref().unwrap();
+                            a.key.as_ref() == b"gating:parameter" || a.key.as_ref() == b"parameter"
+                        })
+                        .and_then(|attr| String::from_utf8(attr.unwrap().value.into_owned()).ok());
+                    let value = e
+                        .attributes()
+                        .find(|attr| {
+                            let a = attr.as_ref().unwrap();
+                            a.key.as_ref() == b"gating:value" || a.key.as_ref() == b"value"
+                        })
+                        .and_then(|attr| {
+                            String::from_utf8(attr.unwrap().value.into_owned())
+                                .ok()?
+                                .parse::<f32>()
+                                .ok()
+                        });
+                    if let (Some(p), Some(v)) = (param, value) {
+                        node.set_coordinate(Arc::from(p.as_str()), v);
+                    }
+                }
+            }
+            Ok(Event::End(_)) => {
+                if *depth <= start_depth {
+                    break;
+                }
+                *depth -= 1;
+            }
+            Ok(Event::Eof) => break,
+            Err(e) => return Err(e.into()),
+            _ => {}
+        }
+        buf.clear();
+    }
+
+    Ok(node)
+}
+
+/// Parse range geometry in v2.0 format
+fn parse_range_geometry_v2(
+    reader: &mut Reader<&[u8]>,
+    _range_start: &BytesStart,
+    depth: &mut u32,
+) -> Result<GateGeometry> {
+    let start_depth = *depth;
+    let mut vertices = Vec::new();
+    let mut buf = Vec::new();
+
+    loop {
+        match reader.read_event_into(&mut buf) {
+            Ok(Event::Start(ref e)) => {
+                *depth += 1;
+                let name = e.name();
+
+                if name.as_ref() == b"gating:vertex" || name.as_ref() == b"vertex" {
+                    let vertex = parse_range_vertex(reader, depth)?;
+                    vertices.push(vertex);
+                }
+            }
+            Ok(Event::End(_)) => {
+                if *depth <= start_depth {
+                    break;
+                }
+                *depth -= 1;
+            }
+            Ok(Event::Eof) => break,
+            Err(e) => return Err(e.into()),
+            _ => {}
+        }
+        buf.clear();
+    }
+
+    if vertices.len() < 2 {
+        return Err(GateError::invalid_geometry(
+            "RangeGate requires at least 2 vertices (min and max)",
+        ));
+    }
+
+    let mut verts = vertices;
+    let min = verts.remove(0);
+    let max = verts.remove(0);
+
+    Ok(GateGeometry::Range { min, max })
 }
 
 /// Parse dimension element in v1.5 format
@@ -988,6 +1184,9 @@ fn extract_parameters_from_geometry(geometry: &GateGeometry) -> Result<(String, 
         if params.len() >= 2 {
             return Ok((params[0].clone(), params[1].clone()));
         }
+        if params.len() == 1 {
+            return Ok((params[0].clone(), params[0].clone()));
+        }
     }
     Err(GateError::Other {
         message: "Could not extract parameters from geometry".to_string(),
@@ -1091,5 +1290,69 @@ mod tests {
         assert!(xml.contains("ellipse-gate"));
         assert!(xml.contains("radiusX=\"1000\""));
         assert!(xml.contains("radiusY=\"2000\""));
+    }
+
+    #[test]
+    fn test_range_gate_to_gatingml() {
+        let min_node = GateNode::new("range_min")
+            .with_coordinate("FSC-A", 500.0);
+        let max_node = GateNode::new("range_max")
+            .with_coordinate("FSC-A", 2000.0);
+
+        let gate = Gate::new(
+            "range-gate",
+            "Range Gate",
+            GateGeometry::Range {
+                min: min_node,
+                max: max_node,
+            },
+            "FSC-A",
+            "FSC-A",
+            GateCoordinateSpace::Raw,
+        );
+
+        let gates = vec![gate];
+        let xml = gates_to_gatingml(&gates).unwrap();
+
+        assert!(xml.contains("RangeGate"));
+        assert!(xml.contains("range-gate"));
+        assert!(xml.contains("FSC-A"));
+        assert!(xml.contains("500"));
+        assert!(xml.contains("2000"));
+    }
+
+    #[test]
+    fn test_range_gate_gatingml_roundtrip() {
+        let min_node = GateNode::new("range_min")
+            .with_coordinate("FSC-A", 500.0);
+        let max_node = GateNode::new("range_max")
+            .with_coordinate("FSC-A", 2000.0);
+
+        let gate = Gate::new(
+            "range-rt",
+            "Range RT",
+            GateGeometry::Range {
+                min: min_node,
+                max: max_node,
+            },
+            "FSC-A",
+            "FSC-A",
+            GateCoordinateSpace::Raw,
+        );
+
+        let xml = gates_to_gatingml(&[gate]).unwrap();
+        let parsed = gatingml_to_gates(&xml).unwrap();
+
+        assert_eq!(parsed.len(), 1);
+        let parsed_gate = &parsed[0];
+        assert_eq!(parsed_gate.id.as_ref(), "range-rt");
+        if let GateGeometry::Range { min, max } = &parsed_gate.geometry {
+            let min_x = min.get_coordinate("FSC-A").unwrap();
+            let max_x = max.get_coordinate("FSC-A").unwrap();
+            assert!((min_x - 500.0).abs() < 0.01);
+            assert!((max_x - 2000.0).abs() < 0.01);
+        } else {
+            panic!("Expected Range geometry");
+        }
     }
 }

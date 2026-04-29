@@ -7,6 +7,6 @@
 pub mod construction;
 
 pub use construction::{
-    create_ellipse_geometry, create_polygon_geometry, create_rectangle_geometry,
+    create_ellipse_geometry, create_polygon_geometry, create_range_geometry,
+    create_rectangle_geometry,
 };
-
