@@ -79,6 +79,31 @@ impl GateNode {
 /// let or_op = BooleanOperation::Or;
 /// let not_op = BooleanOperation::Not;
 /// ```
+/// Which parameter-processing state the gate's node coordinates are expressed in.
+///
+/// Every `Gate` must declare its coordinate space. Filters compare gate coordinates
+/// against event data, and if the spaces don't match, the filter produces wrong
+/// results silently. Encoding the space on the gate (and requiring filter inputs
+/// to be tagged with their own space) makes a mismatch a typed error rather than
+/// a silent-data-corruption bug.
+///
+/// Mirrors `flow_fcs::ParameterProcessing` (same two variants, same serde names).
+/// The app intentionally doesn't track file storage form (raw vs unmixed) here —
+/// the only decision the filter needs is "apply spillover compensation, or not".
+/// Unmixed-stored data just reads as "raw" to the filter (the file's columns are
+/// what they are); applying compensation on top is the `Compensated` case.
+///
+/// The spatial transform (e.g. arcsinh) is applied and inverted around gate
+/// evaluation — gate coordinates are never stored in *transformed* space.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Hash)]
+#[serde(rename_all = "snake_case")]
+pub enum GateCoordinateSpace {
+    /// Coordinates measured against stored file values — no compensation applied.
+    Raw,
+    /// Coordinates measured against spillover-compensated values.
+    Compensated,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum BooleanOperation {
@@ -163,6 +188,11 @@ pub enum GateGeometry {
         radius_y: f32,
         angle: f32, // rotation angle in radians
     },
+    /// 1D range gate on a single parameter (min <= x <= max, y ignored)
+    Range {
+        min: GateNode,
+        max: GateNode,
+    },
     /// Boolean gate combining other gates with logical operations
     ///
     /// Boolean gates reference other gates by ID and combine their results
@@ -237,6 +267,13 @@ impl GateGeometry {
                     None
                 }
             }
+            GateGeometry::Range { min, max } => {
+                let range = crate::range::RangeGateGeometry {
+                    min: min.clone(),
+                    max: max.clone(),
+                };
+                range.bounding_box(x_param, y_param).ok()
+            }
             GateGeometry::Boolean { .. } => {
                 // Boolean gates don't have a direct bounding box - would need to resolve operands
                 // For now, return None to indicate it can't be calculated directly
@@ -291,6 +328,13 @@ impl GateGeometry {
                     .ok_or_else(|| GateError::missing_parameter(y_param, "ellipse center"))?;
 
                 Ok((cx, cy))
+            }
+            GateGeometry::Range { min, max } => {
+                let range = crate::range::RangeGateGeometry {
+                    min: min.clone(),
+                    max: max.clone(),
+                };
+                range.calculate_center(x_param, y_param)
             }
             GateGeometry::Boolean { .. } => {
                 // Boolean gates don't have a direct center - would need to resolve operands
@@ -364,6 +408,13 @@ impl GateGeometry {
                 // Check if point is inside axis-aligned ellipse
                 let normalized = (rotated_x / radius_x).powi(2) + (rotated_y / radius_y).powi(2);
                 Ok(normalized <= 1.0)
+            }
+            GateGeometry::Range { min, max } => {
+                let range = crate::range::RangeGateGeometry {
+                    min: min.clone(),
+                    max: max.clone(),
+                };
+                range.contains_point(x, y, x_param, y_param)
             }
             GateGeometry::Boolean { .. } => {
                 // Boolean gates require resolving referenced gates - can't check containment directly
@@ -444,6 +495,15 @@ impl GateGeometry {
                     *angle,
                 )
             }
+            GateGeometry::Range { min, max } => {
+                let min_x = min
+                    .get_coordinate(x_param)
+                    .ok_or_else(|| GateError::missing_parameter(x_param, "range min"))?;
+                let max_x = max
+                    .get_coordinate(x_param)
+                    .ok_or_else(|| GateError::missing_parameter(x_param, "range max"))?;
+                crate::batch_filtering::filter_by_range_batch(points, (min_x, max_x))
+            }
             GateGeometry::Boolean { .. } => {
                 // Boolean gates require resolving referenced gates - can't check containment directly
                 Err(GateError::invalid_geometry(
@@ -503,6 +563,13 @@ impl GateGeometry {
                 // Radii must be positive
                 Ok(radius_x > &0.0 && radius_y > &0.0)
             }
+            GateGeometry::Range { min, max } => {
+                let range = crate::range::RangeGateGeometry {
+                    min: min.clone(),
+                    max: max.clone(),
+                };
+                range.is_valid(x_param, y_param)
+            }
             GateGeometry::Boolean {
                 operation,
                 operands,
@@ -531,6 +598,7 @@ impl GateGeometry {
             GateGeometry::Polygon { .. } => "Polygon",
             GateGeometry::Rectangle { .. } => "Rectangle",
             GateGeometry::Ellipse { .. } => "Ellipse",
+            GateGeometry::Range { .. } => "Range",
             GateGeometry::Boolean { .. } => "Boolean",
         }
     }
@@ -570,6 +638,13 @@ impl GateCenter for GateGeometry {
                 };
                 ellipse.calculate_center(x_param, y_param)
             }
+            GateGeometry::Range { min, max } => {
+                let range = crate::range::RangeGateGeometry {
+                    min: min.clone(),
+                    max: max.clone(),
+                };
+                range.calculate_center(x_param, y_param)
+            }
             GateGeometry::Boolean { .. } => Err(GateError::invalid_geometry(
                 "Boolean gates do not have a direct center point",
             )),
@@ -607,6 +682,13 @@ impl GateContainment for GateGeometry {
                     angle: *angle,
                 };
                 ellipse.contains_point(x, y, x_param, y_param)
+            }
+            GateGeometry::Range { min, max } => {
+                let range = crate::range::RangeGateGeometry {
+                    min: min.clone(),
+                    max: max.clone(),
+                };
+                range.contains_point(x, y, x_param, y_param)
             }
             GateGeometry::Boolean { .. } => Err(GateError::invalid_geometry(
                 "Boolean gates require gate resolution to check containment",
@@ -646,6 +728,13 @@ impl GateBounds for GateGeometry {
                 };
                 ellipse.bounding_box(x_param, y_param)
             }
+            GateGeometry::Range { min, max } => {
+                let range = crate::range::RangeGateGeometry {
+                    min: min.clone(),
+                    max: max.clone(),
+                };
+                range.bounding_box(x_param, y_param)
+            }
             GateGeometry::Boolean { .. } => Err(GateError::invalid_geometry(
                 "Boolean gates do not have a direct bounding box",
             )),
@@ -684,6 +773,13 @@ impl GateValidation for GateGeometry {
                 };
                 ellipse.is_valid(x_param, y_param)
             }
+            GateGeometry::Range { min, max } => {
+                let range = crate::range::RangeGateGeometry {
+                    min: min.clone(),
+                    max: max.clone(),
+                };
+                range.is_valid(x_param, y_param)
+            }
             GateGeometry::Boolean {
                 operation,
                 operands,
@@ -720,6 +816,7 @@ impl GateGeometryOps for GateGeometry {
             GateGeometry::Polygon { .. } => "Polygon",
             GateGeometry::Rectangle { .. } => "Rectangle",
             GateGeometry::Ellipse { .. } => "Ellipse",
+            GateGeometry::Range { .. } => "Range",
             GateGeometry::Boolean { .. } => "Boolean",
         }
     }
@@ -863,6 +960,10 @@ pub struct Gate {
     /// The parameters (channels) this gate operates on (x_channel, y_channel)
     #[serde(with = "arc_str_pair")]
     pub parameters: (Arc<str>, Arc<str>),
+    /// The parameter-processing state the node coordinates are expressed in.
+    /// Filters compare against event data in the same space; a mismatch is a
+    /// typed error, not silent corruption. No default — every gate must declare.
+    pub coordinate_space: GateCoordinateSpace,
     /// Optional label position as offset from first node in raw data coordinates
     pub label_position: Option<LabelPosition>,
 }
@@ -880,12 +981,14 @@ impl Gate {
     /// * `geometry` - The geometric shape of the gate
     /// * `x_param` - Channel name for the x-axis parameter
     /// * `y_param` - Channel name for the y-axis parameter
+    /// * `coordinate_space` - Which processing state the node coordinates are in
     pub fn new(
         id: impl Into<Arc<str>>,
         name: impl Into<String>,
         geometry: GateGeometry,
         x_param: impl Into<Arc<str>>,
         y_param: impl Into<Arc<str>>,
+        coordinate_space: GateCoordinateSpace,
     ) -> Self {
         let x_param = x_param.into();
         let y_param = y_param.into();
@@ -896,6 +999,7 @@ impl Gate {
             geometry,
             mode: GateMode::Global, // Default to global
             parameters: (x_param, y_param),
+            coordinate_space,
             label_position: None,
         }
     }
@@ -1033,6 +1137,7 @@ impl Gate {
             geometry: self.geometry.clone(),
             mode: self.mode.clone(),
             parameters: self.parameters.clone(),
+            coordinate_space: self.coordinate_space,
             label_position: self.label_position.clone(),
         }
     }
@@ -1075,12 +1180,20 @@ impl Gate {
         coords: Vec<(f32, f32)>,
         x_param: impl Into<Arc<str>>,
         y_param: impl Into<Arc<str>>,
+        coordinate_space: GateCoordinateSpace,
     ) -> Result<Self> {
         use crate::geometry::create_polygon_geometry;
         let x_param_arc = x_param.into();
         let y_param_arc = y_param.into();
         let geometry = create_polygon_geometry(coords, x_param_arc.as_ref(), y_param_arc.as_ref())?;
-        Ok(Self::new(id, name, geometry, x_param_arc, y_param_arc))
+        Ok(Self::new(
+            id,
+            name,
+            geometry,
+            x_param_arc,
+            y_param_arc,
+            coordinate_space,
+        ))
     }
 
     /// Create a rectangle gate from min and max coordinates
@@ -1117,6 +1230,7 @@ impl Gate {
         max: (f32, f32),
         x_param: impl Into<Arc<str>>,
         y_param: impl Into<Arc<str>>,
+        coordinate_space: GateCoordinateSpace,
     ) -> Result<Self> {
         use crate::geometry::create_rectangle_geometry;
         let x_param_arc = x_param.into();
@@ -1124,7 +1238,14 @@ impl Gate {
         let coords = vec![min, max];
         let geometry =
             create_rectangle_geometry(coords, x_param_arc.as_ref(), y_param_arc.as_ref())?;
-        Ok(Self::new(id, name, geometry, x_param_arc, y_param_arc))
+        Ok(Self::new(
+            id,
+            name,
+            geometry,
+            x_param_arc,
+            y_param_arc,
+            coordinate_space,
+        ))
     }
 
     /// Create an ellipse gate from center, radii, and angle
@@ -1165,6 +1286,7 @@ impl Gate {
         angle: f32,
         x_param: impl Into<Arc<str>>,
         y_param: impl Into<Arc<str>>,
+        coordinate_space: GateCoordinateSpace,
     ) -> Result<Self> {
         use crate::geometry::create_ellipse_geometry;
         let x_param_arc = x_param.into();
@@ -1181,7 +1303,14 @@ impl Gate {
             },
             _ => geometry,
         };
-        Ok(Self::new(id, name, geometry, x_param_arc, y_param_arc))
+        Ok(Self::new(
+            id,
+            name,
+            geometry,
+            x_param_arc,
+            y_param_arc,
+            coordinate_space,
+        ))
     }
 }
 
@@ -1212,6 +1341,7 @@ pub struct GateBuilder {
     x_param: Option<Arc<str>>,
     y_param: Option<Arc<str>>,
     mode: GateMode,
+    coordinate_space: Option<GateCoordinateSpace>,
     label_position: Option<LabelPosition>,
 }
 
@@ -1229,8 +1359,16 @@ impl GateBuilder {
             x_param: None,
             y_param: None,
             mode: GateMode::Global,
+            coordinate_space: None,
             label_position: None,
         }
+    }
+
+    /// Set which parameter-processing state the gate's coordinates are expressed in.
+    /// Required — `build()` errors if not set.
+    pub fn coordinate_space(mut self, space: GateCoordinateSpace) -> Self {
+        self.coordinate_space = Some(space);
+        self
     }
 
     /// Set the geometry to a polygon
@@ -1375,6 +1513,12 @@ impl GateBuilder {
         let y_param = self.y_param.ok_or_else(|| {
             GateError::invalid_builder_state("y_param", "Y parameter must be set before building")
         })?;
+        let coordinate_space = self.coordinate_space.ok_or_else(|| {
+            GateError::invalid_builder_state(
+                "coordinate_space",
+                "coordinate_space must be set before building (call .coordinate_space(...))",
+            )
+        })?;
 
         Ok(Gate {
             id: self.id,
@@ -1382,6 +1526,7 @@ impl GateBuilder {
             geometry,
             mode: self.mode,
             parameters: (x_param, y_param),
+            coordinate_space,
             label_position: self.label_position,
         })
     }

@@ -96,6 +96,7 @@ pub mod geometry;
 pub mod hierarchy;
 pub mod linking;
 pub mod polygon;
+pub mod range;
 pub mod rectangle;
 pub mod scope;
 pub mod statistics;
@@ -140,7 +141,9 @@ pub use statistics::GateStatistics;
 pub use gatingml::{gates_to_gatingml, gatingml_to_gates};
 
 /// Core gate types and structures
-pub use types::{BooleanOperation, Gate, GateBuilder, GateGeometry, GateMode, GateNode};
+pub use types::{
+    BooleanOperation, Gate, GateBuilder, GateCoordinateSpace, GateGeometry, GateMode, GateNode,
+};
 
 /// Gate geometry traits
 pub use traits::{GateBounds, GateCenter, GateContainment, GateGeometryOps, GateValidation};

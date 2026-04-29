@@ -1,5 +1,5 @@
 use crate::error::{GateError, Result};
-use crate::types::{Gate, GateGeometry, GateNode};
+use crate::types::{Gate, GateCoordinateSpace, GateGeometry, GateNode};
 use quick_xml::{
     Reader, Writer,
     events::{BytesEnd, BytesStart, Event},
@@ -105,6 +105,9 @@ fn write_gate_to_xml(writer: &mut Writer<Cursor<Vec<u8>>>, gate: &Gate) -> Resul
             angle,
         } => {
             write_ellipse_gate(writer, center, *radius_x, *radius_y, *angle)?;
+        }
+        GateGeometry::Range { .. } => {
+            todo!("Range gate GatingML serialization — Task 5")
         }
         GateGeometry::Boolean {
             operation,
@@ -378,7 +381,14 @@ fn parse_gate_v2(
         // Extract parameters from geometry
         let (x_param, y_param) = extract_parameters_from_geometry(&geom)?;
 
-        Ok(Some(Gate::new(id, name, geom, x_param, y_param)))
+        Ok(Some(Gate::new(
+            id,
+            name,
+            geom,
+            x_param,
+            y_param,
+            GateCoordinateSpace::Raw,
+        )))
     } else {
         Ok(None)
     }
@@ -525,6 +535,7 @@ fn parse_rectangle_gate_v1_5(
         },
         x_param,
         y_param,
+        GateCoordinateSpace::Raw,
     )))
 }
 
@@ -685,6 +696,7 @@ fn parse_polygon_gate_v1_5(
         },
         x_param,
         y_param,
+        GateCoordinateSpace::Raw,
     )))
 }
 
@@ -795,7 +807,14 @@ fn parse_boolean_gate_v1_5(
     let x_param = Arc::from("x");
     let y_param = Arc::from("y");
 
-    Ok(Some(Gate::new(id, name, geometry, x_param, y_param)))
+    Ok(Some(Gate::new(
+        id,
+        name,
+        geometry,
+        x_param,
+        y_param,
+        GateCoordinateSpace::Raw,
+    )))
 }
 
 /// Parse boolean geometry in v1.5 format
@@ -951,6 +970,7 @@ fn extract_parameters_from_geometry(geometry: &GateGeometry) -> Result<(String, 
         GateGeometry::Polygon { nodes, .. } => nodes.first(),
         GateGeometry::Rectangle { min, .. } => Some(min),
         GateGeometry::Ellipse { center, .. } => Some(center),
+        GateGeometry::Range { min, .. } => Some(min),
         GateGeometry::Boolean { .. } => {
             // Boolean gates don't have direct parameters - they reference other gates
             return Err(GateError::invalid_geometry(
@@ -997,6 +1017,7 @@ mod tests {
             },
             "FSC-A",
             "SSC-A",
+            GateCoordinateSpace::Raw,
         )
     }
 
@@ -1033,6 +1054,7 @@ mod tests {
             },
             "FSC-A",
             "SSC-A",
+            GateCoordinateSpace::Raw,
         );
 
         let gates = vec![gate];
@@ -1059,6 +1081,7 @@ mod tests {
             },
             "FSC-A",
             "SSC-A",
+            GateCoordinateSpace::Raw,
         );
 
         let gates = vec![gate];
