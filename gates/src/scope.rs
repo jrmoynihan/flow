@@ -48,9 +48,8 @@ impl<'a> GateQuery<'a> {
     /// * `x` - X-axis parameter name
     /// * `y` - Y-axis parameter name
     pub fn by_parameters(mut self, x: &str, y: &str) -> Self {
-        self.gates.retain(|gate| {
-            gate.x_parameter_channel_name() == x && gate.y_parameter_channel_name() == y
-        });
+        self.gates
+            .retain(|gate| gate.matches_plot_parameters(x, y));
         self
     }
 
@@ -157,9 +156,11 @@ pub fn filter_gates_by_type<'a>(
     }
 }
 
-/// Filter gates by parameters (channels)
+/// Filter gates by plot parameters (channels)
 ///
-/// Returns only gates that operate on the specified x and y parameters.
+/// Returns gates relevant to a plot with axes `(x_param, y_param)`:
+/// two-channel gates match that pair (either axis order), and one-channel (range)
+/// gates match if their constrained `channel` equals either axis name.
 ///
 /// # Arguments
 /// * `gates` - Iterator over gate references
@@ -189,9 +190,7 @@ pub fn filter_gates_by_parameters<'a>(
     y_param: &str,
 ) -> Vec<&'a Gate> {
     gates
-        .filter(|gate| {
-            gate.x_parameter_channel_name() == x_param && gate.y_parameter_channel_name() == y_param
-        })
+        .filter(|gate| gate.matches_plot_parameters(x_param, y_param))
         .collect()
 }
 
@@ -268,9 +267,7 @@ pub fn filter_hierarchy_by_parameters(
     // Get all gates matching parameters
     let matching_gates: std::collections::HashSet<Arc<str>> = gates_map
         .iter()
-        .filter(|(_, gate)| {
-            gate.x_parameter_channel_name() == x_param && gate.y_parameter_channel_name() == y_param
-        })
+        .filter(|(_, gate)| gate.matches_plot_parameters(x_param, y_param))
         .map(|(id, _)| id.clone())
         .collect();
 

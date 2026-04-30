@@ -146,6 +146,7 @@ pub use gatingml::{gates_to_gatingml, gatingml_to_gates};
 /// Core gate types and structures
 pub use types::{
     BooleanOperation, Gate, GateBuilder, GateCoordinateSpace, GateGeometry, GateMode, GateNode,
+    GateParameters,
 };
 
 /// Gate geometry traits

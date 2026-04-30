@@ -1,6 +1,6 @@
 //! Tests that use PartialEq for Gate round-trip and equality checks.
 
-use flow_gates::{Gate, GateGeometry, GateNode};
+use flow_gates::{Gate, GateCoordinateSpace, GateGeometry, GateNode};
 
 fn make_test_gate() -> Gate {
     let node1 = GateNode::new("n1")
@@ -18,6 +18,7 @@ fn make_test_gate() -> Gate {
         },
         "FSC-A",
         "SSC-A",
+        GateCoordinateSpace::Raw,
     )
 }
 

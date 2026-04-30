@@ -916,6 +916,152 @@ pub struct LabelPosition {
     pub offset_y: f32,
 }
 
+/// Which parameters (channels) a gate uses: full 2D gating, or 1D range on one channel.
+///
+/// - **TwoChannel** — polygon, rectangle, ellipse, boolean operands: the gate is defined
+///   in the `(x, y)` channel pair (order matches the plot / event column pair).
+/// - **OneChannel** — range gate: `channel` carries the min/max bounds; `companion` is the
+///   orthogonal plot parameter used only to build the 2D event/index plane (same role as
+///   the “other” axis in the legacy `[x, y]` tuple for ranges).
+#[derive(Debug, Clone, PartialEq)]
+pub enum GateParameters {
+    TwoChannel {
+        x: Arc<str>,
+        y: Arc<str>,
+    },
+    OneChannel {
+        channel: Arc<str>,
+        companion: Arc<str>,
+    },
+}
+
+impl GateParameters {
+    /// Whether this gate should appear on a plot whose axes are `(plot_x, plot_y)` (either order).
+    pub fn matches_plot_parameters(&self, plot_x: &str, plot_y: &str) -> bool {
+        match self {
+            GateParameters::TwoChannel { x, y } => {
+                (x.as_ref() == plot_x && y.as_ref() == plot_y)
+                    || (x.as_ref() == plot_y && y.as_ref() == plot_x)
+            }
+            GateParameters::OneChannel { channel, .. } => {
+                channel.as_ref() == plot_x || channel.as_ref() == plot_y
+            }
+        }
+    }
+
+    /// The single constrained axis for [`GateGeometry::Range`], if parameters are [`OneChannel`].
+    pub fn range_channel_name(&self) -> Option<&str> {
+        match self {
+            GateParameters::OneChannel { channel, .. } => Some(channel.as_ref()),
+            GateParameters::TwoChannel { .. } => None,
+        }
+    }
+}
+
+impl Serialize for GateParameters {
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        #[derive(Serialize)]
+        #[serde(tag = "type", rename_all = "snake_case")]
+        enum GateParametersSer<'a> {
+            TwoChannel { x: &'a str, y: &'a str },
+            OneChannel {
+                channel: &'a str,
+                companion: &'a str,
+            },
+        }
+        match self {
+            GateParameters::TwoChannel { x, y } => GateParametersSer::TwoChannel {
+                x: x.as_ref(),
+                y: y.as_ref(),
+            }
+            .serialize(serializer),
+            GateParameters::OneChannel { channel, companion } => GateParametersSer::OneChannel {
+                channel: channel.as_ref(),
+                companion: companion.as_ref(),
+            }
+            .serialize(serializer),
+        }
+    }
+}
+
+impl<'de> Deserialize<'de> for GateParameters {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        #[serde(untagged)]
+        enum GateParametersDe {
+            Legacy([String; 2]),
+            Tagged(GateParametersTaggedDe),
+        }
+        #[derive(Deserialize)]
+        #[serde(tag = "type", rename_all = "snake_case")]
+        enum GateParametersTaggedDe {
+            TwoChannel { x: String, y: String },
+            OneChannel {
+                channel: String,
+                companion: String,
+            },
+        }
+        let helper = GateParametersDe::deserialize(deserializer)?;
+        Ok(match helper {
+            GateParametersDe::Legacy([a, b]) => GateParameters::TwoChannel {
+                x: Arc::from(a.as_str()),
+                y: Arc::from(b.as_str()),
+            },
+            GateParametersDe::Tagged(GateParametersTaggedDe::TwoChannel { x, y }) => {
+                GateParameters::TwoChannel {
+                    x: Arc::from(x.as_str()),
+                    y: Arc::from(y.as_str()),
+                }
+            }
+            GateParametersDe::Tagged(GateParametersTaggedDe::OneChannel { channel, companion }) => {
+                GateParameters::OneChannel {
+                    channel: Arc::from(channel.as_str()),
+                    companion: Arc::from(companion.as_str()),
+                }
+            }
+        })
+    }
+}
+
+/// Build [`GateParameters`] from geometry plus the plot's `(x, y)` channel names at creation time.
+pub fn gate_parameters_from_geometry_and_axes(
+    geometry: &GateGeometry,
+    plot_x: Arc<str>,
+    plot_y: Arc<str>,
+) -> GateParameters {
+    match geometry {
+        GateGeometry::Range { min, .. } => {
+            let channel_key = min.coordinates.keys().next().cloned().unwrap_or_else(|| {
+                // Should not happen for valid range geometry; preserve plot pair as 2D fallback.
+                plot_x.clone()
+            });
+            let companion =
+                if channel_key.as_ref() == plot_x.as_ref() {
+                    plot_y.clone()
+                } else if channel_key.as_ref() == plot_y.as_ref() {
+                    plot_x.clone()
+                } else {
+                    // Node key doesn't match either plot axis: keep a deterministic companion.
+                    plot_y.clone()
+                };
+            GateParameters::OneChannel {
+                channel: channel_key,
+                companion,
+            }
+        }
+        _ => GateParameters::TwoChannel {
+            x: plot_x,
+            y: plot_y,
+        },
+    }
+}
+
 /// A gate represents a region of interest in flow cytometry data.
 ///
 /// Gates define 2D regions in parameter space that can be used to filter
@@ -963,9 +1109,8 @@ pub struct Gate {
     pub name: String,
     pub geometry: GateGeometry,
     pub mode: GateMode,
-    /// The parameters (channels) this gate operates on (x_channel, y_channel)
-    #[serde(with = "arc_str_pair")]
-    pub parameters: (Arc<str>, Arc<str>),
+    /// Channels this gate uses in raw/event space (see [`GateParameters`]).
+    pub parameters: GateParameters,
     /// The parameter-processing state the node coordinates are expressed in.
     /// Filters compare against event data in the same space; a mismatch is a
     /// typed error, not silent corruption. No default — every gate must declare.
@@ -992,32 +1137,68 @@ impl Gate {
         id: impl Into<Arc<str>>,
         name: impl Into<String>,
         geometry: GateGeometry,
-        x_param: impl Into<Arc<str>>,
-        y_param: impl Into<Arc<str>>,
+        plot_x_param: impl Into<Arc<str>>,
+        plot_y_param: impl Into<Arc<str>>,
         coordinate_space: GateCoordinateSpace,
     ) -> Self {
-        let x_param = x_param.into();
-        let y_param = y_param.into();
+        let px = plot_x_param.into();
+        let py = plot_y_param.into();
+        let parameters = gate_parameters_from_geometry_and_axes(&geometry, px, py);
 
         Self {
             id: id.into(),
             name: name.into(),
             geometry,
             mode: GateMode::Global, // Default to global
-            parameters: (x_param, y_param),
+            parameters,
             coordinate_space,
             label_position: None,
         }
     }
 
-    /// Get the x parameter (channel name)
-    pub fn x_parameter_channel_name(&self) -> &str {
-        self.parameters.0.as_ref()
+    /// True if this gate is relevant to a plot with the given `x`/`y` channel names
+    /// (including axis swap). For one-channel (range) gates, matches if the constrained
+    /// `channel` equals either plot axis.
+    pub fn matches_plot_parameters(&self, plot_x: &str, plot_y: &str) -> bool {
+        self.parameters.matches_plot_parameters(plot_x, plot_y)
     }
 
-    /// Get the y parameter (channel name)
+    /// For range (`OneChannel`) gates, the single bounded axis; for 2D gates, `None`.
+    pub fn range_channel_name(&self) -> Option<&str> {
+        self.parameters.range_channel_name()
+    }
+
+    /// `Some((x, y))` for [`GateParameters::TwoChannel`]; `None` for one-channel range gates.
+    pub fn two_channel_axes(&self) -> Option<(&str, &str)> {
+        match &self.parameters {
+            GateParameters::TwoChannel { x, y } => Some((x.as_ref(), y.as_ref())),
+            GateParameters::OneChannel { .. } => None,
+        }
+    }
+
+    /// The constrained axis for a one-channel (range) gate, if any.
+    pub fn one_channel_axis(&self) -> Option<&str> {
+        match &self.parameters {
+            GateParameters::OneChannel { channel, .. } => Some(channel.as_ref()),
+            GateParameters::TwoChannel { .. } => None,
+        }
+    }
+
+    /// First event/plot column name (for [`GateParameters::TwoChannel`], this is `x`;
+    /// for a range gate, the range `channel` — the “row” in the 2D event pair).
+    pub fn x_parameter_channel_name(&self) -> &str {
+        match &self.parameters {
+            GateParameters::TwoChannel { x, .. } => x.as_ref(),
+            GateParameters::OneChannel { channel, .. } => channel.as_ref(),
+        }
+    }
+
+    /// Second event/plot column name (for range gates, the orthogonal `companion` axis).
     pub fn y_parameter_channel_name(&self) -> &str {
-        self.parameters.1.as_ref()
+        match &self.parameters {
+            GateParameters::TwoChannel { y, .. } => y.as_ref(),
+            GateParameters::OneChannel { companion, .. } => companion.as_ref(),
+        }
     }
 
     /// Check if a point (in gate's parameter space) is inside the gate
@@ -1526,12 +1707,14 @@ impl GateBuilder {
             )
         })?;
 
+        let parameters = gate_parameters_from_geometry_and_axes(&geometry, x_param, y_param);
+
         Ok(Gate {
             id: self.id,
             name: self.name,
             geometry,
             mode: self.mode,
-            parameters: (x_param, y_param),
+            parameters,
             coordinate_space,
             label_position: self.label_position,
         })
@@ -1577,26 +1760,6 @@ mod arc_str_vec {
     {
         let vec = Vec::<String>::deserialize(deserializer)?;
         Ok(vec.into_iter().map(|s| Arc::from(s.as_str())).collect())
-    }
-}
-
-mod arc_str_pair {
-    use serde::{Deserialize, Deserializer, Serialize, Serializer};
-    use std::sync::Arc;
-
-    pub fn serialize<S>(pair: &(Arc<str>, Arc<str>), serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        (pair.0.as_ref(), pair.1.as_ref()).serialize(serializer)
-    }
-
-    pub fn deserialize<'de, D>(deserializer: D) -> Result<(Arc<str>, Arc<str>), D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let (s1, s2) = <(String, String)>::deserialize(deserializer)?;
-        Ok((Arc::from(s1.as_str()), Arc::from(s2.as_str())))
     }
 }
 

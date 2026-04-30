@@ -475,22 +475,29 @@ impl EventIndex {
         }
     }
 
-    /// Filter by range gate (1D — only x coordinate checked)
+    /// Filter by range gate (1D on either plot axis, resolved from stored channel + companion)
     fn filter_by_range(&self, gate: &Gate) -> Vec<usize> {
         if let GateGeometry::Range { min, max } = &gate.geometry {
-            let min_x = match min.get_coordinate(gate.x_parameter_channel_name()) {
-                Some(x) => x,
-                None => return Vec::new(),
+            let range = crate::range::RangeGateGeometry {
+                min: min.clone(),
+                max: max.clone(),
             };
-            let max_x = match max.get_coordinate(gate.x_parameter_channel_name()) {
-                Some(x) => x,
-                None => return Vec::new(),
+            let (axis, lo, hi) = match range.resolve_bounds(
+                gate.x_parameter_channel_name(),
+                gate.y_parameter_channel_name(),
+            ) {
+                Ok(v) => v,
+                Err(_) => return Vec::new(),
             };
 
-            let aabb = AABB::from_corners(
-                Point::new(min_x, f32::MIN),
-                Point::new(max_x, f32::MAX),
-            );
+            let aabb = match axis {
+                crate::range::RangeAxis::X => {
+                    AABB::from_corners(Point::new(lo, f32::MIN), Point::new(hi, f32::MAX))
+                }
+                crate::range::RangeAxis::Y => {
+                    AABB::from_corners(Point::new(f32::MIN, lo), Point::new(f32::MAX, hi))
+                }
+            };
             let candidates: Vec<_> = self.rtree.locate_in_envelope(&aabb).collect();
 
             let candidate_points: Vec<(f32, f32)> = candidates
@@ -501,9 +508,17 @@ impl EventIndex {
                 })
                 .collect();
 
-            let results =
-                crate::batch_filtering::filter_by_range_batch(&candidate_points, (min_x, max_x))
-                    .unwrap_or_default();
+            let results = match axis {
+                crate::range::RangeAxis::X => crate::batch_filtering::filter_by_range_batch(
+                    &candidate_points,
+                    (lo, hi),
+                ),
+                crate::range::RangeAxis::Y => crate::batch_filtering::filter_by_range_y_batch(
+                    &candidate_points,
+                    (lo, hi),
+                ),
+            }
+            .unwrap_or_default();
 
             candidates
                 .into_iter()
