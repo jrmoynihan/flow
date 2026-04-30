@@ -1,0 +1,146 @@
+🧬 TRU-OLS e2e plate throughput (`e2e_plate_throughput`)
+=========================================================
+Stained sample: /Users/kfls271/Downloads/Plate_001/Stained_Samples/Donor 12_H1 Full Stain_D12_Plate_001_2025_09_25_15_41_27.fcs
+Unstained control: /Users/kfls271/Downloads/Plate_001/Reference Group/Reference Group_A1 Unstained (Cells)_Plate_001_2025_09_25_14_58_02.fcs
+Mixing matrix/controls: /Users/kfls271/Downloads/Plate_001/Reference Group/
+Output directory: /Users/kfls271/Downloads/Plate_001/Unmixed/e2e_bench_after_perf
+
+📂 Loading FCS files...
+Validating FCS file...FCS3.1
+Validating FCS file...FCS3.1
+📊 Generating mixing matrix from single-stain controls...
+Validating FCS file...FCS3.1
+Calculating peaks for 64 channels...
+MAD detected 8 outlier bins (16.3%) using scale factor 1.4826
+Validating FCS file...FCS3.1
+Calculating peaks for 64 channels...
+MAD detected 6 outlier bins (12.2%) using scale factor 1.4826
+Validating FCS file...FCS3.1
+Calculating peaks for 64 channels...
+MAD detected 10 outlier bins (20.4%) using scale factor 1.4826
+Validating FCS file...FCS3.1
+Calculating peaks for 64 channels...
+MAD detected 1 outlier bins (2.0%) using scale factor 1.4826
+Validating FCS file...FCS3.1
+Calculating peaks for 64 channels...
+MAD detected 7 outlier bins (14.3%) using scale factor 1.4826
+Validating FCS file...FCS3.1
+Calculating peaks for 64 channels...
+MAD detected 5 outlier bins (10.2%) using scale factor 1.4826
+Validating FCS file...FCS3.1
+Calculating peaks for 64 channels...
+MAD detected 1 outlier bins (2.0%) using scale factor 1.4826
+Validating FCS file...FCS3.1
+Calculating peaks for 64 channels...
+MAD detected 4 outlier bins (8.2%) using scale factor 1.4826
+Validating FCS file...FCS3.1
+Calculating peaks for 64 channels...
+MAD detected 6 outlier bins (12.2%) using scale factor 1.4826
+Validating FCS file...FCS3.1
+Calculating peaks for 64 channels...
+MAD detected 6 outlier bins (12.2%) using scale factor 1.4826
+Validating FCS file...FCS3.1
+Calculating peaks for 64 channels...
+MAD detected 3 outlier bins (6.2%) using scale factor 1.4826
+Validating FCS file...FCS3.1
+Calculating peaks for 64 channels...
+Running SD-based Isolation Tree: 227 bins, 111 features (clusters)
+IT detected 36 outlier bins (15.9%), largest node has 191 bins
+MAD detected 0 outlier bins (0.0%) using scale factor 1.4826
+Validating FCS file...FCS3.1
+Calculating peaks for 64 channels...
+MAD detected 8 outlier bins (16.3%) using scale factor 1.4826
+Validating FCS file...FCS3.1
+Calculating peaks for 64 channels...
+MAD detected 6 outlier bins (12.2%) using scale factor 1.4826
+Validating FCS file...FCS3.1
+Calculating peaks for 64 channels...
+MAD detected 10 outlier bins (20.4%) using scale factor 1.4826
+Validating FCS file...FCS3.1
+Calculating peaks for 64 channels...
+MAD detected 1 outlier bins (2.0%) using scale factor 1.4826
+Validating FCS file...FCS3.1
+Calculating peaks for 64 channels...
+MAD detected 7 outlier bins (14.3%) using scale factor 1.4826
+Validating FCS file...FCS3.1
+Calculating peaks for 64 channels...
+MAD detected 5 outlier bins (10.2%) using scale factor 1.4826
+Validating FCS file...FCS3.1
+Calculating peaks for 64 channels...
+MAD detected 1 outlier bins (2.0%) using scale factor 1.4826
+Validating FCS file...FCS3.1
+Calculating peaks for 64 channels...
+MAD detected 4 outlier bins (8.2%) using scale factor 1.4826
+Validating FCS file...FCS3.1
+Calculating peaks for 64 channels...
+MAD detected 6 outlier bins (12.2%) using scale factor 1.4826
+Validating FCS file...FCS3.1
+Calculating peaks for 64 channels...
+MAD detected 6 outlier bins (12.2%) using scale factor 1.4826
+Validating FCS file...FCS3.1
+Calculating peaks for 64 channels...
+MAD detected 3 outlier bins (6.2%) using scale factor 1.4826
+Validating FCS file...FCS3.1
+Calculating peaks for 64 channels...
+Running SD-based Isolation Tree: 227 bins, 111 features (clusters)
+IT detected 36 outlier bins (15.9%), largest node has 191 bins
+MAD detected 0 outlier bins (0.0%) using scale factor 1.4826
+  Detectors: 67 (UV1-A, UV2-A, UV3-A, UV4-A, UV5-A, UV6-A, UV7-A, UV8-A, UV9-A, UV10-A, UV11-A, UV12-A, UV13-A, UV14-A, UV15-A, UV16-A, SSC-H, V1-A, V2-A, V3-A, V4-A, V5-A, V6-A, V7-A, V8-A, V9-A, V10-A, V11-A, V12-A, V13-A, V14-A, V15-A, V16-A, SSC-B-H, SSC-B-A, B1-A, B2-A, B3-A, B4-A, B5-A, B6-A, B7-A, B8-A, B9-A, B10-A, B11-A, B12-A, B13-A, B14-A, YG1-A, YG2-A, YG3-A, YG4-A, YG5-A, YG6-A, YG7-A, YG8-A, YG9-A, YG10-A, R1-A, R2-A, R3-A, R4-A, R5-A, R6-A, R7-A, R8-A)
+  Endmembers: 13 (Reference Group_A10 PD-1 RB705 (Beads)_Plate_001_2025_09_25_15_14_25, Reference Group_A11 TIM3 RY775 (Beads)_Plate_001_2025_09_25_15_15_25, Reference Group_A12 CD56 R718 (Beads)_Plate_001_2025_09_25_15_16_28, Reference Group_A2 HLA-DR_DQ Spark UV 387 (Beads)_Plate_001_2025_09_25_15_00_33, Reference Group_A3 CD4 BUV496 (Beads)_Plate_001_2025_09_25_15_02_19, Reference Group_A4 CD19 BUV615 (Beads)_Plate_001_2025_09_25_15_04_00, Reference Group_A5 CD25 BV421 (Beads)_Plate_001_2025_09_25_15_06_41, Reference Group_A6 TIGIT BV605 (Beads)_Plate_001_2025_09_25_15_08_26, Reference Group_A7 TCRab BV785 (Beads)_Plate_001_2025_09_25_15_10_16, Reference Group_A8 CD8 RB545 (Beads)_Plate_001_2025_09_25_15_11_45, Reference Group_A9 CD14 FITC (Beads)_Plate_001_2025_09_25_15_13_23, Reference Group_B1 Viability LD Near IR 780 (Cells)_Plate_001_2025_09_25_14_56_22, Autofluorescence)
+  Autofluorescence index: 12
+
+🔍 Extracting detector data...
+  Stained: 200000 events × 67 detectors
+  Unstained: 87665 events × 67 detectors
+
+⚙️  Running Rust TRU-OLS preprocessing...
+  Cutoffs calculated: 13 values
+  Nonspecific observation: 67 detectors
+
+🔄 Running Rust TRU-OLS unmixing (from_preprocessed)...
+  Unmixed: 200000 events × 13 endmembers
+
+⏱️  Rust wall times (algorithm, excluding I/O)
+  preprocess (cutoffs + nonspecific): 1.990013 s
+  TruOls build (from_preprocessed):   0.000001 s
+  unmix:                              2.153771 s
+  preprocess + new + unmix (core):    4.143785 s
+  throughput unmix:                   92860 stained events/s
+  throughput preprocess (unstained):  44052 unstained events/s
+  throughput core (stained / core):   48265 stained events/s
+  rayon threads (after run):          10
+
+💾 Exporting data for Julia comparison...
+  ✓ Mixing matrix: /Users/kfls271/Downloads/Plate_001/Unmixed/e2e_bench_after_perf/mixing_matrix.csv
+  ✓ Unstained data: /Users/kfls271/Downloads/Plate_001/Unmixed/e2e_bench_after_perf/unstained_data.csv
+  ✓ Stained data: /Users/kfls271/Downloads/Plate_001/Unmixed/e2e_bench_after_perf/stained_data.csv
+  ✓ Rust cutoffs: /Users/kfls271/Downloads/Plate_001/Unmixed/e2e_bench_after_perf/rust_cutoffs.csv
+  ✓ Rust nonspecific observation: /Users/kfls271/Downloads/Plate_001/Unmixed/e2e_bench_after_perf/rust_nonspecific.csv
+  ✓ Rust unmixed abundances: /Users/kfls271/Downloads/Plate_001/Unmixed/e2e_bench_after_perf/rust_unmixed.csv
+  ✓ Endmember names: /Users/kfls271/Downloads/Plate_001/Unmixed/e2e_bench_after_perf/endmember_names.csv
+  ✓ Julia comparison script: /Users/kfls271/Downloads/Plate_001/Unmixed/e2e_bench_after_perf/compare_with_julia.jl
+  ✓ Rust throughput metadata: /Users/kfls271/Downloads/Plate_001/Unmixed/e2e_bench_after_perf/throughput_rust.json
+  ✓ Throughput report (markdown): /Users/kfls271/Downloads/Plate_001/Unmixed/e2e_bench_after_perf/throughput_report.md
+
+✅ Export complete!
+
+To run Julia comparison (writes /Users/kfls271/Downloads/Plate_001/Unmixed/e2e_bench_after_perf/throughput_julia.json):
+  julia /Users/kfls271/Downloads/Plate_001/Unmixed/e2e_bench_after_perf/compare_with_julia.jl
+      280.82 real        67.24 user       260.96 sys
+           769736704  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+              113923  page reclaims
+                8547  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                1668  voluntary context switches
+             5832006  involuntary context switches
+       3299827470313  instructions retired
+       1019735348550  cycles elapsed
+           630590656  peak memory footprint

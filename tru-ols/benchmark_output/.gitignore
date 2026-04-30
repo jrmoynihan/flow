@@ -1,0 +1,2 @@
+*.trace
+cargo-flamegraph.trace
