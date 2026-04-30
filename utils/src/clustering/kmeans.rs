@@ -47,7 +47,7 @@ pub struct KMeans;
 
 impl KMeans {
     /// Fit K-means clustering model to data from raw vectors
-    /// 
+    ///
     /// Helper function to accept Vec<Vec<f64>> for version compatibility
     ///
     /// # Arguments
@@ -56,21 +56,25 @@ impl KMeans {
     ///
     /// # Returns
     /// KMeansResult with cluster assignments and centroids
-    pub fn fit_from_rows(data_rows: Vec<Vec<f64>>, config: &KMeansConfig) -> ClusteringResult<KMeansResult> {
+    pub fn fit_from_rows(
+        data_rows: Vec<Vec<f64>>,
+        config: &KMeansConfig,
+    ) -> ClusteringResult<KMeansResult> {
         if data_rows.is_empty() {
             return Err(ClusteringError::EmptyData);
         }
         let n_features = data_rows[0].len();
         let n_samples = data_rows.len();
-        
+
         // Flatten and create Array2
         let flat: Vec<f64> = data_rows.into_iter().flatten().collect();
-        let data = Array2::from_shape_vec((n_samples, n_features), flat)
-            .map_err(|e| ClusteringError::ClusteringFailed(format!("Failed to create array: {:?}", e)))?;
-        
+        let data = Array2::from_shape_vec((n_samples, n_features), flat).map_err(|e| {
+            ClusteringError::ClusteringFailed(format!("Failed to create array: {:?}", e))
+        })?;
+
         Self::fit(&data, config)
     }
-    
+
     /// Perform K-means clustering
     ///
     /// # Arguments

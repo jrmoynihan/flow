@@ -1,7 +1,7 @@
 //! Principal Component Analysis (PCA) module
 
-use ndarray::{s, Array2, Axis};
 use linfa_linalg::svd::SVD;
+use ndarray::{Array2, Axis, s};
 use thiserror::Error;
 
 /// Error type for PCA operations
@@ -69,7 +69,8 @@ impl Pca {
         }
 
         // Center the data
-        let mean = data.mean_axis(Axis(0))
+        let mean = data
+            .mean_axis(Axis(0))
             .ok_or_else(|| PcaError::SvdFailed("Failed to calculate mean".to_string()))?;
         let mut centered = data.clone();
         for mut row in centered.rows_mut() {
@@ -81,9 +82,10 @@ impl Pca {
         let (u_opt, s, vt_opt) = centered
             .svd(true, true)
             .map_err(|e| PcaError::SvdFailed(format!("SVD failed: {:?}", e)))?;
-        
+
         let _u = u_opt.ok_or_else(|| PcaError::SvdFailed("U matrix not available".to_string()))?;
-        let vt = vt_opt.ok_or_else(|| PcaError::SvdFailed("Vt matrix not available".to_string()))?;
+        let vt =
+            vt_opt.ok_or_else(|| PcaError::SvdFailed("Vt matrix not available".to_string()))?;
 
         // Extract components (right singular vectors, transposed)
         // vt is already an Array2, not an Option
@@ -92,10 +94,8 @@ impl Pca {
         // Calculate explained variance ratio
         let s_squared: Vec<f64> = s.iter().map(|&val| val * val).collect();
         let total_variance: f64 = s_squared.iter().sum();
-        let explained_variance_ratio: Vec<f64> = s_squared
-            .iter()
-            .map(|&val| val / total_variance)
-            .collect();
+        let explained_variance_ratio: Vec<f64> =
+            s_squared.iter().map(|&val| val / total_variance).collect();
 
         // Limit to n_components
         let n_components = self.n_components.min(n_features);

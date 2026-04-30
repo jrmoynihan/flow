@@ -13,16 +13,15 @@
 //!
 //! - `gpu`: Enable GPU acceleration for KDE (requires burn and cubecl)
 
-pub mod kde;
 pub mod clustering;
-pub mod pca;
 pub mod common;
+pub mod kde;
+pub mod pca;
 
-pub use kde::{KernelDensity, KernelDensity2D, KdeError, KdeResult};
 pub use clustering::{
-    KMeans, KMeansConfig, KMeansResult,
-    Dbscan, DbscanConfig, DbscanResult,
-    Gmm, GmmConfig, GmmResult,
-    ClusteringError, ClusteringResult,
+    ClusteringError, ClusteringResult, Dbscan, DbscanConfig, DbscanResult, Gmm, GmmConfig,
+    GmmResult, KMeans, KMeansConfig, KMeansResult, SilhouetteResult, silhouette_scores,
+    silhouette_scores_sampled,
 };
+pub use kde::{KdeError, KdeResult, KernelDensity, KernelDensity2D};
 pub use pca::{Pca, PcaError, PcaResult};

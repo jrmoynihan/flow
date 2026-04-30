@@ -47,7 +47,7 @@ pub struct Gmm;
 
 impl Gmm {
     /// Fit GMM clustering model to data from raw vectors
-    /// 
+    ///
     /// Helper function to accept Vec<Vec<f64>> for version compatibility
     ///
     /// # Arguments
@@ -56,21 +56,25 @@ impl Gmm {
     ///
     /// # Returns
     /// GmmResult with component assignments and means
-    pub fn fit_from_rows(data_rows: Vec<Vec<f64>>, config: &GmmConfig) -> ClusteringResult<GmmResult> {
+    pub fn fit_from_rows(
+        data_rows: Vec<Vec<f64>>,
+        config: &GmmConfig,
+    ) -> ClusteringResult<GmmResult> {
         if data_rows.is_empty() {
             return Err(ClusteringError::EmptyData);
         }
         let n_features = data_rows[0].len();
         let n_samples = data_rows.len();
-        
+
         // Flatten and create Array2
         let flat: Vec<f64> = data_rows.into_iter().flatten().collect();
-        let data = Array2::from_shape_vec((n_samples, n_features), flat)
-            .map_err(|e| ClusteringError::ClusteringFailed(format!("Failed to create array: {:?}", e)))?;
-        
+        let data = Array2::from_shape_vec((n_samples, n_features), flat).map_err(|e| {
+            ClusteringError::ClusteringFailed(format!("Failed to create array: {:?}", e))
+        })?;
+
         Self::fit(&data, config)
     }
-    
+
     /// Perform GMM clustering
     ///
     /// # Arguments
@@ -131,7 +135,7 @@ impl Gmm {
             assignments,
             means,
             iterations: config.max_iterations, // linfa doesn't expose n_iterations
-            log_likelihood: 0.0, // linfa doesn't expose log_likelihood directly
+            log_likelihood: 0.0,               // linfa doesn't expose log_likelihood directly
         })
     }
 }

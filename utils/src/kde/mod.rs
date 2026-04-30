@@ -3,17 +3,17 @@
 //! Provides FFT-accelerated KDE with optional GPU support.
 
 mod fft;
-mod kde2d;
 #[cfg(feature = "gpu")]
 mod gpu;
+mod kde2d;
 
 use crate::common::{interquartile_range, standard_deviation};
 use thiserror::Error;
 
 pub use fft::kde_fft;
-pub use kde2d::KernelDensity2D;
 #[cfg(feature = "gpu")]
 pub use gpu::kde_fft_gpu;
+pub use kde2d::KernelDensity2D;
 
 /// Error type for KDE operations
 #[derive(Error, Debug)]
@@ -66,10 +66,8 @@ impl KernelDensity {
 
         // Calculate bandwidth using Silverman's rule of thumb
         let n = clean_data.len() as f64;
-        let std_dev = standard_deviation(&clean_data)
-            .map_err(|e| KdeError::StatsError(e))?;
-        let iqr = interquartile_range(&clean_data)
-            .map_err(|e| KdeError::StatsError(e))?;
+        let std_dev = standard_deviation(&clean_data).map_err(|e| KdeError::StatsError(e))?;
+        let iqr = interquartile_range(&clean_data).map_err(|e| KdeError::StatsError(e))?;
 
         // Silverman's rule: bw = 0.9 * min(sd, IQR/1.34) * n^(-1/5)
         let bw_factor = 0.9 * std_dev.min(iqr / 1.34) * n.powf(-0.2);
@@ -93,7 +91,7 @@ impl KernelDensity {
         } else {
             kde_fft(&clean_data, &x, bandwidth, n)?
         };
-        
+
         #[cfg(not(feature = "gpu"))]
         let y = kde_fft(&clean_data, &x, bandwidth, n)?;
 

@@ -55,9 +55,10 @@ impl Dbscan {
         // TODO: Fix DBSCAN once linfa-clustering API is updated or use alternative implementation
         Err(ClusteringError::ClusteringFailed(
             "DBSCAN clustering is temporarily disabled due to linfa-clustering API limitations. \
-             Please use K-means or GMM clustering instead.".to_string()
+             Please use K-means or GMM clustering instead."
+                .to_string(),
         ))
-        
+
         // Original implementation (commented out until API issue is resolved):
         /*
         let dataset = DatasetBase::new(data.clone(), ());
@@ -67,13 +68,13 @@ impl Dbscan {
             .map_err(|e| ClusteringError::ValidationFailed(format!("DBSCAN params validation failed: {:?}", e)))?
             .fit(&dataset)
             .map_err(|e| ClusteringError::ClusteringFailed(format!("{}", e)))?;
-        
+
         let assignments: Vec<i32> = model
             .labels()
             .iter()
             .map(|&label| label as i32)
             .collect();
-        
+
         let n_clusters = assignments
             .iter()
             .filter(|&&a| a >= 0)
@@ -82,7 +83,7 @@ impl Dbscan {
             .map(|m| m + 1)
             .unwrap_or(0);
         let n_noise = assignments.iter().filter(|&&a| a == -1).count();
-        
+
         Ok(DbscanResult {
             assignments,
             n_clusters,

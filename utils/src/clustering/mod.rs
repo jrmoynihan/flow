@@ -1,14 +1,16 @@
 //! Clustering algorithms module
 //!
-//! Provides K-means, DBSCAN, and Gaussian Mixture Model clustering.
+//! Provides K-means, DBSCAN, Gaussian Mixture Model clustering, and silhouette scoring.
 
-mod kmeans;
 mod dbscan;
 mod gmm;
+mod kmeans;
+pub mod silhouette;
 
-pub use kmeans::{KMeans, KMeansConfig, KMeansResult};
 pub use dbscan::{Dbscan, DbscanConfig, DbscanResult};
 pub use gmm::{Gmm, GmmConfig, GmmResult};
+pub use kmeans::{KMeans, KMeansConfig, KMeansResult};
+pub use silhouette::{SilhouetteResult, silhouette_scores, silhouette_scores_sampled};
 
 use thiserror::Error;
 

@@ -65,17 +65,13 @@ impl KernelDensity2D {
 
         // Calculate bandwidths for each dimension
         let n = clean_x.len() as f64;
-        let std_dev_x = standard_deviation(&clean_x)
-            .map_err(|e| KdeError::StatsError(e))?;
-        let iqr_x = interquartile_range(&clean_x)
-            .map_err(|e| KdeError::StatsError(e))?;
+        let std_dev_x = standard_deviation(&clean_x).map_err(|e| KdeError::StatsError(e))?;
+        let iqr_x = interquartile_range(&clean_x).map_err(|e| KdeError::StatsError(e))?;
         let bw_factor_x = 0.9 * std_dev_x.min(iqr_x / 1.34) * n.powf(-0.2);
         let bandwidth_x = bw_factor_x * adjust;
 
-        let std_dev_y = standard_deviation(&clean_y)
-            .map_err(|e| KdeError::StatsError(e))?;
-        let iqr_y = interquartile_range(&clean_y)
-            .map_err(|e| KdeError::StatsError(e))?;
+        let std_dev_y = standard_deviation(&clean_y).map_err(|e| KdeError::StatsError(e))?;
+        let iqr_y = interquartile_range(&clean_y).map_err(|e| KdeError::StatsError(e))?;
         let bw_factor_y = 0.9 * std_dev_y.min(iqr_y / 1.34) * n.powf(-0.2);
         let bandwidth_y = bw_factor_y * adjust;
 
@@ -91,14 +87,10 @@ impl KernelDensity2D {
         let y_grid_max = y_max + 3.0 * bandwidth_y;
 
         let x: Vec<f64> = (0..n_points)
-            .map(|i| {
-                x_grid_min + (x_grid_max - x_grid_min) * (i as f64) / (n_points - 1) as f64
-            })
+            .map(|i| x_grid_min + (x_grid_max - x_grid_min) * (i as f64) / (n_points - 1) as f64)
             .collect();
         let y: Vec<f64> = (0..n_points)
-            .map(|i| {
-                y_grid_min + (y_grid_max - y_grid_min) * (i as f64) / (n_points - 1) as f64
-            })
+            .map(|i| y_grid_min + (y_grid_max - y_grid_min) * (i as f64) / (n_points - 1) as f64)
             .collect();
 
         // Compute 2D KDE using FFT convolution
@@ -121,7 +113,7 @@ impl KernelDensity2D {
         // Simple contour extraction: find points above threshold
         // TODO: Implement proper contour tracing (marching squares algorithm)
         let mut contour_points = Vec::new();
-        
+
         for i in 0..self.x.len() {
             for j in 0..self.y.len() {
                 if self.z[[i, j]] >= density_threshold {
@@ -130,7 +122,7 @@ impl KernelDensity2D {
                         || (i < self.x.len() - 1 && self.z[[i + 1, j]] < density_threshold)
                         || (j > 0 && self.z[[i, j - 1]] < density_threshold)
                         || (j < self.y.len() - 1 && self.z[[i, j + 1]] < density_threshold);
-                    
+
                     if is_boundary {
                         contour_points.push((self.x[i], self.y[j]));
                     }
@@ -323,12 +315,7 @@ fn kde2d_fft(
 }
 
 /// Helper function for 1D row convolution (simplified)
-fn kde1d_row(
-    binned: &[f64],
-    kernel: &[f64],
-    bandwidth: f64,
-    n: f64,
-) -> KdeResult<Vec<f64>> {
+fn kde1d_row(binned: &[f64], kernel: &[f64], bandwidth: f64, n: f64) -> KdeResult<Vec<f64>> {
     let m = binned.len();
     let fft_size = (2 * m).next_power_of_two();
 
@@ -343,8 +330,7 @@ fn kde1d_row(
     let mut kernel_padded = vec![0.0; fft_size];
     let kernel_start = (fft_size - m) / 2;
     let first_half = (m + 1) / 2;
-    kernel_padded[kernel_start..kernel_start + first_half]
-        .copy_from_slice(&kernel[m / 2..]);
+    kernel_padded[kernel_start..kernel_start + first_half].copy_from_slice(&kernel[m / 2..]);
     let second_half = m / 2;
     if second_half > 0 {
         kernel_padded[..second_half].copy_from_slice(&kernel[..second_half]);
