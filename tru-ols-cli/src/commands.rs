@@ -3262,6 +3262,7 @@ pub fn create_mixing_matrix_from_single_stains(
     if debug_control_plots {
         if let Some(plot_dir) = diagnostic_plot_dir {
             if let Err(e) = generate_af_medians_plot(
+                unstained_fcs,
                 plot_dir,
                 "Unstained (Autofluorescence)",
                 detector_names,
@@ -6135,9 +6136,15 @@ fn generate_control_cleanup_debug_plots(
 /// The standard spectral plot (`SpectralSignaturePlot`) normalises to max=1.0, which is right for
 /// fluorophore signatures but hides the absolute values that will be subtracted from each control
 /// during unmixing. For the unstained control the caller needs to see the concrete medians so they
-/// can reason about AF magnitude (and whether it's plausible for a given detector). The title
-/// includes the max median so the per-detector bar heights are easy to anchor.
+/// can reason about AF magnitude.
+///
+/// The y-axis is anchored to the detector's full dynamic range (max `$PnR` across all detectors),
+/// not the peak AF median: a y-axis that hugs the AF data would make the background look much
+/// larger than it really is, whereas framing it against a fully-saturated detector value
+/// (~4.2e6 on spectral cytometers) shows how small the background is compared to a bright signal.
+/// The title still prints the exact peak AF median so the absolute magnitude is readable.
 fn generate_af_medians_plot(
+    fcs: &Fcs,
     plot_dir: &PathBuf,
     endmember_name: &str,
     detector_names: &[String],
@@ -6153,20 +6160,35 @@ fn generate_af_medians_plot(
         .collect();
 
     let max_median = medians.iter().copied().fold(0.0f32, f32::max);
-    // Give 10% headroom above the peak so the top value isn't pinned to the frame.
-    // When every channel is at zero we still want a non-zero axis range so plotters is happy.
-    let y_max = if max_median > 0.0 {
-        max_median * 1.1
+
+    // Use the largest detector $PnR as the y-axis ceiling so bar heights are comparable to the
+    // detector's full scale. Falls back to the classic 18-bit digital range when $PnR is unset.
+    let detector_max_range = detector_names
+        .iter()
+        .filter_map(|ch| {
+            let param = fcs.find_parameter(ch).ok()?;
+            let kw = fcs
+                .metadata
+                .get_parameter_numeric_metadata(param.parameter_number, "R")
+                .ok()?;
+            match kw {
+                flow_fcs::keyword::IntegerKeyword::PnR(r) => Some(*r as f32),
+                _ => None,
+            }
+        })
+        .fold(0.0f32, f32::max);
+    let y_max = if detector_max_range > 0.0 {
+        detector_max_range
     } else {
-        1.0
+        262144.0
     };
 
     let base_opts = BasePlotOptions::new()
         .width(1200u32)
         .height(600u32)
         .title(format!(
-            "{} - AF medians (max={:.1})",
-            endmember_name, max_median
+            "{} - AF medians (peak={:.1}, detector max={:.0})",
+            endmember_name, max_median, y_max
         ))
         .build()?;
     let options = SpectralSignaturePlotOptions::new()

@@ -12,7 +12,9 @@ use flow_fcs::file::AccessWrapper;
 use flow_fcs::parameter::ParameterMap;
 use flow_fcs::{Fcs, Header, Metadata, Parameter, TransformType, write_fcs_file};
 use flow_plots::colormap::ColorMaps;
-use flow_plots::options::{AxisOptions, BasePlotOptions, DensityPlotOptions, SpectralSignaturePlotOptions};
+use flow_plots::options::{
+    AxisOptions, BasePlotOptions, DensityPlotOptions, SpectralSignaturePlotOptions,
+};
 use flow_plots::render::RenderConfig;
 use flow_plots::{DensityPlot, Plot, SpectralSignaturePlot};
 use flow_plots::{generate_normalized_spectral_signature_plot, generate_signal_heatmap};
@@ -1344,4 +1346,217 @@ fn create_varying_expression_abundances(
     }
 
     abundances
+}
+
+// ===========================================================================
+// Benchmark-oriented synthetic data engine
+// ===========================================================================
+
+/// Describes a synthetic benchmark dataset (pure numeric matrices, no FCS I/O).
+#[derive(Debug, Clone)]
+pub struct SyntheticBenchmarkData {
+    /// Mixing matrix (detectors × endmembers).
+    pub mixing_matrix: ndarray::Array2<f64>,
+    /// True abundances per event (events × endmembers).
+    pub true_abundances: ndarray::Array2<f64>,
+    /// Observed detector signals (events × detectors): `M * alpha_t + epsilon`.
+    pub observations: ndarray::Array2<f64>,
+    /// Unstained control observations (events × detectors).
+    pub unstained_observations: ndarray::Array2<f64>,
+    /// Noise level used (standard deviation of additive Gaussian noise).
+    pub noise_sigma: f64,
+    /// Endmember names.
+    pub endmember_names: Vec<String>,
+    /// Detector names.
+    pub detector_names: Vec<String>,
+    /// Label for this dataset.
+    pub label: String,
+}
+
+/// Panel overlap regime used for 4-color synthetic mimics.
+#[derive(Debug, Clone, Copy)]
+pub enum PanelOverlap {
+    /// Dyes with minimal spectral overlap.
+    WellSeparated,
+    /// Dyes with high collinearity.
+    HighlyOverlapping,
+}
+
+/// Generate a benchmark dataset using the linear mixing model `o = M · α + ε`.
+///
+/// The mixing matrix is built from the provided `SpectralSignature` list.
+/// True abundances are sampled randomly; noise is additive Gaussian.
+///
+/// # Arguments
+/// * `signatures` – spectral signatures (one per endmember).
+/// * `detector_names` – all detector channel names.
+/// * `n_events` – number of stained events to generate.
+/// * `n_unstained` – number of unstained control events.
+/// * `noise_sigma` – standard deviation of additive Gaussian noise (0 = noise-free).
+/// * `label` – human-readable label for the dataset.
+pub fn generate_benchmark_data(
+    signatures: &[SpectralSignature],
+    detector_names: &[String],
+    n_events: usize,
+    n_unstained: usize,
+    noise_sigma: f64,
+    label: &str,
+) -> Result<SyntheticBenchmarkData> {
+    use ndarray::Array2;
+    use rand_distr::{Distribution, Normal};
+
+    let n_det = detector_names.len();
+    let n_em = signatures.len();
+
+    // Build mixing matrix M (detectors × endmembers)
+    let mut mixing = Array2::<f64>::zeros((n_det, n_em));
+    for (em_idx, sig) in signatures.iter().enumerate() {
+        for (det_idx, det_name) in detector_names.iter().enumerate() {
+            mixing[(det_idx, em_idx)] = sig.detector_signals.get(det_name).copied().unwrap_or(0.0);
+        }
+    }
+
+    let mut rng = rand::rng();
+    let noise_dist =
+        Normal::new(0.0, noise_sigma.max(1e-30)).context("Failed to create noise distribution")?;
+
+    // Generate true abundances: mixture of positive (stained) and zero (negative) entries
+    let mut true_abundances = Array2::<f64>::zeros((n_events, n_em));
+    for ev in 0..n_events {
+        let n_active = 1 + (ev % n_em);
+        for em in 0..n_active.min(n_em) {
+            use rand::RngExt;
+            true_abundances[(ev, em)] = rng.random_range(0.2..1.0);
+        }
+    }
+
+    // Observations = M · alpha^T (then transpose back) + noise
+    let mut observations = Array2::<f64>::zeros((n_events, n_det));
+    for ev in 0..n_events {
+        for det in 0..n_det {
+            let mut signal = 0.0;
+            for em in 0..n_em {
+                signal += mixing[(det, em)] * true_abundances[(ev, em)];
+            }
+            let noise_val = if noise_sigma > 0.0 {
+                noise_dist.sample(&mut rng)
+            } else {
+                0.0
+            };
+            observations[(ev, det)] = signal + noise_val;
+        }
+    }
+
+    // Unstained control: just noise (no true signal)
+    let mut unstained = Array2::<f64>::zeros((n_unstained, n_det));
+    for ev in 0..n_unstained {
+        for det in 0..n_det {
+            let noise_val = if noise_sigma > 0.0 {
+                noise_dist.sample(&mut rng)
+            } else {
+                0.0
+            };
+            unstained[(ev, det)] = noise_val.max(0.0);
+        }
+    }
+
+    Ok(SyntheticBenchmarkData {
+        mixing_matrix: mixing,
+        true_abundances,
+        observations,
+        unstained_observations: unstained,
+        noise_sigma,
+        endmember_names: signatures.iter().map(|s| s.name.clone()).collect(),
+        detector_names: detector_names.to_vec(),
+        label: label.to_string(),
+    })
+}
+
+/// Create a 4-color panel preset (well-separated or overlapping).
+pub fn create_4color_panel(overlap: PanelOverlap) -> (Vec<SpectralSignature>, Vec<String>) {
+    let detector_names: Vec<String> = vec![
+        "UV1-A", "UV2-A", "V1-A", "V2-A", "B1-A", "B2-A", "R1-A", "R2-A",
+    ]
+    .into_iter()
+    .map(String::from)
+    .collect();
+
+    let signatures = match overlap {
+        PanelOverlap::WellSeparated => {
+            vec![
+                make_sig("AF488", &[("B1-A", 1.0), ("B2-A", 0.05)]),
+                make_sig("BV421", &[("V1-A", 1.0), ("V2-A", 0.08)]),
+                make_sig("BUV395", &[("UV1-A", 1.0), ("UV2-A", 0.06)]),
+                make_sig("AF700", &[("R1-A", 1.0), ("R2-A", 0.10)]),
+            ]
+        }
+        PanelOverlap::HighlyOverlapping => {
+            vec![
+                make_sig("PacBlue", &[("V1-A", 1.0), ("V2-A", 0.35), ("UV2-A", 0.20)]),
+                make_sig("BV421", &[("V1-A", 0.85), ("V2-A", 1.0), ("UV2-A", 0.15)]),
+                make_sig(
+                    "SB436",
+                    &[
+                        ("V1-A", 0.70),
+                        ("V2-A", 0.90),
+                        ("UV2-A", 0.25),
+                        ("B1-A", 0.10),
+                    ],
+                ),
+                make_sig("AF700", &[("R1-A", 1.0), ("R2-A", 0.10)]),
+            ]
+        }
+    };
+
+    (signatures, detector_names)
+}
+
+fn make_sig(name: &str, signals: &[(&str, f64)]) -> SpectralSignature {
+    SpectralSignature {
+        name: name.to_string(),
+        primary_detector: signals[0].0.to_string(),
+        detector_signals: signals.iter().map(|(k, v)| (k.to_string(), *v)).collect(),
+    }
+}
+
+/// Generate a suite of benchmark datasets at multiple noise levels.
+pub fn generate_benchmark_suite(
+    n_events: usize,
+    n_unstained: usize,
+    noise_levels: &[f64],
+) -> Result<Vec<SyntheticBenchmarkData>> {
+    let mut datasets = Vec::new();
+
+    for &overlap in &[PanelOverlap::WellSeparated, PanelOverlap::HighlyOverlapping] {
+        let (sigs, dets) = create_4color_panel(overlap);
+        let overlap_label = match overlap {
+            PanelOverlap::WellSeparated => "well_separated",
+            PanelOverlap::HighlyOverlapping => "overlapping",
+        };
+
+        for &noise in noise_levels {
+            let label = format!("{}_noise_{:.4}", overlap_label, noise);
+            let data = generate_benchmark_data(&sigs, &dets, n_events, n_unstained, noise, &label)?;
+            datasets.push(data);
+        }
+    }
+
+    // Also generate high-dimensional (10-fluor, 25-channel) datasets
+    let sigs = create_10_fluorophore_signatures();
+    let dets: Vec<String> = vec![
+        "UV379-A", "UV446-A", "UV582-A", "UV736-A", "UV812-A", "V508-A", "V525-A", "V660-A",
+        "V720-A", "V780-A", "B510-A", "B560-A", "B610-A", "B660-A", "B710-A", "YG585-A", "YG615-A",
+        "YG660-A", "YG750-A", "YG812-A", "R660-A", "R710-A", "R750-A", "R780-A", "R810-A",
+    ]
+    .into_iter()
+    .map(String::from)
+    .collect();
+
+    for &noise in noise_levels {
+        let label = format!("high_dim_10fluor_noise_{:.4}", noise);
+        let data = generate_benchmark_data(&sigs, &dets, n_events, n_unstained, noise, &label)?;
+        datasets.push(data);
+    }
+
+    Ok(datasets)
 }

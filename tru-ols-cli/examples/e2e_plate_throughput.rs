@@ -1,11 +1,11 @@
-//! Compare Rust TRU-OLS implementation with Julia implementation
+//! Plate-scale end-to-end TRU-OLS timing (same inputs/exports as `compare_with_julia`).
 //!
-//! This example exports data in CSV format that can be read by Julia,
-//! runs both implementations, and compares the results.
+//! Use **`--features e2e_legacy`** with the **pre-optimization** `flow-tru-ols` tree (after
+//! `git stash`): runs the historical **`TruOls::new`** path (cutoffs/nonspecific are computed
+//! twice: once for timing/export and again inside `new`). Default (no `e2e_legacy`) uses
+//! **`TruOls::from_preprocessed`** and matches the optimized pipeline layout.
 //!
-//! Wall times and throughput are written to `throughput_rust.json` and
-//! `throughput_report.md` in the output directory. After running the generated
-//! `compare_with_julia.jl`, Julia writes `throughput_julia.json`.
+//! Wall times and throughput are written to `throughput_rust.json` and `throughput_report.md`.
 
 use anyhow::Result;
 use flow_fcs::Fcs;
@@ -257,8 +257,8 @@ fn main() -> Result<()> {
     // Create output directory
     std::fs::create_dir_all(&output_dir)?;
 
-    println!("🧬 TRU-OLS Rust vs Julia Comparison");
-    println!("====================================");
+    println!("🧬 TRU-OLS e2e plate throughput (`e2e_plate_throughput`)");
+    println!("=========================================================");
     println!("Stained sample: {}", stained_path);
     println!("Unstained control: {}", unstained_path);
     println!("Mixing matrix/controls: {}", mixing_matrix_input);
@@ -370,7 +370,6 @@ fn main() -> Result<()> {
     );
 
     // Run Rust TRU-OLS: use `faer::Mat` from the same crate as `flow-tru-ols` (workspace faer 0.24).
-    println!("\n⚙️  Running Rust TRU-OLS preprocessing...");
     let mixing_mat = faer::Mat::from_fn(mixing_matrix.nrows(), mixing_matrix.ncols(), |i, j| {
         mixing_matrix[(i, j)]
     });
@@ -378,39 +377,95 @@ fn main() -> Result<()> {
         faer::Mat::from_fn(unstained_data.nrows(), unstained_data.ncols(), |i, j| {
             unstained_data[(i, j)]
         });
-    let t_preprocess = Instant::now();
-    let cutoffs = CutoffCalculator::calculate(mixing_mat.as_ref(), unstained_mat.as_ref(), 0.995)?;
-    let nonspecific = NonspecificObservation::calculate(
-        mixing_mat.as_ref(),
-        unstained_mat.as_ref(),
-        autofluorescence_idx,
-    )?;
-    let t_preprocess = t_preprocess.elapsed();
 
-    println!("  Cutoffs calculated: {} values", cutoffs.cutoffs().nrows());
-    println!(
-        "  Nonspecific observation: {} detectors",
-        nonspecific.observation().nrows()
-    );
+    let (rust_unmixed, cutoffs, nonspecific, t_preprocess, t_tru_ols_build, t_unmix) = {
+        #[cfg(feature = "e2e_legacy")]
+        {
+            println!("\n⚙️  Running Rust TRU-OLS preprocessing (e2e_legacy)...");
+            let t_preprocess = Instant::now();
+            let cutoffs =
+                CutoffCalculator::calculate(mixing_mat.as_ref(), unstained_mat.as_ref(), 0.995)?;
+            let nonspecific = NonspecificObservation::calculate(
+                mixing_mat.as_ref(),
+                unstained_mat.as_ref(),
+                autofluorescence_idx,
+            )?;
+            let t_preprocess = t_preprocess.elapsed();
 
-    println!("\n🔄 Running Rust TRU-OLS unmixing...");
-    // Avoid `TruOls::new` here: it would re-run cutoffs + nonspecific (same as preprocess above).
-    let t_tru_ols_build = Instant::now();
-    let tru_ols = TruOls::from_preprocessed(
-        mixing_mat,
-        unstained_mat,
-        cutoffs.cutoffs().clone(),
-        nonspecific.observation().clone(),
-        autofluorescence_idx,
-    )?;
-    let t_tru_ols_build = t_tru_ols_build.elapsed();
+            println!("  Cutoffs calculated: {} values", cutoffs.cutoffs().nrows());
+            println!(
+                "  Nonspecific observation: {} detectors",
+                nonspecific.observation().nrows()
+            );
 
-    let stained_mat = faer::Mat::from_fn(stained_data.nrows(), stained_data.ncols(), |i, j| {
-        stained_data[(i, j)]
-    });
-    let t_unmix = Instant::now();
-    let rust_unmixed = tru_ols.unmix(stained_mat.as_ref())?;
-    let t_unmix = t_unmix.elapsed();
+            println!("\n🔄 Running Rust TRU-OLS unmixing (TruOls::new)...");
+            let t_tru_ols_build = Instant::now();
+            let tru_ols = TruOls::new(mixing_mat, unstained_mat, autofluorescence_idx)?;
+            let t_tru_ols_build = t_tru_ols_build.elapsed();
+
+            let stained_mat =
+                faer::Mat::from_fn(stained_data.nrows(), stained_data.ncols(), |i, j| {
+                    stained_data[(i, j)]
+                });
+            let t_unmix = Instant::now();
+            let rust_unmixed = tru_ols.unmix(stained_mat.as_ref())?;
+            let t_unmix = t_unmix.elapsed();
+            (
+                rust_unmixed,
+                cutoffs,
+                nonspecific,
+                t_preprocess,
+                t_tru_ols_build,
+                t_unmix,
+            )
+        }
+        #[cfg(not(feature = "e2e_legacy"))]
+        {
+            println!("\n⚙️  Running Rust TRU-OLS preprocessing...");
+            let t_preprocess = Instant::now();
+            let cutoffs =
+                CutoffCalculator::calculate(mixing_mat.as_ref(), unstained_mat.as_ref(), 0.995)?;
+            let nonspecific = NonspecificObservation::calculate(
+                mixing_mat.as_ref(),
+                unstained_mat.as_ref(),
+                autofluorescence_idx,
+            )?;
+            let t_preprocess = t_preprocess.elapsed();
+
+            println!("  Cutoffs calculated: {} values", cutoffs.cutoffs().nrows());
+            println!(
+                "  Nonspecific observation: {} detectors",
+                nonspecific.observation().nrows()
+            );
+
+            println!("\n🔄 Running Rust TRU-OLS unmixing (from_preprocessed)...");
+            let t_tru_ols_build = Instant::now();
+            let tru_ols = TruOls::from_preprocessed(
+                mixing_mat,
+                unstained_mat,
+                cutoffs.cutoffs().clone(),
+                nonspecific.observation().clone(),
+                autofluorescence_idx,
+            )?;
+            let t_tru_ols_build = t_tru_ols_build.elapsed();
+
+            let stained_mat =
+                faer::Mat::from_fn(stained_data.nrows(), stained_data.ncols(), |i, j| {
+                    stained_data[(i, j)]
+                });
+            let t_unmix = Instant::now();
+            let rust_unmixed = tru_ols.unmix(stained_mat.as_ref())?;
+            let t_unmix = t_unmix.elapsed();
+            (
+                rust_unmixed,
+                cutoffs,
+                nonspecific,
+                t_preprocess,
+                t_tru_ols_build,
+                t_unmix,
+            )
+        }
+    };
 
     let stained_events = stained_data.nrows();
     let unstained_events = unstained_data.nrows();
@@ -430,6 +485,12 @@ fn main() -> Result<()> {
         "  preprocess (cutoffs + nonspecific): {:.6} s",
         sec(t_preprocess)
     );
+    #[cfg(feature = "e2e_legacy")]
+    println!(
+        "  TruOls build (new):                 {:.6} s",
+        sec(t_tru_ols_build)
+    );
+    #[cfg(not(feature = "e2e_legacy"))]
     println!(
         "  TruOls build (from_preprocessed):   {:.6} s",
         sec(t_tru_ols_build)
@@ -531,41 +592,84 @@ fn main() -> Result<()> {
     let throughput_julia_path = output_dir.join("throughput_julia.json");
     let throughput_report_md = output_dir.join("throughput_report.md");
 
-    let rust_report = json!({
-        "rust": {
-            "wall_seconds": {
-                "preprocess": sec(t_preprocess),
-                "tru_ols_build_from_preprocessed": sec(t_tru_ols_build),
-                "unmix": sec(t_unmix),
-                "preprocess_plus_build_plus_unmix": sec(t_rust_core),
-            },
-            "throughput_events_per_sec": {
-                "unmix_stained": stained_events as f64 / unmix_eps,
-                "preprocess_unstained": unstained_events as f64 / preprocess_eps,
-                "core_stained": stained_events as f64 / core_eps,
-            },
-            "counts": {
-                "stained_events": stained_events,
-                "unstained_events": unstained_events,
-                "detectors": detector_names.len(),
-                "endmembers": endmember_names.len(),
-            },
-            "parallelism": {
-                "rayon_threads_after_run": rayon::current_num_threads(),
-                "parallel_unmix_event_threshold": flow_tru_ols::PARALLEL_UNMIX_THRESHOLD,
-                "parallel_independent_events_threshold": flow_tru_ols::PARALLEL_INDEPENDENT_EVENTS_THRESHOLD,
-            },
-        },
-        "environment": {
-            "os": std::env::consts::OS,
-            "arch": std::env::consts::ARCH,
-            "cpu": host_cpu_summary(),
-            "rustc": rustc_verbose_version(),
-            "relevant_env": throughput_env_snapshot(),
-            "tru_ols_cli_version": env!("CARGO_PKG_VERSION"),
-            "linear_algebra": "Default flow-tru-ols uses faer (pure Rust). Optional `blas` feature uses OpenBLAS via ndarray-linalg where applicable.",
-        },
-    });
+    let rust_report = {
+        #[cfg(not(feature = "e2e_legacy"))]
+        {
+            json!({
+                "rust": {
+                    "wall_seconds": {
+                        "preprocess": sec(t_preprocess),
+                        "tru_ols_build_from_preprocessed": sec(t_tru_ols_build),
+                        "unmix": sec(t_unmix),
+                        "preprocess_plus_build_plus_unmix": sec(t_rust_core),
+                    },
+                    "throughput_events_per_sec": {
+                        "unmix_stained": stained_events as f64 / unmix_eps,
+                        "preprocess_unstained": unstained_events as f64 / preprocess_eps,
+                        "core_stained": stained_events as f64 / core_eps,
+                    },
+                    "counts": {
+                        "stained_events": stained_events,
+                        "unstained_events": unstained_events,
+                        "detectors": detector_names.len(),
+                        "endmembers": endmember_names.len(),
+                    },
+                    "parallelism": {
+                        "rayon_threads_after_run": rayon::current_num_threads(),
+                        "parallel_unmix_event_threshold": flow_tru_ols::PARALLEL_UNMIX_THRESHOLD,
+                        "parallel_independent_events_threshold": flow_tru_ols::PARALLEL_INDEPENDENT_EVENTS_THRESHOLD,
+                    },
+                    "code_path": "from_preprocessed",
+                },
+                "environment": {
+                    "os": std::env::consts::OS,
+                    "arch": std::env::consts::ARCH,
+                    "cpu": host_cpu_summary(),
+                    "rustc": rustc_verbose_version(),
+                    "relevant_env": throughput_env_snapshot(),
+                    "tru_ols_cli_version": env!("CARGO_PKG_VERSION"),
+                    "linear_algebra": "Default flow-tru-ols uses faer (pure Rust). Optional `blas` feature uses OpenBLAS via ndarray-linalg where applicable.",
+                },
+            })
+        }
+        #[cfg(feature = "e2e_legacy")]
+        {
+            json!({
+                "rust": {
+                    "wall_seconds": {
+                        "preprocess": sec(t_preprocess),
+                        "tru_ols_build_new": sec(t_tru_ols_build),
+                        "unmix": sec(t_unmix),
+                        "preprocess_plus_build_plus_unmix": sec(t_rust_core),
+                    },
+                    "throughput_events_per_sec": {
+                        "unmix_stained": stained_events as f64 / unmix_eps,
+                        "preprocess_unstained": unstained_events as f64 / preprocess_eps,
+                        "core_stained": stained_events as f64 / core_eps,
+                    },
+                    "counts": {
+                        "stained_events": stained_events,
+                        "unstained_events": unstained_events,
+                        "detectors": detector_names.len(),
+                        "endmembers": endmember_names.len(),
+                    },
+                    "parallelism": {
+                        "rayon_threads_after_run": rayon::current_num_threads(),
+                    },
+                    "code_path": "TruOls::new (e2e_legacy; cutoffs also recomputed inside new)",
+                },
+                "environment": {
+                    "os": std::env::consts::OS,
+                    "arch": std::env::consts::ARCH,
+                    "cpu": host_cpu_summary(),
+                    "rustc": rustc_verbose_version(),
+                    "relevant_env": throughput_env_snapshot(),
+                    "tru_ols_cli_version": env!("CARGO_PKG_VERSION"),
+                    "linear_algebra": "Default flow-tru-ols uses faer (pure Rust). Optional `blas` feature uses OpenBLAS via ndarray-linalg where applicable.",
+                },
+            })
+        }
+    };
 
     write_throughput_rust_json(&throughput_rust_path, &rust_report)?;
     println!(

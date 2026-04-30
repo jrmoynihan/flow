@@ -10,7 +10,7 @@ fn main() {
         Ok(fcs) => {
             println!("✓ Successfully read unmixed FCS file");
             println!("Number of parameters: {}\n", fcs.parameters.len());
-            
+
             println!("Parameter names:");
             let mut params_sorted: Vec<_> = fcs.parameters.iter().collect();
             params_sorted.sort_by_key(|(_name, param)| param.parameter_number);
@@ -47,9 +47,7 @@ fn main() {
                     let name = p.channel_name.as_ref();
                     !name.starts_with("Unmixed_") && {
                         let upper = name.to_uppercase();
-                        !upper.contains("FSC")
-                            && !upper.contains("SSC")
-                            && !upper.contains("TIME")
+                        !upper.contains("FSC") && !upper.contains("SSC") && !upper.contains("TIME")
                     }
                 })
                 .count();
@@ -57,7 +55,10 @@ fn main() {
             println!("\nParameter summary:");
             println!("  Scatter/Time parameters: {}", scatter_time);
             println!("  Unmixed channels: {}", unmixed_count);
-            println!("  Original fluorescent channels remaining: {}", original_fluor);
+            println!(
+                "  Original fluorescent channels remaining: {}",
+                original_fluor
+            );
 
             if original_fluor > 0 {
                 println!(
@@ -69,9 +70,7 @@ fn main() {
                     let name = param.channel_name.as_ref();
                     if !name.starts_with("Unmixed_") && {
                         let upper = name.to_uppercase();
-                        !upper.contains("FSC")
-                            && !upper.contains("SSC")
-                            && !upper.contains("TIME")
+                        !upper.contains("FSC") && !upper.contains("SSC") && !upper.contains("TIME")
                     } {
                         println!("    - {}", name);
                     }

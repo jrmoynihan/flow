@@ -44,6 +44,16 @@ This automatically:
 - Auto-detects endmember names (from control filenames)
 - Builds the mixing matrix from single-stain controls
 
+### QC pipeline flags (`unmix`)
+
+When `--auto-gate` is on (default), controls run through the library `run_qc_pipeline` (margins → raw doublets → preprocess → time-bin QC → scatter or consensus forward-scatter debris → post-debris doublets). Useful options:
+
+- `--qc-preset literature` (default) or `legacy`
+- `--qc-debug-dir DIR` — PeacoQC overview (when export succeeds) and `scatter_post_debris.png`
+- `--qc-cofactor`, `--qc-no-compensation`, `--qc-no-transform`, `--qc-mad`, `--qc-mad-only`, `--scatter-min-keep-pct`
+
+Structured progress for each stage is logged at target `tru_ols::qc` (e.g. filter logs with `RUST_LOG=tru_ols::qc=info`).
+
 ## Usage Examples
 
 ### Basic Single File Unmixing with Auto-Detection

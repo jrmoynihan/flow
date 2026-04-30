@@ -1,7 +1,7 @@
 /// Test peak detection in single-stain control processing
 #[cfg(test)]
 mod tests {
-    use flow_tru_ols_cli::SingleStainConfig;
+    use tru_ols::SingleStainConfig;
 
     #[test]
     fn test_peak_detection_enabled_by_default() {

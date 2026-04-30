@@ -84,7 +84,7 @@ fn main() -> Result<()> {
         columns.push(Column::new(col_name.as_str().into(), values));
     }
 
-    let df = DataFrame::new(columns)?;
+    let df = DataFrame::new(row_count, columns)?;
     println!(
         "  Created DataFrame: {} events × {} parameters",
         df.height(),

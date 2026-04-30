@@ -19,20 +19,30 @@ categories=["science", "command-line-utilities"]
 name="tru-ols"
 path="src/main.rs"
 
+[features]
+# `cli_benchmark`: synthetic OLS vs TRU-OLS reports (`src/benchmark.rs`); requires full `flow-tru-ols` APIs.
+# Disable default features when building against an older `flow-tru-ols` snapshot (e.g. `git stash` of perf work).
+default = ["cli_benchmark"]
+cli_benchmark = []
+# Build `examples/e2e_plate_throughput` against pre-optimization `flow-tru-ols` (`git stash` plan changes).
+e2e_legacy = []
+blas = ["flow-tru-ols/blas"]
+
 [[example]]
 name="generate_synthetic_test_data"
 path="examples/generate_synthetic_test_data.rs"
 
 [dependencies]
-flow-fcs={ path="../fcs", version="^0.2.2" }
+flow-fcs={ path="../fcs", version="^0.3.0" }
 flow-tru-ols={ path="../tru-ols", version="^0.1.0", features=[
     "flow-fcs",
     "plotting",
+    "unmix-cache",
 ] }
 # Plotters backend until kuva stabilizes (omit default "raster" feature)
 flow-plots={ path="../plots", version="^0.3.1", default-features=false }
 flow-utils={ path="../utils", version="^0.1.1" }
-flow-gates={ path="../gates", version="^0.2.2" }
+flow-gates={ path="../gates", version="^0.3.0" }
 peacoqc-rs={ path="../peacoqc-rs", version="^0.2.4", features=[
     "flow-fcs",
 ] }

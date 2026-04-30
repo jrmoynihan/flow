@@ -10,8 +10,8 @@ use flow_plots::helpers::density_options_from_fcs;
 use flow_plots::options::{AxisOptions, BasePlotOptions, DensityPlotOptions};
 use flow_plots::render::RenderConfig;
 use flow_plots::{DensityPlot, Plot};
-use flow_tru_ols_cli::commands::{apply_mask_to_fcs, clean_fcs_data, isolate_positive_peak_mask};
-use flow_tru_ols_cli::synthetic_data::{
+use tru_ols::commands::{apply_mask_to_fcs, clean_fcs_data, isolate_positive_peak_mask};
+use tru_ols::synthetic_data::{
     SpectralSignature, generate_signal_heatmap_only,
     generate_spectral_visualization_plots_with_overlay,
 };
@@ -415,7 +415,7 @@ fn process_single_file(
                     let median_raw = calculate_median(&raw_values);
                     raw_signals.insert(det_name.clone(), median_raw);
                     raw_medians_pos.insert(det_name.clone(), median_raw);
-                    
+
                     // Calculate geometric mean (better for log-normal distributions)
                     if let Some(geo_mean_raw) = calculate_geometric_mean(&raw_values) {
                         raw_geometric_means_pos.insert(det_name.clone(), geo_mean_raw);
@@ -477,9 +477,10 @@ fn process_single_file(
                 let neg_geo_mean = unstained_meds.get(det_name).copied().unwrap_or(0.0);
                 let subtracted_geo = (pos_geo_mean - neg_geo_mean).max(0.0);
                 subtracted_geometric_means.insert(det_name.clone(), subtracted_geo);
-                
+
                 let transformed_subtracted_geo = arcsinh_transform.transform(&subtracted_geo);
-                transformed_subtracted_geometric_means.insert(det_name.clone(), transformed_subtracted_geo);
+                transformed_subtracted_geometric_means
+                    .insert(det_name.clone(), transformed_subtracted_geo);
             }
 
             // Debug logging for key channels
@@ -788,8 +789,8 @@ fn process_single_file(
             &plot_dir,
             "jpg",
             fcs_for_plots,
-            None,                                   // Use the default colormap
-            unstained_medians,                      // Overlay unstained medians (dashed grey)
+            None,                                           // Use the default colormap
+            unstained_medians, // Overlay unstained medians (dashed grey)
             Some(&transformed_medians_for_overlay), // Overlay positive medians (dashed blue)
             Some(&transformed_geometric_means_for_overlay), // Overlay positive geometric means (solid orange)
         )
@@ -935,7 +936,8 @@ fn generate_peak_isolation_plots(
                 // Draw geometric mean marker (square) - semi-transparent
                 if let Some((x, y)) = overlays.geometric_mean_coord {
                     // Check if coordinates are within plot bounds
-                    if x >= x_spec.start && x <= x_spec.end && y >= y_spec.start && y <= y_spec.end {
+                    if x >= x_spec.start && x <= x_spec.end && y >= y_spec.start && y <= y_spec.end
+                    {
                         let geo_mean_color = RGBAColor(255, 165, 0, 0.8); // Orange square, semi-transparent (increased alpha for visibility)
                         // Draw larger square for better visibility
                         chart
@@ -958,8 +960,10 @@ fn generate_peak_isolation_plots(
                         legend_items.push(("Geometric Mean", RGBColor(255, 165, 0))); // Use opaque for legend
                     } else {
                         // Log if coordinates are out of bounds
-                        eprintln!("Warning: Geometric mean coordinates ({:.2}, {:.2}) are outside plot bounds [{:.2}-{:.2}, {:.2}-{:.2}]", 
-                            x, y, x_spec.start, x_spec.end, y_spec.start, y_spec.end);
+                        eprintln!(
+                            "Warning: Geometric mean coordinates ({:.2}, {:.2}) are outside plot bounds [{:.2}-{:.2}, {:.2}-{:.2}]",
+                            x, y, x_spec.start, x_spec.end, y_spec.start, y_spec.end
+                        );
                     }
                 }
 
@@ -1357,7 +1361,7 @@ fn generate_debugging_plots(
 }
 
 /// Generate diagnostic plot for KDE and peak selection
-/// 
+///
 /// Creates a plot showing:
 /// - KDE density curve
 /// - All detected peaks (up to 3)
@@ -1372,7 +1376,7 @@ fn generate_kde_diagnostic_plot(
 ) -> Result<()> {
     use flow_utils::kde::KernelDensity;
     use plotters::prelude::*;
-    
+
     // Estimate KDE
     let kde = match KernelDensity::estimate(values, 0.5, 1024) {
         Ok(kde) => kde,
@@ -1381,7 +1385,7 @@ fn generate_kde_diagnostic_plot(
             return Ok(()); // Skip diagnostic plot if KDE fails
         }
     };
-    
+
     // Find peaks
     let adjusted_threshold = 0.2;
     let mut peaks = kde.find_peaks(adjusted_threshold);
@@ -1389,14 +1393,14 @@ fn generate_kde_diagnostic_plot(
     if peaks.len() > 3 {
         peaks.truncate(3);
     }
-    
+
     // Evaluate candidates (same logic as in isolate_positive_peak_mask)
     struct PeakCandidate {
         x: f64,
         density: f64,
         intensity: f64,
     }
-    
+
     let mut candidates: Vec<PeakCandidate> = peaks
         .iter()
         .map(|&peak_x| {
@@ -1409,20 +1413,27 @@ fn generate_kde_diagnostic_plot(
             }
         })
         .collect();
-    
+
     candidates.sort_by(|a, b| {
-        match b.density.partial_cmp(&a.density).unwrap_or(std::cmp::Ordering::Equal) {
-            std::cmp::Ordering::Equal => b.intensity.partial_cmp(&a.intensity).unwrap_or(std::cmp::Ordering::Equal),
+        match b
+            .density
+            .partial_cmp(&a.density)
+            .unwrap_or(std::cmp::Ordering::Equal)
+        {
+            std::cmp::Ordering::Equal => b
+                .intensity
+                .partial_cmp(&a.intensity)
+                .unwrap_or(std::cmp::Ordering::Equal),
             other => other,
         }
     });
-    
+
     let main_peak = if let Some(cand) = candidates.first() {
         cand.x
     } else {
         return Ok(()); // No peaks found
     };
-    
+
     // Calculate peak regions (simplified version of isolate_positive_peak_mask logic)
     let mut sorted_all = values.to_vec();
     sorted_all.sort_by(|a, b| a.partial_cmp(b).unwrap());
@@ -1430,21 +1441,21 @@ fn generate_kde_diagnostic_plot(
     let q3_idx = (sorted_all.len() * 3) / 4;
     let iqr = sorted_all[q3_idx] - sorted_all[q1_idx];
     let window = iqr * 2.0;
-    
+
     // First-stage MAD
     let mut peak_region_values: Vec<f64> = values
         .iter()
         .filter(|&&v| (v - main_peak).abs() < window)
         .copied()
         .collect();
-    
+
     if peak_region_values.is_empty() {
         peak_region_values = values.to_vec();
     }
-    
+
     peak_region_values.sort_by(|a, b| a.partial_cmp(b).unwrap());
     let median_peak_region = peak_region_values[peak_region_values.len() / 2];
-    
+
     let deviations: Vec<f64> = peak_region_values
         .iter()
         .map(|&v| (v - median_peak_region).abs())
@@ -1452,25 +1463,25 @@ fn generate_kde_diagnostic_plot(
     let mut sorted_deviations = deviations;
     sorted_deviations.sort_by(|a, b| a.partial_cmp(b).unwrap());
     let mad1 = sorted_deviations[sorted_deviations.len() / 2];
-    
+
     let peak_width1 = 2.0 * mad1;
     let peak_min1 = main_peak - peak_width1;
     let peak_max1 = main_peak + peak_width1;
-    
+
     // Second-stage MAD
     let mut filtered_values: Vec<f64> = values
         .iter()
         .filter(|&&v| v >= peak_min1 && v <= peak_max1)
         .copied()
         .collect();
-    
+
     if filtered_values.is_empty() {
         filtered_values = peak_region_values.clone();
     }
-    
+
     filtered_values.sort_by(|a, b| a.partial_cmp(b).unwrap());
     let median_filtered = filtered_values[filtered_values.len() / 2];
-    
+
     let deviations2: Vec<f64> = filtered_values
         .iter()
         .map(|&v| (v - median_filtered).abs())
@@ -1478,19 +1489,19 @@ fn generate_kde_diagnostic_plot(
     let mut sorted_deviations2 = deviations2;
     sorted_deviations2.sort_by(|a, b| a.partial_cmp(b).unwrap());
     let mad2 = sorted_deviations2[sorted_deviations2.len() / 2];
-    
+
     let peak_width2 = 2.0 * mad2;
     let peak_min2 = main_peak - peak_width2;
     let peak_max2 = main_peak + peak_width2;
-    
+
     // Create plot
     let root = BitMapBackend::new(output_path, (1200, 800)).into_drawing_area();
     root.fill(&WHITE)?;
-    
+
     let x_min = kde.x[0];
     let x_max = kde.x[kde.x.len() - 1];
     let y_max = kde.y.iter().cloned().fold(f64::NEG_INFINITY, f64::max) * 1.1;
-    
+
     let mut chart = ChartBuilder::on(&root)
         .caption(
             format!("KDE Diagnostic: {}", channel_name),
@@ -1500,19 +1511,25 @@ fn generate_kde_diagnostic_plot(
         .x_label_area_size(40)
         .y_label_area_size(60)
         .build_cartesian_2d(x_min..x_max, 0.0..y_max)?;
-    
-    chart.configure_mesh()
+
+    chart
+        .configure_mesh()
         .x_desc("Intensity")
         .y_desc("Density")
         .draw()?;
-    
+
     // Draw KDE curve
-    let kde_points: Vec<(f64, f64)> = kde.x.iter().zip(kde.y.iter()).map(|(&x, &y)| (x, y)).collect();
+    let kde_points: Vec<(f64, f64)> = kde
+        .x
+        .iter()
+        .zip(kde.y.iter())
+        .map(|(&x, &y)| (x, y))
+        .collect();
     chart.draw_series(LineSeries::new(
         kde_points.iter().map(|(x, y)| (*x, *y)),
         RGBColor(0, 0, 255).stroke_width(2),
     ))?;
-    
+
     // Draw all candidate peaks
     for (i, cand) in candidates.iter().enumerate() {
         let color = if i == 0 {
@@ -1520,14 +1537,14 @@ fn generate_kde_diagnostic_plot(
         } else {
             RGBColor(0, 255, 0) // Other candidates - green
         };
-        
+
         let peak_density = kde.density_at(cand.x);
         chart.draw_series(std::iter::once(Circle::new(
             (cand.x, peak_density),
             8,
             color.filled(),
         )))?;
-        
+
         // Label peaks
         chart.draw_series(std::iter::once(Text::new(
             format!("P{}", i + 1),
@@ -1535,56 +1552,71 @@ fn generate_kde_diagnostic_plot(
             ("sans-serif", 15).into_font().color(&color),
         )))?;
     }
-    
+
     // Draw first-stage peak region
     let first_stage_density = kde.density_at(peak_min1).max(kde.density_at(peak_max1));
     chart.draw_series(std::iter::once(Rectangle::new(
         [(peak_min1, 0.0), (peak_max1, first_stage_density)],
         RGBAColor(255, 165, 0, 0.2).filled(),
     )))?;
-    
+
     chart.draw_series(std::iter::once(Rectangle::new(
         [(peak_min1, 0.0), (peak_max1, first_stage_density)],
         RGBColor(255, 165, 0).stroke_width(2),
     )))?;
-    
+
     // Draw second-stage peak region
     let second_stage_density = kde.density_at(peak_min2).max(kde.density_at(peak_max2));
     chart.draw_series(std::iter::once(Rectangle::new(
         [(peak_min2, 0.0), (peak_max2, second_stage_density)],
         RGBAColor(255, 0, 0, 0.2).filled(),
     )))?;
-    
+
     chart.draw_series(std::iter::once(Rectangle::new(
         [(peak_min2, 0.0), (peak_max2, second_stage_density)],
         RGBColor(255, 0, 0).stroke_width(2),
     )))?;
-    
+
     // Add legend
     let legend_y = y_max * 0.9;
-    chart.draw_series(std::iter::once(Circle::new((x_min + (x_max - x_min) * 0.7, legend_y), 5, RGBColor(0, 0, 255).filled())))?;
+    chart.draw_series(std::iter::once(Circle::new(
+        (x_min + (x_max - x_min) * 0.7, legend_y),
+        5,
+        RGBColor(0, 0, 255).filled(),
+    )))?;
     chart.draw_series(std::iter::once(Text::new(
         "KDE Density",
         (x_min + (x_max - x_min) * 0.72, legend_y),
         ("sans-serif", 12).into_font(),
     )))?;
-    
-    chart.draw_series(std::iter::once(Circle::new((x_min + (x_max - x_min) * 0.7, legend_y - y_max * 0.05), 5, RGBColor(255, 0, 0).filled())))?;
+
+    chart.draw_series(std::iter::once(Circle::new(
+        (x_min + (x_max - x_min) * 0.7, legend_y - y_max * 0.05),
+        5,
+        RGBColor(255, 0, 0).filled(),
+    )))?;
     chart.draw_series(std::iter::once(Text::new(
         "Selected Peak",
         (x_min + (x_max - x_min) * 0.72, legend_y - y_max * 0.05),
         ("sans-serif", 12).into_font(),
     )))?;
-    
-    chart.draw_series(std::iter::once(Circle::new((x_min + (x_max - x_min) * 0.7, legend_y - y_max * 0.1), 5, RGBColor(0, 255, 0).filled())))?;
+
+    chart.draw_series(std::iter::once(Circle::new(
+        (x_min + (x_max - x_min) * 0.7, legend_y - y_max * 0.1),
+        5,
+        RGBColor(0, 255, 0).filled(),
+    )))?;
     chart.draw_series(std::iter::once(Text::new(
         "Other Peaks",
         (x_min + (x_max - x_min) * 0.72, legend_y - y_max * 0.1),
         ("sans-serif", 12).into_font(),
     )))?;
-    
+
     chart.draw_series(std::iter::once(Rectangle::new(
-        [(x_min + (x_max - x_min) * 0.7, legend_y - y_max * 0.15), (x_min + (x_max - x_min) * 0.75, legend_y - y_max * 0.13)],
+        [
+            (x_min + (x_max - x_min) * 0.7, legend_y - y_max * 0.15),
+            (x_min + (x_max - x_min) * 0.75, legend_y - y_max * 0.13),
+        ],
         RGBAColor(255, 165, 0, 0.2).filled(),
     )))?;
     chart.draw_series(std::iter::once(Text::new(
@@ -1592,9 +1624,12 @@ fn generate_kde_diagnostic_plot(
         (x_min + (x_max - x_min) * 0.72, legend_y - y_max * 0.14),
         ("sans-serif", 12).into_font(),
     )))?;
-    
+
     chart.draw_series(std::iter::once(Rectangle::new(
-        [(x_min + (x_max - x_min) * 0.7, legend_y - y_max * 0.2), (x_min + (x_max - x_min) * 0.75, legend_y - y_max * 0.18)],
+        [
+            (x_min + (x_max - x_min) * 0.7, legend_y - y_max * 0.2),
+            (x_min + (x_max - x_min) * 0.75, legend_y - y_max * 0.18),
+        ],
         RGBAColor(255, 0, 0, 0.2).filled(),
     )))?;
     chart.draw_series(std::iter::once(Text::new(
@@ -1602,8 +1637,8 @@ fn generate_kde_diagnostic_plot(
         (x_min + (x_max - x_min) * 0.72, legend_y - y_max * 0.19),
         ("sans-serif", 12).into_font(),
     )))?;
-    
+
     root.present()?;
-    
+
     Ok(())
 }
