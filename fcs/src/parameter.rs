@@ -20,23 +20,25 @@ pub type ChannelName = Arc<str>;
 pub type LabelName = Arc<str>;
 pub type ParameterMap = FxHashMap<ChannelName, Parameter>;
 
-/// Instructions for parameter processing transformations
+/// Instructions for parameter processing transformations.
 ///
-/// These variants indicate what transformations should be applied to the data,
-/// not the current state of the data (which may already be processed).
-/// This is used to track the processing pipeline for parameters (compensation, unmixing, etc.)
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Hash)]
+/// Indicates whether spillover compensation should be applied when accessing
+/// event values for a parameter. The spatial transform (arcsinh vs linear) is
+/// derived separately from `is_fluorescence()` and is applied/inverted around
+/// gate evaluation — it's not tracked on the parameter itself.
+///
+/// Storage form (whether a file was saved raw or unmixed) is NOT encoded here:
+/// the app treats stored columns uniformly and lets the user pick channels by
+/// name. An unmixed-stored file with no further compensation is `Raw` from the
+/// filter's perspective; applying compensation on top is `Compensated`.
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
 #[cfg_attr(feature = "typescript", ts(export))]
 pub enum ParameterProcessing {
-    /// Raw, unprocessed data from FCS file
+    /// Values read directly from the file — no spillover compensation applied.
     Raw,
-    /// Compensated for spectral overlap
+    /// Spillover-compensated values.
     Compensated,
-    /// Spectrally unmixed
-    Unmixed,
-    /// Both compensated and spectrally unmixed
-    UnmixedCompensated,
 }
 
 impl Default for ParameterProcessing {
@@ -61,8 +63,6 @@ pub enum ParameterCategory {
     Transformed,
     /// Both compensated and transformed
     CompensatedTransformed,
-    /// Spectrally unmixed
-    Unmixed,
 }
 
 /// A parameter option for plotting that includes display information
@@ -144,15 +144,11 @@ impl Parameter {
     /// Format examples:
     /// - Raw: "UV379-A::CD8" or just "FSC-A"
     /// - Compensated: "Comp::UV379-A::CD8"
-    /// - Unmixed: "Unmix::UV379-A::CD8"
-    /// - UnmixedCompensated: "Comp+Unmix::UV379-A::CD8"
     #[must_use]
     pub fn get_display_label(&self) -> String {
         let prefix = match self.state {
             ParameterProcessing::Raw => "",
             ParameterProcessing::Compensated => "Comp::",
-            ParameterProcessing::Unmixed => "Unmix::",
-            ParameterProcessing::UnmixedCompensated => "Comp+Unmix::",
         };
 
         // If label_name is empty or same as channel, just use channel
@@ -236,29 +232,6 @@ impl Parameter {
                     category: ParameterCategory::CompensatedTransformed,
                 });
 
-                // Add unmixed versions (always transformed)
-                let unmix_trans = self
-                    .with_state(ParameterProcessing::Unmixed)
-                    .with_transform(TransformType::default());
-                let unmix_trans_label = unmix_trans.get_display_label();
-                options.push(ParameterOption {
-                    id: format!("unmix_trans::{}", self.channel_name),
-                    display_label: unmix_trans_label,
-                    parameter: unmix_trans,
-                    category: ParameterCategory::Unmixed,
-                });
-
-                // Add combined compensated+unmixed versions (always transformed)
-                let comp_unmix_trans = self
-                    .with_state(ParameterProcessing::UnmixedCompensated)
-                    .with_transform(TransformType::default());
-                let comp_unmix_trans_label = comp_unmix_trans.get_display_label();
-                options.push(ParameterOption {
-                    id: format!("comp_unmix_trans::{}", self.channel_name),
-                    display_label: comp_unmix_trans_label,
-                    parameter: comp_unmix_trans,
-                    category: ParameterCategory::Unmixed,
-                });
             }
         } else {
             // For non-fluorescence (scatter/time): include raw parameter

@@ -13,6 +13,7 @@ use regex::bytes::Regex;
 use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
+use tracing::debug;
 use uuid::Uuid;
 pub type KeywordMap = FxHashMap<String, Keyword>;
 
@@ -206,7 +207,7 @@ impl Metadata {
     /// - the number of parameters can't be obtained from the $PAR keyword in the TEXT section
     /// - any keyword has a Pn[X] value where n is greater than the number of parameters indicated by the $PAR keyword
     pub fn validate_text_segment_keywords(&self, header: &Header) -> Result<()> {
-        println!("Validating FCS file...{}", header.version);
+        debug!(version = %header.version, "validate FCS TEXT keywords");
         let required_keywords = header.version.get_required_keywords();
         for keyword in required_keywords {
             if !self.keywords.contains_key(*keyword) {

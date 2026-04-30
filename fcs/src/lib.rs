@@ -5,6 +5,7 @@ pub use datatype::FcsDataType;
 pub use file::Fcs;
 pub use header::Header;
 pub use keyword::Keyword;
+pub use matrix::MatrixOps;
 pub use metadata::Metadata;
 pub use parameter::{ChannelName, EventDataFrame, EventDatum, LabelName, Parameter, ParameterMap};
 pub use transform::{Formattable, TransformType, Transformable};
@@ -13,14 +14,13 @@ pub use write::{
     add_column, concatenate_events, duplicate_fcs_file, edit_metadata_and_save, filter_events,
     write_fcs_file,
 };
-pub use matrix::MatrixOps;
 
 mod byteorder;
 pub mod datatype;
 pub mod file;
-pub mod matrix;
 pub mod header;
 pub mod keyword;
+pub mod matrix;
 pub mod metadata;
 pub mod parameter;
 mod tests;

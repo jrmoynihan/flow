@@ -349,22 +349,6 @@ mod polars_tests {
             "Comp::FL1-A",
             "Should have Comp:: prefix"
         );
-
-        // Unmixed state
-        let unmix = fl1.with_state(ParameterProcessing::Unmixed);
-        assert_eq!(
-            unmix.get_display_label(),
-            "Unmix::FL1-A",
-            "Should have Unmix:: prefix"
-        );
-
-        // Combined compensated+unmixed state
-        let comp_unmix = fl1.with_state(ParameterProcessing::UnmixedCompensated);
-        assert_eq!(
-            comp_unmix.get_display_label(),
-            "Comp+Unmix::FL1-A",
-            "Should have Comp+Unmix:: prefix"
-        );
     }
 
     #[test]
@@ -414,15 +398,11 @@ mod polars_tests {
         let options = param.generate_plot_options(true);
         assert_eq!(
             options.len(),
-            4,
-            "Should have transformed + comp_trans + unmix_trans + comp_unmix_trans"
+            2,
+            "Should have transformed + comp_trans"
         );
         assert_eq!(options[1].id, "comp_trans::FL1-A");
         assert_eq!(options[1].display_label, "Comp::FL1-A::CD3");
-        assert_eq!(options[2].id, "unmix_trans::FL1-A");
-        assert_eq!(options[2].display_label, "Unmix::FL1-A::CD3");
-        assert_eq!(options[3].id, "comp_unmix_trans::FL1-A");
-        assert_eq!(options[3].display_label, "Comp+Unmix::FL1-A::CD3");
     }
 
     #[test]

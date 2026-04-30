@@ -5,8 +5,8 @@
 //! than CPU for typical workloads due to transfer overhead. See GPU_BENCHMARKING.md for details.
 
 use criterion::{BenchmarkId, Criterion, Throughput, criterion_group, criterion_main};
-use flow_fcs::MatrixOps;
 use faer::Mat;
+use flow_fcs::MatrixOps;
 use std::hint::black_box;
 
 /// Generate a random compensation matrix for testing

@@ -17,9 +17,9 @@ use std::sync::Arc;
 // External crate imports
 use anyhow::{Context, Result, anyhow};
 use byteorder::{BigEndian as BE, ByteOrder as BO, LittleEndian as LE};
+use faer::Mat;
 use itertools::{Itertools, MinMaxResult};
 use memmap3::{Mmap, MmapOptions};
-use faer::Mat;
 use polars::prelude::*;
 use rayon::prelude::*;
 
@@ -1527,11 +1527,10 @@ impl Fcs {
                                     }
 
                                     if matrix_values.len() == expected_matrix_size {
-                                        let matrix = Mat::from_fn(
-                                            n_parameters,
-                                            n_parameters,
-                                            |i, j| matrix_values[i * n_parameters + j],
-                                        );
+                                        let matrix =
+                                            Mat::from_fn(n_parameters, n_parameters, |i, j| {
+                                                matrix_values[i * n_parameters + j]
+                                            });
                                         return Ok(Some((matrix, parameter_names)));
                                     }
                                 }
@@ -1567,8 +1566,7 @@ impl Fcs {
         }
 
         // Create Mat from matrix values (FCS spillover is stored row-major)
-        let matrix =
-            Mat::from_fn(n_params, n_params, |i, j| matrix_values[i * n_params + j]);
+        let matrix = Mat::from_fn(n_params, n_params, |i, j| matrix_values[i * n_params + j]);
 
         Ok(Some((matrix, param_names)))
     }
@@ -1864,10 +1862,8 @@ impl Fcs {
         // Use CPU compensation (benchmarked: GPU was slower due to transfer overhead)
         // Apply compensation: compensated = original * inverse(compensation_matrix)
         // For efficiency, we pre-compute the inverse using faer (pure Rust, no system BLAS)
-        let comp_inv =
-            crate::matrix::MatrixOps::invert_matrix(comp).map_err(|e| {
-                anyhow!("Failed to invert compensation matrix: {:?}", e)
-            })?;
+        let comp_inv = crate::matrix::MatrixOps::invert_matrix(comp)
+            .map_err(|e| anyhow!("Failed to invert compensation matrix: {:?}", e))?;
 
         // Perform matrix multiplication for each event
         use rayon::prelude::*;
@@ -1944,10 +1940,9 @@ impl Fcs {
         }
 
         // Observations matrix: events × detectors
-        let observations =
-            Mat::from_fn(n_events, n_detectors, |event_idx, detector_idx| {
-                detector_data[detector_idx][event_idx]
-            });
+        let observations = Mat::from_fn(n_events, n_detectors, |event_idx, detector_idx| {
+            detector_data[detector_idx][event_idx]
+        });
 
         // Perform unmixing: for each event, solve: observation = unmixing_matrix × abundances
         // For overdetermined systems (n_detectors > n_endmembers), use QR least squares (faer)
@@ -1955,11 +1950,9 @@ impl Fcs {
 
         let mut unmixed_data: Vec<Vec<f32>> = Vec::with_capacity(n_events);
         for event_idx in 0..n_events {
-            let b_col =
-                Mat::from_fn(n_detectors, 1, |i, _| observations[(event_idx, i)]);
+            let b_col = Mat::from_fn(n_detectors, 1, |i, _| observations[(event_idx, i)]);
             let x_faer = qr.solve_lstsq(b_col.as_ref());
-            let abundances: Vec<f32> =
-                (0..n_endmembers).map(|i| x_faer[(i, 0)]).collect();
+            let abundances: Vec<f32> = (0..n_endmembers).map(|i| x_faer[(i, 0)]).collect();
             unmixed_data.push(abundances);
         }
 

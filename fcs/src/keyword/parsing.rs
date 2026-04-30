@@ -189,7 +189,9 @@ pub fn parse_parameter_keywords(key: &str, value: &str) -> Option<KeywordCreatio
             // Try parsing as float first (for cases like "1.1")
             if let Some(range_float) = parse_float_with_comma_decimal(trimmed_value) {
                 // Convert float to usize (rounding)
-                Some(KeywordCreationResult::Int(IntegerKeyword::PnR(range_float as usize)))
+                Some(KeywordCreationResult::Int(IntegerKeyword::PnR(
+                    range_float as usize,
+                )))
             } else {
                 // Fall back to integer parsing
                 Some(
@@ -199,7 +201,7 @@ pub fn parse_parameter_keywords(key: &str, value: &str) -> Option<KeywordCreatio
                         .unwrap_or(KeywordCreationResult::UnableToParse),
                 )
             }
-        },
+        }
         // Number of bits reserved for parameter n → [`IntegerKeyword::PnB`]
         "B" => Some(
             trimmed_value
@@ -276,9 +278,7 @@ pub fn parse_parameter_keywords(key: &str, value: &str) -> Option<KeywordCreatio
         // According to FCS 3.2 spec, $PnDATATYPE uses the same character format as $DATATYPE ("F", "D", "I", "A")
         "DATATYPE" => Some(
             FcsDataType::from_keyword_str(trimmed_value)
-                .map(|data_type| {
-                    KeywordCreationResult::Byte(ByteKeyword::PnDATATYPE(data_type))
-                })
+                .map(|data_type| KeywordCreationResult::Byte(ByteKeyword::PnDATATYPE(data_type)))
                 .unwrap_or(KeywordCreationResult::UnableToParse),
         ),
         _ => {

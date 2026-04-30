@@ -61,8 +61,7 @@ impl MatrixOps {
         }
 
         // Build data matrix: [n_channels × n_events]
-        let data_matrix =
-            Mat::from_fn(n_channels, n_events, |i, j| channel_data[i][j]);
+        let data_matrix = Mat::from_fn(n_channels, n_events, |i, j| channel_data[i][j]);
 
         // Result: matrix @ data_matrix -> [n_channels × n_events]
         let mut result = Mat::zeros(n_channels, n_events);
@@ -78,8 +77,7 @@ impl MatrixOps {
         // Convert back to Vec<Vec<f32>>
         let mut out = Vec::with_capacity(n_channels);
         for i in 0..n_channels {
-            let channel_result: Vec<f32> =
-                (0..n_events).map(|j| result[(i, j)]).collect();
+            let channel_result: Vec<f32> = (0..n_events).map(|j| result[(i, j)]).collect();
             out.push(channel_result);
         }
 

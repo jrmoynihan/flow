@@ -547,7 +547,14 @@ fn serialize_metadata(
                 match mixed_kw {
                     MixedKeyword::PnE(f1, f2) => format!("{},{}", f1, f2),
                     MixedKeyword::PnL(wavelengths) => {
-                        format!("({})", wavelengths.iter().map(|w| w.to_string()).collect::<Vec<_>>().join(","))
+                        format!(
+                            "({})",
+                            wavelengths
+                                .iter()
+                                .map(|w| w.to_string())
+                                .collect::<Vec<_>>()
+                                .join(",")
+                        )
                     }
                     MixedKeyword::PnD(scale_type, lower, upper) => {
                         format!("({},{},{})", scale_type, lower, upper)
@@ -556,9 +563,20 @@ fn serialize_metadata(
                         format!("{}/{}", f1, s)
                     }
                     MixedKeyword::RnW(widths) => {
-                        format!("({})", widths.iter().map(|w| w.to_string()).collect::<Vec<_>>().join(","))
+                        format!(
+                            "({})",
+                            widths
+                                .iter()
+                                .map(|w| w.to_string())
+                                .collect::<Vec<_>>()
+                                .join(",")
+                        )
                     }
-                    MixedKeyword::SPILLOVER { n_parameters, parameter_names, matrix_values } => {
+                    MixedKeyword::SPILLOVER {
+                        n_parameters,
+                        parameter_names,
+                        matrix_values,
+                    } => {
                         let mut result = format!("{}", n_parameters);
                         for name in parameter_names {
                             result.push(',');
@@ -572,7 +590,7 @@ fn serialize_metadata(
                     }
                     MixedKeyword::GnE(f1, f2) => format!("{},{}", f1, f2),
                 }
-            },
+            }
         };
 
         // Remove $ prefix for serialization (it will be added back)
