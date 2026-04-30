@@ -17,6 +17,7 @@ use crate::error::{PeacoQCError, Result};
 use crate::qc::peaks::ChannelPeakFrame;
 use rayon::prelude::*;
 use std::collections::HashMap;
+use tracing::debug;
 
 #[cfg(feature = "gpu")]
 use crate::gpu::{build_feature_matrix_gpu, is_gpu_available};
@@ -162,10 +163,7 @@ pub fn isolation_tree_detect(
     let (feature_matrix, feature_names) = build_feature_matrix(peak_results, n_bins)?;
     let n_features = feature_matrix[0].len();
 
-    eprintln!(
-        "Running SD-based Isolation Tree: {} bins, {} features (clusters)",
-        n_bins, n_features
-    );
+    debug!(n_bins, n_features, "SD-based isolation tree input shape");
 
     // Build the SD-based isolation tree
     let (tree, selection) =
@@ -189,11 +187,10 @@ pub fn isolation_tree_detect(
     let outlier_bins: Vec<bool> = good_bins.iter().map(|&in_node| !in_node).collect();
 
     let n_outliers = outlier_bins.iter().filter(|&&x| x).count();
-    eprintln!(
-        "IT detected {} outlier bins ({:.1}%), largest node has {} bins",
+    let pct = (n_outliers as f64 / n_bins as f64) * 100.0;
+    debug!(
         n_outliers,
-        (n_outliers as f64 / n_bins as f64) * 100.0,
-        largest_node_size
+        pct, largest_node_size, "isolation tree outlier bins"
     );
 
     let max_depth = tree.iter().map(|n| n.depth).max().unwrap_or(0);

@@ -5,8 +5,8 @@ use std::collections::HashMap;
 
 use peacoqc_rs::{
     DoubletConfig, DoubletResult as RsDoubletResult, FcsFilter, MarginConfig,
-    MarginResult as RsMarginResult, PeacoQCConfig, PeacoQCData,
-    PeacoQCResult as RsPeacoQCResult, QCMode,
+    MarginResult as RsMarginResult, PeacoQCConfig, PeacoQCData, PeacoQCResult as RsPeacoQCResult,
+    QCMode,
 };
 
 // ---------------------------------------------------------------------------
@@ -44,11 +44,7 @@ impl PeacoQCData for DataFrameQCData {
         if let Ok(f64_vals) = series.f64() {
             Ok(f64_vals.into_iter().flatten().collect())
         } else if let Ok(f32_vals) = series.f32() {
-            Ok(f32_vals
-                .into_iter()
-                .flatten()
-                .map(|v| v as f64)
-                .collect())
+            Ok(f32_vals.into_iter().flatten().map(|v| v as f64).collect())
         } else {
             Err(peacoqc_rs::PeacoQCError::InvalidChannel(format!(
                 "Channel {channel} is not numeric (dtype: {:?})",
@@ -63,11 +59,12 @@ impl FcsFilter for DataFrameQCData {
         use polars::prelude::*;
         let mask_series = Series::new("mask".into(), mask.to_vec());
         let mask_ca = mask_series.bool().map_err(|e| {
-            peacoqc_rs::PeacoQCError::StatsError(format!(
-                "Failed to create boolean mask: {e}"
-            ))
+            peacoqc_rs::PeacoQCError::StatsError(format!("Failed to create boolean mask: {e}"))
         })?;
-        let filtered = self.df.filter(mask_ca).map_err(peacoqc_rs::PeacoQCError::PolarsError)?;
+        let filtered = self
+            .df
+            .filter(mask_ca)
+            .map_err(peacoqc_rs::PeacoQCError::PolarsError)?;
         Ok(DataFrameQCData {
             df: filtered,
             channel_ranges: self.channel_ranges.clone(),
@@ -245,9 +242,8 @@ impl PyFcsFile {
     /// Open an FCS file from disk.
     #[staticmethod]
     fn open(path: &str) -> PyResult<Self> {
-        let fcs = flow_fcs::file::Fcs::open(path).map_err(|e| {
-            PyValueError::new_err(format!("Failed to open FCS file: {e}"))
-        })?;
+        let fcs = flow_fcs::file::Fcs::open(path)
+            .map_err(|e| PyValueError::new_err(format!("Failed to open FCS file: {e}")))?;
         Ok(PyFcsFile { inner: fcs })
     }
 
@@ -635,7 +631,9 @@ fn preprocess(
         2000.0,
     )
     .map_err(anyhow_to_py_err)?;
-    Ok(PyFcsFile { inner: preprocessed })
+    Ok(PyFcsFile {
+        inner: preprocessed,
+    })
 }
 
 /// Filter an FcsFile by a boolean mask, returning a new FcsFile.

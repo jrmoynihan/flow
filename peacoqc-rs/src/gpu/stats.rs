@@ -3,9 +3,9 @@
 //! Note: Median and percentile operations fall back to CPU (GPU sorting not implemented).
 //! Standard deviation uses GPU but may have overhead for small datasets.
 
+use crate::error::{PeacoQCError, Result};
 use burn::backend::wgpu::WgpuDevice;
 use burn::tensor::Tensor;
-use crate::error::{PeacoQCError, Result};
 
 type Backend = burn::backend::wgpu::Wgpu;
 
@@ -24,7 +24,8 @@ pub fn standard_deviation_gpu(data: &[f64]) -> Result<f64> {
 
     let data_f32: Vec<f32> = data.iter().map(|&x| x as f32).collect();
     let data_tensor_data = TensorData::new(data_f32.into(), vec![data.len()]);
-    let data_tensor = Tensor::<Backend, 1, burn::tensor::Float>::from_data(data_tensor_data, &device);
+    let data_tensor =
+        Tensor::<Backend, 1, burn::tensor::Float>::from_data(data_tensor_data, &device);
 
     // Calculate mean
     let mean = data_tensor.clone().mean();
@@ -61,9 +62,10 @@ pub fn percentile_gpu(data: &[f64], p: f64) -> Result<f64> {
     }
 
     if !(0.0..=1.0).contains(&p) {
-        return Err(PeacoQCError::StatsError(
-            format!("Percentile must be between 0 and 1, got {}", p)
-        ));
+        return Err(PeacoQCError::StatsError(format!(
+            "Percentile must be between 0 and 1, got {}",
+            p
+        )));
     }
 
     // Fall back to CPU implementation (GPU sorting not implemented)

@@ -75,3 +75,4 @@ result.export_json_metadata(&config, "qc_metadata.json")?;
 - See `README.md` for complete documentation
 - See `DEV_NOTES.md` for implementation details
 - See `peacoqc-cli/README.md` for CLI usage
+

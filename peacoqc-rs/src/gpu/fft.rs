@@ -4,10 +4,10 @@
 //! CPU FFT is used for the actual transforms (burn doesn't expose FFT directly).
 //! cubeCL custom kernels are available as an optional optimization.
 
-use burn::backend::wgpu::WgpuDevice;
-use burn::tensor::Tensor;
 use crate::error::{PeacoQCError, Result};
 use crate::gpu::is_gpu_available;
+use burn::backend::wgpu::WgpuDevice;
+use burn::tensor::Tensor;
 use realfft::num_complex::Complex;
 
 type Backend = burn::backend::wgpu::Wgpu;
@@ -16,15 +16,12 @@ type Backend = burn::backend::wgpu::Wgpu;
 ///
 /// Uses GPU for convolution multiplication and other operations,
 /// while using CPU FFT for the actual transforms.
-pub fn kde_fft_gpu(
-    data: &[f64],
-    grid: &[f64],
-    bandwidth: f64,
-    n: f64,
-) -> Result<Vec<f64>> {
+pub fn kde_fft_gpu(data: &[f64], grid: &[f64], bandwidth: f64, n: f64) -> Result<Vec<f64>> {
     let m = grid.len();
     if m < 2 {
-        return Err(PeacoQCError::StatsError("Grid must have at least 2 points".to_string()));
+        return Err(PeacoQCError::StatsError(
+            "Grid must have at least 2 points".to_string(),
+        ));
     }
 
     let grid_min = grid[0];
@@ -88,7 +85,9 @@ pub fn kde_fft_gpu(
         // Try cubeCL kernel first (if available), then fall back to burn tensors
         #[cfg(feature = "cubecl")]
         {
-            if let Ok(result) = crate::gpu::kernels::multiply_spectra_cubecl(&binned_spectrum, &kernel_spectrum) {
+            if let Ok(result) =
+                crate::gpu::kernels::multiply_spectra_cubecl(&binned_spectrum, &kernel_spectrum)
+            {
                 result
             } else {
                 // Fall through to burn tensor implementation if cubeCL fails
@@ -108,7 +107,7 @@ pub fn kde_fft_gpu(
             .map(|(a, b)| a * b)
             .collect()
     };
-    
+
     #[cfg(not(feature = "gpu"))]
     let conv_spectrum = binned_spectrum
         .iter()
@@ -129,7 +128,7 @@ pub fn kde_fft_gpu(
         let idx = (kernel_start + i) % fft_size;
         density.push(conv_result[idx]);
     }
-    
+
     // Normalize
     let density: Vec<f64> = density
         .iter()
@@ -140,10 +139,7 @@ pub fn kde_fft_gpu(
 }
 
 /// Multiply two complex spectra on GPU
-fn multiply_spectra_gpu(
-    a: &[Complex<f64>],
-    b: &[Complex<f64>],
-) -> Result<Vec<Complex<f64>>> {
+fn multiply_spectra_gpu(a: &[Complex<f64>], b: &[Complex<f64>]) -> Result<Vec<Complex<f64>>> {
     let device = WgpuDevice::default();
     let n = a.len();
 
@@ -181,16 +177,30 @@ fn multiply_spectra_gpu(
 
     // Complex multiplication: (a_re + i*a_im) * (b_re + i*b_im)
     // = (a_re*b_re - a_im*b_im) + i*(a_re*b_im + a_im*b_re)
-    let re_result = a_re_tensor.clone().mul(b_re_tensor.clone())
+    let re_result = a_re_tensor
+        .clone()
+        .mul(b_re_tensor.clone())
         .sub(a_im_tensor.clone().mul(b_im_tensor.clone()));
-    let im_result = a_re_tensor.clone().mul(b_im_tensor.clone())
+    let im_result = a_re_tensor
+        .clone()
+        .mul(b_im_tensor.clone())
         .add(a_im_tensor.clone().mul(b_re_tensor.clone()));
 
     // Convert back to complex (f32 -> f64)
     let re_data = re_result.to_data();
     let im_data = im_result.to_data();
-    let re_values: Vec<f64> = re_data.as_slice::<f32>().unwrap().iter().map(|&x| x as f64).collect();
-    let im_values: Vec<f64> = im_data.as_slice::<f32>().unwrap().iter().map(|&x| x as f64).collect();
+    let re_values: Vec<f64> = re_data
+        .as_slice::<f32>()
+        .unwrap()
+        .iter()
+        .map(|&x| x as f64)
+        .collect();
+    let im_values: Vec<f64> = im_data
+        .as_slice::<f32>()
+        .unwrap()
+        .iter()
+        .map(|&x| x as f64)
+        .collect();
 
     let mut result = Vec::with_capacity(n);
     for i in 0..n {

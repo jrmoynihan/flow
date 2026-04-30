@@ -8,6 +8,7 @@
 
 The `kde_full_pipeline` benchmark measures the complete KDE workflow that gets called during peak detection:
 
+
 | Data Size     | Grid Size | Time (mean) | Notes                |
 | ------------- | --------- | ----------- | -------------------- |
 | 500 events    | 512       | ~24.4 µs    | Small bin            |
@@ -17,6 +18,7 @@ The `kde_full_pipeline` benchmark measures the complete KDE workflow that gets c
 | 10,000 events | 512       | ~185.6 µs   | Large                |
 | 25,000 events | 512       | ~486.3 µs   | Very large           |
 | 50,000 events | 512       | ~1.02 ms    | Extreme (unlikely)   |
+
 
 ### Performance Characteristics
 
@@ -35,8 +37,8 @@ The `kde_full_pipeline` benchmark measures the complete KDE workflow that gets c
 **Typical Use Case** (50k-1M events total):
 
 - Default bin size: 1,000 events → ~29µs per bin (was ~1.4ms)
-- 50 bins → ~1.5ms total KDE time (was ~70ms) - **~46x faster**
-- 500 bins → ~14.5ms total KDE time (was ~700ms) - **~48x faster**
+- 50 bins → ~~1.5ms total KDE time (was ~70ms) - **~~46x faster**
+- 500 bins → ~~14.5ms total KDE time (was ~700ms) - **~~48x faster**
 
 ### Implementation Details
 
@@ -80,3 +82,4 @@ For quick tests:
 ```bash
 cargo bench -p peacoqc-rs --bench kde_bench -- --quick
 ```
+

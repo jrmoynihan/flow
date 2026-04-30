@@ -6,8 +6,8 @@
 
 use crate::error::{PeacoQCError, Result};
 use crate::gpu::context::GpuContext;
-use realfft::num_complex::Complex;
 use realfft::RealFftPlanner;
+use realfft::num_complex::Complex;
 
 /// Context for a single KDE operation
 pub struct KdeContext<'a> {
@@ -38,7 +38,7 @@ pub fn kde_fft_batched_gpu(
 
     // Process all contexts, reusing GPU context
     let mut results = Vec::with_capacity(contexts.len());
-    
+
     for ctx in contexts {
         let density = kde_fft_single_with_context(ctx, gpu_ctx)?;
         results.push(density);
@@ -48,14 +48,18 @@ pub fn kde_fft_batched_gpu(
 }
 
 /// Single KDE computation using GPU context
-fn kde_fft_single_with_context(
-    ctx: &KdeContext,
-    gpu_ctx: &mut GpuContext,
-) -> Result<Vec<f64>> {
-    let KdeContext { data, grid, bandwidth, n } = ctx;
+fn kde_fft_single_with_context(ctx: &KdeContext, gpu_ctx: &mut GpuContext) -> Result<Vec<f64>> {
+    let KdeContext {
+        data,
+        grid,
+        bandwidth,
+        n,
+    } = ctx;
     let m = grid.len();
     if m < 2 {
-        return Err(PeacoQCError::StatsError("Grid must have at least 2 points".to_string()));
+        return Err(PeacoQCError::StatsError(
+            "Grid must have at least 2 points".to_string(),
+        ));
     }
 
     let grid_min = grid[0];
@@ -82,7 +86,7 @@ fn kde_fft_single_with_context(
 
     // Step 3: FFT setup
     let fft_size = (2 * m).next_power_of_two();
-    
+
     let mut planner = RealFftPlanner::<f64>::new();
     let r2c = planner.plan_fft_forward(fft_size);
     let c2r = planner.plan_fft_inverse(fft_size);
@@ -100,7 +104,8 @@ fn kde_fft_single_with_context(
     let kernel_spectrum = gpu_ctx.get_or_compute_kernel_spectrum(&kernel, fft_size, *bandwidth)?;
 
     // Step 5: Multiply in frequency domain (always use GPU in batched context)
-    let conv_spectrum = multiply_spectra_gpu_with_context(&binned_spectrum, &kernel_spectrum, gpu_ctx)?;
+    let conv_spectrum =
+        multiply_spectra_gpu_with_context(&binned_spectrum, &kernel_spectrum, gpu_ctx)?;
 
     // Step 6: Inverse FFT (CPU)
     let mut conv_result = c2r.make_output_vec();
@@ -115,7 +120,7 @@ fn kde_fft_single_with_context(
         let idx = (kernel_start + i) % fft_size;
         density.push(conv_result[idx]);
     }
-    
+
     let density: Vec<f64> = density
         .iter()
         .map(|&val| val / (fft_size as f64 * *n * *bandwidth))
@@ -131,7 +136,7 @@ fn multiply_spectra_gpu_with_context(
     gpu_ctx: &GpuContext,
 ) -> Result<Vec<Complex<f64>>> {
     use burn::tensor::{Tensor, TensorData};
-    
+
     let device = gpu_ctx.device();
     let n = a.len();
 
@@ -159,30 +164,48 @@ fn multiply_spectra_gpu_with_context(
     type Backend = burn::backend::wgpu::Wgpu;
 
     let a_re_tensor = Tensor::<Backend, 1, burn::tensor::Float>::from_data(
-        TensorData::new(a_re_f32.into(), vec![n]), device
+        TensorData::new(a_re_f32.into(), vec![n]),
+        device,
     );
     let a_im_tensor = Tensor::<Backend, 1, burn::tensor::Float>::from_data(
-        TensorData::new(a_im_f32.into(), vec![n]), device
+        TensorData::new(a_im_f32.into(), vec![n]),
+        device,
     );
     let b_re_tensor = Tensor::<Backend, 1, burn::tensor::Float>::from_data(
-        TensorData::new(b_re_f32.into(), vec![n]), device
+        TensorData::new(b_re_f32.into(), vec![n]),
+        device,
     );
     let b_im_tensor = Tensor::<Backend, 1, burn::tensor::Float>::from_data(
-        TensorData::new(b_im_f32.into(), vec![n]), device
+        TensorData::new(b_im_f32.into(), vec![n]),
+        device,
     );
 
     // Complex multiplication: (a_re + i*a_im) * (b_re + i*b_im)
     // = (a_re*b_re - a_im*b_im) + i*(a_re*b_im + a_im*b_re)
-    let re_result = a_re_tensor.clone().mul(b_re_tensor.clone())
+    let re_result = a_re_tensor
+        .clone()
+        .mul(b_re_tensor.clone())
         .sub(a_im_tensor.clone().mul(b_im_tensor.clone()));
-    let im_result = a_re_tensor.clone().mul(b_im_tensor.clone())
+    let im_result = a_re_tensor
+        .clone()
+        .mul(b_im_tensor.clone())
         .add(a_im_tensor.clone().mul(b_re_tensor.clone()));
 
     // Convert back (f32 -> f64)
     let re_data = re_result.to_data();
     let im_data = im_result.to_data();
-    let re_values: Vec<f64> = re_data.as_slice::<f32>().unwrap().iter().map(|&x| x as f64).collect();
-    let im_values: Vec<f64> = im_data.as_slice::<f32>().unwrap().iter().map(|&x| x as f64).collect();
+    let re_values: Vec<f64> = re_data
+        .as_slice::<f32>()
+        .unwrap()
+        .iter()
+        .map(|&x| x as f64)
+        .collect();
+    let im_values: Vec<f64> = im_data
+        .as_slice::<f32>()
+        .unwrap()
+        .iter()
+        .map(|&x| x as f64)
+        .collect();
 
     let mut result = Vec::with_capacity(n);
     for i in 0..n {

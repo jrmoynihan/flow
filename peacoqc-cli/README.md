@@ -1,9 +1,11 @@
 # PeacoQC-CLI
 
-[![Rust](https://img.shields.io/badge/rust-1.70+-orange.svg)](https://www.rust-lang.org/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[Rust](https://www.rust-lang.org/)
+[License: MIT](https://opensource.org/licenses/MIT)
 
-Command-line tool for [PeacoQC (Peak-based Quality Control)](https://doi.org/10.1002/cyto.a.24501) for flow cytometry FCS files built on top of the [`peacoqc-rs` crate](https://crates.io/crates/peacoqc-rs), which implements the PeacoQC algorithm. The CLI provides a simple interface to run quality control on one or more FCS files with parallel processing support.
+Command-line tool for [PeacoQC (Peak-based Quality Control)](https://doi.org/10.1002/cyto.a.24501) for flow cytometry FCS files built on top of the `[peacoqc-rs` crate]([https://crates.io/crates/peacoqc-rs](https://crates.io/crates/peacoqc-rs)), which implements the PeacoQC algorithm. The CLI provides a simple interface to run quality control on one or more FCS files with parallel processing support.
+
+For a **longer default preprocessing chain** (margins, raw doublet masks, compensation/transform, time-bin QC, then scatter or consensus forward-scatter debris gating), the workspace `tru-ols` package exposes `run_qc_pipeline` and related types in its library crate; this CLI stays focused on running PeacoQC on inputs you have already prepared.
 
 ## Installation
 
@@ -102,15 +104,12 @@ Options:
 
 ### Performance and benchmarking
 
-- **`--quiet`** (`-q`): Disables all logging (tracing) output. Use this to reduce I/O and measure the impact of logging on run time.
-- **`--benchmark`**: Processes a single input file and reports mean timings for four scenarios (minimal pipeline, + FCS write, + CSV export, + plot generation). Requires exactly one input file. Logging is automatically disabled during the benchmark. Example:
-
+- `**--quiet**` (`-q`): Disables all logging (tracing) output. Use this to reduce I/O and measure the impact of logging on run time.
+- `**--benchmark**`: Processes a single input file and reports mean timings for four scenarios (minimal pipeline, + FCS write, + CSV export, + plot generation). Requires exactly one input file. Logging is automatically disabled during the benchmark. Example:
   ```bash
   peacoqc --benchmark sample.fcs
   ```
-
   To measure **logging overhead**, compare wall time of two runs with the same file and options (e.g. with `time` or `hyperfine`):
-
   ```bash
   time peacoqc file.fcs -o out --plots --plot-dir out
   time peacoqc --quiet file.fcs -o out --plots --plot-dir out
@@ -120,18 +119,20 @@ Options:
 
 When generating QC plots (`--plots` or when prompted), the following flags customize the plot image and typography. Omitted options use the library defaults.
 
-| Option | Description | Default |
-|--------|-------------|---------|
-| `--plot-dir <PLOT_DIR>` | Directory to save QC plot PNGs | Same as input file (single file) or current dir |
-| `--hide-spline-mad` | Hide spline and MAD threshold lines on channel plots | Shown |
-| `--show-bin-boundaries` | Show bin boundaries (gray vertical lines) on channel plots | Hidden |
-| `--plot-width <PIXELS>` | Plot image width in pixels | 2400 |
-| `--plot-height <PIXELS>` | Plot image height in pixels | 1800 |
-| `--plot-title-size <SIZE>` | Title (caption) font size in points | 22 |
-| `--plot-axis-size <SIZE>` | Axis label font size in points | 20 |
-| `--plot-tick-size <SIZE>` | Tick label font size in points | 17 |
-| `--plot-legend-size <SIZE>` | Legend text font size in points | 17 |
-| `--plot-font <FONT>` | Font family for all plot text (e.g. `sans-serif`, `serif`) | sans-serif |
+
+| Option                      | Description                                                | Default                                         |
+| --------------------------- | ---------------------------------------------------------- | ----------------------------------------------- |
+| `--plot-dir <PLOT_DIR>`     | Directory to save QC plot PNGs                             | Same as input file (single file) or current dir |
+| `--hide-spline-mad`         | Hide spline and MAD threshold lines on channel plots       | Shown                                           |
+| `--show-bin-boundaries`     | Show bin boundaries (gray vertical lines) on channel plots | Hidden                                          |
+| `--plot-width <PIXELS>`     | Plot image width in pixels                                 | 2400                                            |
+| `--plot-height <PIXELS>`    | Plot image height in pixels                                | 1800                                            |
+| `--plot-title-size <SIZE>`  | Title (caption) font size in points                        | 22                                              |
+| `--plot-axis-size <SIZE>`   | Axis label font size in points                             | 20                                              |
+| `--plot-tick-size <SIZE>`   | Tick label font size in points                             | 17                                              |
+| `--plot-legend-size <SIZE>` | Legend text font size in points                            | 17                                              |
+| `--plot-font <FONT>`        | Font family for all plot text (e.g. `sans-serif`, `serif`) | sans-serif                                      |
+
 
 Example: larger plot and text for presentations:
 
@@ -343,14 +344,14 @@ The CLI continues processing even if individual files fail:
 
 ## Integration with peacoqc-rs
 
-This CLI is built on top of the [`peacoqc-rs` library](https://crates.io/crates/peacoqc-rs), which provides:
+This CLI is built on top of the `[peacoqc-rs` library]([https://crates.io/crates/peacoqc-rs](https://crates.io/crates/peacoqc-rs)), which provides:
 
 - Trait-based design for maximum flexibility
 - Efficient parallel processing
 - Comprehensive quality control algorithms
-- Integration with [`flow-fcs`](https://crates.io/crates/flow-fcs) for FCS file support
+- Integration with `[flow-fcs](https://crates.io/crates/flow-fcs)` for FCS file support
 
-See the [`peacoqc-rs` documentation](https://crates.io/crates/peacoqc-rs) for library usage.
+See the `[peacoqc-rs` documentation]([https://crates.io/crates/peacoqc-rs](https://crates.io/crates/peacoqc-rs)) for library usage.
 
 ## License
 
@@ -362,11 +363,11 @@ We gratefully acknowledge the original PeacoQC algorithm authors:
 
 **Original Paper:**
 
-- [Emmaneel, A., Quintelier, K., Sichien, D., Rybakowska, P., Marañón, C., Alarcón-Riquelme, M. E., Van Isterdael, G., Van Gassen, S., & Saeys, Y. (2022). PeacoQC: Peak-based selection of high quality cytometry data. *Cytometry A*, 101(4), 325-338. `https://doi.org/10.1002/cyto.a.24501`](https://doi.org/10.1002/cyto.a.24501)
+- [Emmaneel, A., Quintelier, K., Sichien, D., Rybakowska, P., Marañón, C., Alarcón-Riquelme, M. E., Van Isterdael, G., Van Gassen, S., & Saeys, Y. (2022). PeacoQC: Peak-based selection of high quality cytometry data. *Cytometry A*, 101(4), 325-338. `https://doi.org/10.1002/cyto.a.24501](https://doi.org/10.1002/cyto.a.24501)`
 
 **Original R Implementation:**
 
-- [GitHub: `https://github.com/saeyslab/PeacoQC`](https://github.com/saeyslab/PeacoQC)
+- [GitHub: `https://github.com/saeyslab/PeacoQC](https://github.com/saeyslab/PeacoQC)`
 - Authors: Annelies Emmaneel, Katrien Quintelier, and the Saeys Lab
 
 ## Contributing

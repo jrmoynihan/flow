@@ -98,7 +98,11 @@ pub struct QCPlotConfig {
 }
 
 /// Resolve color for a removal reason (region or point). Falls back to unstable_color / bad_color when reason-specific color is None.
-fn color_for_removal_reason(config: &QCPlotConfig, reason: RemovalReason, fallback: RGBColor) -> RGBColor {
+fn color_for_removal_reason(
+    config: &QCPlotConfig,
+    reason: RemovalReason,
+    fallback: RGBColor,
+) -> RGBColor {
     let c = match reason {
         RemovalReason::IsolationTree => config.unstable_color_it,
         RemovalReason::MAD => config.unstable_color_mad,
@@ -115,7 +119,7 @@ impl Default for QCPlotConfig {
             n_cols: 4,
             n_rows: 6,
             unstable_color: RGBColor(200, 150, 255), // Light purple
-            unstable_color_it: Some(RGBColor(255, 165, 0)),   // Orange
+            unstable_color_it: Some(RGBColor(255, 165, 0)), // Orange
             unstable_color_mad: Some(RGBColor(200, 150, 255)), // Purple (legacy default)
             unstable_color_consecutive: Some(RGBColor(255, 200, 100)), // Amber
             good_color: RGBColor(128, 128, 128),     // Grey
@@ -314,7 +318,9 @@ pub(crate) fn event_removal_reasons(
                     if !good_cells.get(i).copied().unwrap_or(true) {
                         let replace = match event_reason[i] {
                             None => true,
-                            Some(existing) => removal_reason_priority(reason) > removal_reason_priority(existing),
+                            Some(existing) => {
+                                removal_reason_priority(reason) > removal_reason_priority(existing)
+                            }
                         };
                         if replace {
                             event_reason[i] = Some(reason);
@@ -436,7 +442,12 @@ pub fn create_qc_plots<T: PeacoQCData>(
             let y_range_clone = y_range.clone();
             let mut chart = ChartBuilder::on(&subplot_area)
                 .margin(12)
-                .caption(title_text, (font_family, config.caption_font_size).into_font().color(&fg))
+                .caption(
+                    title_text,
+                    (font_family, config.caption_font_size)
+                        .into_font()
+                        .color(&fg),
+                )
                 .x_label_area_size(58)
                 .y_label_area_size(82)
                 .build_cartesian_2d(x_range.clone(), y_range_clone)
@@ -447,16 +458,8 @@ pub fn create_qc_plots<T: PeacoQCData>(
             let draw_result = if y_max_is_low {
                 chart
                     .configure_mesh()
-                    .axis_desc_style(
-                        (font_family, config.axis_label_size)
-                            .into_font()
-                            .color(&fg),
-                    )
-                    .label_style(
-                        (font_family, config.tick_label_size)
-                            .into_font()
-                            .color(&fg),
-                    )
+                    .axis_desc_style((font_family, config.axis_label_size).into_font().color(&fg))
+                    .label_style((font_family, config.tick_label_size).into_font().color(&fg))
                     .light_line_style(GRID_LINE_COLOR.stroke_width(1))
                     .x_desc("Time")
                     .y_desc("Nº of cells per second")
@@ -472,16 +475,8 @@ pub fn create_qc_plots<T: PeacoQCData>(
             } else {
                 chart
                     .configure_mesh()
-                    .axis_desc_style(
-                        (font_family, config.axis_label_size)
-                            .into_font()
-                            .color(&fg),
-                    )
-                    .label_style(
-                        (font_family, config.tick_label_size)
-                            .into_font()
-                            .color(&fg),
-                    )
+                    .axis_desc_style((font_family, config.axis_label_size).into_font().color(&fg))
+                    .label_style((font_family, config.tick_label_size).into_font().color(&fg))
                     .light_line_style(GRID_LINE_COLOR.stroke_width(1))
                     .x_desc("Time")
                     .y_desc("Nº of cells per second")
@@ -504,7 +499,8 @@ pub fn create_qc_plots<T: PeacoQCData>(
                         if start_idx < time_values.len() && end_idx > 0 {
                             let start_time = time_values[start_idx.min(time_values.len() - 1)];
                             let end_time = time_values[(end_idx - 1).min(time_values.len() - 1)];
-                            let color = color_for_removal_reason(&config, reason, config.unstable_color);
+                            let color =
+                                color_for_removal_reason(&config, reason, config.unstable_color);
                             let fill_color = RGBAColor(color.0, color.1, color.2, 0.3);
                             chart
                                 .draw_series(std::iter::once(Rectangle::new(
@@ -512,7 +508,10 @@ pub fn create_qc_plots<T: PeacoQCData>(
                                     fill_color.filled(),
                                 )))
                                 .map_err(|e| {
-                                    PeacoQCError::ExportError(format!("Failed to draw rectangle: {:?}", e))
+                                    PeacoQCError::ExportError(format!(
+                                        "Failed to draw rectangle: {:?}",
+                                        e
+                                    ))
                                 })?;
                             reasons_in_legend.insert(reason);
                         }
@@ -538,7 +537,10 @@ pub fn create_qc_plots<T: PeacoQCData>(
                                 fill_color.filled(),
                             )))
                             .map_err(|e| {
-                                PeacoQCError::ExportError(format!("Failed to draw rectangle: {:?}", e))
+                                PeacoQCError::ExportError(format!(
+                                    "Failed to draw rectangle: {:?}",
+                                    e
+                                ))
                             })?;
                     }
                 }
@@ -580,19 +582,31 @@ pub fn create_qc_plots<T: PeacoQCData>(
                 if reasons_in_legend.contains(&RemovalReason::IsolationTree) {
                     labels.push((
                         "Removed (Isolation Tree)",
-                        color_for_removal_reason(&config, RemovalReason::IsolationTree, config.unstable_color),
+                        color_for_removal_reason(
+                            &config,
+                            RemovalReason::IsolationTree,
+                            config.unstable_color,
+                        ),
                     ));
                 }
                 if reasons_in_legend.contains(&RemovalReason::MAD) {
                     labels.push((
                         "Removed (MAD)",
-                        color_for_removal_reason(&config, RemovalReason::MAD, config.unstable_color),
+                        color_for_removal_reason(
+                            &config,
+                            RemovalReason::MAD,
+                            config.unstable_color,
+                        ),
                     ));
                 }
                 if reasons_in_legend.contains(&RemovalReason::Consecutive) {
                     labels.push((
                         "Removed (Consecutive)",
-                        color_for_removal_reason(&config, RemovalReason::Consecutive, config.unstable_color),
+                        color_for_removal_reason(
+                            &config,
+                            RemovalReason::Consecutive,
+                            config.unstable_color,
+                        ),
                     ));
                 }
                 labels
@@ -601,8 +615,10 @@ pub fn create_qc_plots<T: PeacoQCData>(
             let n_rows = legend_labels.len();
             let legend_y_start = y_range.end - (y_range_size * 0.02);
             let legend_bg_left = legend_x_start - pad_x;
-            let legend_bg_bottom = legend_y_start - rect_h - (n_rows.saturating_sub(1) as f64 * legend_y_step) - pad_y;
-            let legend_bg_right = legend_x_start + rect_w + text_gap + (x_range_size * LEGEND_TEXT_WIDTH_PCT) + pad_x;
+            let legend_bg_bottom =
+                legend_y_start - rect_h - (n_rows.saturating_sub(1) as f64 * legend_y_step) - pad_y;
+            let legend_bg_right =
+                legend_x_start + rect_w + text_gap + (x_range_size * LEGEND_TEXT_WIDTH_PCT) + pad_x;
             let legend_bg_top = legend_y_start + pad_y;
             chart
                 .draw_series(std::iter::once(Rectangle::new(
@@ -709,7 +725,12 @@ pub fn create_qc_plots<T: PeacoQCData>(
 
         let mut chart = ChartBuilder::on(&subplot_area)
             .margin(12)
-            .caption(&title, (font_family, config.caption_font_size).into_font().color(&fg))
+            .caption(
+                &title,
+                (font_family, config.caption_font_size)
+                    .into_font()
+                    .color(&fg),
+            )
             .x_label_area_size(48)
             .y_label_area_size(82)
             .build_cartesian_2d(x_range.clone(), y_range.clone())
@@ -717,16 +738,8 @@ pub fn create_qc_plots<T: PeacoQCData>(
 
         chart
             .configure_mesh()
-            .axis_desc_style(
-                (font_family, config.axis_label_size)
-                    .into_font()
-                    .color(&fg),
-            )
-            .label_style(
-                (font_family, config.tick_label_size)
-                    .into_font()
-                    .color(&fg),
-            )
+            .axis_desc_style((font_family, config.axis_label_size).into_font().color(&fg))
+            .label_style((font_family, config.tick_label_size).into_font().color(&fg))
             .light_line_style(GRID_LINE_COLOR.stroke_width(1))
             .x_desc("Cell index")
             .y_desc("Signal (a.u.)")
@@ -838,7 +851,10 @@ pub fn create_qc_plots<T: PeacoQCData>(
                         )
                     }))
                     .map_err(|e| {
-                        PeacoQCError::ExportError(format!("Failed to draw bad-event circles: {:?}", e))
+                        PeacoQCError::ExportError(format!(
+                            "Failed to draw bad-event circles: {:?}",
+                            e
+                        ))
                     })?;
             }
         }
@@ -1017,19 +1033,31 @@ pub fn create_qc_plots<T: PeacoQCData>(
                 if bad_by_reason.contains_key(&RemovalReason::IsolationTree) {
                     rects.push((
                         "Removed (Isolation Tree)",
-                        color_for_removal_reason(&config, RemovalReason::IsolationTree, config.unstable_color),
+                        color_for_removal_reason(
+                            &config,
+                            RemovalReason::IsolationTree,
+                            config.unstable_color,
+                        ),
                     ));
                 }
                 if bad_by_reason.contains_key(&RemovalReason::MAD) {
                     rects.push((
                         "Removed (MAD)",
-                        color_for_removal_reason(&config, RemovalReason::MAD, config.unstable_color),
+                        color_for_removal_reason(
+                            &config,
+                            RemovalReason::MAD,
+                            config.unstable_color,
+                        ),
                     ));
                 }
                 if bad_by_reason.contains_key(&RemovalReason::Consecutive) {
                     rects.push((
                         "Removed (Consecutive)",
-                        color_for_removal_reason(&config, RemovalReason::Consecutive, config.unstable_color),
+                        color_for_removal_reason(
+                            &config,
+                            RemovalReason::Consecutive,
+                            config.unstable_color,
+                        ),
                     ));
                 }
                 if rects.is_empty() {
@@ -1066,8 +1094,11 @@ pub fn create_qc_plots<T: PeacoQCData>(
             let pad_x = x_range_size * 0.008;
             let pad_y = y_range_size * 0.008;
             let legend_bg_left = legend_x_start - pad_x;
-            let legend_bg_right =
-                legend_x_start + line_length + text_gap + (x_range_size * CHAN_LEGEND_TEXT_WIDTH_PCT) + pad_x;
+            let legend_bg_right = legend_x_start
+                + line_length
+                + text_gap
+                + (x_range_size * CHAN_LEGEND_TEXT_WIDTH_PCT)
+                + pad_x;
             let legend_bg_bottom = legend_initial_y
                 - rect_h
                 - (n_legend_rows.saturating_sub(1) as f64 * legend_y_step)

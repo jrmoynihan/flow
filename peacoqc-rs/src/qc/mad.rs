@@ -11,6 +11,7 @@ use crate::qc::peaks::{ChannelPeakFrame, PeakInfo};
 use crate::stats::median_mad::{MAD_SCALE_FACTOR, median_mad_scaled};
 use crate::stats::spline::smooth_spline;
 use std::collections::HashMap;
+use tracing::{debug, warn};
 
 /// Configuration for MAD outlier detection
 #[derive(Debug, Clone, PartialEq)]
@@ -74,11 +75,13 @@ fn smooth_peak_trajectory(peak_values: &[f64], smooth_param: f64) -> Vec<f64> {
         let y_min = peak_values.iter().fold(f64::INFINITY, |a, &b| a.min(b));
         let y_max = peak_values.iter().fold(f64::NEG_INFINITY, |a, &b| a.max(b));
         let y_range = y_max - y_min;
-        eprintln!(
-            "Smoothing trajectory: n={}, y_range={:.4}, spar={:.3}, first={:.4}, last={:.4}",
-            n, y_range, smooth_param,
-            peak_values.first().copied().unwrap_or(0.0),
-            peak_values.last().copied().unwrap_or(0.0)
+        debug!(
+            n,
+            y_range,
+            spar = smooth_param,
+            first = peak_values.first().copied().unwrap_or(0.0),
+            last = peak_values.last().copied().unwrap_or(0.0),
+            "smoothing trajectory"
         );
     }
 
@@ -87,23 +90,25 @@ fn smooth_peak_trajectory(peak_values: &[f64], smooth_param: f64) -> Vec<f64> {
         Ok(smoothed) => {
             if std::env::var("PEACOQC_DEBUG_SPLINE").is_ok() {
                 // Check how much smoothing occurred
-                let max_diff = peak_values.iter().zip(smoothed.iter())
+                let max_diff = peak_values
+                    .iter()
+                    .zip(smoothed.iter())
                     .map(|(a, b)| (a - b).abs())
                     .fold(0.0f64, f64::max);
-                let mean_diff = peak_values.iter().zip(smoothed.iter())
+                let mean_diff = peak_values
+                    .iter()
+                    .zip(smoothed.iter())
                     .map(|(a, b)| (a - b).abs())
-                    .sum::<f64>() / n as f64;
-                eprintln!(
-                    "Smoothing result: max_diff={:.4}, mean_diff={:.4}, smoothed_range={:.4}",
-                    max_diff, mean_diff,
-                    smoothed.iter().fold(f64::NEG_INFINITY, |a, &b| a.max(b)) -
-                    smoothed.iter().fold(f64::INFINITY, |a, &b| a.min(b))
-                );
+                    .sum::<f64>()
+                    / n as f64;
+                let smoothed_range = smoothed.iter().fold(f64::NEG_INFINITY, |a, &b| a.max(b))
+                    - smoothed.iter().fold(f64::INFINITY, |a, &b| a.min(b));
+                debug!(max_diff, mean_diff, smoothed_range, "smoothing result");
             }
             smoothed
-        },
+        }
         Err(e) => {
-            eprintln!("Spline smoothing failed: {:?}, returning original", e);
+            warn!(?e, "spline smoothing failed; using unsmoothed trajectory");
             // Fallback to original if spline fails
             peak_values.to_vec()
         }
@@ -150,12 +155,18 @@ fn mad_outliers_single_channel(
 
     // Debug logging for MAD thresholds
     if std::env::var("PEACOQC_DEBUG_MAD").is_ok() {
-        let n_outliers = smoothed.iter()
+        let n_outliers = smoothed
+            .iter()
             .filter(|&&y| y > upper_interval || y < lower_interval)
             .count();
-        eprintln!(
-            "MAD thresholds: median={:.4}, mad={:.4}, upper={:.4}, lower={:.4}, outliers={}/{}",
-            median, mad, upper_interval, lower_interval, n_outliers, smoothed.len()
+        debug!(
+            median,
+            mad,
+            upper = upper_interval,
+            lower = lower_interval,
+            n_outliers,
+            len = smoothed.len(),
+            "MAD thresholds"
         );
         // Show first few values and their outlier status
         for (i, &y) in smoothed.iter().take(10).enumerate() {
@@ -165,9 +176,12 @@ fn mad_outliers_single_channel(
             } else {
                 (median - y) / mad
             };
-            eprintln!(
-                "  [{}] smoothed={:.4}, deviation={:.2} MADs, outlier={}",
-                i, y, deviation, is_outlier
+            debug!(
+                bin = i,
+                smoothed = y,
+                deviation_mads = deviation,
+                outlier = is_outlier,
+                "MAD bin detail"
             );
         }
     }
@@ -230,8 +244,9 @@ pub fn mad_outlier_method(
             // Calculate cluster median (for filling missing bins)
             let n_peaks = cluster_peaks.len();
             let cluster_values: Vec<f64> = cluster_peaks.iter().map(|p| p.peak_value).collect();
-            let cluster_median = crate::stats::median(&cluster_values)
-                .unwrap_or_else(|_| cluster_values.iter().sum::<f64>() / cluster_values.len() as f64);
+            let cluster_median = crate::stats::median(&cluster_values).unwrap_or_else(|_| {
+                cluster_values.iter().sum::<f64>() / cluster_values.len() as f64
+            });
 
             // Build full-length trajectory: start with median, then fill actual values
             let mut trajectory = vec![cluster_median; n_bins];
@@ -243,18 +258,24 @@ pub fn mad_outlier_method(
 
             // Debug logging for trajectory building
             if std::env::var("PEACOQC_DEBUG_TRAJECTORY").is_ok() {
-                let n_bins_with_peaks = trajectory.iter()
+                let n_bins_with_peaks = trajectory
+                    .iter()
                     .take(n_bins)
                     .filter(|&&v| (v - cluster_median).abs() > 1e-10)
                     .count();
-                eprintln!(
-                    "Trajectory: channel={}, cluster={}, n_peaks={}, cluster_median={:.4}, bins_with_peaks={}/{}",
-                    channel, cluster_id, n_peaks, cluster_median, n_bins_with_peaks, n_bins
+                debug!(
+                    %channel,
+                    cluster_id,
+                    n_peaks,
+                    cluster_median,
+                    n_bins_with_peaks,
+                    n_bins,
+                    "peak trajectory"
                 );
                 // Show first 5 and last 5 trajectory values
                 if n_bins > 10 {
-                    eprintln!("  First 5: {:?}", &trajectory[0..5]);
-                    eprintln!("  Last 5: {:?}", &trajectory[n_bins-5..n_bins]);
+                    debug!(first_5 = ?&trajectory[0..5], "trajectory head");
+                    debug!(last_5 = ?&trajectory[n_bins - 5..n_bins], "trajectory tail");
                 }
             }
 
@@ -287,13 +308,22 @@ pub fn mad_outlier_method(
 
         // Debug logging for filtered trajectory
         if std::env::var("PEACOQC_DEBUG_TRAJECTORY").is_ok() {
-            eprintln!(
-                "Filtered trajectory: channel={}, cluster={}, original_len={}, filtered_len={}",
-                channel, _cluster_id, trajectory.len(), filtered_trajectory.len()
+            debug!(
+                %channel,
+                cluster = _cluster_id,
+                original_len = trajectory.len(),
+                filtered_len = filtered_trajectory.len(),
+                "filtered trajectory"
             );
             if filtered_trajectory.len() > 10 {
-                eprintln!("  First 5 filtered: {:?}", &filtered_trajectory[0..5]);
-                eprintln!("  Last 5 filtered: {:?}", &filtered_trajectory[filtered_trajectory.len()-5..]);
+                debug!(
+                    first_5 = ?&filtered_trajectory[0..5],
+                    "filtered trajectory head"
+                );
+                debug!(
+                    last_5 = ?&filtered_trajectory[filtered_trajectory.len() - 5..],
+                    "filtered trajectory tail"
+                );
             }
         }
 
@@ -322,7 +352,7 @@ pub fn mad_outlier_method(
 
         // Track contribution per channel (sum across all clusters)
         let n_outliers: usize = full_outliers.iter().filter(|&&x| x).count();
-        
+
         outlier_bins_per_cluster.push(full_outliers.clone());
         let contrib_pct = (n_outliers as f64 / n_bins as f64) * 100.0;
         contribution
@@ -343,11 +373,12 @@ pub fn mad_outlier_method(
     }
 
     let total_outliers = outlier_bins.iter().filter(|&&x| x).count();
-    eprintln!(
-        "MAD detected {} outlier bins ({:.1}%) using scale factor {}",
+    let pct = (total_outliers as f64 / n_bins as f64) * 100.0;
+    debug!(
         total_outliers,
-        (total_outliers as f64 / n_bins as f64) * 100.0,
-        MAD_SCALE_FACTOR
+        pct,
+        scale = MAD_SCALE_FACTOR,
+        "MAD outlier bins"
     );
 
     Ok(MADResult {

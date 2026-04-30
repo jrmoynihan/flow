@@ -24,7 +24,7 @@ fn init_gpu_backend() -> anyhow::Result<()> {
     // Try to create a WGPU device
     // This will fail if no GPU is available
     let _device = WgpuDevice::default();
-    
+
     // If we get here, GPU is available
     Ok(())
 }

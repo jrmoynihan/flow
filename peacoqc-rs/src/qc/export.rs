@@ -171,21 +171,19 @@ pub fn export_csv_boolean(
     let mut writer = BufWriter::new(file);
 
     // Write header
-    writeln!(writer, "{}", column_name).map_err(|e| {
-        PeacoQCError::WriteError(format!("Failed to write header: {}", e))
-    })?;
+    writeln!(writer, "{}", column_name)
+        .map_err(|e| PeacoQCError::WriteError(format!("Failed to write header: {}", e)))?;
 
     // Write data
     for &is_good in &result.good_cells {
         let value = if is_good { 1 } else { 0 };
-        writeln!(writer, "{}", value).map_err(|e| {
-            PeacoQCError::WriteError(format!("Failed to write data: {}", e))
-        })?;
+        writeln!(writer, "{}", value)
+            .map_err(|e| PeacoQCError::WriteError(format!("Failed to write data: {}", e)))?;
     }
 
-    writer.flush().map_err(|e| {
-        PeacoQCError::WriteError(format!("Failed to flush file: {}", e))
-    })?;
+    writer
+        .flush()
+        .map_err(|e| PeacoQCError::WriteError(format!("Failed to flush file: {}", e)))?;
 
     Ok(())
 }
@@ -246,21 +244,19 @@ pub fn export_csv_numeric(
     let mut writer = BufWriter::new(file);
 
     // Write header
-    writeln!(writer, "{}", column_name).map_err(|e| {
-        PeacoQCError::WriteError(format!("Failed to write header: {}", e))
-    })?;
+    writeln!(writer, "{}", column_name)
+        .map_err(|e| PeacoQCError::WriteError(format!("Failed to write header: {}", e)))?;
 
     // Write data
     for &is_good in &result.good_cells {
         let value = if is_good { good_value } else { bad_value };
-        writeln!(writer, "{}", value).map_err(|e| {
-            PeacoQCError::WriteError(format!("Failed to write data: {}", e))
-        })?;
+        writeln!(writer, "{}", value)
+            .map_err(|e| PeacoQCError::WriteError(format!("Failed to write data: {}", e)))?;
     }
 
-    writer.flush().map_err(|e| {
-        PeacoQCError::WriteError(format!("Failed to flush file: {}", e))
-    })?;
+    writer
+        .flush()
+        .map_err(|e| PeacoQCError::WriteError(format!("Failed to flush file: {}", e)))?;
 
     Ok(())
 }
@@ -295,20 +291,18 @@ pub fn export_csv_boolean_from_mask(
 
     let mut writer = BufWriter::new(file);
 
-    writeln!(writer, "{}", column_name).map_err(|e| {
-        PeacoQCError::WriteError(format!("Failed to write header: {}", e))
-    })?;
+    writeln!(writer, "{}", column_name)
+        .map_err(|e| PeacoQCError::WriteError(format!("Failed to write header: {}", e)))?;
 
     for &is_good in mask {
         let value = if is_good { 1 } else { 0 };
-        writeln!(writer, "{}", value).map_err(|e| {
-            PeacoQCError::WriteError(format!("Failed to write data: {}", e))
-        })?;
+        writeln!(writer, "{}", value)
+            .map_err(|e| PeacoQCError::WriteError(format!("Failed to write data: {}", e)))?;
     }
 
-    writer.flush().map_err(|e| {
-        PeacoQCError::WriteError(format!("Failed to flush file: {}", e))
-    })?;
+    writer
+        .flush()
+        .map_err(|e| PeacoQCError::WriteError(format!("Failed to flush file: {}", e)))?;
 
     Ok(())
 }
@@ -347,20 +341,18 @@ pub fn export_csv_numeric_from_mask(
 
     let mut writer = BufWriter::new(file);
 
-    writeln!(writer, "{}", column_name).map_err(|e| {
-        PeacoQCError::WriteError(format!("Failed to write header: {}", e))
-    })?;
+    writeln!(writer, "{}", column_name)
+        .map_err(|e| PeacoQCError::WriteError(format!("Failed to write header: {}", e)))?;
 
     for &is_good in mask {
         let value = if is_good { good_value } else { bad_value };
-        writeln!(writer, "{}", value).map_err(|e| {
-            PeacoQCError::WriteError(format!("Failed to write data: {}", e))
-        })?;
+        writeln!(writer, "{}", value)
+            .map_err(|e| PeacoQCError::WriteError(format!("Failed to write data: {}", e)))?;
     }
 
-    writer.flush().map_err(|e| {
-        PeacoQCError::WriteError(format!("Failed to flush file: {}", e))
-    })?;
+    writer
+        .flush()
+        .map_err(|e| PeacoQCError::WriteError(format!("Failed to flush file: {}", e)))?;
 
     Ok(())
 }
@@ -438,9 +430,8 @@ pub fn export_json_metadata(
         PeacoQCError::WriteError(format!("Failed to create file {}: {}", path.display(), e))
     })?;
 
-    serde_json::to_writer_pretty(file, &metadata).map_err(|e| {
-        PeacoQCError::ExportError(format!("Failed to serialize JSON: {}", e))
-    })?;
+    serde_json::to_writer_pretty(file, &metadata)
+        .map_err(|e| PeacoQCError::ExportError(format!("Failed to serialize JSON: {}", e)))?;
 
     Ok(())
 }

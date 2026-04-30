@@ -1,12 +1,12 @@
 use crate::PeacoQCData;
 use crate::error::{PeacoQCError, Result};
 use crate::qc::consecutive::{ConsecutiveConfig, remove_short_regions};
+use crate::qc::debug;
 use crate::qc::isolation_tree::{IsolationTreeConfig, isolation_tree_detect};
 use crate::qc::mad::{MADConfig, mad_outlier_method};
 use crate::qc::peaks::{
     ChannelPeakFrame, PeakDetectionConfig, create_breaks, determine_peaks_all_channels,
 };
-use crate::qc::debug;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
@@ -125,6 +125,24 @@ impl Default for PeacoQCConfig {
             apply_transformation: true,
             #[cfg(feature = "flow-fcs")]
             transform_cofactor: 2000.0,
+        }
+    }
+}
+
+#[cfg(feature = "flow-fcs")]
+impl PeacoQCConfig {
+    /// Build config with fluorescence channels taken from `fcs` metadata and the given QC mode.
+    pub fn for_fcs(fcs: &flow_fcs::Fcs, determine_good_cells: QCMode) -> Self {
+        let channels: Vec<String> = fcs
+            .parameters
+            .values()
+            .filter(|p| p.is_fluorescence())
+            .map(|p| p.channel_name.to_string())
+            .collect();
+        Self {
+            channels,
+            determine_good_cells,
+            ..Default::default()
         }
     }
 }
@@ -459,10 +477,7 @@ pub fn peacoqc<T: PeacoQCData>(fcs: &T, config: &PeacoQCConfig) -> Result<PeacoQ
 
         info!(
             "MAD analysis removed {:.2}% of the bins ({} outlier bins, {} from IT, {} new from MAD)",
-            mad_pct,
-            n_mad_outliers,
-            n_mad_outliers_before,
-            n_new_from_mad
+            mad_pct, n_mad_outliers, n_mad_outliers_before, n_new_from_mad
         );
 
         // Debug logging
@@ -498,14 +513,18 @@ pub fn peacoqc<T: PeacoQCData>(fcs: &T, config: &PeacoQCConfig) -> Result<PeacoQ
         let outlier_bins_before_consecutive = outlier_bins.clone();
         outlier_bins = remove_short_regions(&outlier_bins, &consecutive_config)?;
         let n_outliers_after_consecutive = outlier_bins.iter().filter(|&&x| x).count();
-        
+
         // Track which bins were flagged by consecutive filtering
-        for (i, (before, after)) in outlier_bins_before_consecutive.iter().zip(outlier_bins.iter()).enumerate() {
+        for (i, (before, after)) in outlier_bins_before_consecutive
+            .iter()
+            .zip(outlier_bins.iter())
+            .enumerate()
+        {
             if !before && *after {
                 consecutive_outliers[i] = true;
             }
         }
-        
+
         // Consecutive filtering removes short good regions, converting them to bad
         // So the number of outliers should increase (or stay the same)
         let regions_removed = if n_outliers_after_consecutive >= n_outliers_before_consecutive {
@@ -629,11 +648,11 @@ fn find_time_channel_for_debug<T: PeacoQCData>(fcs: &T) -> Option<String> {
 fn find_events_per_bin(n_events: usize, min_cells: usize, max_bins: usize, step: usize) -> usize {
     // R: max_cells <- ceiling((nr_events/max_bins)*2)
     let max_cells = ((n_events as f64 / max_bins as f64) * 2.0).ceil() as usize;
-    
+
     // R: max_cells <- ((max_cells%/%step)*step) + step
     // This rounds UP to the next step (integer division then add step)
     let max_cells_rounded = ((max_cells / step) * step) + step;
-    
+
     // R: events_per_bin <- max(min_cells, max_cells)
     max_cells_rounded.max(min_cells)
 }

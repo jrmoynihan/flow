@@ -5,6 +5,7 @@ use crate::stats::median;
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use tracing::debug;
 
 /// Configuration for peak detection
 #[derive(Debug, Clone, PartialEq)]
@@ -78,7 +79,10 @@ pub fn determine_peaks_all_channels<T: PeacoQCData>(
         });
     }
 
-    eprintln!("Calculating peaks for {} channels...", channels.len());
+    debug!(
+        n_channels = channels.len(),
+        "peak detection across channels"
+    );
 
     // Collect channel data first (sequential, as it may not be thread-safe)
     // Then process peaks in parallel

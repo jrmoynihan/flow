@@ -1,6 +1,7 @@
 use crate::PeacoQCData;
 use crate::error::{PeacoQCError, Result};
 use crate::stats::median;
+use tracing::{debug, warn};
 
 /// Configuration for monotonic channel detection
 ///
@@ -100,10 +101,7 @@ pub fn find_increasing_decreasing_channels<T: PeacoQCData>(
     let mut decreasing = Vec::new();
     let mut correlations = std::collections::HashMap::new();
 
-    eprintln!(
-        "Checking {} channels for monotonic trends...",
-        channels.len()
-    );
+    debug!(n_channels = channels.len(), "monotonic channel scan");
 
     for channel in channels {
         // Get channel data
@@ -175,10 +173,16 @@ pub fn find_increasing_decreasing_channels<T: PeacoQCData>(
     }
 
     if !increasing.is_empty() {
-        eprintln!("⚠️ Increasing channels detected: {:?}", increasing);
+        warn!(
+            ?increasing,
+            "increasing signal trend across acquisition time"
+        );
     }
     if !decreasing.is_empty() {
-        eprintln!("⚠️ Decreasing channels detected: {:?}", decreasing);
+        warn!(
+            ?decreasing,
+            "decreasing signal trend across acquisition time"
+        );
     }
 
     // If both increasing and decreasing channels are detected, this indicates unstable conditions
@@ -196,7 +200,7 @@ pub fn find_increasing_decreasing_channels<T: PeacoQCData>(
     };
 
     if !both.is_empty() {
-        eprintln!("⚠️ Both increasing and decreasing channels detected - unstable conditions");
+        warn!("increasing and decreasing trends both present; acquisition may be unstable");
     }
 
     Ok(MonotonicResult {

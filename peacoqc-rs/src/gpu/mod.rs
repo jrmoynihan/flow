@@ -37,11 +37,11 @@
 #[cfg(feature = "gpu")]
 mod backend;
 #[cfg(feature = "gpu")]
+mod batched;
+#[cfg(feature = "gpu")]
 mod context;
 #[cfg(feature = "gpu")]
 mod fft;
-#[cfg(feature = "gpu")]
-mod batched;
 #[cfg(feature = "gpu")]
 mod matrix;
 #[cfg(feature = "gpu")]
@@ -51,17 +51,17 @@ mod stats;
 mod kernels;
 
 #[cfg(feature = "gpu")]
-pub use backend::{is_gpu_available, GpuBackend};
+pub use backend::{GpuBackend, is_gpu_available};
+#[cfg(feature = "gpu")]
+pub use batched::{KdeContext, kde_fft_batched_gpu};
 #[cfg(feature = "gpu")]
 pub use context::GpuContext;
 #[cfg(feature = "gpu")]
 pub use fft::kde_fft_gpu;
 #[cfg(feature = "gpu")]
-pub use batched::{kde_fft_batched_gpu, KdeContext};
-#[cfg(feature = "gpu")]
 pub use matrix::build_feature_matrix_gpu;
 #[cfg(feature = "gpu")]
-pub use stats::{standard_deviation_gpu, median_gpu, percentile_gpu};
+pub use stats::{median_gpu, percentile_gpu, standard_deviation_gpu};
 
 // Threshold constants removed - GPU is now used whenever available
 // Batched operations provide speedup even for smaller datasets (50K+ events)

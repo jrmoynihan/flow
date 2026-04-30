@@ -14,7 +14,7 @@ mod tests {
     #[ignore] // Requires test file, run with: cargo test --features flow-fcs -- --ignored
     fn test_flow_file_start_up_regression() {
         use flow_fcs::file::Fcs;
-        
+
         let fcs_path = PathBuf::from("flow_file_start_up.fcs");
         if !fcs_path.exists() {
             eprintln!("Skipping test - file not found: {:?}", fcs_path);
@@ -22,7 +22,7 @@ mod tests {
         }
 
         let fcs = Fcs::open(fcs_path.to_str().unwrap()).unwrap();
-        
+
         // Get fluorescence channels (exclude Time, FSC, SSC)
         let all_channels: Vec<String> = fcs.channel_names();
         let channels: Vec<String> = all_channels
@@ -43,7 +43,7 @@ mod tests {
 
         // Regression checks - these values should remain stable
         // Based on testing: 175,312 events after preprocessing, ~7-8% removed
-        
+
         let n_events_before = fcs.n_events();
         let _ = n_events_before; // Suppress unused variable warning
         let n_events_after = result.good_cells.iter().filter(|&&x| x).count();
@@ -93,7 +93,7 @@ mod tests {
     #[ignore] // Requires test file
     fn test_clean_file_zero_removal() {
         use flow_fcs::file::Fcs;
-        
+
         let fcs_path = PathBuf::from("flow_file_low_medium_high_speed.fcs");
         if !fcs_path.exists() {
             eprintln!("Skipping test - file not found: {:?}", fcs_path);
@@ -101,7 +101,7 @@ mod tests {
         }
 
         let fcs = Fcs::open(fcs_path.to_str().unwrap()).unwrap();
-        
+
         let all_channels: Vec<String> = fcs.channel_names();
         let channels: Vec<String> = all_channels
             .into_iter()
@@ -144,7 +144,7 @@ mod tests {
     fn test_preprocessing_order_regression() {
         use flow_fcs::file::Fcs;
         use peacoqc_rs::preprocess_fcs;
-        
+
         let fcs_path = PathBuf::from("flow_file_start_up.fcs");
         if !fcs_path.exists() {
             eprintln!("Skipping test - file not found: {:?}", fcs_path);
@@ -181,7 +181,7 @@ mod tests {
     fn test_feature_matrix_structure_integration() {
         use flow_fcs::file::Fcs;
         use peacoqc_rs::qc::isolation_tree::build_feature_matrix;
-        
+
         let fcs_path = PathBuf::from("flow_file_start_up.fcs");
         if !fcs_path.exists() {
             eprintln!("Skipping test - file not found: {:?}", fcs_path);
@@ -189,7 +189,7 @@ mod tests {
         }
 
         let fcs = Fcs::open(fcs_path.to_str().unwrap()).unwrap();
-        
+
         let all_channels: Vec<String> = fcs.channel_names();
         let channels: Vec<String> = all_channels
             .into_iter()
@@ -230,7 +230,11 @@ mod tests {
         }
 
         // Verify matrix dimensions
-        assert_eq!(matrix.len(), result.n_bins, "Matrix should have one row per bin");
+        assert_eq!(
+            matrix.len(),
+            result.n_bins,
+            "Matrix should have one row per bin"
+        );
         assert_eq!(
             matrix[0].len(),
             feature_names.len(),

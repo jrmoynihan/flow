@@ -21,7 +21,7 @@ crate-type = ["cdylib"]
 
 [dependencies]
 peacoqc-rs = { path = "../peacoqc-rs", default-features = false, features = ["flow-fcs"] }
-flow-fcs = { path = "../fcs", version = "^0.2.2" }
+flow-fcs = { path = "../fcs", version = "^0.3.0" }
 polars = { workspace = true }
 pyo3 = { version = "0.27", features = ["extension-module"] }
 pyo3-polars = { version = "0.26", features = ["dtype-full"] }

@@ -2,14 +2,18 @@ use anyhow::{Context, Result};
 use clap::Parser;
 use dialoguer::{Confirm, Input};
 use flow_fcs::{Fcs, write_fcs_file};
+use indicatif::{ProgressBar, ProgressStyle};
 use peacoqc_rs::{
     DoubletConfig, FcsFilter, MarginConfig, PeacoQCConfig, PeacoQCData, QCMode, QCPlotConfig,
     create_qc_plots, peacoqc, remove_doublets, remove_margins,
 };
 use rayon::prelude::*;
+use std::io::{self, IsTerminal, Write, stderr};
 use std::path::{Path, PathBuf};
-use std::time::Instant;
+use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
 use tracing::{debug, info, warn};
+use tracing_subscriber::fmt::writer::MakeWriter;
 
 /// PeacoQC - Quality Control for Flow Cytometry Data
 #[derive(Parser, Debug)]
@@ -143,7 +147,7 @@ struct Cli {
     #[arg(short, long)]
     verbose: bool,
 
-    /// Disable all logging (tracing) output
+    /// Disable tracing log output (progress bar / spinner still shows when stderr is a TTY)
     #[arg(short, long)]
     quiet: bool,
 
@@ -613,10 +617,7 @@ fn process_file_internal(
     let full_export_mask: Option<Vec<bool>> = if use_full_mask {
         let mut full_mask = vec![false; n_events_initial];
         for i in 0..n_events_initial {
-            let kept_after_margin = margin_mask
-                .as_ref()
-                .map(|m| m[i])
-                .unwrap_or(true);
+            let kept_after_margin = margin_mask.as_ref().map(|m| m[i]).unwrap_or(true);
             if !kept_after_margin {
                 continue;
             }
@@ -624,10 +625,7 @@ fn process_file_internal(
                 .as_ref()
                 .map(|m| m[0..i].iter().filter(|&&x| x).count())
                 .unwrap_or(i);
-            let kept_after_doublet = doublet_mask
-                .as_ref()
-                .map(|d| d[margin_idx])
-                .unwrap_or(true);
+            let kept_after_doublet = doublet_mask.as_ref().map(|d| d[margin_idx]).unwrap_or(true);
             if !kept_after_doublet {
                 continue;
             }
@@ -834,15 +832,91 @@ fn run_benchmark(args: &Cli) -> Result<()> {
     println!("\nScenario          Mean (ms)   Std (ms)");
     println!("{:18} {:>10.1}   {:>8.1}", "minimal", mean_min, std_min);
     println!("{:18} {:>10.1}   {:>8.1}", "+ FCS write", mean_fcs, std_fcs);
-    println!("{:18} {:>10.1}   {:>8.1}", "+ CSV export", mean_csv, std_csv);
+    println!(
+        "{:18} {:>10.1}   {:>8.1}",
+        "+ CSV export", mean_csv, std_csv
+    );
     println!("{:18} {:>10.1}   {:>8.1}", "+ plots", mean_plots, std_plots);
     println!("\nTo measure logging overhead, compare wall time of:");
     println!("  peacoqc <file> -o out  vs  peacoqc --quiet <file> -o out");
     Ok(())
 }
 
+/// Braille frames for indicatif progress spinners (stderr UI).
+const CLI_SPINNER_TICKS: &[&str] = &["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+
+/// When set, formatted tracing lines are sent through `ProgressBar::println` so logs stay
+/// above a single sticky progress bar instead of interleaving with redraws on stderr.
+#[derive(Clone)]
+struct ProgressAwareMakeWriter {
+    slot: Arc<Mutex<Option<Arc<ProgressBar>>>>,
+}
+
+struct ProgressAwareWriter {
+    slot: Arc<Mutex<Option<Arc<ProgressBar>>>>,
+    buf: String,
+}
+
+impl ProgressAwareWriter {
+    fn emit_line(&self, line: &str) {
+        let pb = match self.slot.lock() {
+            Ok(g) => g.clone(),
+            Err(poisoned) => poisoned.into_inner().clone(),
+        };
+        if let Some(pb) = pb {
+            pb.println(line);
+        } else {
+            let _ = writeln!(io::stderr(), "{line}");
+        }
+    }
+}
+
+impl Write for ProgressAwareWriter {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        self.buf.push_str(&String::from_utf8_lossy(buf));
+        while let Some(nl) = self.buf.find('\n') {
+            let line = self.buf[..nl].to_string();
+            self.buf.drain(..nl.saturating_add(1));
+            self.emit_line(&line);
+        }
+        Ok(buf.len())
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        if self.buf.is_empty() {
+            return Ok(());
+        }
+        let line = std::mem::take(&mut self.buf);
+        self.emit_line(&line);
+        Ok(())
+    }
+}
+
+impl Drop for ProgressAwareWriter {
+    fn drop(&mut self) {
+        if self.buf.is_empty() {
+            return;
+        }
+        let line = std::mem::take(&mut self.buf);
+        self.emit_line(&line);
+    }
+}
+
+impl<'a> MakeWriter<'a> for ProgressAwareMakeWriter {
+    type Writer = ProgressAwareWriter;
+
+    fn make_writer(&'a self) -> Self::Writer {
+        ProgressAwareWriter {
+            slot: self.slot.clone(),
+            buf: String::new(),
+        }
+    }
+}
+
 fn main() -> Result<()> {
     let args = Cli::parse();
+
+    let progress_log_slot: Arc<Mutex<Option<Arc<ProgressBar>>>> = Arc::new(Mutex::new(None));
 
     // Initialize tracing subscriber after parsing so --quiet / --benchmark can disable logging
     let filter = if args.quiet || args.benchmark {
@@ -854,6 +928,9 @@ fn main() -> Result<()> {
     tracing_subscriber::fmt()
         .with_env_filter(filter)
         .with_target(false)
+        .with_writer(ProgressAwareMakeWriter {
+            slot: progress_log_slot.clone(),
+        })
         .init();
 
     if args.benchmark {
@@ -882,8 +959,7 @@ fn main() -> Result<()> {
         ensure_output_directory(dir, "plot")?;
     }
     if let Some(ref report_path) = args.report {
-        let used_as_dir = report_path.is_dir()
-            || report_path.extension().is_none();
+        let used_as_dir = report_path.is_dir() || report_path.extension().is_none();
         if used_as_dir {
             ensure_output_directory(report_path, "report")?;
         }
@@ -962,6 +1038,43 @@ fn main() -> Result<()> {
     // Convert qc_mode once before the loop
     let qc_mode = args.qc_mode.clone().into();
 
+    let total_jobs = cofactors_to_use.len().saturating_mul(input_files.len());
+    let show_run_progress = stderr().is_terminal() && total_jobs > 0;
+    let run_progress: Option<Arc<ProgressBar>> = if show_run_progress {
+        let tick_ms = 80;
+        let pb = if total_jobs > 1 {
+            let pb = ProgressBar::new(total_jobs as u64);
+            pb.set_style(
+                ProgressStyle::with_template(
+                    "{spinner:.green} [{elapsed_precise}] [{wide_bar:.cyan/blue}] {pos}/{len} {msg}",
+                )
+                .expect("static progress bar template")
+                .tick_strings(CLI_SPINNER_TICKS)
+                .progress_chars("=>-"),
+            );
+            pb.enable_steady_tick(Duration::from_millis(tick_ms));
+            pb.set_message("PeacoQC");
+            pb
+        } else {
+            let pb = ProgressBar::new_spinner();
+            pb.set_style(
+                ProgressStyle::with_template("{spinner:.green} {msg} [{elapsed_precise}]")
+                    .expect("static spinner template")
+                    .tick_strings(CLI_SPINNER_TICKS),
+            );
+            pb.enable_steady_tick(Duration::from_millis(tick_ms));
+            pb.set_message("Running PeacoQC...");
+            pb
+        };
+        let pb = Arc::new(pb);
+        *progress_log_slot
+            .lock()
+            .unwrap_or_else(|e| e.into_inner()) = Some(pb.clone());
+        Some(pb)
+    } else {
+        None
+    };
+
     // Process files with each cofactor
     let mut all_results: Vec<FileResult> = Vec::new();
 
@@ -996,11 +1109,12 @@ fn main() -> Result<()> {
 
         // Process files in parallel
         let total_files = input_files.len();
+        let progress_for_tasks = run_progress.clone();
         let results: Vec<FileResult> = input_files
             .par_iter()
             .enumerate()
             .map(|(idx, input_path)| {
-                if total_files > 1 {
+                if total_files > 1 && !args.quiet {
                     info!(
                         "Processing file {}/{}: {}",
                         idx + 1,
@@ -1011,11 +1125,25 @@ fn main() -> Result<()> {
                             .unwrap_or("unknown")
                     );
                 }
-                process_single_file(input_path, args.output.as_deref(), &processing_config)
+                let file_result =
+                    process_single_file(input_path, args.output.as_deref(), &processing_config);
+                if let Some(pb) = progress_for_tasks.as_ref() {
+                    if total_jobs > 1 {
+                        pb.inc(1);
+                    }
+                }
+                file_result
             })
             .collect();
 
         all_results.extend(results);
+    }
+
+    if let Some(pb) = run_progress {
+        *progress_log_slot
+            .lock()
+            .unwrap_or_else(|e| e.into_inner()) = None;
+        pb.finish_and_clear();
     }
 
     let results = all_results;
@@ -1042,10 +1170,19 @@ fn main() -> Result<()> {
             .iter()
             .map(|r| r.n_events_after * r.n_parameters)
             .sum();
-        println!("   📊 Average parameters per file: {:.1}", total_params as f64 / n_files as f64);
-        println!("   📊 Average events per file: {:.0}", total_events as f64 / n_files as f64);
+        println!(
+            "   📊 Average parameters per file: {:.1}",
+            total_params as f64 / n_files as f64
+        );
+        println!(
+            "   📊 Average events per file: {:.0}",
+            total_events as f64 / n_files as f64
+        );
         println!("   📊 Total events: {}", total_events);
-        println!("   📊 Total observations (events × parameters): {}", total_observations);
+        println!(
+            "   📊 Total observations (events × parameters): {}",
+            total_observations
+        );
         if total_time > 0.0 {
             println!(
                 "   📊 Throughput: {:.0} observations/s",
@@ -1152,38 +1289,37 @@ fn main() -> Result<()> {
     if successful.is_empty() {
         // No successful files to plot
     } else if let Some(ref plot_dir) = plot_dir {
-            std::fs::create_dir_all(plot_dir)?;
-            println!("\n📊 Generating QC plots...");
+        std::fs::create_dir_all(plot_dir)?;
+        println!("\n📊 Generating QC plots...");
 
-            // Build plot config from CLI flags
-            let plot_config = build_plot_config(&args);
+        // Build plot config from CLI flags
+        let plot_config = build_plot_config(&args);
 
-            // Generate plots for each successful file
-            for result in &successful {
-                if let (Some(fcs_data), Some(qc_result)) = (&result.fcs_data, &result.qc_result) {
-                    let plot_filename = result
-                        .input_path
-                        .file_stem()
-                        .and_then(|s| s.to_str())
-                        .map(|s| format!("{}_qc_plot.png", s))
-                        .unwrap_or_else(|| "qc_plot.png".to_string());
-                    let plot_path = plot_dir.join(&plot_filename);
+        // Generate plots for each successful file
+        for result in &successful {
+            if let (Some(fcs_data), Some(qc_result)) = (&result.fcs_data, &result.qc_result) {
+                let plot_filename = result
+                    .input_path
+                    .file_stem()
+                    .and_then(|s| s.to_str())
+                    .map(|s| format!("{}_qc_plot.png", s))
+                    .unwrap_or_else(|| "qc_plot.png".to_string());
+                let plot_path = plot_dir.join(&plot_filename);
 
-                    match create_qc_plots(fcs_data, qc_result, &plot_path, plot_config.clone(), None)
-                    {
-                        Ok(()) => {
-                            println!("   ✅ Generated plot: {}", plot_path.display());
-                        }
-                        Err(e) => {
-                            warn!(
-                                "   ⚠️  Failed to generate plot for {}: {}",
-                                result.filename, e
-                            );
-                        }
+                match create_qc_plots(fcs_data, qc_result, &plot_path, plot_config.clone(), None) {
+                    Ok(()) => {
+                        println!("   ✅ Generated plot: {}", plot_path.display());
+                    }
+                    Err(e) => {
+                        warn!(
+                            "   ⚠️  Failed to generate plot for {}: {}",
+                            result.filename, e
+                        );
                     }
                 }
             }
-            println!();
+        }
+        println!();
     }
 
     // Exit with error code if any files failed

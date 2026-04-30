@@ -9,6 +9,7 @@
 use crate::error::{PeacoQCError, Result};
 use csaps::CubicSmoothingSpline;
 use ndarray::Array1;
+use tracing::debug;
 
 /// Fit a cubic smoothing spline matching R's smooth.spline
 ///
@@ -55,35 +56,35 @@ pub fn smooth_spline(x: &[f64], y: &[f64], spar: f64) -> Result<Vec<f64>> {
     let mut unique_x = Vec::new();
     let mut unique_y = Vec::new();
     let mut weights = Vec::new();
-    
+
     let mut i = 0;
     while i < x_sorted.len() {
         let x_val = x_sorted[i];
         let mut sum_y = y_sorted[i];
         let mut count = 1;
         let mut j = i + 1;
-        
+
         while j < x_sorted.len() && (x_sorted[j] - x_val).abs() < 1e-10 {
             sum_y += y_sorted[j];
             count += 1;
             j += 1;
         }
-        
+
         unique_x.push(x_val);
         unique_y.push(sum_y / count as f64);
         weights.push(count as f64);
         i = j;
     }
-    
+
     if unique_x.len() < 3 {
         return Ok(y.to_vec());
     }
-    
+
     // Map R's spar parameter to csaps' smooth parameter
     // IMPORTANT: R's spar and csaps' p have an INVERSE relationship:
     // - R: large spar → more smoothing (heavier penalty)
     // - csaps: small p → more smoothing (heavier penalty)
-    // 
+    //
     // R's spar typically ranges [-1.5, 1.5] with default 0.5 (moderate smoothing)
     // csaps' p ranges [0, 1] with p=0.5 also being moderate smoothing
     //
@@ -100,36 +101,37 @@ pub fn smooth_spline(x: &[f64], y: &[f64], spar: f64) -> Result<Vec<f64>> {
     // This gives: spar=0.0 → p=1.0, spar=0.5 → p=0.5, spar=1.0 → p=0.0
     // For spar > 1.0, clamp p to 0.0 (maximum smoothing)
     let smooth = if spar <= 0.0 {
-        1.0  // No smoothing → interpolant
+        1.0 // No smoothing → interpolant
     } else if spar >= 1.0 {
-        0.0  // Maximum smoothing → least squares line
+        0.0 // Maximum smoothing → least squares line
     } else {
-        1.0 - spar  // Inverse mapping for moderate values
+        1.0 - spar // Inverse mapping for moderate values
     };
-    
+
     // Debug logging
     if std::env::var("PEACOQC_DEBUG_SPLINE").is_ok() {
-        eprintln!(
-            "csaps smoothing: n={}, spar={:.3}, smooth={:.3}, x_range={:.2}, y_range={:.2}",
-            unique_x.len(),
+        let y_range = {
+            let y_min = unique_y.iter().fold(f64::INFINITY, |a, &b| a.min(b));
+            let y_max = unique_y.iter().fold(f64::NEG_INFINITY, |a, &b| a.max(b));
+            y_max - y_min
+        };
+        debug!(
+            n = unique_x.len(),
             spar,
             smooth,
-            unique_x[unique_x.len() - 1] - unique_x[0],
-            {
-                let y_min = unique_y.iter().fold(f64::INFINITY, |a, &b| a.min(b));
-                let y_max = unique_y.iter().fold(f64::NEG_INFINITY, |a, &b| a.max(b));
-                y_max - y_min
-            }
+            x_range = unique_x[unique_x.len() - 1] - unique_x[0],
+            y_range,
+            "csaps smoothing"
         );
     }
-    
+
     // Fit smoothing spline using csaps
     // csaps expects slices or arrays that implement AsRef<[f64]>
     // Convert to ndarray arrays, then use as_slice() to get slices
     let x_array = Array1::from(unique_x.clone());
     let y_array = Array1::from(unique_y.clone());
     let weights_array = Array1::from(weights.clone());
-    
+
     // Use as_slice() to convert Array1 to slices that csaps can use
     let x_slice = x_array.as_slice().ok_or_else(|| {
         PeacoQCError::StatsError("Failed to convert x array to slice".to_string())
@@ -140,24 +142,25 @@ pub fn smooth_spline(x: &[f64], y: &[f64], spar: f64) -> Result<Vec<f64>> {
     let weights_slice = weights_array.as_slice().ok_or_else(|| {
         PeacoQCError::StatsError("Failed to convert weights array to slice".to_string())
     })?;
-    
+
     let spline = CubicSmoothingSpline::new(x_slice, y_slice)
         .with_smooth(smooth)
         .with_weights(weights_slice)
         .make()
         .map_err(|e| PeacoQCError::StatsError(format!("csaps spline fitting failed: {:?}", e)))?;
-    
+
     // Evaluate at original x points (including duplicates)
     let x_eval_array = Array1::from(x_sorted.clone());
     let x_eval_slice = x_eval_array.as_slice().ok_or_else(|| {
         PeacoQCError::StatsError("Failed to convert evaluation x array to slice".to_string())
     })?;
-    let smoothed_array = spline.evaluate(x_eval_slice)
+    let smoothed_array = spline
+        .evaluate(x_eval_slice)
         .map_err(|e| PeacoQCError::StatsError(format!("csaps evaluation failed: {:?}", e)))?;
-    
+
     // Convert back to Vec<f64>
     let result: Vec<f64> = smoothed_array.iter().map(|&v| v).collect();
-    
+
     // Map back to original order
     Ok(map_to_original_order(&result, &sorted_indices))
 }
@@ -169,7 +172,10 @@ fn map_to_original_order(smoothed: &[f64], original_indices: &[usize]) -> Vec<f6
     }
 
     // Check if reordering is needed
-    let needs_reorder = original_indices.iter().enumerate().any(|(i, &idx)| i != idx);
+    let needs_reorder = original_indices
+        .iter()
+        .enumerate()
+        .any(|(i, &idx)| i != idx);
 
     if !needs_reorder {
         return smoothed.to_vec();
@@ -198,7 +204,10 @@ mod tests {
         assert_eq!(smoothed.len(), y.len());
         // Smoothed values should be close to original for linear data
         for i in 0..smoothed.len() {
-            assert!((smoothed[i] - y[i]).abs() < 1.0, "Should be close for linear data");
+            assert!(
+                (smoothed[i] - y[i]).abs() < 1.0,
+                "Should be close for linear data"
+            );
         }
     }
 
@@ -228,8 +237,12 @@ mod tests {
         // High smoothing should produce smoother curve
         // Check that variation is reduced
         let y_var: f64 = y.iter().map(|&yi| (yi - 4.0).powi(2)).sum::<f64>() / y.len() as f64;
-        let smoothed_var: f64 = smoothed.iter().map(|&si| (si - 4.0).powi(2)).sum::<f64>() / smoothed.len() as f64;
-        assert!(smoothed_var <= y_var * 1.5, "High smoothing should reduce variance");
+        let smoothed_var: f64 =
+            smoothed.iter().map(|&si| (si - 4.0).powi(2)).sum::<f64>() / smoothed.len() as f64;
+        assert!(
+            smoothed_var <= y_var * 1.5,
+            "High smoothing should reduce variance"
+        );
     }
 
     #[test]

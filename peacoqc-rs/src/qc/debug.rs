@@ -6,6 +6,7 @@
 use crate::PeacoQCData;
 use crate::error::Result;
 use std::collections::HashMap;
+use tracing::debug;
 
 /// Debug information about bin distribution and QC steps
 #[derive(Debug, Clone)]
@@ -164,42 +165,70 @@ pub fn collect_bin_debug_info<T: PeacoQCData>(
 
 /// Log bin debug information to stderr
 pub fn log_bin_debug_info(debug_info: &[BinDebugInfo], step: &str) {
-    eprintln!("\n=== Bin Debug Info: {} ===", step);
-    eprintln!(
-        "{:>6} {:>10} {:>10} {:>12} {:>12} {:>12} {:>6} {:>4} {:>4} {:>4} {:>4}",
-        "Bin", "Start", "End", "StartTime", "EndTime", "Events/sec", "Cells", "IT", "MAD", "Con", "Out"
+    debug!(%step, "bin debug table header");
+    debug!(
+        "{}",
+        format!(
+            "{:>6} {:>10} {:>10} {:>12} {:>12} {:>12} {:>6} {:>4} {:>4} {:>4} {:>4}",
+            "Bin",
+            "Start",
+            "End",
+            "StartTime",
+            "EndTime",
+            "Events/sec",
+            "Cells",
+            "IT",
+            "MAD",
+            "Con",
+            "Out"
+        )
     );
 
     for info in debug_info.iter().take(100) {
         // Only show first 100 bins to avoid overwhelming output
-        let start_time_str = info.start_time.map(|t| format!("{:.2}", t)).unwrap_or_else(|| "N/A".to_string());
-        let end_time_str = info.end_time.map(|t| format!("{:.2}", t)).unwrap_or_else(|| "N/A".to_string());
-        let eps_str = info.events_per_second.map(|r| format!("{:.2}", r)).unwrap_or_else(|| "N/A".to_string());
+        let start_time_str = info
+            .start_time
+            .map(|t| format!("{:.2}", t))
+            .unwrap_or_else(|| "N/A".to_string());
+        let end_time_str = info
+            .end_time
+            .map(|t| format!("{:.2}", t))
+            .unwrap_or_else(|| "N/A".to_string());
+        let eps_str = info
+            .events_per_second
+            .map(|r| format!("{:.2}", r))
+            .unwrap_or_else(|| "N/A".to_string());
 
-        eprintln!(
-            "{:>6} {:>10} {:>10} {:>12} {:>12} {:>12} {:>6} {:>4} {:>4} {:>4} {:>4}",
-            info.bin_idx,
-            info.start_cell,
-            info.end_cell,
-            start_time_str,
-            end_time_str,
-            eps_str,
-            info.n_cells,
-            if info.flagged_by_it { "X" } else { "" },
-            if info.flagged_by_mad { "X" } else { "" },
-            if info.flagged_by_consecutive { "X" } else { "" },
-            if info.is_outlier { "X" } else { "" },
+        debug!(
+            "{}",
+            format!(
+                "{:>6} {:>10} {:>10} {:>12} {:>12} {:>12} {:>6} {:>4} {:>4} {:>4} {:>4}",
+                info.bin_idx,
+                info.start_cell,
+                info.end_cell,
+                start_time_str,
+                end_time_str,
+                eps_str,
+                info.n_cells,
+                if info.flagged_by_it { "X" } else { "" },
+                if info.flagged_by_mad { "X" } else { "" },
+                if info.flagged_by_consecutive { "X" } else { "" },
+                if info.is_outlier { "X" } else { "" },
+            )
         );
     }
 
     if debug_info.len() > 100 {
-        eprintln!("... (showing first 100 of {} bins)", debug_info.len());
+        debug!(
+            total = debug_info.len(),
+            "truncated bin debug rows after 100"
+        );
     }
 
     // Summary statistics
     let total_bins = debug_info.len();
     let bins_with_time = debug_info.iter().filter(|i| i.start_time.is_some()).count();
-    
+
     if bins_with_time > 0 {
         let low_eps_bins: Vec<_> = debug_info
             .iter()
@@ -213,39 +242,48 @@ pub fn log_bin_debug_info(debug_info: &[BinDebugInfo], step: &str) {
         let low_eps_outliers = low_eps_bins.iter().filter(|i| i.is_outlier).count();
         let low_eps_total = low_eps_bins.len();
 
-        eprintln!("\nSummary:");
-        eprintln!("  Total bins: {}", total_bins);
-        eprintln!("  Bins with time info: {}", bins_with_time);
-        eprintln!("  Low events/sec bins (<1000): {}", low_eps_total);
-        eprintln!("  Low events/sec bins flagged as outliers: {} ({:.1}%)",
-            low_eps_outliers,
-            if low_eps_total > 0 {
-                (low_eps_outliers as f64 / low_eps_total as f64) * 100.0
-            } else {
-                0.0
-            }
+        let low_eps_pct = if low_eps_total > 0 {
+            (low_eps_outliers as f64 / low_eps_total as f64) * 100.0
+        } else {
+            0.0
+        };
+        debug!(
+            total_bins,
+            bins_with_time, low_eps_total, low_eps_outliers, low_eps_pct, "bin debug summary"
         );
 
         // Calculate average events/second for outlier vs non-outlier bins
         let outlier_eps: Vec<f64> = debug_info
             .iter()
-            .filter_map(|i| if i.is_outlier { i.events_per_second } else { None })
+            .filter_map(|i| {
+                if i.is_outlier {
+                    i.events_per_second
+                } else {
+                    None
+                }
+            })
             .collect();
         let good_eps: Vec<f64> = debug_info
             .iter()
-            .filter_map(|i| if !i.is_outlier { i.events_per_second } else { None })
+            .filter_map(|i| {
+                if !i.is_outlier {
+                    i.events_per_second
+                } else {
+                    None
+                }
+            })
             .collect();
 
         if !outlier_eps.is_empty() {
             let avg_outlier_eps = outlier_eps.iter().sum::<f64>() / outlier_eps.len() as f64;
-            eprintln!("  Average events/sec for outlier bins: {:.2}", avg_outlier_eps);
+            debug!(avg_outlier_eps, "average events/sec for outlier bins");
         }
         if !good_eps.is_empty() {
             let avg_good_eps = good_eps.iter().sum::<f64>() / good_eps.len() as f64;
-            eprintln!("  Average events/sec for good bins: {:.2}", avg_good_eps);
+            debug!(avg_good_eps, "average events/sec for non-outlier bins");
         }
     }
-    eprintln!("=== End Bin Debug Info ===\n");
+    debug!("end bin debug info");
 }
 
 /// Analyze correlation between events/second and outlier status
@@ -256,7 +294,7 @@ pub fn analyze_events_per_second_correlation(debug_info: &[BinDebugInfo]) {
         .collect();
 
     if bins_with_eps.is_empty() {
-        eprintln!("No bins with events/second data available for correlation analysis");
+        debug!("no events/second data for correlation analysis");
         return;
     }
 
@@ -285,18 +323,27 @@ pub fn analyze_events_per_second_correlation(debug_info: &[BinDebugInfo]) {
         }
     }
 
-    eprintln!("\n=== Events/Second vs Outlier Status ===");
-    eprintln!("{:>12} {:>10} {:>10} {:>10}", "Range", "Total", "Outliers", "% Outlier");
-    
+    debug!("events/sec vs outlier correlation table");
+    debug!(
+        "{}",
+        format!(
+            "{:>12} {:>10} {:>10} {:>10}",
+            "Range", "Total", "Outliers", "% Outlier"
+        )
+    );
+
     // Print in order
     let ordered_ranges = vec!["0-500", "500-1000", "1000-2000", "2000+"];
     for range in ordered_ranges {
         if let Some((total, outliers)) = ranges.get(range) {
             if *total > 0 {
                 let pct = (*outliers as f64 / *total as f64) * 100.0;
-                eprintln!("{:>12} {:>10} {:>10} {:>10.1}", range, total, outliers, pct);
+                debug!(
+                    "{}",
+                    format!("{:>12} {:>10} {:>10} {:>10.1}", range, total, outliers, pct)
+                );
             }
         }
     }
-    eprintln!("=== End Correlation Analysis ===\n");
+    debug!("end events/sec correlation analysis");
 }

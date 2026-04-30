@@ -66,6 +66,14 @@ result.export_json_metadata(&config, "qc_metadata.json")?;
 
 See `examples/basic_usage.rs` for a complete working example.
 
+### `flow-fcs` convenience
+
+With the `flow-fcs` feature enabled:
+
+- **`PeacoQCConfig::for_fcs(&flow_fcs::Fcs, QCMode)`** fills `channels` from fluorescence parameters on the `Fcs` (same notion as auto-detecting analysis channels from the file).
+- **`create_qc_plots`** (module `qc::plots`) can write overview figures for manual review when given the FCS, the `PeacoQCResult`, an output path, and a `QCPlotConfig`.
+- **`PeacoQCResult::export_json_metadata`** writes run metadata (percentages, bin counts, etc.) alongside CSV exports.
+
 ### Interoperability via Traits
 
 PeacoQC-RS uses trait-based design for maximum interoperability. To use PeacoQC with your own FCS data structure, simply implement the `PeacoQCData` trait:

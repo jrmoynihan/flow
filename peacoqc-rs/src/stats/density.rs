@@ -64,7 +64,7 @@ impl KernelDensity {
         } else {
             kde_fft(&clean_data, &x, bandwidth, n)?
         };
-        
+
         #[cfg(not(feature = "gpu"))]
         let y = kde_fft(&clean_data, &x, bandwidth, n)?;
 
@@ -123,7 +123,9 @@ impl KernelDensity {
 fn kde_fft(data: &[f64], grid: &[f64], bandwidth: f64, n: f64) -> Result<Vec<f64>> {
     let m = grid.len();
     if m < 2 {
-        return Err(PeacoQCError::StatsError("Grid must have at least 2 points".to_string()));
+        return Err(PeacoQCError::StatsError(
+            "Grid must have at least 2 points".to_string(),
+        ));
     }
 
     let grid_min = grid[0];
@@ -209,7 +211,7 @@ fn kde_fft(data: &[f64], grid: &[f64], bandwidth: f64, n: f64) -> Result<Vec<f64
         let idx = (kernel_start + i) % fft_size;
         density.push(conv_result[idx]);
     }
-    
+
     // Normalize by fft_size (FFT doesn't normalize automatically), n, and bandwidth
     // This matches the naive implementation: sum(kernel) / (n * bandwidth)
     let density: Vec<f64> = density

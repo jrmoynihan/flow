@@ -5,8 +5,8 @@
 //! - Caches kernel spectra for reuse across operations
 //! - Provides efficient tensor operations
 
-use burn::backend::wgpu::WgpuDevice;
 use crate::error::Result;
+use burn::backend::wgpu::WgpuDevice;
 use realfft::num_complex::Complex;
 
 /// GPU context that persists between operations
@@ -72,7 +72,9 @@ impl GpuContext {
         // Forward FFT
         let mut kernel_spectrum = r2c.make_output_vec();
         r2c.process(&mut kernel_padded, &mut kernel_spectrum)
-            .map_err(|e| crate::error::PeacoQCError::StatsError(format!("FFT forward failed: {}", e)))?;
+            .map_err(|e| {
+                crate::error::PeacoQCError::StatsError(format!("FFT forward failed: {}", e))
+            })?;
 
         // Cache result
         self.cached_kernel_spectrum = Some((kernel_spectrum.clone(), fft_size, bandwidth));

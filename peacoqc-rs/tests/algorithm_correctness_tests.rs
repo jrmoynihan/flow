@@ -3,10 +3,12 @@
 //! These tests verify that algorithms produce mathematically correct results,
 //! independent of R comparison. They test the algorithms themselves.
 
-use peacoqc_rs::qc::isolation_tree::{build_feature_matrix, isolation_tree_detect, IsolationTreeConfig};
-use peacoqc_rs::qc::mad::{mad_outlier_method, MADConfig};
+use peacoqc_rs::qc::isolation_tree::{
+    IsolationTreeConfig, build_feature_matrix, isolation_tree_detect,
+};
+use peacoqc_rs::qc::mad::{MADConfig, mad_outlier_method};
 use peacoqc_rs::qc::peaks::{ChannelPeakFrame, PeakInfo};
-use peacoqc_rs::stats::median_mad::{median_mad, median_mad_scaled, MAD_SCALE_FACTOR};
+use peacoqc_rs::stats::median_mad::{MAD_SCALE_FACTOR, median_mad, median_mad_scaled};
 use std::collections::HashMap;
 
 /// Test that median calculation is correct
@@ -17,17 +19,26 @@ fn test_median_calculation() {
     // Odd length
     let data = vec![1.0, 3.0, 2.0, 5.0, 4.0];
     let result = median(&data).unwrap();
-    assert!((result - 3.0).abs() < 1e-10, "Median of [1,2,3,4,5] should be 3.0");
+    assert!(
+        (result - 3.0).abs() < 1e-10,
+        "Median of [1,2,3,4,5] should be 3.0"
+    );
 
     // Even length (average of two middle values)
     let data = vec![1.0, 2.0, 3.0, 4.0];
     let result = median(&data).unwrap();
-    assert!((result - 2.5).abs() < 1e-10, "Median of [1,2,3,4] should be 2.5");
+    assert!(
+        (result - 2.5).abs() < 1e-10,
+        "Median of [1,2,3,4] should be 2.5"
+    );
 
     // Single value
     let data = vec![42.0];
     let result = median(&data).unwrap();
-    assert!((result - 42.0).abs() < 1e-10, "Median of [42] should be 42.0");
+    assert!(
+        (result - 42.0).abs() < 1e-10,
+        "Median of [42] should be 42.0"
+    );
 }
 
 /// Test that MAD calculation is correct
@@ -38,7 +49,7 @@ fn test_mad_calculation() {
     // Deviations: |1-3|, |2-3|, |3-3|, |4-3|, |5-3| = 2, 1, 0, 1, 2
     // Median of deviations = 1.0
     let data = vec![1.0, 2.0, 3.0, 4.0, 5.0];
-    
+
     let (median, raw_mad) = median_mad(&data).unwrap();
     assert!((median - 3.0).abs() < 1e-10, "Median should be 3.0");
     assert!((raw_mad - 1.0).abs() < 1e-10, "Raw MAD should be 1.0");
@@ -61,10 +72,18 @@ fn test_isolation_tree_split_selection() {
     // Create data with clear separation: first half low values, second half high values
     let mut peaks = Vec::new();
     for bin in 0..10 {
-        peaks.push(PeakInfo { bin, peak_value: 100.0, cluster: 1 });
+        peaks.push(PeakInfo {
+            bin,
+            peak_value: 100.0,
+            cluster: 1,
+        });
     }
     for bin in 10..20 {
-        peaks.push(PeakInfo { bin, peak_value: 1000.0, cluster: 1 }); // Very different
+        peaks.push(PeakInfo {
+            bin,
+            peak_value: 1000.0,
+            cluster: 1,
+        }); // Very different
     }
 
     let mut peak_results = HashMap::new();
@@ -76,10 +95,13 @@ fn test_isolation_tree_split_selection() {
     };
 
     let result = isolation_tree_detect(&peak_results, 20, &config).unwrap();
-    
+
     // IT should identify the split and create a tree
-    assert!(result.tree.len() > 1, "IT should create a tree with multiple nodes");
-    
+    assert!(
+        result.tree.len() > 1,
+        "IT should create a tree with multiple nodes"
+    );
+
     // The largest node should contain most bins (the homogeneous group)
     assert!(
         result.stats.largest_node_size >= 10,
@@ -93,12 +115,12 @@ fn test_mad_threshold_calculation() {
     // Create data with known statistics
     // Values: [100, 101, 102, ..., 109] (mean ~104.5, std ~3.03)
     let mut data: Vec<f64> = (0..10).map(|i| 100.0 + i as f64).collect();
-    
+
     // Add one extreme outlier
     data.push(200.0);
 
     let (median, mad) = median_mad_scaled(&data).unwrap();
-    
+
     // Calculate thresholds with MAD=6
     let mad_threshold = 6.0;
     let upper = median + mad_threshold * mad;
@@ -112,9 +134,7 @@ fn test_mad_threshold_calculation() {
     );
 
     // Most values should be within thresholds
-    let n_within = data.iter()
-        .filter(|&&x| x >= lower && x <= upper)
-        .count();
+    let n_within = data.iter().filter(|&&x| x >= lower && x <= upper).count();
     assert!(
         n_within >= 10,
         "Most values should be within thresholds, but only {} are",
@@ -140,8 +160,11 @@ fn test_peak_detection_finds_maxima() {
     let peaks = kde.find_peaks(0.2); // Lower threshold to find peaks
 
     // Should find at least one peak
-    assert!(!peaks.is_empty(), "Should find at least one peak in bimodal data");
-    
+    assert!(
+        !peaks.is_empty(),
+        "Should find at least one peak in bimodal data"
+    );
+
     // Peaks should be near 0 and/or 10
     let near_zero = peaks.iter().any(|&p| (p - 0.0).abs() < 2.0);
     let near_ten = peaks.iter().any(|&p| (p - 10.0).abs() < 2.0);
@@ -158,7 +181,10 @@ fn test_cluster_assignment_median() {
     // Cluster assignment is tested indirectly through the full pipeline
     // The logic uses median values to determine cluster centers
     // This is verified through integration tests that check feature matrix structure
-    assert!(true, "Cluster assignment uses median - tested through integration");
+    assert!(
+        true,
+        "Cluster assignment uses median - tested through integration"
+    );
 }
 
 /// Test that binning creates correct overlap
@@ -172,13 +198,15 @@ fn test_binning_overlap() {
 
     // Verify first bin
     assert_eq!(breaks[0].0, 0, "First bin should start at 0");
-    assert_eq!(breaks[0].1, events_per_bin, "First bin should end at events_per_bin");
+    assert_eq!(
+        breaks[0].1, events_per_bin,
+        "First bin should end at events_per_bin"
+    );
 
     // Verify second bin has 50% overlap
     let expected_overlap = events_per_bin / 2;
     assert_eq!(
-        breaks[1].0,
-        expected_overlap,
+        breaks[1].0, expected_overlap,
         "Second bin should start at {} (50% overlap)",
         expected_overlap
     );
@@ -192,8 +220,7 @@ fn test_binning_overlap() {
     // Verify overlap is correct
     let overlap = breaks[0].1 - breaks[1].0;
     assert_eq!(
-        overlap,
-        expected_overlap,
+        overlap, expected_overlap,
         "Overlap should be {} (50% of events_per_bin)",
         expected_overlap
     );
@@ -209,16 +236,16 @@ fn test_binning_overlap() {
 /// Test that consecutive bin filtering removes short regions
 #[test]
 fn test_consecutive_bins_removes_short_regions() {
-    use peacoqc_rs::qc::consecutive::{remove_short_regions, ConsecutiveConfig};
+    use peacoqc_rs::qc::consecutive::{ConsecutiveConfig, remove_short_regions};
 
     // Pattern: [good, good, bad, bad, good, good, good, good, good, bad]
     // With consecutive_bins=5, the first 2 good bins should be removed
     // Note: The algorithm only removes short regions that are NOT at edges
     let outlier_bins = vec![
-        false, false,  // 2 good bins at start (edge - may or may not be removed)
-        true, true,    // 2 bad bins
-        false, false, false, false, false,  // 5 good bins (should be kept)
-        true,          // 1 bad bin
+        false, false, // 2 good bins at start (edge - may or may not be removed)
+        true, true, // 2 bad bins
+        false, false, false, false, false, // 5 good bins (should be kept)
+        true,  // 1 bad bin
     ];
 
     let config = ConsecutiveConfig {
@@ -234,7 +261,7 @@ fn test_consecutive_bins_removes_short_regions() {
         !result[4] && !result[5] && !result[6] && !result[7] && !result[8],
         "Long good region (5 bins) should be kept"
     );
-    
+
     // Verify length is preserved
     assert_eq!(result.len(), outlier_bins.len(), "Should preserve length");
 }
@@ -247,7 +274,7 @@ fn test_spline_smoothing_reduces_noise() {
     // Create noisy data with underlying trend
     let x: Vec<f64> = (0..20).map(|i| i as f64).collect();
     let mut y: Vec<f64> = x.iter().map(|&xi| 100.0 + xi * 2.0).collect();
-    
+
     // Add noise
     for i in 0..20 {
         if i % 3 == 0 {
@@ -286,9 +313,21 @@ fn test_mad_edge_cases() {
 
     // Very small dataset
     let mut peaks = Vec::new();
-    peaks.push(PeakInfo { bin: 0, peak_value: 100.0, cluster: 1 });
-    peaks.push(PeakInfo { bin: 1, peak_value: 101.0, cluster: 1 });
-    peaks.push(PeakInfo { bin: 2, peak_value: 102.0, cluster: 1 });
+    peaks.push(PeakInfo {
+        bin: 0,
+        peak_value: 100.0,
+        cluster: 1,
+    });
+    peaks.push(PeakInfo {
+        bin: 1,
+        peak_value: 101.0,
+        cluster: 1,
+    });
+    peaks.push(PeakInfo {
+        bin: 2,
+        peak_value: 102.0,
+        cluster: 1,
+    });
 
     let mut peak_results = HashMap::new();
     peak_results.insert("FL1-A".to_string(), ChannelPeakFrame { peaks });
@@ -298,7 +337,10 @@ fn test_mad_edge_cases() {
 
     let result = mad_outlier_method(&peak_results, &existing_outliers, 3, &config);
     // Should handle small datasets (may succeed or fail gracefully)
-    assert!(result.is_ok() || result.is_err(), "MAD should handle small datasets gracefully");
+    assert!(
+        result.is_ok() || result.is_err(),
+        "MAD should handle small datasets gracefully"
+    );
 }
 
 /// Test that feature matrix handles empty clusters gracefully

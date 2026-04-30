@@ -52,7 +52,7 @@ pub fn build_feature_matrix_gpu(
     // Build matrix on GPU: bins × features
     // Initialize with zeros
     let mut matrix_data = vec![0.0f64; n_bins * n_features];
-    
+
     // Fill matrix column by column (one per cluster)
     for (feature_idx, (_, _, peaks_in_cluster)) in cluster_data.iter().enumerate() {
         // Calculate cluster median (default value) - use CPU for now

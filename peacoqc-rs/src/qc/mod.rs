@@ -13,8 +13,8 @@ pub mod plots;
 pub use consecutive::{ConsecutiveConfig, remove_short_regions};
 pub use doublets::{DoubletConfig, DoubletResult, remove_doublets};
 pub use export::{
-    export_csv_boolean, export_csv_boolean_from_mask, export_csv_numeric,
-    export_csv_numeric_from_mask, export_json_metadata, QCExportFormat, QCExportOptions,
+    QCExportFormat, QCExportOptions, export_csv_boolean, export_csv_boolean_from_mask,
+    export_csv_numeric, export_csv_numeric_from_mask, export_json_metadata,
 };
 pub use isolation_tree::{IsolationTreeConfig, IsolationTreeResult, isolation_tree_detect};
 pub use mad::{MADConfig, MADResult, mad_outlier_method};

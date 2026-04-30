@@ -9,7 +9,7 @@
 //! the QC plot and opens it (macOS: `open`, Linux: `xdg-open`).
 
 use peacoqc_rs::{
-    create_qc_plots, fcs::SimpleFcs, PeacoQCConfig, PeacoQCData, QCPlotConfig, QCMode,
+    PeacoQCConfig, PeacoQCData, QCMode, QCPlotConfig, create_qc_plots, fcs::SimpleFcs,
 };
 use polars::prelude::*;
 use std::collections::HashMap;
@@ -39,9 +39,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let n_good = qc_result.good_cells.iter().filter(|&&b| b).count();
     println!(
         "QC result: {} good, {} bad ({:.1}% removed)\n",
-        n_good,
-        n_bad,
-        qc_result.percentage_removed
+        n_good, n_bad, qc_result.percentage_removed
     );
 
     let out_path: PathBuf = env::var_os("CARGO_TARGET_DIR")
@@ -66,16 +64,15 @@ fn create_synthetic_data_with_unstable_region() -> Result<SimpleFcs, Box<dyn std
     let unstable_end = 14_000;
 
     // Time: monotonic, so events/sec is defined
-    let time: Vec<f64> = (0..n_events)
-        .map(|i| i as f64 * 0.01)
-        .collect();
+    let time: Vec<f64> = (0..n_events).map(|i| i as f64 * 0.01).collect();
 
     // FL1-A: stable baseline with a clear "bad" block (spike down then up)
     let mut fl1_a = Vec::with_capacity(n_events);
     for i in 0..n_events {
         let base = 2000.0 + rng.random::<f64>() * 500.0;
         let val = if i >= unstable_start && i < unstable_end {
-            base * (0.3 + 0.4 * ((i - unstable_start) as f64 / (unstable_end - unstable_start) as f64))
+            base * (0.3
+                + 0.4 * ((i - unstable_start) as f64 / (unstable_end - unstable_start) as f64))
         } else {
             base
         };
@@ -133,6 +130,10 @@ fn open_image(path: &std::path::Path) {
     if status.as_ref().map(|s| s.success()).unwrap_or(false) {
         println!("Opened image with {}", open_cmd);
     } else if let Err(e) = status {
-        println!("Could not open image: {}. View manually: {}", e, path.display());
+        println!(
+            "Could not open image: {}. View manually: {}",
+            e,
+            path.display()
+        );
     }
 }
