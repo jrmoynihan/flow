@@ -10,11 +10,16 @@ We've created a comparison framework to validate the Rust TRU-OLS implementation
 
 1. **`tru-ols-cli/examples/compare_with_julia.rs`** - Rust example that:
    - Loads FCS files and mixing matrix
-   - Runs Rust TRU-OLS
+   - Runs Rust TRU-OLS (timed: preprocessing, `TruOls::from_preprocessed` build, `unmix` — no duplicate preprocess inside `TruOls::new`)
    - Exports all data and results to CSV format
+   - Writes **`throughput_rust.json`** (wall seconds, events/s, CPU best-effort, `rustc -vV`, relevant thread env vars) and **`throughput_report.md`**
    - Generates a Julia script for comparison
 
 2. **`tru-ols-cli/examples/COMPARISON_README.md`** - Detailed usage instructions
+
+After **`julia compare_with_julia.jl`**, the output directory also contains **`throughput_julia.json`**, **`julia_blas_info.txt`** (full BLAS/runtime lines), and the same CSVs as before.
+
+For manual inspection in the Julia REPL (e.g. `BLAS.get_config()`, `@code_native`), see [julia-and-blas-on-macos.md](julia-and-blas-on-macos.md).
 
 ## Key Algorithm Comparisons
 
@@ -57,9 +62,33 @@ We've created a comparison framework to validate the Rust TRU-OLS implementation
 ## Numerical Differences Expected
 
 Small differences (< 1e-6) are expected due to:
-1. **Different BLAS/LAPACK implementations**: Rust uses OpenBLAS, Julia may use MKL or OpenBLAS
+1. **Different linear algebra stacks**: Default `flow-tru-ols` uses **faer** (pure Rust). Optional **`blas`** feature uses OpenBLAS-backed paths where applicable. Julia typically uses **libblastrampoline** with a BLAS/LAPACK of your install (OpenBLAS, MKL, Apple Accelerate, etc.).
 2. **Floating-point rounding**: Different order of operations can cause small differences
 3. **Least squares implementation**: Normal equations vs QR decomposition (both valid)
+
+## Throughput and environment
+
+The example records **wall-clock** times and **events/s** so you can compare Rust and Julia on the same exported inputs.
+
+| Artifact | Contents |
+| -------- | -------- |
+| `throughput_rust.json` | Rust: seconds per phase (`preprocess`, `tru_ols_build_from_preprocessed`, `unmix`), throughput, event counts, `rustc -vV`, best-effort CPU string (macOS/Linux), `RAYON_NUM_THREADS` / `OMP_NUM_THREADS` / BLAS-related env if set |
+| `throughput_julia.json` | Julia: `@elapsed` sections (`mean_unmix`, baseline adjust, `TRU_OLS`, optional `create_complete_dataframe`), throughput, `blas_vendor`, pointer to detail file |
+| `julia_blas_info.txt` | Lines such as `BLAS.get_config()`, thread getter when available, `Sys.CPU_NAME`, `VERSION` |
+| `throughput_report.md` | Short checklist for fair comparisons and embedded Rust JSON summary |
+
+**Recording the machine and BLAS for published numbers**
+
+1. Note **hardware** (CPU model, RAM) and **OS**; `throughput_rust.json` → `environment.cpu` is a hint (e.g. sysctl / `/proc/cpuinfo`).
+2. **Rust**: default build is **faer**; if you enable `flow-tru-ols`’s `blas` feature, record that and your OpenBLAS/MKL setup.
+3. **Julia**: use **`julia_blas_info.txt`** and `throughput_julia.json` → `blas_vendor`; run `versioninfo()` in the same session if you need more (optional manual note).
+4. For apples-to-apples threading, align **`RAYON_NUM_THREADS`**, **`JULIA_NUM_THREADS`**, and BLAS thread variables (**`OPENBLAS_NUM_THREADS`**, **`MKL_NUM_THREADS`**, **`VECLIB_MAXIMUM_THREADS`**, etc.) across both runs on the **same** output directory.
+
+**Mapping phases (approximate)**
+
+- Rust **`preprocess`** ≈ Julia **`mean_unmix`** (both drive cutoffs / abundances used downstream; not identical line-by-line).
+- Rust **`unmix`** ≈ Julia **`TRU_OLS`** on adjusted stained data.
+- Rust **`preprocess_plus_new_plus_unmix`** ≈ Julia **`pipeline_comparable`** (`mean_unmix` + baseline/adjust + `TRU_OLS`). The Julia script also times **`create_complete_dataframe`** separately (extra work used only to fill the export dataframe).
 
 ## Running the Comparison
 
@@ -86,12 +115,14 @@ cd comparison_output
 julia compare_with_julia.jl
 ```
 
-### Step 3: Compare Results
+### Step 3: Compare Results and Throughput
 
 Compare the CSV files:
 - `rust_cutoffs.csv` vs `julia_cutoffs.csv`
 - `rust_nonspecific.csv` vs `julia_nonspecific.csv`
 - `rust_unmixed.csv` vs `julia_unmixed.csv`
+
+Compare timing sidecars: **`throughput_rust.json`** vs **`throughput_julia.json`**, and align environment notes using **`throughput_report.md`** and **`julia_blas_info.txt`**.
 
 ## Validation Status
 

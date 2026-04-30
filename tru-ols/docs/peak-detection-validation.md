@@ -6,11 +6,13 @@
 ## 1. Implementation Summary
 
 ### Change Made
+
 - **File:** `tru-ols-cli/src/commands.rs`
 - **Line:** 1727
 - **Change:** `peak_detection: false` → `peak_detection: true`
 
 ### Algorithm: `calculate_peak_based_median()`
+
 - Uses KDE (Kernel Density Estimation) to identify populations in each detector
 - Finds the **HIGHEST intensity peak** (brightest signal)
 - Extracts events within that peak region (within 2 MAD of peak center)
@@ -22,6 +24,7 @@
 **Result:** 3/12 correct, 9/12 assigned to V7-A
 
 ### Failures:
+
 - ✗ PD-1 RB705        → V7-A   (should be B10-A/Red)
 - ✗ TIM3 RY775        → V7-A   (should be YG9-A/YG)
 - ✗ CD56 R718         → V7-A   (should be R4-A/Red)
@@ -33,6 +36,7 @@
 - ✗ CD8 RB545         → V7-A   (should be B3-A/Red)
 
 ### Root Cause
+
 - Debris/non-debris contamination in control files
 - Unfiltered controls contained debris particles with high V7-A signal
 - Peak detection correctly found the highest peak (which was contamination)
@@ -42,6 +46,7 @@
 **Result:** 12/12 PERFECT (100%)
 
 ### Successes:
+
 - ✓ PD-1 RB705        → B10-A    (Red laser - CORRECT)
 - ✓ TIM3 RY775        → YG9-A    (YG laser - CORRECT)
 - ✓ CD56 R718         → R4-A     (Red laser - CORRECT)
@@ -58,21 +63,25 @@
 ## 4. Key Findings
 
 ### 1. Peak Detection is Working Correctly
+
 - Algorithm correctly identifies highest intensity peaks in each channel
 - Properly handles multi-population events
 - Returns accurate median of target population
 
 ### 2. Data Quality is Critical
+
 - Unfiltered controls contained debris with aberrant high signals
 - Peak detection correctly selected the highest peak
 - When data is clean (debris filtered), peak detection selects correct channel
 
 ### 3. Impact of Filtering
+
 - Filtering removes debris/non-debris events
 - Leaves only the true positive population
 - Peak detection then correctly identifies signal in proper laser channel
 
 ### 4. B9/B10 Identification for RB705 Dyes
+
 - **Before:** Incorrectly assigned to V7-A (contaminated)
 - **After:** Correctly assigned to B10-A (proper red laser)
 - This validates the spectral properties of RB705 fluorophore
@@ -94,16 +103,19 @@ The algorithm works as designed:
 ## 6. Recommendations
 
 ### 1. Always Filter Controls Before Unmixing
+
 - Remove debris, doublets, dead cells
 - Use automated gating or manual filtering
 - Ensures clean population for analysis
 
 ### 2. Validate With Known Fluorophores
+
 - RB705 should peak in Red/B laser (**B10 confirmed** ✓)
 - BUV dyes should peak in UV/V laser (**confirmed** ✓)
 - FITC should peak in Blue laser (**B2 confirmed** ✓)
 
 ### 3. Peak Detection is Production-Ready
+
 - Now enabled by default in `SingleStainConfig`
 - Works perfectly on clean data
 - Handles multi-population controls correctly

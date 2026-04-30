@@ -8,7 +8,7 @@ use crate::error::TruOlsError;
 #[cfg(feature = "flow-fcs")]
 use crate::unmixing::{TruOls, UnmixingStrategy};
 #[cfg(feature = "flow-fcs")]
-use faer::Mat;
+use faer::{Col, Mat};
 #[cfg(feature = "flow-fcs")]
 use flow_fcs::Fcs;
 #[cfg(feature = "flow-fcs")]
@@ -84,6 +84,593 @@ fn short_name_from_endmember_stem(stem: &str) -> String {
     }
 }
 
+#[cfg(feature = "flow-fcs")]
+#[allow(clippy::too_many_arguments)]
+fn build_unmixed_fcs_from_unmixed_abundances(
+    stained_fcs: &Fcs,
+    unmixed_abundances: &Mat<f64>,
+    endmember_names: &[&str],
+    autofluorescence_name: &str,
+    endmember_to_detector: &std::collections::HashMap<&str, &str>,
+    primary_detector_names: &[Option<String>],
+    primary_detector_pn_names: &[Option<String>],
+    primary_detector_pn_labels: &[Option<String>],
+    selected_marker_names: &[Option<String>],
+    selected_fluor_names: &[Option<String>],
+) -> Result<Fcs, TruOlsError> {
+    use flow_fcs::keyword::Keyword;
+    use polars::prelude::Column;
+    use std::sync::Arc;
+
+    // Create a new FCS struct with fresh parameters
+    let mut output_fcs = stained_fcs.clone();
+
+    // Helper function to identify scatter/time parameters
+    fn is_scatter_or_time_param(name: &str) -> bool {
+        let upper = name.to_uppercase();
+        upper.contains("FSC")
+            || upper.contains("SSC")
+            || upper.contains("TIME")
+            || upper.contains("TIME ")
+    }
+
+    // Step 1: Preserve scatter/time parameters from original
+    let mut scatter_time_params: Vec<String> = Vec::new();
+    let mut scatter_time_columns: Vec<polars::prelude::Column> = Vec::new();
+
+    for param_name in stained_fcs.get_parameter_names_from_dataframe() {
+        if is_scatter_or_time_param(&param_name) {
+            scatter_time_params.push(param_name.clone());
+
+            // Get the column data
+            if let Ok(values) = stained_fcs.get_parameter_events_slice(&param_name) {
+                let column =
+                    polars::prelude::Column::new(param_name.clone().into(), values.to_vec());
+                scatter_time_columns.push(column);
+            }
+        }
+    }
+
+    // Clear parameters and rebuild with only scatter/time
+    output_fcs.parameters.clear();
+
+    // Also clear old parameter keywords to rebuild them
+    output_fcs
+        .metadata
+        .keywords
+        .retain(|k, _| !k.starts_with("$P"));
+
+    // Re-add scatter/time parameters
+    let mut param_num = 1;
+    for scatter_param_name in &scatter_time_params {
+        if let Some(orig_param) = stained_fcs.parameters.get(scatter_param_name.as_str()) {
+            // Add the parameter
+            output_fcs
+                .parameters
+                .insert(scatter_param_name.clone().into(), orig_param.clone());
+
+            // Also ensure FCS keywords for this parameter are preserved
+            use flow_fcs::keyword::{IntegerKeyword, MixedKeyword, StringKeyword};
+
+            output_fcs.metadata.keywords.insert(
+                format!("$P{}N", param_num),
+                Keyword::String(StringKeyword::PnN(Arc::from(
+                    orig_param.channel_name.as_ref().to_string(),
+                ))),
+            );
+
+            output_fcs.metadata.keywords.insert(
+                format!("$P{}S", param_num),
+                Keyword::String(StringKeyword::PnS(Arc::from(""))),
+            );
+
+            output_fcs.metadata.keywords.insert(
+                format!("$P{}B", param_num),
+                Keyword::Int(IntegerKeyword::PnB(32)),
+            );
+
+            output_fcs.metadata.keywords.insert(
+                format!("$P{}R", param_num),
+                Keyword::Int(IntegerKeyword::PnR(262144)),
+            );
+
+            output_fcs.metadata.keywords.insert(
+                format!("$P{}E", param_num),
+                Keyword::Mixed(MixedKeyword::PnE(0.0, 0.0)),
+            );
+
+            param_num += 1;
+        }
+    }
+
+    // Step 2: Build unmixed columns
+    let scatter_time_count = scatter_time_columns.len();
+    let mut result_df_columns: Vec<polars::prelude::Column> = scatter_time_columns;
+    let starting_param_num = param_num;
+
+    // Add unmixed endmember columns
+    let n_events = unmixed_abundances.nrows();
+
+    // Process fluorophore endmembers (skip autofluorescence)
+    for (endmember_idx, &endmember_name) in endmember_names.iter().enumerate() {
+        // Skip autofluorescence for now - handle separately at the end
+        if endmember_name == autofluorescence_name {
+            continue;
+        }
+
+        // Extract column from unmixed abundances and convert to f32
+        let f64_values: Vec<f64> = (0..n_events)
+            .map(|event_idx| unmixed_abundances[(event_idx, endmember_idx)])
+            .collect();
+
+        // Convert to f32 and clamp to non-negative to avoid large negative display from overextraction
+        let f32_values: Vec<f32> = f64_values.iter().map(|&x| (x as f32).max(0.0)).collect();
+
+        // Determine naming and labels for this unmixed column
+        // Look up which detector this endmember maps to in the stained file
+        let original_detector = endmember_to_detector.get(endmember_name);
+
+        // Extract fully-stained parameter metadata if available
+        let mut fs_pn: Option<String> = None;
+        let mut fs_ps: Option<String> = None;
+        if let Some(det_name) = original_detector {
+            if let Some(param) = stained_fcs.parameters.get(&Arc::from(*det_name)) {
+                if !param.channel_name.is_empty() {
+                    fs_pn = Some(param.channel_name.to_string());
+                }
+                if !param.label_name.is_empty() {
+                    fs_ps = Some(param.label_name.to_string());
+                }
+            }
+        }
+
+        let control_pn = primary_detector_pn_names
+            .get(endmember_idx)
+            .and_then(|o| o.clone());
+        let control_ps = primary_detector_pn_labels
+            .get(endmember_idx)
+            .and_then(|o| o.clone());
+
+        // Get primary detector name from controls
+        let primary_detector_name = primary_detector_names
+            .get(endmember_idx)
+            .and_then(|o| o.clone());
+
+        let detector_id = original_detector
+            .map(|s| s.to_string())
+            .unwrap_or_else(|| endmember_name.to_string());
+        // Use the user-selected marker name if available, otherwise fall back to extraction
+        let endmember_short_name = selected_marker_names
+            .get(endmember_idx)
+            .and_then(|opt| opt.clone())
+            .unwrap_or_else(|| {
+                if endmember_name.contains("Autofluorescence")
+                    || endmember_name.eq("Autofluorescence")
+                {
+                    "Autofluorescence".to_string()
+                } else {
+                    short_name_from_endmember_stem(endmember_name)
+                }
+            }); // Robust precedence for unmixed column naming:
+        // 1) User-selected marker name from interactive prompt (most explicit from user)
+        // 2) Extracted endmember marker name (from filename - most robust and unique)
+        // 3) Control file's $PnS (parameter label/short label) - from FCS metadata but can have duplicates
+        // 4) Control file's $PnN (parameter name) - from FCS metadata but can have duplicates
+        // 5) Primary detector identifier (e.g., "V7-A", "R4-A")
+        // 6) Fully-stained file's $PnN (if exists)
+        // 7) Fully-stained file's $PnS (if exists)
+        // 8) Detector ID from stained file
+        // 9) Endmember name
+        //
+        // Rationale: We prioritize the user-selected marker name because:
+        // - User has explicitly confirmed it's correct
+        // - It's unique (each control file represents a different marker/fluorophore)
+        // - It's human-readable (CD4, CD19, HLA-DR_DQ, etc.)
+        // - It doesn't depend on detector mapping (multiple markers can use the same detector)
+        // FCS metadata is used as fallback when no user selection was made
+
+        let chosen_pn = Some(endmember_short_name.clone())
+            .filter(|n| n != "Autofluorescence" && !n.is_empty() && n.len() > 2)
+            .or_else(|| control_ps.clone())
+            .or_else(|| control_pn.clone())
+            .or_else(|| primary_detector_name.clone())
+            .or(fs_pn.clone())
+            .or(fs_ps.clone())
+            .unwrap_or(detector_id.clone());
+
+        // Choose $PnS (label) with same precedence
+        let chosen_ps = Some(endmember_short_name.clone())
+            .filter(|n| n != "Autofluorescence" && !n.is_empty() && n.len() > 2)
+            .or_else(|| control_ps.clone())
+            .or_else(|| control_pn.clone())
+            .or_else(|| primary_detector_name.clone())
+            .or(fs_pn.clone())
+            .or(fs_ps.clone())
+            .unwrap_or(detector_id.clone());
+
+        // Final unmixed column name keeps the Unmixed_ prefix
+        let unmixed_col_name = format!("Unmixed_{}", chosen_pn);
+        let column = Column::new(unmixed_col_name.clone().into(), f32_values.clone());
+
+        // Collect column for DataFrame creation
+        result_df_columns.push(column);
+
+        // Add parameter metadata for this new column
+        use flow_fcs::{Parameter, TransformType};
+        let param_num = starting_param_num + result_df_columns.len() - scatter_time_count - 1;
+
+        let param = Parameter::new(
+            &param_num,
+            &unmixed_col_name,
+            &chosen_ps,
+            &TransformType::Linear,
+        );
+        output_fcs
+            .parameters
+            .insert(unmixed_col_name.clone().into(), param);
+
+        // Add FCS TEXT segment keywords for this parameter
+        use flow_fcs::keyword::{IntegerKeyword, MixedKeyword, StringKeyword};
+
+        // Get the original detector name and its label for this endmember
+        let original_detector = endmember_to_detector.get(endmember_name);
+
+        // Decide on the short label ($PnS) to use for this unmixed parameter:
+        // 1. Prefer user-selected fluor/dye name from interactive prompt (most explicit from user)
+        // 2. Otherwise use marker/dye label from the control file's $PnS (e.g., "RB705", "FITC")
+        // 3. Otherwise use the original stained file's parameter label
+        // 4. Otherwise fall back to the endmember name or detector ID
+        // This ensures $PnS reflects the marker/dye, not the detector hardware name.
+        let marker_label = selected_fluor_names
+            .get(endmember_idx)
+            .and_then(|opt| opt.clone())
+            .or_else(|| control_ps.clone())
+            .or_else(|| {
+                original_detector.and_then(|det_name| {
+                    stained_fcs
+                        .parameters
+                        .get(&Arc::from(*det_name))
+                        .and_then(|param| {
+                            if !param.label_name.is_empty() {
+                                Some(param.label_name.as_ref().to_string())
+                            } else {
+                                None
+                            }
+                        })
+                })
+            })
+            .unwrap_or_else(|| endmember_name.to_string());
+
+        // $P{i}N - Parameter name: use "Unmixed_" + fluorophore name, fall back to detector ID
+        // Prefer the fluorophore name extracted from endmember filename (e.g., "CD56", "TIM3")
+        // over detector name (e.g., "B10-A")
+        let pn_name = format!(
+            "Unmixed_{}",
+            Some(endmember_short_name.clone())
+                .filter(|n| n != "Autofluorescence" && !n.is_empty() && n.len() > 2)
+                .unwrap_or_else(|| detector_id.clone())
+        );
+        output_fcs.metadata.keywords.insert(
+            format!("$P{}N", param_num),
+            Keyword::String(StringKeyword::PnN(Arc::from(pn_name))),
+        );
+
+        // $P{i}S - Parameter short name (use marker/dye label from control file)
+        output_fcs.metadata.keywords.insert(
+            format!("$P{}S", param_num),
+            Keyword::String(StringKeyword::PnS(Arc::from(marker_label))),
+        );
+
+        // $P{i}B - Bits per parameter (32 for float32)
+        output_fcs.metadata.keywords.insert(
+            format!("$P{}B", param_num),
+            Keyword::Int(IntegerKeyword::PnB(32)),
+        );
+
+        // $P{i}R - Range (max value, use large value for abundances)
+        output_fcs.metadata.keywords.insert(
+            format!("$P{}R", param_num),
+            Keyword::Int(IntegerKeyword::PnR(262144)),
+        );
+
+        // $P{i}E - Amplification (0,0 for linear)
+        output_fcs.metadata.keywords.insert(
+            format!("$P{}E", param_num),
+            Keyword::Mixed(MixedKeyword::PnE(0.0, 0.0)),
+        );
+    }
+
+    // Step 3: Create synthetic autofluorescence channel
+    if let Some(af_idx) = endmember_names
+        .iter()
+        .position(|&name| name == autofluorescence_name)
+    {
+        let f64_values: Vec<f64> = (0..n_events)
+            .map(|event_idx| unmixed_abundances[(event_idx, af_idx)])
+            .collect();
+        let f32_values: Vec<f32> = f64_values.iter().map(|&x| (x as f32).max(0.0)).collect();
+
+        let af_column_name = "Unmixed_Autofluorescence";
+        let column = Column::new(af_column_name.into(), f32_values);
+        result_df_columns.push(column);
+
+        // Add parameter metadata for autofluorescence
+        use flow_fcs::{Parameter, TransformType};
+        let param_num = starting_param_num + result_df_columns.len() - scatter_time_count - 1;
+        let param = Parameter::new(
+            &param_num,
+            af_column_name,
+            af_column_name,
+            &TransformType::Linear,
+        );
+        output_fcs.parameters.insert(af_column_name.into(), param);
+
+        // Add FCS keywords for autofluorescence
+        use flow_fcs::keyword::{IntegerKeyword, MixedKeyword, StringKeyword};
+        output_fcs.metadata.keywords.insert(
+            format!("$P{}N", param_num),
+            Keyword::String(StringKeyword::PnN(Arc::from(af_column_name))),
+        );
+
+        // Leave $PnS blank for autofluorescence
+        output_fcs.metadata.keywords.insert(
+            format!("$P{}S", param_num),
+            Keyword::String(StringKeyword::PnS(Arc::from(""))),
+        );
+
+        output_fcs.metadata.keywords.insert(
+            format!("$P{}B", param_num),
+            Keyword::Int(IntegerKeyword::PnB(32)),
+        );
+
+        output_fcs.metadata.keywords.insert(
+            format!("$P{}R", param_num),
+            Keyword::Int(IntegerKeyword::PnR(262144)),
+        );
+
+        output_fcs.metadata.keywords.insert(
+            format!("$P{}E", param_num),
+            Keyword::Mixed(MixedKeyword::PnE(0.0, 0.0)),
+        );
+    }
+
+    // Create new DataFrame from unmixed columns only (not the original detectors)
+    let result_df = polars::frame::DataFrame::new_infer_height(result_df_columns).map_err(|e| {
+        TruOlsError::InsufficientData(format!(
+            "Failed to create DataFrame from unmixed columns: {}",
+            e
+        ))
+    })?;
+
+    // Update the DataFrame in the output FCS
+    output_fcs.data_frame = Arc::new(result_df);
+
+    // Update $PAR to reflect new parameter count
+    let new_param_count = output_fcs.parameters.len();
+    output_fcs.metadata.keywords.insert(
+        "$PAR".to_string(),
+        Keyword::Int(flow_fcs::keyword::IntegerKeyword::PAR(new_param_count)),
+    );
+
+    Ok(output_fcs)
+}
+
+#[cfg(feature = "flow-fcs")]
+enum UnmixMode {
+    Fresh,
+    Preprocessed {
+        cutoffs: Col<f64>,
+        nonspecific: Col<f64>,
+    },
+    #[cfg(feature = "unmix-cache")]
+    PreprocessedShared {
+        cutoffs: Col<f64>,
+        nonspecific: Col<f64>,
+        factor_cache: crate::unmixing::SharedMaskFactorCache,
+    },
+}
+
+#[cfg(feature = "flow-fcs")]
+#[allow(clippy::too_many_arguments)]
+fn tru_ols_unmix_fcs_impl(
+    stained: &Fcs,
+    unstained_control: &Fcs,
+    mixing_matrix: Mat<f64>,
+    detector_names: &[&str],
+    endmember_names: &[&str],
+    autofluorescence_name: &str,
+    strategy: Option<UnmixingStrategy>,
+    primary_detector_names: &[Option<String>],
+    primary_detector_pn_names: &[Option<String>],
+    primary_detector_pn_labels: &[Option<String>],
+    selected_marker_names: &[Option<String>],
+    selected_fluor_names: &[Option<String>],
+    mode: UnmixMode,
+) -> Result<Fcs, TruOlsError> {
+    let endmember_to_detector: std::collections::HashMap<&str, &str> = endmember_names
+        .iter()
+        .zip(detector_names.iter())
+        .map(|(&em, &det)| (em, det))
+        .collect();
+
+    let n_detectors = mixing_matrix.nrows();
+    let n_endmembers = mixing_matrix.ncols();
+
+    if detector_names.len() != n_detectors {
+        return Err(TruOlsError::DimensionMismatch {
+            expected: n_detectors,
+            actual: detector_names.len(),
+        });
+    }
+
+    if endmember_names.len() != n_endmembers {
+        return Err(TruOlsError::DimensionMismatch {
+            expected: n_endmembers,
+            actual: endmember_names.len(),
+        });
+    }
+
+    let autofluorescence_idx = endmember_names
+        .iter()
+        .position(|&name| name == autofluorescence_name)
+        .ok_or_else(|| {
+            TruOlsError::InsufficientData(format!(
+                "Autofluorescence endmember '{}' not found in endmember names",
+                autofluorescence_name
+            ))
+        })?;
+
+    if !primary_detector_pn_names.is_empty()
+        && primary_detector_pn_names.len() != endmember_names.len()
+    {
+        return Err(TruOlsError::InsufficientData(format!(
+            "primary_detector_pn_names length ({}) does not match endmember count ({})",
+            primary_detector_pn_names.len(),
+            endmember_names.len()
+        )));
+    }
+
+    if !primary_detector_pn_labels.is_empty()
+        && primary_detector_pn_labels.len() != endmember_names.len()
+    {
+        return Err(TruOlsError::InsufficientData(format!(
+            "primary_detector_pn_labels length ({}) does not match endmember count ({})",
+            primary_detector_pn_labels.len(),
+            endmember_names.len()
+        )));
+    }
+
+    let stained_data = extract_detector_data(stained, detector_names)?;
+    let unstained_data = extract_detector_data(unstained_control, detector_names)?;
+
+    let mut tru_ols = match mode {
+        UnmixMode::Fresh => TruOls::new(mixing_matrix, unstained_data, autofluorescence_idx)?,
+        UnmixMode::Preprocessed {
+            cutoffs,
+            nonspecific,
+        } => TruOls::from_preprocessed(
+            mixing_matrix,
+            unstained_data,
+            cutoffs,
+            nonspecific,
+            autofluorescence_idx,
+        )?,
+        #[cfg(feature = "unmix-cache")]
+        UnmixMode::PreprocessedShared {
+            cutoffs,
+            nonspecific,
+            factor_cache,
+        } => TruOls::from_preprocessed_with_factor_cache(
+            mixing_matrix,
+            unstained_data,
+            cutoffs,
+            nonspecific,
+            autofluorescence_idx,
+            factor_cache,
+        )?,
+    };
+
+    if let Some(s) = strategy {
+        tru_ols.set_strategy(s);
+    }
+
+    let unmixed_abundances = tru_ols.unmix(stained_data.as_ref())?;
+
+    build_unmixed_fcs_from_unmixed_abundances(
+        stained,
+        &unmixed_abundances,
+        endmember_names,
+        autofluorescence_name,
+        &endmember_to_detector,
+        primary_detector_names,
+        primary_detector_pn_names,
+        primary_detector_pn_labels,
+        selected_marker_names,
+        selected_fluor_names,
+    )
+}
+
+/// Batch path: reuse precomputed cutoffs and nonspecific observation (full panel), with per-file
+/// filtered mixing matrix and unstained columns.
+#[cfg(feature = "flow-fcs")]
+#[allow(clippy::too_many_arguments)]
+pub fn apply_tru_ols_unmixing_from_preprocessed(
+    stained: &Fcs,
+    unstained_control: &Fcs,
+    mixing_matrix: Mat<f64>,
+    detector_names: &[&str],
+    endmember_names: &[&str],
+    autofluorescence_name: &str,
+    strategy: Option<UnmixingStrategy>,
+    cutoffs: Col<f64>,
+    nonspecific_observation: Col<f64>,
+    primary_detector_names: &[Option<String>],
+    primary_detector_pn_names: &[Option<String>],
+    primary_detector_pn_labels: &[Option<String>],
+    selected_marker_names: &[Option<String>],
+    selected_fluor_names: &[Option<String>],
+) -> Result<Fcs, TruOlsError> {
+    tru_ols_unmix_fcs_impl(
+        stained,
+        unstained_control,
+        mixing_matrix,
+        detector_names,
+        endmember_names,
+        autofluorescence_name,
+        strategy,
+        primary_detector_names,
+        primary_detector_pn_names,
+        primary_detector_pn_labels,
+        selected_marker_names,
+        selected_fluor_names,
+        UnmixMode::Preprocessed {
+            cutoffs,
+            nonspecific: nonspecific_observation,
+        },
+    )
+}
+
+/// Same as [`apply_tru_ols_unmixing_from_preprocessed`], but shares one mask-factor cache across files.
+#[cfg(all(feature = "flow-fcs", feature = "unmix-cache"))]
+#[allow(clippy::too_many_arguments)]
+pub fn apply_tru_ols_unmixing_from_preprocessed_with_shared_factor_cache(
+    stained: &Fcs,
+    unstained_control: &Fcs,
+    mixing_matrix: Mat<f64>,
+    detector_names: &[&str],
+    endmember_names: &[&str],
+    autofluorescence_name: &str,
+    strategy: Option<UnmixingStrategy>,
+    cutoffs: Col<f64>,
+    nonspecific_observation: Col<f64>,
+    factor_cache: crate::unmixing::SharedMaskFactorCache,
+    primary_detector_names: &[Option<String>],
+    primary_detector_pn_names: &[Option<String>],
+    primary_detector_pn_labels: &[Option<String>],
+    selected_marker_names: &[Option<String>],
+    selected_fluor_names: &[Option<String>],
+) -> Result<Fcs, TruOlsError> {
+    tru_ols_unmix_fcs_impl(
+        stained,
+        unstained_control,
+        mixing_matrix,
+        detector_names,
+        endmember_names,
+        autofluorescence_name,
+        strategy,
+        primary_detector_names,
+        primary_detector_pn_names,
+        primary_detector_pn_labels,
+        selected_marker_names,
+        selected_fluor_names,
+        UnmixMode::PreprocessedShared {
+            cutoffs,
+            nonspecific: nonspecific_observation,
+            factor_cache,
+        },
+    )
+}
+
 /// Extension trait for Fcs to enable TRU-OLS unmixing.
 #[cfg(feature = "flow-fcs")]
 pub trait TruOlsUnmixing {
@@ -144,438 +731,21 @@ impl TruOlsUnmixing for Fcs {
         selected_marker_names: &[Option<String>],
         selected_fluor_names: &[Option<String>],
     ) -> Result<Fcs, TruOlsError> {
-        // Create a mapping from endmember names to detector names
-        // This helps us retrieve the original channel label for each endmember
-        let endmember_to_detector: std::collections::HashMap<&str, &str> = endmember_names
-            .iter()
-            .zip(detector_names.iter())
-            .map(|(&em, &det)| (em, det))
-            .collect();
-        use flow_fcs::keyword::Keyword;
-        use polars::prelude::Column;
-        use std::sync::Arc;
-
-        // Validate dimensions
-        let n_detectors = mixing_matrix.nrows();
-        let n_endmembers = mixing_matrix.ncols();
-
-        if detector_names.len() != n_detectors {
-            return Err(TruOlsError::DimensionMismatch {
-                expected: n_detectors,
-                actual: detector_names.len(),
-            });
-        }
-
-        if endmember_names.len() != n_endmembers {
-            return Err(TruOlsError::DimensionMismatch {
-                expected: n_endmembers,
-                actual: endmember_names.len(),
-            });
-        }
-
-        // Find autofluorescence index
-        let autofluorescence_idx = endmember_names
-            .iter()
-            .position(|&name| name == autofluorescence_name)
-            .ok_or_else(|| {
-                TruOlsError::InsufficientData(format!(
-                    "Autofluorescence endmember '{}' not found in endmember names",
-                    autofluorescence_name
-                ))
-            })?;
-
-        // Validate primary detector metadata vectors length (if provided)
-        if !primary_detector_pn_names.is_empty()
-            && primary_detector_pn_names.len() != endmember_names.len()
-        {
-            return Err(TruOlsError::InsufficientData(format!(
-                "primary_detector_pn_names length ({}) does not match endmember count ({})",
-                primary_detector_pn_names.len(),
-                endmember_names.len()
-            )));
-        }
-
-        if !primary_detector_pn_labels.is_empty()
-            && primary_detector_pn_labels.len() != endmember_names.len()
-        {
-            return Err(TruOlsError::InsufficientData(format!(
-                "primary_detector_pn_labels length ({}) does not match endmember count ({})",
-                primary_detector_pn_labels.len(),
-                endmember_names.len()
-            )));
-        }
-
-        // Extract detector data from both files
-        let stained_data = extract_detector_data(self, detector_names)?;
-        let unstained_data = extract_detector_data(unstained_control, detector_names)?;
-
-        // Create TRU-OLS instance
-        let mut tru_ols = TruOls::new(mixing_matrix, unstained_data, autofluorescence_idx)?;
-
-        // Set strategy if provided
-        if let Some(s) = strategy {
-            tru_ols.set_strategy(s);
-        }
-
-        // Perform unmixing
-        let unmixed_abundances = tru_ols.unmix(stained_data.as_ref())?;
-
-        // Create a new FCS struct with fresh parameters
-        let mut output_fcs = self.clone();
-
-        // Helper function to identify scatter/time parameters
-        fn is_scatter_or_time_param(name: &str) -> bool {
-            let upper = name.to_uppercase();
-            upper.contains("FSC")
-                || upper.contains("SSC")
-                || upper.contains("TIME")
-                || upper.contains("TIME ")
-        }
-
-        // Step 1: Preserve scatter/time parameters from original
-        let mut scatter_time_params: Vec<String> = Vec::new();
-        let mut scatter_time_columns: Vec<polars::prelude::Column> = Vec::new();
-
-        for param_name in self.get_parameter_names_from_dataframe() {
-            if is_scatter_or_time_param(&param_name) {
-                scatter_time_params.push(param_name.clone());
-
-                // Get the column data
-                if let Ok(values) = self.get_parameter_events_slice(&param_name) {
-                    let column =
-                        polars::prelude::Column::new(param_name.clone().into(), values.to_vec());
-                    scatter_time_columns.push(column);
-                }
-            }
-        }
-
-        // Clear parameters and rebuild with only scatter/time
-        output_fcs.parameters.clear();
-
-        // Also clear old parameter keywords to rebuild them
-        output_fcs
-            .metadata
-            .keywords
-            .retain(|k, _| !k.starts_with("$P"));
-
-        // Re-add scatter/time parameters
-        let mut param_num = 1;
-        for scatter_param_name in &scatter_time_params {
-            if let Some(orig_param) = self.parameters.get(scatter_param_name.as_str()) {
-                // Add the parameter
-                output_fcs
-                    .parameters
-                    .insert(scatter_param_name.clone().into(), orig_param.clone());
-
-                // Also ensure FCS keywords for this parameter are preserved
-                use flow_fcs::keyword::{IntegerKeyword, MixedKeyword, StringKeyword};
-
-                output_fcs.metadata.keywords.insert(
-                    format!("$P{}N", param_num),
-                    Keyword::String(StringKeyword::PnN(Arc::from(
-                        orig_param.channel_name.as_ref().to_string(),
-                    ))),
-                );
-
-                output_fcs.metadata.keywords.insert(
-                    format!("$P{}S", param_num),
-                    Keyword::String(StringKeyword::PnS(Arc::from(""))),
-                );
-
-                output_fcs.metadata.keywords.insert(
-                    format!("$P{}B", param_num),
-                    Keyword::Int(IntegerKeyword::PnB(32)),
-                );
-
-                output_fcs.metadata.keywords.insert(
-                    format!("$P{}R", param_num),
-                    Keyword::Int(IntegerKeyword::PnR(262144)),
-                );
-
-                output_fcs.metadata.keywords.insert(
-                    format!("$P{}E", param_num),
-                    Keyword::Mixed(MixedKeyword::PnE(0.0, 0.0)),
-                );
-
-                param_num += 1;
-            }
-        }
-
-        // Step 2: Build unmixed columns
-        let scatter_time_count = scatter_time_columns.len();
-        let mut result_df_columns: Vec<polars::prelude::Column> = scatter_time_columns;
-        let starting_param_num = param_num;
-
-        // Add unmixed endmember columns
-        let n_events = unmixed_abundances.nrows();
-
-        // Process fluorophore endmembers (skip autofluorescence)
-        for (endmember_idx, &endmember_name) in endmember_names.iter().enumerate() {
-            // Skip autofluorescence for now - handle separately at the end
-            if endmember_name == autofluorescence_name {
-                continue;
-            }
-
-            // Extract column from unmixed abundances and convert to f32
-            let f64_values: Vec<f64> = (0..n_events)
-                .map(|event_idx| unmixed_abundances[(event_idx, endmember_idx)])
-                .collect();
-
-            // Convert to f32 and clamp to non-negative to avoid large negative display from overextraction
-            let f32_values: Vec<f32> = f64_values
-                .iter()
-                .map(|&x| (x as f32).max(0.0))
-                .collect();
-
-            // Determine naming and labels for this unmixed column
-            // Look up which detector this endmember maps to in the stained file
-            let original_detector = endmember_to_detector.get(endmember_name);
-
-            // Extract fully-stained parameter metadata if available
-            let mut fs_pn: Option<String> = None;
-            let mut fs_ps: Option<String> = None;
-            if let Some(det_name) = original_detector {
-                if let Some(param) = self.parameters.get(&Arc::from(*det_name)) {
-                    if !param.channel_name.is_empty() {
-                        fs_pn = Some(param.channel_name.to_string());
-                    }
-                    if !param.label_name.is_empty() {
-                        fs_ps = Some(param.label_name.to_string());
-                    }
-                }
-            }
-
-            let control_pn = primary_detector_pn_names
-                .get(endmember_idx)
-                .and_then(|o| o.clone());
-            let control_ps = primary_detector_pn_labels
-                .get(endmember_idx)
-                .and_then(|o| o.clone());
-
-            // Get primary detector name from controls
-            let primary_detector_name = primary_detector_names
-                .get(endmember_idx)
-                .and_then(|o| o.clone());
-
-            let detector_id = original_detector
-                .map(|s| s.to_string())
-                .unwrap_or_else(|| endmember_name.to_string());
-            // Use the user-selected marker name if available, otherwise fall back to extraction
-            let endmember_short_name = selected_marker_names
-                .get(endmember_idx)
-                .and_then(|opt| opt.clone())
-                .unwrap_or_else(|| {
-                    if endmember_name.contains("Autofluorescence")
-                        || endmember_name.eq("Autofluorescence")
-                    {
-                        "Autofluorescence".to_string()
-                    } else {
-                        short_name_from_endmember_stem(endmember_name)
-                    }
-                }); // Robust precedence for unmixed column naming:
-            // 1) User-selected marker name from interactive prompt (most explicit from user)
-            // 2) Extracted endmember marker name (from filename - most robust and unique)
-            // 3) Control file's $PnS (parameter label/short label) - from FCS metadata but can have duplicates
-            // 4) Control file's $PnN (parameter name) - from FCS metadata but can have duplicates
-            // 5) Primary detector identifier (e.g., "V7-A", "R4-A")
-            // 6) Fully-stained file's $PnN (if exists)
-            // 7) Fully-stained file's $PnS (if exists)
-            // 8) Detector ID from stained file
-            // 9) Endmember name
-            //
-            // Rationale: We prioritize the user-selected marker name because:
-            // - User has explicitly confirmed it's correct
-            // - It's unique (each control file represents a different marker/fluorophore)
-            // - It's human-readable (CD4, CD19, HLA-DR_DQ, etc.)
-            // - It doesn't depend on detector mapping (multiple markers can use the same detector)
-            // FCS metadata is used as fallback when no user selection was made
-
-            let chosen_pn = Some(endmember_short_name.clone())
-                .filter(|n| n != "Autofluorescence" && !n.is_empty() && n.len() > 2)
-                .or_else(|| control_ps.clone())
-                .or_else(|| control_pn.clone())
-                .or_else(|| primary_detector_name.clone())
-                .or(fs_pn.clone())
-                .or(fs_ps.clone())
-                .unwrap_or(detector_id.clone());
-
-            // Choose $PnS (label) with same precedence
-            let chosen_ps = Some(endmember_short_name.clone())
-                .filter(|n| n != "Autofluorescence" && !n.is_empty() && n.len() > 2)
-                .or_else(|| control_ps.clone())
-                .or_else(|| control_pn.clone())
-                .or_else(|| primary_detector_name.clone())
-                .or(fs_pn.clone())
-                .or(fs_ps.clone())
-                .unwrap_or(detector_id.clone());
-
-            // Final unmixed column name keeps the Unmixed_ prefix
-            let unmixed_col_name = format!("Unmixed_{}", chosen_pn);
-            let column = Column::new(unmixed_col_name.clone().into(), f32_values.clone());
-
-            // Collect column for DataFrame creation
-            result_df_columns.push(column);
-
-            // Add parameter metadata for this new column
-            use flow_fcs::{Parameter, TransformType};
-            let param_num = starting_param_num + result_df_columns.len() - scatter_time_count - 1;
-
-            let param = Parameter::new(
-                &param_num,
-                &unmixed_col_name,
-                &chosen_ps,
-                &TransformType::Linear,
-            );
-            output_fcs
-                .parameters
-                .insert(unmixed_col_name.clone().into(), param);
-
-            // Add FCS TEXT segment keywords for this parameter
-            use flow_fcs::keyword::{IntegerKeyword, MixedKeyword, StringKeyword};
-
-            // Get the original detector name and its label for this endmember
-            let original_detector = endmember_to_detector.get(endmember_name);
-
-            // Decide on the short label ($PnS) to use for this unmixed parameter:
-            // 1. Prefer user-selected fluor/dye name from interactive prompt (most explicit from user)
-            // 2. Otherwise use marker/dye label from the control file's $PnS (e.g., "RB705", "FITC")
-            // 3. Otherwise use the original stained file's parameter label
-            // 4. Otherwise fall back to the endmember name or detector ID
-            // This ensures $PnS reflects the marker/dye, not the detector hardware name.
-            let marker_label = selected_fluor_names
-                .get(endmember_idx)
-                .and_then(|opt| opt.clone())
-                .or_else(|| control_ps.clone())
-                .or_else(|| {
-                    original_detector.and_then(|det_name| {
-                        self.parameters
-                            .get(&Arc::from(*det_name))
-                            .and_then(|param| {
-                                if !param.label_name.is_empty() {
-                                    Some(param.label_name.as_ref().to_string())
-                                } else {
-                                    None
-                                }
-                            })
-                    })
-                })
-                .unwrap_or_else(|| endmember_name.to_string());
-
-            // $P{i}N - Parameter name: use "Unmixed_" + fluorophore name, fall back to detector ID
-            // Prefer the fluorophore name extracted from endmember filename (e.g., "CD56", "TIM3")
-            // over detector name (e.g., "B10-A")
-            let pn_name = format!(
-                "Unmixed_{}",
-                Some(endmember_short_name.clone())
-                    .filter(|n| n != "Autofluorescence" && !n.is_empty() && n.len() > 2)
-                    .unwrap_or_else(|| detector_id.clone())
-            );
-            output_fcs.metadata.keywords.insert(
-                format!("$P{}N", param_num),
-                Keyword::String(StringKeyword::PnN(Arc::from(pn_name))),
-            );
-
-            // $P{i}S - Parameter short name (use marker/dye label from control file)
-            output_fcs.metadata.keywords.insert(
-                format!("$P{}S", param_num),
-                Keyword::String(StringKeyword::PnS(Arc::from(marker_label))),
-            );
-
-            // $P{i}B - Bits per parameter (32 for float32)
-            output_fcs.metadata.keywords.insert(
-                format!("$P{}B", param_num),
-                Keyword::Int(IntegerKeyword::PnB(32)),
-            );
-
-            // $P{i}R - Range (max value, use large value for abundances)
-            output_fcs.metadata.keywords.insert(
-                format!("$P{}R", param_num),
-                Keyword::Int(IntegerKeyword::PnR(262144)),
-            );
-
-            // $P{i}E - Amplification (0,0 for linear)
-            output_fcs.metadata.keywords.insert(
-                format!("$P{}E", param_num),
-                Keyword::Mixed(MixedKeyword::PnE(0.0, 0.0)),
-            );
-        }
-
-        // Step 3: Create synthetic autofluorescence channel
-        if let Some(af_idx) = endmember_names
-            .iter()
-            .position(|&name| name == autofluorescence_name)
-        {
-            let f64_values: Vec<f64> = (0..n_events)
-                .map(|event_idx| unmixed_abundances[(event_idx, af_idx)])
-                .collect();
-            let f32_values: Vec<f32> = f64_values
-                .iter()
-                .map(|&x| (x as f32).max(0.0))
-                .collect();
-
-            let af_column_name = "Unmixed_Autofluorescence";
-            let column = Column::new(af_column_name.into(), f32_values);
-            result_df_columns.push(column);
-
-            // Add parameter metadata for autofluorescence
-            use flow_fcs::{Parameter, TransformType};
-            let param_num = starting_param_num + result_df_columns.len() - scatter_time_count - 1;
-            let param = Parameter::new(
-                &param_num,
-                af_column_name,
-                af_column_name,
-                &TransformType::Linear,
-            );
-            output_fcs.parameters.insert(af_column_name.into(), param);
-
-            // Add FCS keywords for autofluorescence
-            use flow_fcs::keyword::{IntegerKeyword, MixedKeyword, StringKeyword};
-            output_fcs.metadata.keywords.insert(
-                format!("$P{}N", param_num),
-                Keyword::String(StringKeyword::PnN(Arc::from(af_column_name))),
-            );
-
-            // Leave $PnS blank for autofluorescence
-            output_fcs.metadata.keywords.insert(
-                format!("$P{}S", param_num),
-                Keyword::String(StringKeyword::PnS(Arc::from(""))),
-            );
-
-            output_fcs.metadata.keywords.insert(
-                format!("$P{}B", param_num),
-                Keyword::Int(IntegerKeyword::PnB(32)),
-            );
-
-            output_fcs.metadata.keywords.insert(
-                format!("$P{}R", param_num),
-                Keyword::Int(IntegerKeyword::PnR(262144)),
-            );
-
-            output_fcs.metadata.keywords.insert(
-                format!("$P{}E", param_num),
-                Keyword::Mixed(MixedKeyword::PnE(0.0, 0.0)),
-            );
-        }
-
-        // Create new DataFrame from unmixed columns only (not the original detectors)
-        let result_df = polars::frame::DataFrame::new_infer_height(result_df_columns).map_err(|e| {
-            TruOlsError::InsufficientData(format!(
-                "Failed to create DataFrame from unmixed columns: {}",
-                e
-            ))
-        })?;
-
-        // Update the DataFrame in the output FCS
-        output_fcs.data_frame = Arc::new(result_df);
-
-        // Update $PAR to reflect new parameter count
-        let new_param_count = output_fcs.parameters.len();
-        output_fcs.metadata.keywords.insert(
-            "$PAR".to_string(),
-            Keyword::Int(flow_fcs::keyword::IntegerKeyword::PAR(new_param_count)),
-        );
-
-        Ok(output_fcs)
+        tru_ols_unmix_fcs_impl(
+            self,
+            unstained_control,
+            mixing_matrix,
+            detector_names,
+            endmember_names,
+            autofluorescence_name,
+            strategy,
+            primary_detector_names,
+            primary_detector_pn_names,
+            primary_detector_pn_labels,
+            selected_marker_names,
+            selected_fluor_names,
+            UnmixMode::Fresh,
+        )
     }
 }
 

@@ -23,4 +23,10 @@ pub enum TruOlsError {
 
     #[error("All endmembers removed for event {event_index}")]
     AllEndmembersRemoved { event_index: usize },
+
+    /// More than [`crate::MAX_ENDMEMBERS_DEFAULT`] endmembers without the `large-panels` feature.
+    #[error(
+        "Endmember count {actual} exceeds the default limit of {max}; enable the `large-panels` Cargo feature on `flow-tru-ols` for larger panels"
+    )]
+    EndmemberCountExceedsDefaultLimit { max: usize, actual: usize },
 }

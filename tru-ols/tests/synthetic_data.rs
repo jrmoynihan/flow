@@ -54,11 +54,7 @@ pub fn generate_observations(
 }
 
 /// Generate synthetic abundances matrix (events × endmembers)
-pub fn generate_abundances(
-    n_events: usize,
-    n_endmembers: usize,
-    sparsity: f64,
-) -> Mat<f64> {
+pub fn generate_abundances(n_events: usize, n_endmembers: usize, sparsity: f64) -> Mat<f64> {
     let mut rng = rand::rng();
     let mut abundances = Mat::zeros(n_events, n_endmembers);
 
@@ -93,11 +89,7 @@ mod tests {
     fn test_generate_observations() {
         let mixing_matrix = mat![[1.0, 0.1], [0.1, 1.0]];
         let abundances = mat![[10.0, 5.0], [20.0, 15.0]];
-        let observations = generate_observations(
-            mixing_matrix.as_ref(),
-            abundances.as_ref(),
-            0.1,
-        );
+        let observations = generate_observations(mixing_matrix.as_ref(), abundances.as_ref(), 0.1);
 
         assert_eq!(observations.nrows(), 2);
         assert_eq!(observations.ncols(), 2);

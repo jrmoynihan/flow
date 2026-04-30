@@ -6,13 +6,13 @@
 #[cfg(all(feature = "flow-fcs", feature = "plotting"))]
 use crate::error::TruOlsError;
 #[cfg(all(feature = "flow-fcs", feature = "plotting"))]
+use faer::MatRef;
+#[cfg(all(feature = "flow-fcs", feature = "plotting"))]
 use flow_fcs::Fcs;
 #[cfg(all(feature = "flow-fcs", feature = "plotting"))]
 use flow_plots::options::BasePlotOptions;
 #[cfg(all(feature = "flow-fcs", feature = "plotting"))]
 use flow_plots::{DensityPlot, DensityPlotOptions, Plot, PlotBytes};
-#[cfg(all(feature = "flow-fcs", feature = "plotting"))]
-use faer::MatRef;
 
 /// Plot comparison between OLS and TRU-OLS unmixed data.
 ///
