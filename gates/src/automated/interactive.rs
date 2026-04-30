@@ -1,6 +1,6 @@
 //! Interactive pipeline support for user review and breakpoints
 
-use super::{ScatterGateResult, DoubletGateResult};
+use super::{DoubletGateResult, ScatterGateResult};
 
 /// User review decision for a pipeline breakpoint
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

@@ -317,6 +317,7 @@ fn create_density_contour_gate(
         geometry,
         Arc::from(config.fsc_channel.as_str()),
         Arc::from(config.ssc_channel.as_str()),
+        crate::types::GateCoordinateSpace::Raw,
     );
 
     // Build mask by point-in-polygon against the chosen contour. Using the density
@@ -427,6 +428,7 @@ fn create_clustering_gate(
                 geometry,
                 Arc::from(config.fsc_channel.as_str()),
                 Arc::from(config.ssc_channel.as_str()),
+                crate::types::GateCoordinateSpace::Raw,
             );
 
             Ok((Some(gate), mask, "Clustering(KMeans)".to_string()))
@@ -518,6 +520,7 @@ fn create_clustering_gate(
                 geometry,
                 Arc::from(config.fsc_channel.as_str()),
                 Arc::from(config.ssc_channel.as_str()),
+                crate::types::GateCoordinateSpace::Raw,
             );
 
             Ok((Some(gate), mask, "Clustering(GMM)".to_string()))
@@ -578,6 +581,7 @@ fn create_ellipse_fit_gate(
         geometry,
         Arc::from(config.fsc_channel.as_str()),
         Arc::from(config.ssc_channel.as_str()),
+        crate::types::GateCoordinateSpace::Raw,
     );
 
     // Create mask

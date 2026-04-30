@@ -3,8 +3,12 @@
 use flow_gates::{Gate, GateGeometry, GateNode};
 
 fn make_test_gate() -> Gate {
-    let node1 = GateNode::new("n1").with_coordinate("FSC-A", 100.0).with_coordinate("SSC-A", 200.0);
-    let node2 = GateNode::new("n2").with_coordinate("FSC-A", 300.0).with_coordinate("SSC-A", 400.0);
+    let node1 = GateNode::new("n1")
+        .with_coordinate("FSC-A", 100.0)
+        .with_coordinate("SSC-A", 200.0);
+    let node2 = GateNode::new("n2")
+        .with_coordinate("FSC-A", 300.0)
+        .with_coordinate("SSC-A", 400.0);
     Gate::new(
         "roundtrip-gate",
         "Roundtrip Gate",

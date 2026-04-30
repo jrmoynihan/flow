@@ -3,15 +3,22 @@
 //! This module provides automated gate generation for common flow cytometry
 //! preprocessing steps, including scatter gating and doublet detection.
 
-pub mod scatter;
+pub mod comparison;
+pub mod debris_fsc_consensus;
 pub mod doublets;
 pub mod interactive;
-pub mod comparison;
+pub mod scatter;
 
-pub use scatter::{ScatterGateConfig, ScatterGateMethod, ScatterGateResult, create_scatter_gate, ClusterAlgorithm};
-pub use doublets::{DoubletGateConfig, DoubletMethod, DoubletGateResult, detect_doublets};
-pub use interactive::{UserReview, PipelineBreakpoint};
-pub use comparison::{compare_doublet_methods, compare_with_peacoqc, DoubletComparisonResult, MethodResult};
+pub use comparison::{
+    DoubletComparisonResult, MethodResult, compare_doublet_methods, compare_with_peacoqc,
+};
+pub use debris_fsc_consensus::{ConsensusFscConfig, FscConsensusResult, consensus_fsc_threshold};
+pub use doublets::{DoubletGateConfig, DoubletGateResult, DoubletMethod, detect_doublets};
+pub use interactive::{PipelineBreakpoint, UserReview};
+pub use scatter::{
+    ClusterAlgorithm, ScatterGateConfig, ScatterGateMethod, ScatterGateResult,
+    ScatterQualityPolicy, create_scatter_gate,
+};
 
 use crate::Gate;
 use crate::hierarchy::GateHierarchy;
@@ -29,10 +36,14 @@ pub struct PreprocessingConfig {
 /// Result of preprocessing pipeline
 #[derive(Debug)]
 pub struct PreprocessingGates {
-    /// Scatter gate
+    /// Scatter gate geometry (if generated)
     pub scatter_gate: Option<Gate>,
-    /// Doublet exclusion gate (if generated)
+    /// Full scatter gate outcome (mask, stats); use [`DoubletGateResult::singlet_mask`] for doublets.
+    pub scatter_result: ScatterGateResult,
+    /// Doublet exclusion gate (if generated; often `None` until polygon gates exist)
     pub doublet_gate: Option<Gate>,
+    /// Doublet detection outcome including `singlet_mask` for filtering
+    pub doublet_result: DoubletGateResult,
     /// Gate hierarchy
     pub hierarchy: GateHierarchy,
 }
@@ -59,8 +70,10 @@ pub fn create_preprocessing_gates(
     // }
 
     Ok(PreprocessingGates {
-        scatter_gate: scatter_result.gate,
-        doublet_gate: doublet_result.exclusion_gate,
+        scatter_gate: scatter_result.gate.clone(),
+        scatter_result,
+        doublet_gate: doublet_result.exclusion_gate.clone(),
+        doublet_result,
         hierarchy,
     })
 }
@@ -78,7 +91,7 @@ pub fn create_preprocessing_gates_interactive(
     // 1. Scatter gate (with user review)
     let scatter_result = create_scatter_gate(fcs, &config.scatter_config)?;
     let scatter_review = review_callback(PipelineBreakpoint::ScatterGate(scatter_result.clone()));
-    
+
     if let UserReview::Accept = scatter_review {
         // Gate stored in result, hierarchy tracks relationships if needed
     }
@@ -86,7 +99,7 @@ pub fn create_preprocessing_gates_interactive(
     // 2. Doublet exclusion (with user review)
     let doublet_result = detect_doublets(fcs, &config.doublet_config)?;
     let doublet_review = review_callback(PipelineBreakpoint::DoubletGate(doublet_result.clone()));
-    
+
     if let UserReview::Accept = doublet_review {
         // Gate stored in result, hierarchy tracks relationships if needed
         // If doublet should be child of scatter:
@@ -96,8 +109,10 @@ pub fn create_preprocessing_gates_interactive(
     }
 
     Ok(PreprocessingGates {
-        scatter_gate: scatter_result.gate,
-        doublet_gate: doublet_result.exclusion_gate,
+        scatter_gate: scatter_result.gate.clone(),
+        scatter_result,
+        doublet_gate: doublet_result.exclusion_gate.clone(),
+        doublet_result,
         hierarchy,
     })
 }

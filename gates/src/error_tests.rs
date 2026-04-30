@@ -8,7 +8,11 @@ mod tests {
         let error = GateError::invalid_geometry("Polygon has no valid coordinates");
         assert!(matches!(error, GateError::InvalidGeometry { .. }));
         assert!(error.to_string().contains("Invalid geometry"));
-        assert!(error.to_string().contains("Polygon has no valid coordinates"));
+        assert!(
+            error
+                .to_string()
+                .contains("Polygon has no valid coordinates")
+        );
     }
 
     #[test]
@@ -49,7 +53,11 @@ mod tests {
         let error = GateError::index_error("X and Y arrays must have the same length");
         assert!(matches!(error, GateError::IndexError { .. }));
         assert!(error.to_string().contains("Index error"));
-        assert!(error.to_string().contains("X and Y arrays must have the same length"));
+        assert!(
+            error
+                .to_string()
+                .contains("X and Y arrays must have the same length")
+        );
     }
 
     #[test]
@@ -172,8 +180,16 @@ mod tests {
         let error = GateError::invalid_geometry("Polygon has no valid coordinates");
         let error_with_context = error.with_context("While processing gate 'test-gate'");
 
-        assert!(error_with_context.to_string().contains("While processing gate 'test-gate'"));
-        assert!(error_with_context.to_string().contains("Polygon has no valid coordinates"));
+        assert!(
+            error_with_context
+                .to_string()
+                .contains("While processing gate 'test-gate'")
+        );
+        assert!(
+            error_with_context
+                .to_string()
+                .contains("Polygon has no valid coordinates")
+        );
     }
 
     #[test]
@@ -228,4 +244,3 @@ mod tests {
         }
     }
 }
-

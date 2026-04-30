@@ -100,11 +100,7 @@ impl GateLinks {
     /// links.remove_link("target", "linker");
     /// assert!(!links.is_linked("target"));
     /// ```
-    pub fn remove_link(
-        &mut self,
-        target_gate_id: &str,
-        linking_gate_id: &str,
-    ) {
+    pub fn remove_link(&mut self, target_gate_id: &str, linking_gate_id: &str) {
         if let Some(linkers) = self.links.get_mut(target_gate_id) {
             linkers.retain(|id| id.as_ref() != linking_gate_id);
             if linkers.is_empty() {
@@ -185,10 +181,7 @@ impl GateLinks {
     /// assert_eq!(links.get_link_count("target"), 2);
     /// ```
     pub fn get_link_count(&self, gate_id: &str) -> usize {
-        self.links
-            .get(gate_id)
-            .map(|v| v.len())
-            .unwrap_or(0)
+        self.links.get(gate_id).map(|v| v.len()).unwrap_or(0)
     }
 
     /// Clear all links

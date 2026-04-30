@@ -63,7 +63,9 @@ impl<'a> GateQuery<'a> {
     pub fn by_scope(mut self, file_guid: Option<&str>) -> Self {
         match file_guid {
             Some(guid) => self.gates.retain(|gate| gate.mode.applies_to(guid)),
-            None => self.gates.retain(|gate| matches!(gate.mode, GateMode::Global)),
+            None => self
+                .gates
+                .retain(|gate| matches!(gate.mode, GateMode::Global)),
         }
         self
     }
@@ -267,8 +269,7 @@ pub fn filter_hierarchy_by_parameters(
     let matching_gates: std::collections::HashSet<Arc<str>> = gates_map
         .iter()
         .filter(|(_, gate)| {
-            gate.x_parameter_channel_name() == x_param
-                && gate.y_parameter_channel_name() == y_param
+            gate.x_parameter_channel_name() == x_param && gate.y_parameter_channel_name() == y_param
         })
         .map(|(id, _)| id.clone())
         .collect();

@@ -50,14 +50,18 @@ pub enum GateError {
     },
 
     /// Hierarchy cycle detection
-    #[error("Hierarchy cycle detected: adding '{gate_id}' as parent of '{would_create_cycle_to}' would create a cycle")]
+    #[error(
+        "Hierarchy cycle detected: adding '{gate_id}' as parent of '{would_create_cycle_to}' would create a cycle"
+    )]
     HierarchyCycle {
         gate_id: String,
         would_create_cycle_to: String,
     },
 
     /// Invalid boolean operation configuration
-    #[error("Invalid boolean operation '{operation}': expected {expected_count} operand(s), got {operand_count}")]
+    #[error(
+        "Invalid boolean operation '{operation}': expected {expected_count} operand(s), got {operand_count}"
+    )]
     InvalidBooleanOperation {
         operation: String,
         operand_count: usize,
@@ -66,10 +70,7 @@ pub enum GateError {
 
     /// Referenced gate not found
     #[error("Gate '{gate_id}' not found: {context}")]
-    GateNotFound {
-        gate_id: String,
-        context: String,
-    },
+    GateNotFound { gate_id: String, context: String },
 
     /// Invalid gate link operation
     #[error("Invalid link from '{linking_gate_id}' to '{target_gate_id}': {reason}")]
@@ -97,21 +98,28 @@ pub enum GateError {
 
     /// Boolean operation with no operands
     #[error("Boolean operation '{operation}' requires at least one operand")]
-    EmptyOperands {
-        operation: String,
-    },
+    EmptyOperands { operation: String },
 
     /// Builder in invalid state
     #[error("Builder field '{field}' is invalid: {reason}")]
-    InvalidBuilderState {
-        field: String,
-        reason: String,
-    },
+    InvalidBuilderState { field: String, reason: String },
 
     /// Duplicate gate ID
     #[error("Gate ID '{gate_id}' already exists")]
-    DuplicateGateId {
-        gate_id: String,
+    DuplicateGateId { gate_id: String },
+
+    /// Gate coordinate space doesn't match the event data's space.
+    ///
+    /// Filters compare gate node coordinates against event values; a mismatch
+    /// means the gate would silently produce wrong results. Callers must fetch
+    /// event data in the gate's declared coordinate space (raw, compensated, or
+    /// unmixed) before calling `filter_events_by_gate`.
+    #[error(
+        "Coordinate space mismatch: gate is in {gate_space} but event data is in {data_space}"
+    )]
+    SpaceMismatch {
+        gate_space: String,
+        data_space: String,
     },
 }
 
@@ -161,7 +169,10 @@ impl GateError {
     }
 
     /// Create a HierarchyCycle error
-    pub fn hierarchy_cycle(gate_id: impl Into<String>, would_create_cycle_to: impl Into<String>) -> Self {
+    pub fn hierarchy_cycle(
+        gate_id: impl Into<String>,
+        would_create_cycle_to: impl Into<String>,
+    ) -> Self {
         Self::HierarchyCycle {
             gate_id: gate_id.into(),
             would_create_cycle_to: would_create_cycle_to.into(),
@@ -250,6 +261,17 @@ impl GateError {
         }
     }
 
+    /// Create a SpaceMismatch error from any types that can be displayed.
+    pub fn space_mismatch(
+        gate_space: impl std::fmt::Debug,
+        data_space: impl std::fmt::Debug,
+    ) -> Self {
+        Self::SpaceMismatch {
+            gate_space: format!("{:?}", gate_space),
+            data_space: format!("{:?}", data_space),
+        }
+    }
+
     /// Add context to an error
     pub fn with_context(self, context: impl Into<String>) -> Self {
         match self {
@@ -279,44 +301,69 @@ impl GateError {
             Self::IndexError { message } => Self::IndexError {
                 message: format!("{}: {}", context.into(), message),
             },
-            Self::HierarchyCycle { gate_id, would_create_cycle_to } => Self::HierarchyCycle {
+            Self::HierarchyCycle {
+                gate_id,
+                would_create_cycle_to,
+            } => Self::HierarchyCycle {
                 gate_id,
                 would_create_cycle_to,
             },
-            Self::InvalidBooleanOperation { operation, operand_count, expected_count } => {
-                Self::InvalidBooleanOperation {
-                    operation,
-                    operand_count,
-                    expected_count,
-                }
-            }
-            Self::GateNotFound { gate_id, context: ctx } => Self::GateNotFound {
+            Self::InvalidBooleanOperation {
+                operation,
+                operand_count,
+                expected_count,
+            } => Self::InvalidBooleanOperation {
+                operation,
+                operand_count,
+                expected_count,
+            },
+            Self::GateNotFound {
+                gate_id,
+                context: ctx,
+            } => Self::GateNotFound {
                 gate_id,
                 context: format!("{}: {}", context.into(), ctx),
             },
-            Self::InvalidLink { target_gate_id, linking_gate_id, reason } => Self::InvalidLink {
+            Self::InvalidLink {
+                target_gate_id,
+                linking_gate_id,
+                reason,
+            } => Self::InvalidLink {
                 target_gate_id,
                 linking_gate_id,
                 reason: format!("{}: {}", context.into(), reason),
             },
-            Self::CannotReparent { gate_id, new_parent_id, reason } => Self::CannotReparent {
+            Self::CannotReparent {
+                gate_id,
+                new_parent_id,
+                reason,
+            } => Self::CannotReparent {
                 gate_id,
                 new_parent_id,
                 reason: format!("{}: {}", context.into(), reason),
             },
-            Self::InvalidSubtreeOperation { gate_id, operation, reason } => {
-                Self::InvalidSubtreeOperation {
-                    gate_id,
-                    operation,
-                    reason: format!("{}: {}", context.into(), reason),
-                }
-            }
+            Self::InvalidSubtreeOperation {
+                gate_id,
+                operation,
+                reason,
+            } => Self::InvalidSubtreeOperation {
+                gate_id,
+                operation,
+                reason: format!("{}: {}", context.into(), reason),
+            },
             Self::EmptyOperands { operation } => Self::EmptyOperands { operation },
             Self::InvalidBuilderState { field, reason } => Self::InvalidBuilderState {
                 field,
                 reason: format!("{}: {}", context.into(), reason),
             },
             Self::DuplicateGateId { gate_id } => Self::DuplicateGateId { gate_id },
+            Self::SpaceMismatch {
+                gate_space,
+                data_space,
+            } => Self::SpaceMismatch {
+                gate_space,
+                data_space,
+            },
             Self::Other { message, source } => Self::Other {
                 message: format!("{}: {}", context.into(), message),
                 source,

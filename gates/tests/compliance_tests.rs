@@ -316,4 +316,3 @@ fn test_run_all_compliance_tests() {
         suite.total
     );
 }
-

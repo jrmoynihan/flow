@@ -1,7 +1,7 @@
-use crate::filtering::filter_events_by_gate;
-use crate::types::Gate;
+use crate::filtering::{EventData, filter_events_by_gate};
+use crate::types::{Gate, GateCoordinateSpace};
+use anyhow::{Context, Result, anyhow};
 use flow_fcs::Fcs;
-use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 
 /// Statistics calculated for a gated population.
@@ -76,14 +76,21 @@ pub struct ParameterStatistics {
 }
 
 impl GateStatistics {
-    /// Calculate statistics for a gate applied to FCS data
+    /// Calculate statistics for a gate applied to FCS data.
+    ///
+    /// Only supports `Raw`-space gates. For compensated or unmixed gates, the
+    /// caller must fetch the appropriately-processed event data and use the
+    /// lower-level filter API directly — this convenience method reads raw
+    /// parameter slices and would silently produce wrong percentages/centroids
+    /// if given a gate in a different coordinate space.
     pub fn calculate(fcs: &Fcs, gate: &Gate) -> Result<Self> {
-        // Get filtered event indices
-        let indices = filter_events_by_gate(fcs, gate, None)?;
-        let event_count = indices.len();
-
-        if event_count == 0 {
-            return Ok(Self::empty(gate));
+        if gate.coordinate_space != GateCoordinateSpace::Raw {
+            return Err(anyhow!(
+                "GateStatistics::calculate only supports Raw gates; got {:?}. \
+                 For compensated/unmixed gates, use filter_events_by_gate with \
+                 EventData and compute statistics from the result directly.",
+                gate.coordinate_space
+            ));
         }
 
         // Get parameter data as views (no full allocation)
@@ -96,6 +103,15 @@ impl GateStatistics {
         let y_slice = fcs
             .get_parameter_events_slice(y_param)
             .with_context(|| format!("Failed to get parameter data for {}", y_param))?;
+
+        // Filter in the gate's declared space.
+        let data = EventData::new(GateCoordinateSpace::Raw, x_slice, y_slice);
+        let indices = filter_events_by_gate(data, gate, None)?;
+        let event_count = indices.len();
+
+        if event_count == 0 {
+            return Ok(Self::empty(gate));
+        }
 
         // Extract filtered values (only allocate the filtered subset)
         let x_values: Vec<f64> = indices.iter().map(|&i| x_slice[i] as f64).collect();

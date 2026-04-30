@@ -48,16 +48,26 @@ pub fn compare_doublet_methods(
     for method in methods {
         let mut config = base_config.clone();
         config.method = method.clone();
-        
+
         let start = std::time::Instant::now();
         let result = detect_doublets(fcs, &config)?;
         let elapsed = start.elapsed().as_secs_f64() * 1000.0; // Convert to ms
 
         let method_name = match &method {
             DoubletMethod::RatioMAD { nmad } => format!("RatioMAD(nmad={})", nmad),
-            DoubletMethod::DensityBased { threshold } => format!("DensityBased(threshold={})", threshold),
+            DoubletMethod::DensityBased { threshold } => {
+                format!("DensityBased(threshold={})", threshold)
+            }
             DoubletMethod::Clustering { .. } => "Clustering".to_string(),
             DoubletMethod::Hybrid => "Hybrid".to_string(),
+            DoubletMethod::RatioInflectionOrFixed {
+                min_peaks,
+                min_ratio,
+                fixed_threshold,
+            } => format!(
+                "RatioInflectionOrFixed(min_peaks={},min_ratio={},fixed={})",
+                min_peaks, min_ratio, fixed_threshold
+            ),
         };
 
         results.push(MethodResult {
@@ -75,7 +85,7 @@ pub fn compare_doublet_methods(
             source: None,
         });
     }
-    
+
     let n_events = results[0].result.singlet_mask.len();
     let mut agreement_matrix = vec![vec![0.0; n_methods]; n_methods];
 
@@ -107,7 +117,7 @@ pub fn compare_doublet_methods(
         .min_by(|(i, a), (j, b)| {
             let avg_agreement_i: f64 = agreement_matrix[*i].iter().sum::<f64>() / n_methods as f64;
             let avg_agreement_j: f64 = agreement_matrix[*j].iter().sum::<f64>() / n_methods as f64;
-            
+
             // Prefer methods with good agreement, then performance
             avg_agreement_j
                 .partial_cmp(&avg_agreement_i)
