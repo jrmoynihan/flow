@@ -143,10 +143,7 @@ pub fn scatter_to_pixels_overlay(
     let mut pixels = Vec::new();
     for (i, &(x, y)) in data.xy().iter().enumerate() {
         let gate_id = gate_ids.get(i).copied().unwrap_or(0) as usize;
-        let (r, g, b) = colors
-            .get(gate_id)
-            .copied()
-            .unwrap_or((60, 60, 60));
+        let (r, g, b) = colors.get(gate_id).copied().unwrap_or((60, 60, 60));
 
         let pixel_x = (((x - *options.x_axis.range.start()) * scale_x).floor() as isize)
             .clamp(0, (width - 1) as isize) as usize;
@@ -189,14 +186,8 @@ pub fn scatter_to_pixels_colored(
     let (z_min, z_max) = match options.z_range {
         Some((min, max)) => (min, max),
         None => {
-            let min = z_values
-                .iter()
-                .copied()
-                .fold(f32::INFINITY, f32::min);
-            let max = z_values
-                .iter()
-                .copied()
-                .fold(f32::NEG_INFINITY, f32::max);
+            let min = z_values.iter().copied().fold(f32::INFINITY, f32::min);
+            let max = z_values.iter().copied().fold(f32::NEG_INFINITY, f32::max);
             if min >= max {
                 (min, min + 1.0)
             } else {
@@ -314,9 +305,7 @@ pub fn calculate_plot_pixels(
 ) -> Vec<RawPixelData> {
     let xy = data.xy();
     match options.plot_type.canonical() {
-        PlotType::ScatterSolid | PlotType::Dot => {
-            scatter_to_pixels(xy, width, height, options)
-        }
+        PlotType::ScatterSolid | PlotType::Dot => scatter_to_pixels(xy, width, height, options),
         PlotType::ScatterOverlay => {
             if data.has_gates() {
                 scatter_to_pixels_overlay(data, width, height, options)
@@ -414,8 +403,9 @@ pub fn calculate_density_per_pixel_cancelable(
 pub fn calculate_density_per_pixel_batch(
     requests: &[(ScatterPlotData, DensityPlotOptions)],
 ) -> Vec<Vec<RawPixelData>> {
-    calculate_density_per_pixel_batch_cancelable(requests, || false)
-        .expect("calculate_density_per_pixel_batch_cancelable returned None when cancellation is disabled")
+    calculate_density_per_pixel_batch_cancelable(requests, || false).expect(
+        "calculate_density_per_pixel_batch_cancelable returned None when cancellation is disabled",
+    )
 }
 
 /// Calculate density for multiple plots in batch with cancellation support

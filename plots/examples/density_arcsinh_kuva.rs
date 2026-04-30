@@ -20,7 +20,9 @@ use std::path::PathBuf;
 
 /// Simple LCG for deterministic semi-realistic spread (no rand dependency in example).
 fn next_u32(state: &mut u64) -> u32 {
-    *state = state.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+    *state = state
+        .wrapping_mul(6364136223846793005)
+        .wrapping_add(1442695040888963407);
     (*state >> 32) as u32
 }
 
@@ -60,10 +62,22 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .map(|(x, y)| (transform.transform(&x), transform.transform(&y)))
         .collect();
 
-    let x_min = xy_transformed.iter().map(|p| p.0).fold(f32::INFINITY, f32::min);
-    let x_max = xy_transformed.iter().map(|p| p.0).fold(f32::NEG_INFINITY, f32::max);
-    let y_min = xy_transformed.iter().map(|p| p.1).fold(f32::INFINITY, f32::min);
-    let y_max = xy_transformed.iter().map(|p| p.1).fold(f32::NEG_INFINITY, f32::max);
+    let x_min = xy_transformed
+        .iter()
+        .map(|p| p.0)
+        .fold(f32::INFINITY, f32::min);
+    let x_max = xy_transformed
+        .iter()
+        .map(|p| p.0)
+        .fold(f32::NEG_INFINITY, f32::max);
+    let y_min = xy_transformed
+        .iter()
+        .map(|p| p.1)
+        .fold(f32::INFINITY, f32::min);
+    let y_max = xy_transformed
+        .iter()
+        .map(|p| p.1)
+        .fold(f32::NEG_INFINITY, f32::max);
 
     let padding_x = (x_max - x_min).max(0.5_f32) * 0.05;
     let padding_y = (y_max - y_min).max(0.5_f32) * 0.05;
@@ -100,7 +114,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let bytes = plot.render(data, &options, &mut render_config)?;
     let path = out_dir.join("density_arcsinh_kuva.jpg");
     fs::write(&path, &bytes)?;
-    println!("  {} (linear axes, ticks show original values)", path.display());
+    println!(
+        "  {} (linear axes, ticks show original values)",
+        path.display()
+    );
 
     Ok(())
 }

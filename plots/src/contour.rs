@@ -37,10 +37,7 @@ pub fn calculate_contours(
     if data.len() < 3 {
         return Ok(ContourData {
             contours: Vec::new(),
-            outliers: data
-                .iter()
-                .map(|&(x, y)| (x as f64, y as f64))
-                .collect(),
+            outliers: data.iter().map(|&(x, y)| (x as f64, y as f64)).collect(),
         });
     }
 
@@ -104,10 +101,7 @@ pub fn calculate_contours(
         Vec::new()
     };
 
-    Ok(ContourData {
-        contours,
-        outliers,
-    })
+    Ok(ContourData { contours, outliers })
 }
 
 /// Extract ordered closed contour path(s) from a pre-computed KDE at a single threshold.
@@ -349,7 +343,10 @@ mod tests {
             "dense blob KDE should produce at least one contour path"
         );
         // Paths are ordered (x,y) points; gates use paths with len >= 3 for polygon, else ellipse
-        assert!(paths.iter().all(|p| p.len() >= 2), "each path has at least 2 points");
+        assert!(
+            paths.iter().all(|p| p.len() >= 2),
+            "each path has at least 2 points"
+        );
     }
 
     #[test]
@@ -488,9 +485,9 @@ mod tests {
         // plotters to panic with "attempt to add with overflow" because contour
         // paths from KDE extended beyond the chart coordinate range.
         use crate::options::{AxisOptions, BasePlotOptions, DensityPlotOptions};
+        use crate::plots::PlotType;
         use crate::plots::density::DensityPlot;
         use crate::plots::traits::Plot;
-        use crate::plots::PlotType;
         use crate::render::RenderConfig;
         use flow_fcs::TransformType;
 
@@ -505,7 +502,13 @@ mod tests {
         }
 
         let options = DensityPlotOptions::new()
-            .base(BasePlotOptions::new().width(200u32).height(200u32).build().unwrap())
+            .base(
+                BasePlotOptions::new()
+                    .width(200u32)
+                    .height(200u32)
+                    .build()
+                    .unwrap(),
+            )
             .x_axis(
                 AxisOptions::new()
                     .range(0.0..=500.0)
@@ -527,7 +530,11 @@ mod tests {
 
         let mut render_config = RenderConfig::default();
         let result = plot.render(data.into(), &options, &mut render_config);
-        assert!(result.is_ok(), "contour render panicked: {:?}", result.err());
+        assert!(
+            result.is_ok(),
+            "contour render panicked: {:?}",
+            result.err()
+        );
 
         let bytes = result.unwrap();
         assert!(!bytes.is_empty());
@@ -539,9 +546,9 @@ mod tests {
     fn test_render_contour_with_outliers_no_panic() {
         // Same scenario but with draw_outliers enabled and extreme outliers
         use crate::options::{AxisOptions, BasePlotOptions, DensityPlotOptions};
+        use crate::plots::PlotType;
         use crate::plots::density::DensityPlot;
         use crate::plots::traits::Plot;
-        use crate::plots::PlotType;
         use crate::render::RenderConfig;
         use flow_fcs::TransformType;
 
@@ -557,7 +564,13 @@ mod tests {
         data.push((-5000.0, -5000.0));
 
         let options = DensityPlotOptions::new()
-            .base(BasePlotOptions::new().width(200u32).height(200u32).build().unwrap())
+            .base(
+                BasePlotOptions::new()
+                    .width(200u32)
+                    .height(200u32)
+                    .build()
+                    .unwrap(),
+            )
             .x_axis(
                 AxisOptions::new()
                     .range(0.0..=100.0)

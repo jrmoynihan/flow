@@ -125,16 +125,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let path = out_dir.join("density_arcsinh_kuva_styled.jpg");
     fs::write(&path, &bytes)?;
     let total_ms = t0.elapsed().as_secs_f64() * 1000.0;
-    println!(
-        "  {} (no title/colorbar, custom sizes)",
-        path.display()
-    );
+    println!("  {} (no title/colorbar, custom sizes)", path.display());
     println!(
         "  Render (no disk): {:.1} ms, total with write: {:.1} ms",
         render_ms, total_ms
     );
-
-
 
     Ok(())
 }

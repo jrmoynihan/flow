@@ -1,6 +1,6 @@
-pub mod kuva_backend;
 #[cfg(feature = "raster")]
 pub mod kuva_axis;
+pub mod kuva_backend;
 pub mod plotters_backend;
 pub mod progress;
 

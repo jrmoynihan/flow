@@ -56,10 +56,7 @@ impl HistogramData {
     ///
     /// # Errors
     /// Returns `Err` if lengths are inconsistent.
-    pub fn pre_binned(
-        bin_edges: Vec<f32>,
-        counts: Vec<f32>,
-    ) -> Result<Self, HistogramDataError> {
+    pub fn pre_binned(bin_edges: Vec<f32>, counts: Vec<f32>) -> Result<Self, HistogramDataError> {
         if bin_edges.len() != counts.len().saturating_add(1) {
             return Err(HistogramDataError::BinCountMismatch {
                 edges_len: bin_edges.len(),
@@ -98,7 +95,10 @@ pub enum HistogramDataError {
 impl std::fmt::Display for HistogramDataError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::BinCountMismatch { edges_len, counts_len } => {
+            Self::BinCountMismatch {
+                edges_len,
+                counts_len,
+            } => {
                 write!(
                     f,
                     "bin_edges.len() ({}) must equal counts.len() + 1 (got {})",
@@ -151,9 +151,7 @@ pub fn bin_values(
     }
 
     let bin_centers: Vec<f64> = (0..num_bins)
-        .map(|i| {
-            x_min as f64 + (i as f64 + 0.5) * bin_width
-        })
+        .map(|i| x_min as f64 + (i as f64 + 0.5) * bin_width)
         .collect();
 
     Some(BinnedHistogram {
@@ -174,11 +172,8 @@ mod tests {
 
     #[test]
     fn test_histogram_data_pre_binned_ok() {
-        let data = HistogramData::pre_binned(
-            vec![0.0, 1.0, 2.0, 3.0],
-            vec![5.0, 10.0, 7.0],
-        )
-        .unwrap();
+        let data =
+            HistogramData::pre_binned(vec![0.0, 1.0, 2.0, 3.0], vec![5.0, 10.0, 7.0]).unwrap();
         assert!(!data.is_overlaid());
     }
 
@@ -190,10 +185,7 @@ mod tests {
 
     #[test]
     fn test_histogram_data_overlaid() {
-        let data = HistogramData::overlaid(vec![
-            (vec![1.0, 2.0], 0),
-            (vec![2.0, 3.0], 1),
-        ]);
+        let data = HistogramData::overlaid(vec![(vec![1.0, 2.0], 0), (vec![2.0, 3.0], 1)]);
         assert!(data.is_overlaid());
     }
 

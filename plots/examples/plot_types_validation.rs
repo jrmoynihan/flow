@@ -126,7 +126,9 @@ static mut LCG_STATE: u64 = 12345;
 
 fn lcg_next() -> u32 {
     unsafe {
-        LCG_STATE = LCG_STATE.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+        LCG_STATE = LCG_STATE
+            .wrapping_mul(6364136223846793005)
+            .wrapping_add(1442695040888963407);
         (LCG_STATE >> 32) as u32
     }
 }

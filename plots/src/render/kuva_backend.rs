@@ -52,9 +52,7 @@
 //! ```
 
 #[cfg(feature = "raster")]
-pub use kuva::{
-    render_to_raster, render_to_raster_no_text,
-};
+pub use kuva::{render_to_raster, render_to_raster_no_text};
 
 /// Re-exported for building plots to pass to the render functions.
 #[cfg(feature = "raster")]
@@ -134,7 +132,9 @@ pub fn render_density_kuva(
 ) -> Result<crate::PlotBytes, String> {
     use crate::colormap::ColorMaps;
     use crate::options::PlotOptions;
-    use crate::render::kuva_axis::{apply_density_layout_overrides, tick_format_heatmap_cell_index};
+    use crate::render::kuva_axis::{
+        apply_density_layout_overrides, tick_format_heatmap_cell_index,
+    };
     use image::ImageDecoder;
 
     let base = options.base();
@@ -209,18 +209,10 @@ pub fn render_density_kuva(
     let plots = vec![Plot::Heatmap(heatmap)];
     let mut layout = kuva::render::layout::Layout::auto_from_plots(&plots);
     apply_density_layout_overrides(&mut layout, options);
-    layout.x_tick_format = tick_format_heatmap_cell_index(
-        x_min,
-        x_max,
-        bins_x,
-        &options.x_axis.transform,
-    );
-    layout.y_tick_format = tick_format_heatmap_cell_index(
-        y_min,
-        y_max,
-        bins_y,
-        &options.y_axis.transform,
-    );
+    layout.x_tick_format =
+        tick_format_heatmap_cell_index(x_min, x_max, bins_x, &options.x_axis.transform);
+    layout.y_tick_format =
+        tick_format_heatmap_cell_index(y_min, y_max, bins_y, &options.y_axis.transform);
     layout.width = Some(base.width as f64);
     layout.height = Some(base.height as f64);
 
@@ -234,6 +226,7 @@ pub fn render_density_kuva(
     let rgb = img.to_rgb8();
     let mut jpeg = Vec::new();
     let mut enc = image::codecs::jpeg::JpegEncoder::new_with_quality(&mut jpeg, 85);
-    enc.encode(rgb.as_raw(), w, h, image::ExtendedColorType::Rgb8).map_err(|e| e.to_string())?;
+    enc.encode(rgb.as_raw(), w, h, image::ExtendedColorType::Rgb8)
+        .map_err(|e| e.to_string())?;
     Ok(jpeg)
 }

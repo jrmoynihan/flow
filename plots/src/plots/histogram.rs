@@ -3,12 +3,12 @@
 //! Creates 1D histograms from raw values or pre-binned data, with support for
 //! filled/unfilled style and overlaid multiple series.
 
+use crate::PlotBytes;
 use crate::histogram_data::HistogramData;
 use crate::options::HistogramPlotOptions;
 use crate::plots::traits::Plot;
-use crate::PlotBytes;
-use crate::render::plotters_backend::render_histogram;
 use crate::render::RenderConfig;
+use crate::render::plotters_backend::render_histogram;
 use anyhow::Result;
 
 /// Histogram plot implementation
