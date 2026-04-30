@@ -3155,7 +3155,7 @@ checksum = "8bf7cc16383c4b8d58b9905a8509f02926ce3058053c056376248d958c9df1e8"
 
 [[package]]
 name = "flow-fcs"
-version = "0.2.2"
+version = "0.3.0"
 dependencies = [
  "anyhow",
  "approx 0.5.1",
@@ -3188,7 +3188,7 @@ dependencies = [
 
 [[package]]
 name = "flow-gates"
-version = "0.2.2"
+version = "0.3.0"
 dependencies = [
  "anyhow",
  "bytemuck",
@@ -3239,17 +3239,21 @@ name = "flow-tru-ols"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "bytemuck",
  "criterion",
+ "cubecl",
  "faer 0.24.0",
  "faer-ext",
  "flow-fcs",
  "flow-plots",
- "ndarray 0.16.1",
+ "ndarray 0.17.2",
  "ndarray-linalg",
  "polars",
+ "quick_cache",
  "rand 0.10.0",
  "rayon",
  "serde",
+ "serde_json",
  "thiserror 2.0.18",
 ]
 
@@ -7352,6 +7356,18 @@ checksum = "f2e3bf4aa9d243beeb01a7b3bc30b77cfe2c44e24ec02d751a7104a53c2c49a1"
 dependencies = [
  "memchr",
  "serde",
+]
+
+[[package]]
+name = "quick_cache"
+version = "0.6.21"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5a70b1b8b47e31d0498ecbc3c5470bb931399a8bfed1fd79d1717a61ce7f96e3"
+dependencies = [
+ "ahash",
+ "equivalent",
+ "hashbrown 0.16.1",
+ "parking_lot",
 ]
 
 [[package]]
