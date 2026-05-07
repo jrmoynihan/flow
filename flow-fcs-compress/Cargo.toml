@@ -1,0 +1,51 @@
+[package]
+name = "flow-fcs-compress"
+version = "0.1.0"
+edition.workspace = true
+authors.workspace = true
+license = "MIT"
+description = "Compression codecs for flow cytometry data, tuned for FCS-format event tables."
+repository = "https://github.com/jrmoynihan/flow/flow-fcs-compress"
+keywords = ["flow-cytometry", "fcs", "compression", "bioinformatics", "columnar"]
+categories = ["science", "compression", "encoding"]
+
+[dependencies]
+# Numeric primitives
+bytemuck = { workspace = true, features = ["derive"] }
+byteorder = { workspace = true }
+
+# Compression
+zstd = { workspace = true }
+xxhash-rust = { workspace = true }
+fastlanes = { workspace = true, optional = true }
+pco = { workspace = true, optional = true }
+lz4_flex = { workspace = true, optional = true }
+
+# Errors
+thiserror = { workspace = true }
+
+# I/O for .fcz container
+memmap3 = { workspace = true }
+
+# Optional: parallel chunk encode/decode
+rayon = { workspace = true, optional = true }
+
+[dev-dependencies]
+approx = { workspace = true }
+criterion = { workspace = true }
+rand = { workspace = true }
+rand_distr = { workspace = true }
+tempfile = { workspace = true }
+
+[features]
+default = ["multithread"]
+multithread = ["dep:rayon"]
+simd = ["dep:fastlanes"]
+# Adds pco-backed Mode A codec (better ratio on log-shaped data).
+pco-backend = ["dep:pco"]
+# Adds lz4_flex baseline codec (fastest, weakest ratio).
+lz4-baseline = ["dep:lz4_flex"]
+
+[[bench]]
+name = "codec_bench"
+harness = false

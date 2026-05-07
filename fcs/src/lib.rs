@@ -16,6 +16,8 @@ pub use write::{
 };
 
 mod byteorder;
+#[cfg(feature = "compress")]
+pub mod compress;
 pub mod datatype;
 pub mod file;
 pub mod header;
