@@ -532,6 +532,22 @@ impl FczReader {
         &self.mmap[self.fcs_text_range.0..self.fcs_text_range.1]
     }
 
+    /// Touch every OS page of the memory-mapped file so subsequent reads
+    /// don't incur page faults. Useful when callers intend to time decode
+    /// throughput or need predictable latency on the first read pass.
+    ///
+    /// Reads one byte per 4 KiB page in order; `black_box` prevents the
+    /// compiler from eliding the loads.
+    pub fn warm_cache(&self) {
+        const PAGE: usize = 4096;
+        let bytes = &self.mmap[..];
+        let mut i = 0;
+        while i < bytes.len() {
+            std::hint::black_box(bytes[i]);
+            i += PAGE;
+        }
+    }
+
     pub fn channel(&self, idx: usize) -> Option<&ChannelParams> {
         self.channels.get(idx).map(|e| &e.params)
     }
