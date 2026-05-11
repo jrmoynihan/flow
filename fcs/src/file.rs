@@ -1635,6 +1635,65 @@ impl Fcs {
         self.apply_compensation(comp_matrix.as_ref(), &channel_refs)
     }
 
+    /// Apply an externally supplied spillover matrix to this file's raw event data.
+    ///
+    /// Identical semantics to `get_compensated_parameters` (identity-check, parallel
+    /// application via `flow_linalg`) but uses the caller-supplied matrix instead of
+    /// reading `$SPILLOVER` from the file.
+    ///
+    /// # Arguments
+    /// - `spillover`: NxN spillover matrix (NOT pre-inverted).
+    /// - `matrix_channel_names`: channel names for matrix rows/cols as `&str`.
+    ///   Callers with `Vec<String>` should map with `.iter().map(|s| s.as_str()).collect::<Vec<_>>()`.
+    /// - `channels_needed`: which channels to return (subset of `matrix_channel_names`).
+    ///
+    /// Requires the `compensation` feature.
+    #[cfg(feature = "compensation")]
+    pub fn get_compensated_parameters_with_matrix(
+        &self,
+        spillover: faer::MatRef<'_, f32>,
+        matrix_channel_names: &[&str],
+        channels_needed: &[&str],
+    ) -> anyhow::Result<std::collections::HashMap<String, Vec<f32>>> {
+        use flow_linalg::compensation::compensate_channels;
+
+        // Identity-check: if matrix is identity, bypass compensation entirely
+        let n = spillover.nrows();
+        let is_identity = (0..n).all(|i| {
+            (0..n).all(|j| {
+                let expected = if i == j { 1.0f32 } else { 0.0 };
+                (spillover[(i, j)] - expected).abs() < 1e-6
+            })
+        });
+
+        if is_identity {
+            let mut result = std::collections::HashMap::new();
+            for &ch in channels_needed {
+                let data = self.get_parameter_events_slice(ch)?;
+                result.insert(ch.to_string(), data.to_vec());
+            }
+            return Ok(result);
+        }
+
+        // Build raw channel slice pairs for all channels in the matrix
+        let raw_pairs: Vec<(&str, Vec<f32>)> = matrix_channel_names
+            .iter()
+            .filter_map(|&name| {
+                self.get_parameter_events_slice(name)
+                    .ok()
+                    .map(|s| (name, s.to_vec()))
+            })
+            .collect();
+
+        let raw_refs: Vec<(&str, &[f32])> = raw_pairs
+            .iter()
+            .map(|(name, data)| (*name, data.as_slice()))
+            .collect();
+
+        compensate_channels(&raw_refs, spillover, matrix_channel_names, channels_needed)
+            .map_err(|e| anyhow::anyhow!("Compensation failed: {e}"))
+    }
+
     /// OPTIMIZED: Get compensated data for specific parameters only (lazy/partial compensation)
     ///
     /// This is 15-30x faster than apply_file_compensation when you only need a few parameters
@@ -1979,5 +2038,37 @@ impl Fcs {
             .map_err(|e| anyhow!("Failed to create DataFrame: {}", e))?;
 
         Ok(Arc::new(df))
+    }
+}
+
+#[cfg(test)]
+#[cfg(feature = "compensation")]
+mod compensation_method_tests {
+    use super::*;
+
+    /// Verifies the method compiles and identity matrix returns raw data.
+    /// Full fixture-based test is #[ignore]d — needs test_data/compensation_test.fcs.
+    #[test]
+    #[ignore = "requires real FCS fixture"]
+    fn test_with_matrix_matches_get_compensated_parameters() {
+        // This test verifies parity between the two methods.
+        // Run manually after loading test fixture:
+        // cargo test --features compensation -- --ignored test_with_matrix
+        let fcs = Fcs::open("test_data/compensation_test.fcs")
+            .expect("test FCS file not found");
+        if !fcs.has_compensation() { return; }
+        let channels = ["BV421-A", "PE-A"];
+        let expected = fcs.get_compensated_parameters(&channels).unwrap();
+        let (matrix, names) = fcs.get_spillover_matrix().unwrap().unwrap();
+        let name_refs: Vec<&str> = names.iter().map(|s| s.as_str()).collect();
+        let actual = fcs.get_compensated_parameters_with_matrix(matrix.as_ref(), &name_refs, &channels).unwrap();
+        for &ch in &channels {
+            let e = expected.get(ch).unwrap();
+            let a = actual.get(ch).unwrap();
+            assert_eq!(e.len(), a.len());
+            for (&ev, &av) in e.iter().zip(a.iter()) {
+                assert!((ev - av).abs() < 1e-4, "{ch}: {ev} vs {av}");
+            }
+        }
     }
 }

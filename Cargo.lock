@@ -3235,6 +3235,7 @@ dependencies = [
  "faer 0.24.0",
  "faer-ext",
  "flow-fcs-compress",
+ "flow-linalg",
  "itertools 0.14.0",
  "memchr",
  "memmap3",
