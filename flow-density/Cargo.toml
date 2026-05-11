@@ -1,10 +1,11 @@
 [package]
 name = "flow-density"
-version = "0.1.0"
+version = "0.1.1"
 edition.workspace = true
 authors.workspace = true
 license = "MIT"
 repository = "https://github.com/jrmoynihan/flow/flow-density"
+readme = "README.md"
 description = "FFT-accelerated kernel density estimation for flow cytometry"
 keywords = ["flow-cytometry", "kde", "kernel-density", "statistics"]
 categories = ["science", "algorithms"]

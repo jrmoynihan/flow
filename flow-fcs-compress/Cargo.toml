@@ -1,8 +1,9 @@
 [package]
 name = "flow-fcs-compress"
-version = "0.1.0"
+version = "0.1.1"
 edition.workspace = true
 authors.workspace = true
+readme = "README.md"
 license = "MIT"
 description = "Compression codecs for flow cytometry data, tuned for FCS-format event tables."
 repository = "https://github.com/jrmoynihan/flow/flow-fcs-compress"

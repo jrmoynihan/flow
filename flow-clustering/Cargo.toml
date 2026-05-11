@@ -1,10 +1,11 @@
 [package]
 name = "flow-clustering"
-version = "0.1.0"
+version = "0.1.1"
 edition.workspace = true
 authors.workspace = true
 license = "MIT"
 repository = "https://github.com/jrmoynihan/flow/flow-clustering"
+readme = "README.md"
 description = "Clustering algorithms for flow cytometry: K-means, DBSCAN, GMM"
 keywords = ["flow-cytometry", "clustering", "kmeans", "dbscan", "gmm"]
 categories = ["science", "algorithms"]
