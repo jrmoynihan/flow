@@ -23,11 +23,22 @@ fn legacy_tuple_deserializes_to_two_channel() {
 fn one_channel_matches_either_plot_axis() {
     let p = GateParameters::OneChannel {
         channel: Arc::from("FSC-A"),
-        companion: Arc::from("CD45"),
     };
     assert!(p.matches_plot_parameters("FSC-A", "PE-A"));
     assert!(p.matches_plot_parameters("PE-A", "FSC-A"));
     assert!(!p.matches_plot_parameters("SSC-A", "PE-A"));
+}
+
+#[test]
+fn legacy_one_channel_with_companion_drops_companion() {
+    // Workspaces saved before `companion` was removed include the field; deserialization
+    // must accept and silently drop it.
+    let json = r#"{"type":"one_channel","channel":"FL1-A","companion":"SSC-A"}"#;
+    let gp: GateParameters = serde_json::from_str(json).expect("params");
+    match gp {
+        GateParameters::OneChannel { channel } => assert_eq!(channel.as_ref(), "FL1-A"),
+        GateParameters::TwoChannel { .. } => panic!("expected one_channel"),
+    }
 }
 
 #[test]
@@ -52,9 +63,8 @@ fn range_geometry_builds_one_channel_parameters() {
         Arc::from("SSC-A"),
     );
     match gp {
-        GateParameters::OneChannel { channel, companion } => {
+        GateParameters::OneChannel { channel } => {
             assert_eq!(channel.as_ref(), "FL1-A");
-            assert_eq!(companion.as_ref(), "SSC-A");
         }
         GateParameters::TwoChannel { .. } => panic!("expected one_channel"),
     }

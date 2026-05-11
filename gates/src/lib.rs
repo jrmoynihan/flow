@@ -40,6 +40,7 @@
 //!     geometry,
 //!     "FSC-A",
 //!     "SSC-A",
+//!     GateCoordinateSpace::Raw,
 //! );
 //!
 //! // Apply gate to FCS data
@@ -99,6 +100,7 @@ pub mod polygon;
 pub mod range;
 pub mod rectangle;
 pub mod scope;
+pub mod threshold;
 pub mod statistics;
 pub mod traits;
 pub mod traits_tests;
@@ -145,8 +147,8 @@ pub use gatingml::{gates_to_gatingml, gatingml_to_gates};
 
 /// Core gate types and structures
 pub use types::{
-    BooleanOperation, Gate, GateBuilder, GateCoordinateSpace, GateGeometry, GateMode, GateNode,
-    GateParameters,
+    BooleanOperation, DerivedFrom, Gate, GateBuilder, GateCoordinateSpace, GateGeometry, GateMode,
+    GateNode, GateParameters, ThresholdDirection,
 };
 
 /// Gate geometry traits

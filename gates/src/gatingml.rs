@@ -109,6 +109,9 @@ fn write_gate_to_xml(writer: &mut Writer<Cursor<Vec<u8>>>, gate: &Gate) -> Resul
         GateGeometry::Range { min, max } => {
             write_range_gate(writer, min, max)?;
         }
+        GateGeometry::Threshold { value_node, direction } => {
+            write_threshold_gate(writer, value_node, *direction)?;
+        }
         GateGeometry::Boolean {
             operation,
             operands,
@@ -176,6 +179,25 @@ fn write_range_gate(
     write_vertex(writer, max)?;
 
     writer.write_event(Event::End(BytesEnd::new("gating:RangeGate")))?;
+    Ok(())
+}
+
+fn write_threshold_gate(
+    writer: &mut Writer<Cursor<Vec<u8>>>,
+    value_node: &GateNode,
+    direction: crate::types::ThresholdDirection,
+) -> Result<()> {
+    let direction_str = match direction {
+        crate::types::ThresholdDirection::Above => "above",
+        crate::types::ThresholdDirection::Below => "below",
+    };
+    let mut threshold_start = BytesStart::new("gating:ThresholdGate");
+    threshold_start.push_attribute(("gating:direction", direction_str));
+    writer.write_event(Event::Start(threshold_start))?;
+
+    write_vertex(writer, value_node)?;
+
+    writer.write_event(Event::End(BytesEnd::new("gating:ThresholdGate")))?;
     Ok(())
 }
 
@@ -1167,6 +1189,7 @@ fn extract_parameters_from_geometry(geometry: &GateGeometry) -> Result<(String, 
         GateGeometry::Rectangle { min, .. } => Some(min),
         GateGeometry::Ellipse { center, .. } => Some(center),
         GateGeometry::Range { min, .. } => Some(min),
+        GateGeometry::Threshold { value_node, .. } => Some(value_node),
         GateGeometry::Boolean { .. } => {
             // Boolean gates don't have direct parameters - they reference other gates
             return Err(GateError::invalid_geometry(

@@ -1,5 +1,5 @@
 use crate::filtering::{EventData, filter_events_by_gate};
-use crate::types::{Gate, GateCoordinateSpace};
+use crate::types::{Gate, GateCoordinateSpace, GateParameters};
 use anyhow::{Context, Result, anyhow};
 use flow_fcs::Fcs;
 use serde::{Deserialize, Serialize};
@@ -38,12 +38,20 @@ pub struct GateStatistics {
     pub event_count: usize,
     /// Percentage of total events (0.0 to 100.0)
     pub percentage: f64,
-    /// 2D centroid (x, y) in raw data space
-    pub centroid: (f64, f64),
-    /// Statistics for the X parameter
+    /// 2D centroid (x, y) in raw data space.
+    ///
+    /// `None` for one-channel (range, threshold) gates — those gates only have a meaningful
+    /// mean along their bounded axis (available as `x_stats.mean`); the orthogonal axis is
+    /// not part of the gate's definition, so a 2D centroid would be misleading.
+    pub centroid: Option<(f64, f64)>,
+    /// Statistics for the gate's primary axis.
+    ///
+    /// For two-channel gates this is the X parameter; for one-channel (range, threshold)
+    /// gates this is the bounded channel itself.
     pub x_stats: ParameterStatistics,
-    /// Statistics for the Y parameter
-    pub y_stats: ParameterStatistics,
+    /// Statistics for the Y parameter — populated only for two-channel gates.
+    /// `None` for one-channel gates, which are 1-D by definition.
+    pub y_stats: Option<ParameterStatistics>,
 }
 
 /// Statistics for a single parameter (channel) within a gate.
@@ -93,10 +101,20 @@ impl GateStatistics {
             ));
         }
 
-        // Get parameter data as views (no full allocation)
-        let x_param = gate.x_parameter_channel_name();
-        let y_param = gate.y_parameter_channel_name();
+        match &gate.parameters {
+            GateParameters::TwoChannel { x, y } => Self::calculate_two_channel(fcs, gate, x, y),
+            GateParameters::OneChannel { channel } => {
+                Self::calculate_one_channel(fcs, gate, channel)
+            }
+        }
+    }
 
+    fn calculate_two_channel(
+        fcs: &Fcs,
+        gate: &Gate,
+        x_param: &str,
+        y_param: &str,
+    ) -> Result<Self> {
         let x_slice = fcs
             .get_parameter_events_slice(x_param)
             .with_context(|| format!("Failed to get parameter data for {}", x_param))?;
@@ -104,30 +122,31 @@ impl GateStatistics {
             .get_parameter_events_slice(y_param)
             .with_context(|| format!("Failed to get parameter data for {}", y_param))?;
 
-        // Filter in the gate's declared space.
-        let data = EventData::new(GateCoordinateSpace::Raw, x_slice, y_slice);
+        let data = EventData::new(GateCoordinateSpace::Raw, x_param, x_slice, y_param, y_slice);
         let indices = filter_events_by_gate(data, gate, None)?;
         let event_count = indices.len();
 
         if event_count == 0 {
-            return Ok(Self::empty(gate));
+            return Ok(Self {
+                event_count: 0,
+                percentage: 0.0,
+                centroid: Some((0.0, 0.0)),
+                x_stats: ParameterStatistics::empty(x_param),
+                y_stats: Some(ParameterStatistics::empty(y_param)),
+            });
         }
 
-        // Extract filtered values (only allocate the filtered subset)
         let x_values: Vec<f64> = indices.iter().map(|&i| x_slice[i] as f64).collect();
         let y_values: Vec<f64> = indices.iter().map(|&i| y_slice[i] as f64).collect();
 
-        // Calculate total events for percentage
         let total_events = fcs.data_frame.height();
         let percentage = (event_count as f64 / total_events as f64) * 100.0;
 
-        // Calculate centroid
-        let centroid = (
+        let centroid = Some((
             x_values.iter().sum::<f64>() / event_count as f64,
             y_values.iter().sum::<f64>() / event_count as f64,
-        );
+        ));
 
-        // Calculate parameter statistics
         let x_stats = ParameterStatistics::calculate(x_param, &x_values)?;
         let y_stats = ParameterStatistics::calculate(y_param, &y_values)?;
 
@@ -136,19 +155,44 @@ impl GateStatistics {
             percentage,
             centroid,
             x_stats,
-            y_stats,
+            y_stats: Some(y_stats),
         })
     }
 
-    /// Create empty statistics (for gates with no events)
-    fn empty(gate: &Gate) -> Self {
-        Self {
-            event_count: 0,
-            percentage: 0.0,
-            centroid: (0.0, 0.0),
-            x_stats: ParameterStatistics::empty(gate.x_parameter_channel_name()),
-            y_stats: ParameterStatistics::empty(gate.y_parameter_channel_name()),
+    fn calculate_one_channel(fcs: &Fcs, gate: &Gate, channel: &str) -> Result<Self> {
+        let slice = fcs
+            .get_parameter_events_slice(channel)
+            .with_context(|| format!("Failed to get parameter data for {}", channel))?;
+
+        // Pass the same slice for both axes — `filter_events_by_gate` dispatches range/threshold
+        // gates to a 1-D filter that only consults the bounded axis, so the duplicated y is
+        // harmless and lets us reuse the 2-D `EventData` shape without inventing a fake axis.
+        let data = EventData::new(GateCoordinateSpace::Raw, channel, slice, channel, slice);
+        let indices = filter_events_by_gate(data, gate, None)?;
+        let event_count = indices.len();
+
+        if event_count == 0 {
+            return Ok(Self {
+                event_count: 0,
+                percentage: 0.0,
+                centroid: None,
+                x_stats: ParameterStatistics::empty(channel),
+                y_stats: None,
+            });
         }
+
+        let values: Vec<f64> = indices.iter().map(|&i| slice[i] as f64).collect();
+        let total_events = fcs.data_frame.height();
+        let percentage = (event_count as f64 / total_events as f64) * 100.0;
+        let x_stats = ParameterStatistics::calculate(channel, &values)?;
+
+        Ok(Self {
+            event_count,
+            percentage,
+            centroid: None,
+            x_stats,
+            y_stats: None,
+        })
     }
 }
 

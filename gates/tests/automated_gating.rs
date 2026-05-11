@@ -215,7 +215,10 @@ fn test_scatter_gate_on_beads_control_fcs() {
             panic!("no scatter gate created");
         }
     };
-    let indices = filter_events_by_gate(&fcs, scatter_gate, None).expect("filter_events_by_gate");
+    let indices = flow_gates::filter_events_by_gate_with_resolver::<
+        std::collections::HashMap<std::sync::Arc<str>, flow_gates::Gate>,
+    >(&fcs, scatter_gate, None, None)
+        .expect("filter_events_by_gate");
     assert!(
         !indices.is_empty(),
         "scatter gate must pass at least one event (file: {})",

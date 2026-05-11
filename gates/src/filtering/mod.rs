@@ -19,28 +19,45 @@ use geo::{Coord, LineString, Point, Polygon as GeoPolygon};
 use rstar::{AABB, RTree, primitives::GeomWithData};
 use std::sync::Arc;
 
-/// A pair of parameter slices tagged with the coordinate space they're in.
+/// A pair of parameter slices tagged with the coordinate space they're in plus the
+/// channel names they represent.
 ///
 /// `filter_events_by_gate` requires this wrapper (rather than `&Fcs`) so that the
 /// caller must explicitly decide whether to pass raw, compensated, or unmixed
 /// data. If the space doesn't match the gate's `coordinate_space`, the filter
 /// returns `Err(GateError::SpaceMismatch)` rather than silently producing wrong
-/// results. See `GateCoordinateSpace` for rationale.
+/// results. The `x_param` / `y_param` labels let one-channel (range, threshold)
+/// gates resolve which axis their bounded channel maps to without relying on a
+/// stale companion field stored on the gate itself.
 #[derive(Debug, Clone, Copy)]
 pub struct EventData<'a> {
     pub space: GateCoordinateSpace,
+    pub x_param: &'a str,
     pub x: &'a [f32],
+    pub y_param: &'a str,
     pub y: &'a [f32],
 }
 
 impl<'a> EventData<'a> {
-    pub fn new(space: GateCoordinateSpace, x: &'a [f32], y: &'a [f32]) -> Self {
-        Self { space, x, y }
+    pub fn new(
+        space: GateCoordinateSpace,
+        x_param: &'a str,
+        x: &'a [f32],
+        y_param: &'a str,
+        y: &'a [f32],
+    ) -> Self {
+        Self {
+            space,
+            x_param,
+            x,
+            y_param,
+            y,
+        }
     }
 
     /// Convenience constructor for raw-space data sourced directly from an FCS.
     /// Errors if either parameter is missing or not a contiguous f32 slice.
-    pub fn raw_from_fcs(fcs: &'a Fcs, x_param: &str, y_param: &str) -> Result<Self> {
+    pub fn raw_from_fcs(fcs: &'a Fcs, x_param: &'a str, y_param: &'a str) -> Result<Self> {
         let x = fcs.get_parameter_events_slice(x_param).map_err(|e| {
             GateError::filtering_error(format!(
                 "Failed to get raw parameter data for {}: {}",
@@ -55,7 +72,9 @@ impl<'a> EventData<'a> {
         })?;
         Ok(Self {
             space: GateCoordinateSpace::Raw,
+            x_param,
             x,
+            y_param,
             y,
         })
     }
@@ -126,13 +145,13 @@ pub use cache::{FilterCache, FilterCacheKey};
 /// # Example
 ///
 /// ```rust
-/// use flow_gates::{EventIndex, Gate, GateGeometry, GateNode};
+/// use flow_gates::{EventIndex, Gate, GateGeometry, GateNode, GateCoordinateSpace};
 ///
 /// # fn example() -> Result<(), Box<dyn std::error::Error>> {
 /// // Build index from coordinate arrays
 /// let x_values: Vec<f32> = (0..10000).map(|i| i as f32).collect();
 /// let y_values: Vec<f32> = (0..10000).map(|i| (i * 2) as f32).collect();
-/// let index = EventIndex::build(&x_values, &y_values)?;
+/// let index = EventIndex::build("x", &x_values, "y", &y_values)?;
 ///
 /// // Create a gate
 /// let min = GateNode::new("min").with_coordinate("x", 100.0).with_coordinate("y", 200.0);
@@ -143,6 +162,7 @@ pub use cache::{FilterCache, FilterCacheKey};
 ///     GateGeometry::Rectangle { min, max },
 ///     "x",
 ///     "y",
+///     GateCoordinateSpace::Raw,
 /// );
 ///
 /// // Filter events (fast!)
@@ -155,13 +175,28 @@ pub struct EventIndex {
     rtree: RTree<GeomWithData<Point<f32>, usize>>,
     /// Total number of events
     event_count: usize,
+    /// Channel name the rtree's `x` coordinate represents.
+    x_param: Arc<str>,
+    /// Channel name the rtree's `y` coordinate represents.
+    y_param: Arc<str>,
 }
 
 impl EventIndex {
-    /// Build a spatial index from x and y coordinate arrays
+    /// Build a spatial index from x and y coordinate arrays.
     ///
-    /// This is an O(n log n) operation, but subsequent queries are O(log n)
-    pub fn build(x_values: &[f32], y_values: &[f32]) -> Result<Self> {
+    /// `x_param` and `y_param` are the channel names the values were sourced
+    /// from. They are stored on the index so that filtering against gates with
+    /// `GateParameters::OneChannel` (range, threshold) can resolve which axis
+    /// the bounded channel corresponds to without relying on the gate carrying
+    /// a stale companion field.
+    ///
+    /// This is an O(n log n) operation, but subsequent queries are O(log n).
+    pub fn build(
+        x_param: impl Into<Arc<str>>,
+        x_values: &[f32],
+        y_param: impl Into<Arc<str>>,
+        y_values: &[f32],
+    ) -> Result<Self> {
         if x_values.len() != y_values.len() {
             return Err(GateError::index_error(format!(
                 "X and Y arrays must have the same length: {} vs {}",
@@ -183,7 +218,22 @@ impl EventIndex {
         // Build R*-tree with bulk loading for better performance
         let rtree = RTree::bulk_load(points);
 
-        Ok(Self { rtree, event_count })
+        Ok(Self {
+            rtree,
+            event_count,
+            x_param: x_param.into(),
+            y_param: y_param.into(),
+        })
+    }
+
+    /// Channel name the index's x-axis represents.
+    pub fn x_param(&self) -> &str {
+        self.x_param.as_ref()
+    }
+
+    /// Channel name the index's y-axis represents.
+    pub fn y_param(&self) -> &str {
+        self.y_param.as_ref()
     }
 
     /// Filter events by gate geometry.
@@ -204,6 +254,7 @@ impl EventIndex {
             GateGeometry::Rectangle { .. } => Ok(self.filter_by_rectangle(gate)),
             GateGeometry::Ellipse { .. } => Ok(self.filter_by_ellipse(gate)),
             GateGeometry::Range { .. } => Ok(self.filter_by_range(gate)),
+            GateGeometry::Threshold { .. } => Ok(self.filter_by_threshold(gate)),
             GateGeometry::Boolean { .. } => Err(GateError::filtering_error(
                 "Boolean gates require a resolver. Use filter_by_gate_with_resolver() instead.",
             )),
@@ -231,7 +282,7 @@ impl EventIndex {
     /// # Example
     ///
     /// ```rust,no_run
-    /// use flow_gates::{EventIndex, Gate, GateResolver, GateGeometry, GateNode};
+    /// use flow_gates::{EventIndex, Gate, GateResolver, GateGeometry, GateNode, GateCoordinateSpace};
     /// use flow_fcs::Fcs;
     /// use std::collections::HashMap;
     /// use std::sync::Arc;
@@ -240,12 +291,12 @@ impl EventIndex {
     /// // Build index from coordinate arrays
     /// let x_values: Vec<f32> = vec![100.0, 200.0, 300.0];
     /// let y_values: Vec<f32> = vec![100.0, 200.0, 300.0];
-    /// let index = EventIndex::build(&x_values, &y_values)?;
+    /// let index = EventIndex::build("x", &x_values, "y", &y_values)?;
     ///
     /// // Create a geometric gate
     /// let min = GateNode::new("min").with_coordinate("x", 50.0).with_coordinate("y", 50.0);
     /// let max = GateNode::new("max").with_coordinate("x", 250.0).with_coordinate("y", 250.0);
-    /// let gate = Gate::new("rect", "Rectangle", GateGeometry::Rectangle { min, max }, "x", "y");
+    /// let gate = Gate::new("rect", "Rectangle", GateGeometry::Rectangle { min, max }, "x", "y", GateCoordinateSpace::Raw);
     ///
     /// // Works for geometric gates (resolver not needed)
     /// let indices = index.filter_by_gate_with_resolver(&gate, None, None::<&HashMap<_, _>>)?;
@@ -273,6 +324,7 @@ impl EventIndex {
             GateGeometry::Rectangle { .. } => Ok(self.filter_by_rectangle(gate)),
             GateGeometry::Ellipse { .. } => Ok(self.filter_by_ellipse(gate)),
             GateGeometry::Range { .. } => Ok(self.filter_by_range(gate)),
+            GateGeometry::Threshold { .. } => Ok(self.filter_by_threshold(gate)),
             GateGeometry::Boolean {
                 operation,
                 operands,
@@ -311,10 +363,10 @@ impl EventIndex {
     /// Filter by polygon gate
     fn filter_by_polygon(&self, gate: &Gate) -> Vec<usize> {
         // Get bounding box for spatial query
-        let bbox = match gate.geometry.bounding_box(
-            gate.x_parameter_channel_name(),
-            gate.y_parameter_channel_name(),
-        ) {
+        let bbox = match gate
+            .geometry
+            .bounding_box(self.x_param.as_ref(), self.y_param.as_ref())
+        {
             Some(bounds) => bounds,
             None => return Vec::new(),
         };
@@ -331,8 +383,8 @@ impl EventIndex {
                 .iter()
                 .filter_map(|node| {
                     Some((
-                        node.get_coordinate(gate.x_parameter_channel_name())?,
-                        node.get_coordinate(gate.y_parameter_channel_name())?,
+                        node.get_coordinate(self.x_param.as_ref())?,
+                        node.get_coordinate(self.y_param.as_ref())?,
                     ))
                 })
                 .collect(),
@@ -367,19 +419,21 @@ impl EventIndex {
     /// Filter by rectangle gate
     fn filter_by_rectangle(&self, gate: &Gate) -> Vec<usize> {
         if let GateGeometry::Rectangle { min, max } = &gate.geometry {
-            let min_x = match min.get_coordinate(gate.x_parameter_channel_name()) {
+            let x_param = self.x_param.as_ref();
+            let y_param = self.y_param.as_ref();
+            let min_x = match min.get_coordinate(x_param) {
                 Some(x) => x,
                 None => return Vec::new(),
             };
-            let min_y = match min.get_coordinate(gate.y_parameter_channel_name()) {
+            let min_y = match min.get_coordinate(y_param) {
                 Some(y) => y,
                 None => return Vec::new(),
             };
-            let max_x = match max.get_coordinate(gate.x_parameter_channel_name()) {
+            let max_x = match max.get_coordinate(x_param) {
                 Some(x) => x,
                 None => return Vec::new(),
             };
-            let max_y = match max.get_coordinate(gate.y_parameter_channel_name()) {
+            let max_y = match max.get_coordinate(y_param) {
                 Some(y) => y,
                 None => return Vec::new(),
             };
@@ -423,11 +477,11 @@ impl EventIndex {
             angle,
         } = &gate.geometry
         {
-            let cx = match center.get_coordinate(gate.x_parameter_channel_name()) {
+            let cx = match center.get_coordinate(self.x_param.as_ref()) {
                 Some(x) => x,
                 None => return Vec::new(),
             };
-            let cy = match center.get_coordinate(gate.y_parameter_channel_name()) {
+            let cy = match center.get_coordinate(self.y_param.as_ref()) {
                 Some(y) => y,
                 None => return Vec::new(),
             };
@@ -475,20 +529,18 @@ impl EventIndex {
         }
     }
 
-    /// Filter by range gate (1D on either plot axis, resolved from stored channel + companion)
+    /// Filter by range gate (1D on either plot axis, resolved from the index's stored axes).
     fn filter_by_range(&self, gate: &Gate) -> Vec<usize> {
         if let GateGeometry::Range { min, max } = &gate.geometry {
             let range = crate::range::RangeGateGeometry {
                 min: min.clone(),
                 max: max.clone(),
             };
-            let (axis, lo, hi) = match range.resolve_bounds(
-                gate.x_parameter_channel_name(),
-                gate.y_parameter_channel_name(),
-            ) {
-                Ok(v) => v,
-                Err(_) => return Vec::new(),
-            };
+            let (axis, lo, hi) =
+                match range.resolve_bounds(self.x_param.as_ref(), self.y_param.as_ref()) {
+                    Ok(v) => v,
+                    Err(_) => return Vec::new(),
+                };
 
             let aabb = match axis {
                 crate::range::RangeAxis::X => {
@@ -530,6 +582,59 @@ impl EventIndex {
         }
     }
 
+    fn filter_by_threshold(&self, gate: &Gate) -> Vec<usize> {
+        if let GateGeometry::Threshold { value_node, direction } = &gate.geometry {
+            let t = crate::threshold::ThresholdGateGeometry {
+                value_node: value_node.clone(),
+                direction: *direction,
+            };
+            let (axis, val) =
+                match t.resolve_value(self.x_param.as_ref(), self.y_param.as_ref()) {
+                    Ok(v) => v,
+                    Err(_) => return Vec::new(),
+                };
+            let above = matches!(direction, crate::types::ThresholdDirection::Above);
+
+            let aabb = match (axis, above) {
+                (crate::threshold::ThresholdAxis::X, true) => {
+                    AABB::from_corners(Point::new(val, f32::MIN), Point::new(f32::MAX, f32::MAX))
+                }
+                (crate::threshold::ThresholdAxis::X, false) => {
+                    AABB::from_corners(Point::new(f32::MIN, f32::MIN), Point::new(val, f32::MAX))
+                }
+                (crate::threshold::ThresholdAxis::Y, true) => {
+                    AABB::from_corners(Point::new(f32::MIN, val), Point::new(f32::MAX, f32::MAX))
+                }
+                (crate::threshold::ThresholdAxis::Y, false) => {
+                    AABB::from_corners(Point::new(f32::MIN, f32::MIN), Point::new(f32::MAX, val))
+                }
+            };
+            let candidates: Vec<_> = self.rtree.locate_in_envelope(&aabb).collect();
+            let candidate_points: Vec<(f32, f32)> = candidates
+                .iter()
+                .map(|geom| { let p = geom.geom(); (p.x(), p.y()) })
+                .collect();
+
+            let results = match axis {
+                crate::threshold::ThresholdAxis::X => {
+                    crate::batch_filtering::filter_by_threshold_x_batch(&candidate_points, val, above)
+                }
+                crate::threshold::ThresholdAxis::Y => {
+                    crate::batch_filtering::filter_by_threshold_y_batch(&candidate_points, val, above)
+                }
+            }
+            .unwrap_or_default();
+
+            candidates
+                .into_iter()
+                .zip(results)
+                .filter_map(|(geom, inside)| if inside { Some(geom.data) } else { None })
+                .collect()
+        } else {
+            Vec::new()
+        }
+    }
+
     /// Build a geo::Polygon from gate nodes
     fn _build_geo_polygon(&self, gate: &Gate) -> Option<GeoPolygon<f32>> {
         if let GateGeometry::Polygon { nodes, closed } = &gate.geometry {
@@ -540,8 +645,8 @@ impl EventIndex {
             let coords: Vec<Coord<f32>> = nodes
                 .iter()
                 .filter_map(|node| {
-                    let x = node.get_coordinate(gate.x_parameter_channel_name())?;
-                    let y = node.get_coordinate(gate.y_parameter_channel_name())?;
+                    let x = node.get_coordinate(self.x_param.as_ref())?;
+                    let y = node.get_coordinate(self.y_param.as_ref())?;
                     Some(Coord { x, y })
                 })
                 .collect();
@@ -605,7 +710,7 @@ impl EventIndex {
 /// # Example
 ///
 /// ```rust,no_run
-/// use flow_gates::{filter_events_by_gate, Gate, GateGeometry, GateNode, EventIndex};
+/// use flow_gates::{filter_events_by_gate, Gate, GateGeometry, GateNode, GateCoordinateSpace, EventIndex};
 /// use flow_fcs::Fcs;
 ///
 /// # fn example() -> Result<(), Box<dyn std::error::Error>> {
@@ -625,6 +730,7 @@ impl EventIndex {
 ///     GateGeometry::Rectangle { min, max },
 ///     "FSC-A",
 ///     "SSC-A",
+///     GateCoordinateSpace::Raw,
 /// );
 ///
 /// // Filter events (builds temporary index)
@@ -633,7 +739,7 @@ impl EventIndex {
 /// // Or use a pre-built index for better performance
 /// // let x_slice = fcs.get_parameter_events_slice("FSC-A")?;
 /// // let y_slice = fcs.get_parameter_events_slice("SSC-A")?;
-/// // let index = EventIndex::build(x_slice, y_slice)?;
+/// // let index = EventIndex::build("FSC-A", x_slice, "SSC-A", y_slice)?;
 /// // let indices = filter_events_by_gate(&fcs, &gate, Some(&index))?;
 /// # Ok(())
 /// # }
@@ -650,7 +756,7 @@ pub fn filter_events_by_gate(
     let indices = if let Some(index) = spatial_index {
         index.filter_by_gate(gate)?
     } else {
-        let index = EventIndex::build(data.x, data.y)?;
+        let index = EventIndex::build(data.x_param, data.x, data.y_param, data.y)?;
         index.filter_by_gate(gate)?
     };
 
@@ -691,7 +797,7 @@ pub fn filter_events_by_gate(
 /// # Example
 ///
 /// ```rust,no_run
-/// use flow_gates::{filter_events_by_gate_with_resolver, Gate, GateResolver, GateGeometry, GateNode};
+/// use flow_gates::{filter_events_by_gate_with_resolver, Gate, GateResolver, GateGeometry, GateNode, GateCoordinateSpace};
 /// use flow_fcs::Fcs;
 /// use std::collections::HashMap;
 /// use std::sync::Arc;
@@ -705,7 +811,7 @@ pub fn filter_events_by_gate(
 /// // Create a geometric gate
 /// let min = GateNode::new("min").with_coordinate("FSC-A", 1000.0).with_coordinate("SSC-A", 2000.0);
 /// let max = GateNode::new("max").with_coordinate("FSC-A", 5000.0).with_coordinate("SSC-A", 6000.0);
-/// let geometric_gate = Gate::new("rect", "Rectangle", GateGeometry::Rectangle { min, max }, "FSC-A", "SSC-A");
+/// let geometric_gate = Gate::new("rect", "Rectangle", GateGeometry::Rectangle { min, max }, "FSC-A", "SSC-A", GateCoordinateSpace::Raw);
 ///
 /// // Works for geometric gates (resolver not needed)
 /// // let indices = filter_events_by_gate_with_resolver(&fcs, &geometric_gate, None, None::<&HashMap<_, _>>)?;
@@ -741,16 +847,31 @@ pub fn filter_events_by_gate_with_resolver<R: GateResolver>(
         return filter_boolean_gate_with_resolver(fcs, gate, resolver);
     }
 
-    let data = EventData::raw_from_fcs(fcs, gate.x_parameter_channel_name(), gate.y_parameter_channel_name())?;
+    let (x_param, y_param) = gate_axis_pair_for_raw_filter(gate);
+    let data = EventData::raw_from_fcs(fcs, x_param, y_param)?;
 
     let indices = if let Some(index) = spatial_index {
         index.filter_by_gate(gate)?
     } else {
-        let index = EventIndex::build(data.x, data.y)?;
+        let index = EventIndex::build(data.x_param, data.x, data.y_param, data.y)?;
         index.filter_by_gate(gate)?
     };
 
     Ok(indices)
+}
+
+/// Pick the `(x_param, y_param)` to fetch from FCS when filtering raw-space events
+/// for `gate`. Two-channel gates use the gate's `(x, y)`; one-channel gates use the
+/// bounded channel for both slots (the batch filter only inspects the bounded axis,
+/// so the second slice is harmless and lets us reuse the 2-D `EventData` shape).
+fn gate_axis_pair_for_raw_filter(gate: &Gate) -> (&str, &str) {
+    match &gate.parameters {
+        crate::types::GateParameters::TwoChannel { x, y } => (x.as_ref(), y.as_ref()),
+        crate::types::GateParameters::OneChannel { channel } => {
+            let c = channel.as_ref();
+            (c, c)
+        }
+    }
 }
 
 /// Helper function to filter boolean gates with resolver
@@ -803,11 +924,8 @@ fn filter_events_by_gate_raw(fcs: &Fcs, gate: &Gate) -> Result<Vec<usize>> {
             gate.coordinate_space
         )));
     }
-    let data = EventData::raw_from_fcs(
-        fcs,
-        gate.x_parameter_channel_name(),
-        gate.y_parameter_channel_name(),
-    )?;
+    let (x_param, y_param) = gate_axis_pair_for_raw_filter(gate);
+    let data = EventData::raw_from_fcs(fcs, x_param, y_param)?;
     filter_events_by_gate(data, gate, None)
 }
 
@@ -1329,7 +1447,7 @@ mod tests {
         // Create a simple 10x10 grid of points
         let x_values: Vec<f32> = (0..100).map(|i| (i % 10) as f32).collect();
         let y_values: Vec<f32> = (0..100).map(|i| (i / 10) as f32).collect();
-        EventIndex::build(&x_values, &y_values).expect("Failed to build index")
+        EventIndex::build("x", &x_values, "y", &y_values).expect("Failed to build index")
     }
 
     #[test]

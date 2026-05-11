@@ -35,14 +35,8 @@ pub fn validate_coordinate_transformation(
     pixel_range: &Range<u32>,
     _transform: &TransformType,
     axis: Axis,
-    context: &str,
+    _context: &str,
 ) -> Result<(), String> {
-    eprintln!(
-        "🔍 [VALIDATE] {} - Starting coordinate validation (axis={:?})",
-        context, axis
-    );
-
-    // Validate pixel range
     if pixel_range.start >= pixel_range.end {
         return Err(format!("Invalid pixel range: {:?}", pixel_range));
     }
@@ -52,7 +46,6 @@ pub fn validate_coordinate_transformation(
         return Err(format!("Non-positive pixel span: {}", pixel_span));
     }
 
-    // Validate data range
     if !data_range.start().is_finite() || !data_range.end().is_finite() {
         return Err(format!("Non-finite data range: {:?}", data_range));
     }
@@ -62,7 +55,6 @@ pub fn validate_coordinate_transformation(
         return Err(format!("Negative data span: {}", data_span));
     }
 
-    // Validate pixel coordinates
     for (i, (pixel_x, pixel_y)) in pixel_coords.iter().enumerate() {
         if !pixel_x.is_finite() || !pixel_y.is_finite() {
             return Err(format!(
@@ -76,27 +68,16 @@ pub fn validate_coordinate_transformation(
             Axis::Y => *pixel_y,
         };
 
-        // Calculate normalized position for the requested axis.
         let normalized = (pixel_value - pixel_range.start as f32) / pixel_span;
 
-        eprintln!(
-            "🔍 [VALIDATE] Point {}: pixel=({}, {}), axis_pixel={}, normalized={}",
-            i, pixel_x, pixel_y, pixel_value, normalized
-        );
-
-        // Check for out-of-bounds coordinates.
-        if normalized < 0.0 || normalized > 1.0 {
-            eprintln!(
-                "⚠️ [VALIDATE] {:?} coordinate {} is out of bounds [0,1]: {}",
+        if normalized < -0.5 || normalized > 1.5 {
+            return Err(format!(
+                "{:?} coordinate {} far out of bounds: normalized={}",
                 axis, i, normalized
-            );
+            ));
         }
     }
 
-    eprintln!(
-        "🔍 [VALIDATE] {} - Validation completed successfully",
-        context
-    );
     Ok(())
 }
 
@@ -194,53 +175,17 @@ pub fn pixel_to_raw_y(
     pixel_range: &Range<u32>,
     transform: &TransformType,
 ) -> f32 {
-    // Enhanced validation with better error messages
-    if !pixel.is_finite() {
-        eprintln!("❌ [TRANSFORM] Pixel coordinate is not finite: {}", pixel);
-        panic!("Pixel coordinate must be finite: {}", pixel);
-    }
+    debug_assert!(pixel.is_finite(), "Pixel coordinate must be finite: {}", pixel);
+    debug_assert!(
+        data_range.start().is_finite() && data_range.end().is_finite(),
+        "Data range must be finite: {:?}", data_range
+    );
+    debug_assert!(pixel_range.start < pixel_range.end, "Pixel range must be valid: {:?}", pixel_range);
 
-    if !data_range.start().is_finite() || !data_range.end().is_finite() {
-        eprintln!("❌ [TRANSFORM] Data range is not finite: {:?}", data_range);
-        panic!("Data range must be finite: {:?}", data_range);
-    }
-
-    if pixel_range.start >= pixel_range.end {
-        eprintln!("❌ [TRANSFORM] Pixel range is invalid: {:?}", pixel_range);
-        panic!("Pixel range must be valid: {:?}", pixel_range);
-    }
-
-    // Map pixel to normalized position (INVERTED for y-axis)
     let pixel_span = (pixel_range.end - pixel_range.start) as f32;
-    if pixel_span <= 0.0 {
-        eprintln!("❌ [TRANSFORM] Pixel span is not positive: {}", pixel_span);
-        panic!("Pixel span must be positive: {}", pixel_span);
-    }
-
-    // Invert: pixel_range.start (top) → normalized=0 → data_max
-    //         pixel_range.end (bottom) → normalized=1 → data_min
-    // Formula matches plotting: pixel = pixel_range.start + normalized * pixel_span
-    // So: normalized = (pixel - pixel_range.start) / pixel_span
     let normalized = (pixel - pixel_range.start as f32) / pixel_span;
+    let clamped_normalized = normalized.clamp(0.0, 1.0);
 
-    // Enhanced bounds checking with clamping for out-of-bounds coordinates
-    let clamped_normalized = if normalized < 0.0 {
-        eprintln!(
-            "⚠️ [TRANSFORM] Pixel coordinate {} is below plotting area, clamping to 0.0",
-            pixel
-        );
-        0.0
-    } else if normalized > 1.0 {
-        eprintln!(
-            "⚠️ [TRANSFORM] Pixel coordinate {} is above plotting area, clamping to 1.0",
-            pixel
-        );
-        1.0
-    } else {
-        normalized
-    };
-
-    // Map to data space (transformed) - INVERTED
     let data_min = *data_range.start();
     let data_max = *data_range.end();
     let data_span = data_max - data_min;
@@ -251,8 +196,6 @@ pub fn pixel_to_raw_y(
 
     // Invert: normalized=0 → data_max, normalized=1 → data_min
     let transformed = data_max - clamped_normalized * data_span;
-
-    // Transform back to raw space
     transformed_to_raw(transformed, transform)
 }
 
@@ -269,104 +212,23 @@ pub fn pixel_to_raw(
     pixel_range: &Range<u32>,
     transform: &TransformType,
 ) -> f32 {
-    // Enhanced validation with better error messages
-    if !pixel.is_finite() {
-        eprintln!("❌ [TRANSFORM] Pixel coordinate is not finite: {}", pixel);
-        panic!("Pixel coordinate must be finite: {}", pixel);
-    }
+    debug_assert!(pixel.is_finite(), "Pixel coordinate must be finite: {}", pixel);
+    debug_assert!(
+        data_range.start().is_finite() && data_range.end().is_finite(),
+        "Data range must be finite: {:?}", data_range
+    );
+    debug_assert!(pixel_range.start < pixel_range.end, "Pixel range must be valid: {:?}", pixel_range);
 
-    if !data_range.start().is_finite() || !data_range.end().is_finite() {
-        eprintln!("❌ [TRANSFORM] Data range is not finite: {:?}", data_range);
-        panic!("Data range must be finite: {:?}", data_range);
-    }
-
-    if pixel_range.start >= pixel_range.end {
-        eprintln!("❌ [TRANSFORM] Pixel range is invalid: {:?}", pixel_range);
-        panic!("Pixel range must be valid: {:?}", pixel_range);
-    }
-
-    // Map pixel to normalized position
     let pixel_span = (pixel_range.end - pixel_range.start) as f32;
-    if pixel_span <= 0.0 {
-        eprintln!("❌ [TRANSFORM] Pixel span is not positive: {}", pixel_span);
-        panic!("Pixel span must be positive: {}", pixel_span);
-    }
-
     let normalized = (pixel - pixel_range.start as f32) / pixel_span;
+    let clamped_normalized = normalized.clamp(0.0, 1.0);
 
-    // Enhanced bounds checking with clamping for out-of-bounds coordinates
-    if !normalized.is_finite() {
-        eprintln!(
-            "❌ [TRANSFORM] Normalized position is not finite: {}",
-            normalized
-        );
-        eprintln!(
-            "   Input: pixel={}, pixel_range={:?}, span={}",
-            pixel, pixel_range, pixel_span
-        );
-        panic!("Normalized position must be finite: {}", normalized);
-    }
-
-    // Clamp normalized values to [0,1] range instead of panicking
-    // This allows gates to extend beyond the visible plotting area
-    let clamped_normalized = if normalized < 0.0 {
-        eprintln!(
-            "⚠️ [TRANSFORM] Pixel coordinate {} is below plotting area, clamping to 0.0",
-            pixel
-        );
-        0.0
-    } else if normalized > 1.0 {
-        eprintln!(
-            "⚠️ [TRANSFORM] Pixel coordinate {} is above plotting area, clamping to 1.0",
-            pixel
-        );
-        1.0
-    } else {
-        normalized
-    };
-
-    // Map to data space (transformed)
     let data_min = *data_range.start();
     let data_max = *data_range.end();
     let data_span = data_max - data_min;
 
-    if data_span < 0.0 {
-        eprintln!("❌ [TRANSFORM] Data span is negative: {}", data_span);
-        panic!("Data span must be non-negative: {}", data_span);
-    }
-
     let transformed = data_min + clamped_normalized * data_span;
-    eprintln!(
-        "🔧 [TRANSFORM] Data range: [{}, {}], span: {}, normalized: {} (clamped: {}), transformed: {}",
-        data_min, data_max, data_span, normalized, clamped_normalized, transformed
-    );
-    eprintln!(
-        "🔧 [TRANSFORM] Input pixel: {}, pixel_range: {:?}",
-        pixel, pixel_range
-    );
-
-    if !transformed.is_finite() {
-        eprintln!(
-            "❌ [TRANSFORM] Transformed value is not finite: {}",
-            transformed
-        );
-        panic!("Transformed value must be finite: {}", transformed);
-    }
-
-    // Transform back to raw space
-    eprintln!(
-        "🔧 [TRANSFORM] About to inverse transform: {} with transform: {:?}",
-        transformed, transform
-    );
-    let result = transformed_to_raw(transformed, transform);
-    eprintln!("🔧 [TRANSFORM] Inverse transform result: {}", result);
-
-    if !result.is_finite() {
-        eprintln!("❌ [TRANSFORM] Final raw result is not finite: {}", result);
-        panic!("Final raw result must be finite: {}", result);
-    }
-
-    result
+    transformed_to_raw(transformed, transform)
 }
 
 /// Convert raw gate coordinates to display pixel coordinates
@@ -426,127 +288,28 @@ pub fn pixels_to_raw_coords<I>(
 where
     I: IntoIterator<Item = (f32, f32)>,
 {
-    eprintln!("🔧 [PIXELS_TO_RAW COORDS] X transform: {:?}", x_transform);
-    eprintln!("🔧 [PIXELS_TO_RAW COORDS] Y transform: {:?}", y_transform);
-
-    // Convert iterator to vector for validation
     let pixel_coords_vec: Vec<(f32, f32)> = pixel_coords.into_iter().collect();
 
-    // Enhanced validation
-    if width == 0 || height == 0 {
-        eprintln!(
-            "❌ [PIXELS_TO_RAW] Invalid plot dimensions: {}x{}",
-            width, height
-        );
-        panic!("Plot dimensions must be positive: {}x{}", width, height);
-    }
-
-    if !x_data_range.start().is_finite() || !x_data_range.end().is_finite() {
-        eprintln!(
-            "❌ [PIXELS_TO_RAW] X data range is not finite: {:?}",
-            x_data_range
-        );
-        panic!("X data range must be finite: {:?}", x_data_range);
-    }
-
-    if !y_data_range.start().is_finite() || !y_data_range.end().is_finite() {
-        eprintln!(
-            "❌ [PIXELS_TO_RAW] Y data range is not finite: {:?}",
-            y_data_range
-        );
-        panic!("Y data range must be finite: {:?}", y_data_range);
-    }
+    debug_assert!(width > 0 && height > 0, "Plot dimensions must be positive: {}x{}", width, height);
+    debug_assert!(
+        x_data_range.start().is_finite() && x_data_range.end().is_finite(),
+        "X data range must be finite: {:?}", x_data_range
+    );
+    debug_assert!(
+        y_data_range.start().is_finite() && y_data_range.end().is_finite(),
+        "Y data range must be finite: {:?}", y_data_range
+    );
 
     let (x_pixel_range, y_pixel_range) = get_plotting_area(width, height);
 
-    if x_pixel_range.start >= x_pixel_range.end || y_pixel_range.start >= y_pixel_range.end {
-        eprintln!(
-            "❌ [PIXELS_TO_RAW] Invalid pixel ranges: x={:?}, y={:?}",
-            x_pixel_range, y_pixel_range
-        );
-        panic!(
-            "Pixel ranges must be valid: x={:?}, y={:?}",
-            x_pixel_range, y_pixel_range
-        );
-    }
-
-    // Validate coordinate transformation parameters
-    if let Err(validation_error) = validate_coordinate_transformation(
-        &pixel_coords_vec,
-        x_data_range,
-        &x_pixel_range,
-        x_transform,
-        Axis::X,
-        "X-axis transformation",
-    ) {
-        eprintln!(
-            "❌ [PIXELS_TO_RAW] X-axis validation failed: {}",
-            validation_error
-        );
-        // Don't panic here, just log the error and continue
-    }
-
-    if let Err(validation_error) = validate_coordinate_transformation(
-        &pixel_coords_vec,
-        y_data_range,
-        &y_pixel_range,
-        y_transform,
-        Axis::Y,
-        "Y-axis transformation",
-    ) {
-        eprintln!(
-            "❌ [PIXELS_TO_RAW] Y-axis validation failed: {}",
-            validation_error
-        );
-        // Don't panic here, just log the error and continue
-    }
-
-    let result: Vec<(f32, f32)> = pixel_coords_vec
+    pixel_coords_vec
         .into_iter()
-        .enumerate()
-        .map(|(i, (pixel_x, pixel_y))| {
-            if !pixel_x.is_finite() || !pixel_y.is_finite() {
-                eprintln!(
-                    "❌ [PIXELS_TO_RAW] Non-finite pixel coordinates at point {}: ({}, {})",
-                    i, pixel_x, pixel_y
-                );
-                panic!(
-                    "Pixel coordinates must be finite at point {}: ({}, {})",
-                    i, pixel_x, pixel_y
-                );
-            }
-
+        .map(|(pixel_x, pixel_y)| {
             let raw_x = pixel_to_raw(pixel_x, x_data_range, &x_pixel_range, x_transform);
-            // Use y-axis inverted function to match plotting code's y-axis inversion
             let raw_y = pixel_to_raw_y(pixel_y, y_data_range, &y_pixel_range, y_transform);
-
-            if !raw_x.is_finite() || !raw_y.is_finite() {
-                eprintln!(
-                    "❌ [PIXELS_TO_RAW] Non-finite raw coordinates at point {}: ({}, {})",
-                    i, raw_x, raw_y
-                );
-                panic!(
-                    "Raw coordinates must be finite at point {}: ({}, {})",
-                    i, raw_x, raw_y
-                );
-            }
-
             (raw_x, raw_y)
         })
-        .collect();
-
-    if result.is_empty() {
-        eprintln!(
-            "❌ [PIXELS_TO_RAW] Result is empty - no coordinate pairs generated (returning empty vec)"
-        );
-        return result;
-    }
-
-    eprintln!(
-        "✅ [PIXELS_TO_RAW] Successfully converted {} coordinate pairs",
-        result.len()
-    );
-    result
+        .collect()
 }
 
 #[cfg(test)]

@@ -139,7 +139,9 @@ fn run_test_case(test_case: &ComplianceTestCase) -> anyhow::Result<ComplianceTes
     })?;
 
     // Apply gate and get event indices
-    let event_indices = filter_events_by_gate(&fcs, gate, None)
+    let event_indices = flow_gates::filter_events_by_gate_with_resolver::<
+        std::collections::HashMap<std::sync::Arc<str>, flow_gates::Gate>,
+    >(&fcs, gate, None, None)
         .map_err(|e| anyhow::anyhow!("Failed to filter events: {}", e))?;
 
     let actual_events = event_indices.len();
