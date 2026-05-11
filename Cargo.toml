@@ -4,6 +4,8 @@ members = [
     "flow-fcs-compress",
     "flow-fcs-bench",
     "flow-linalg",
+    "flow-density",
+    "flow-clustering",
     "plots",
     "gates",
     "peacoqc-rs",
@@ -11,7 +13,6 @@ members = [
     "peacoqc-py",
     "tru-ols",
     "tru-ols-cli",
-    "utils",
 ]
 resolver = "3"
 
