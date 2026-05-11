@@ -9,7 +9,7 @@
 ## Table of contents
 
 1. [Summary](#summary)
-2. [Why not split this proposal](#why-not-split-this-proposal)
+2. [A joint proposal](#a-joint-proposal)
 3. [Why this matters beyond compression](#why-this-matters-beyond-compression)
 4. [Why FCS files are written row-major today](#why-fcs-files-are-written-row-major-today)
 5. [Specific proposals](#specific-proposals)
@@ -34,7 +34,7 @@ The FCS standard does not currently define compression. The DATA-segment layout 
 
 The `flow-fcs-compress` reference implementation reports **2.5–3.2× compression ratios bit-exactly lossless** to the f32 representation, and **4–6× when quantized to ADC bit depth** (still lossless with respect to the physical signal). On a 10-core Apple M1 Max, decode runs at 0.5–1.0 GB/s of f32 single-threaded and **2–3 GB/s parallel** via a per-chunk worker pool.
 
-## Why not split this proposal?
+## A joint proposal
 
 The Working Group might reasonably ask whether the two ideas — column-major layout and compression keywords — should be considered separately as independent proposals. They are presented as a single document for the following reasons, all of which the WG is welcome to revisit:
 
