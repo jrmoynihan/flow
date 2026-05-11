@@ -7,6 +7,15 @@ use std::collections::HashMap;
 pub fn invert_spillover(spillover: MatRef<'_, f32>) -> Result<Mat<f32>> {
     use faer::linalg::solvers::{DenseSolveCore, PartialPivLu};
     let lu = PartialPivLu::new(spillover);
+    // Detect singular/ill-conditioned matrix via U diagonal
+    let u = lu.U();
+    for i in 0..u.nrows().min(u.ncols()) {
+        if u[(i, i)].abs() < f32::EPSILON {
+            anyhow::bail!(
+                "spillover matrix is singular or ill-conditioned at diagonal index {i}"
+            );
+        }
+    }
     Ok(lu.inverse())
 }
 
@@ -39,6 +48,18 @@ pub fn apply_compensation_inv(
         .iter()
         .find_map(|c| c.map(|s| s.len()))
         .unwrap_or(0);
+
+    // Verify all provided channel slices have the same event count
+    for (i, opt) in channel_data.iter().enumerate() {
+        if let Some(raw) = opt {
+            anyhow::ensure!(
+                raw.len() == n_events,
+                "channel '{}' has {} events but expected {n_events}",
+                matrix_channel_names[i],
+                raw.len()
+            );
+        }
+    }
 
     if n_events == 0 {
         return Ok(HashMap::new());
