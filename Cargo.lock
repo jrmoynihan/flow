@@ -3313,6 +3313,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "flow-linalg"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "approx 0.5.1",
+ "faer 0.24.0",
+ "rayon",
+]
+
+[[package]]
 name = "flow-plots"
 version = "0.3.1"
 dependencies = [

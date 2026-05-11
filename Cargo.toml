@@ -3,6 +3,7 @@ members = [
     "fcs",
     "flow-fcs-compress",
     "flow-fcs-bench",
+    "flow-linalg",
     "plots",
     "gates",
     "peacoqc-rs",
