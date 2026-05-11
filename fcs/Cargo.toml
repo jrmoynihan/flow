@@ -39,7 +39,7 @@ ndarray-linalg={ version="0.18.1", optional=true, features=[
 ts-rs = { workspace = true, optional = true }
 
 # Optional compression integration (Mode A `.fcz` reader/writer)
-flow-fcs-compress = { path = "../flow-fcs-compress", version = "^0.1.1", default-features = false, features = ["multithread"], optional = true }
+flow-fcs-compress = { path = "../flow-fcs-compress", version = "^0.1.2", default-features = false, features = ["multithread"], optional = true }
 flow-linalg = { path = "../flow-linalg", version = "^0.1.1", optional = true, features = ["compensation"] }
 
 # Parallelization
