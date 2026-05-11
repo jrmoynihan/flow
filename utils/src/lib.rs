@@ -1,3 +1,6 @@
+//! **Deprecated**: `flow-utils` has been split into focused crates.
+//! Use `flow-density` (KDE), `flow-clustering` (clustering) instead.
+
 //! # flow-utils
 //!
 //! Shared algorithms and utilities for flow cytometry crates.
