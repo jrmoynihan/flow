@@ -1,0 +1,15 @@
+[package]
+name = "flow-fcs-bench"
+version = "0.1.0"
+edition.workspace = true
+authors.workspace = true
+license = "MIT"
+publish = false
+description = "Benchmark harness for flow-fcs-compress codecs."
+
+[dependencies]
+flow-fcs-compress = { path = "../flow-fcs-compress", default-features = false, features = ["multithread", "pco-backend", "lz4-baseline"] }
+flow-fcs = { path = "../fcs", features = ["compress"] }
+clap = { workspace = true }
+anyhow = { workspace = true }
+rayon = { workspace = true }

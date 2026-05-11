@@ -80,6 +80,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "alloc-no-stdlib"
+version = "2.0.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cc7bb162ec39d46ab1ca8c77bf72e890535becd1751bb45f64c597edb4c8c6b3"
+
+[[package]]
+name = "alloc-stdlib"
+version = "0.2.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "94fb8275041c72129eb51b7d0322c29b8387a0386127718b096429201a5d6ece"
+dependencies = [
+ "alloc-no-stdlib",
+]
+
+[[package]]
 name = "alloca"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -475,6 +490,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2af50177e190e07a26ab74f8b1efbfe2ef87da2116221318cb1c2e82baf7de06"
 
 [[package]]
+name = "better_io"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ef0a3155e943e341e557863e69a708999c94ede624e37865c8e2a91b94efa78f"
+
+[[package]]
 name = "bincode"
 version = "2.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -593,6 +614,27 @@ name = "boxcar"
 version = "0.2.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "36f64beae40a84da1b4b26ff2761a5b895c12adc41dc25aaee1c4f2bbfe97a6e"
+
+[[package]]
+name = "brotli"
+version = "8.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4bd8b9603c7aa97359dbd97ecf258968c95f3adddd6db2f7e7a5bef101c84560"
+dependencies = [
+ "alloc-no-stdlib",
+ "alloc-stdlib",
+ "brotli-decompressor",
+]
+
+[[package]]
+name = "brotli-decompressor"
+version = "5.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "874bb8112abecc98cbd6d81ea4fa7e94fb9449648c93cc89aa40c81c24d7de03"
+dependencies = [
+ "alloc-no-stdlib",
+ "alloc-stdlib",
+]
 
 [[package]]
 name = "bstr"
@@ -1542,6 +1584,12 @@ dependencies = [
  "once_cell",
  "tiny-keccak",
 ]
+
+[[package]]
+name = "const_for"
+version = "0.1.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d9c50fcfdf972929aff202c16b80086aa3cfc6a3a820af714096c58c7c1d0582"
 
 [[package]]
 name = "constant_time_eq"
@@ -2636,6 +2684,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "dtype_dispatch"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d3a5ccdfd6c5e7e2fea9c5cf256f2a08216047fab19c621c3da64e9ae4a1462d"
+
+[[package]]
 name = "dwrote"
 version = "0.11.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3032,6 +3086,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f8eb564c5c7423d25c886fb561d1e4ee69f72354d16918afa32c08811f6b6a55"
 
 [[package]]
+name = "fastlanes"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "414cb755aee48ff7b0907995d2949c68c8c17900970076dff6a808e18e592d71"
+dependencies = [
+ "arrayref",
+ "const_for",
+ "num-traits 0.2.19",
+ "paste",
+ "seq-macro",
+]
+
+[[package]]
 name = "fastrand"
 version = "2.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3097,6 +3164,7 @@ checksum = "843fba2746e448b37e26a819579957415c8cef339bf08564fe8b7ddbd959573c"
 dependencies = [
  "crc32fast",
  "miniz_oxide",
+ "zlib-rs",
 ]
 
 [[package]]
@@ -3154,8 +3222,35 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8bf7cc16383c4b8d58b9905a8509f02926ce3058053c056376248d958c9df1e8"
 
 [[package]]
+name = "flow-clustering"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "linfa",
+ "linfa-clustering",
+ "linfa-linalg",
+ "ndarray 0.16.1",
+ "rayon",
+ "thiserror 2.0.18",
+]
+
+[[package]]
+name = "flow-density"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "burn",
+ "bytemuck",
+ "cubecl",
+ "ndarray 0.16.1",
+ "rayon",
+ "realfft",
+ "thiserror 2.0.18",
+]
+
+[[package]]
 name = "flow-fcs"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "anyhow",
  "approx 0.5.1",
@@ -3166,6 +3261,8 @@ dependencies = [
  "derive_builder",
  "faer 0.24.0",
  "faer-ext",
+ "flow-fcs-compress",
+ "flow-linalg",
  "itertools 0.14.0",
  "memchr",
  "memmap3",
@@ -3180,10 +3277,43 @@ dependencies = [
  "serde_json",
  "strum 0.28.0",
  "strum_macros 0.28.0",
+ "tempfile",
  "thiserror 2.0.18",
  "tracing",
  "ts-rs",
  "uuid",
+]
+
+[[package]]
+name = "flow-fcs-bench"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "flow-fcs",
+ "flow-fcs-compress",
+ "rayon",
+]
+
+[[package]]
+name = "flow-fcs-compress"
+version = "0.1.0"
+dependencies = [
+ "approx 0.5.1",
+ "bytemuck",
+ "byteorder",
+ "criterion",
+ "fastlanes",
+ "lz4_flex",
+ "memmap3",
+ "pco",
+ "rand 0.10.0",
+ "rand_distr 0.6.0",
+ "rayon",
+ "tempfile",
+ "thiserror 2.0.18",
+ "xxhash-rust",
+ "zstd 0.13.3",
 ]
 
 [[package]]
@@ -3193,9 +3323,10 @@ dependencies = [
  "anyhow",
  "bytemuck",
  "criterion",
+ "flow-clustering",
+ "flow-density",
  "flow-fcs",
  "flow-plots",
- "flow-utils",
  "geo",
  "ndarray 0.16.1",
  "once_cell",
@@ -3211,6 +3342,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "flow-linalg"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "approx 0.5.1",
+ "faer 0.24.0",
+ "rayon",
+]
+
+[[package]]
 name = "flow-plots"
 version = "0.3.1"
 dependencies = [
@@ -3219,8 +3360,8 @@ dependencies = [
  "colormap",
  "criterion",
  "derive_builder",
+ "flow-density",
  "flow-fcs",
- "flow-utils",
  "image 0.25.9",
  "kuva",
  "ndarray 0.16.1",
@@ -3254,25 +3395,6 @@ dependencies = [
  "rayon",
  "serde",
  "serde_json",
- "thiserror 2.0.18",
-]
-
-[[package]]
-name = "flow-utils"
-version = "0.1.1"
-dependencies = [
- "anyhow",
- "approx 0.5.1",
- "burn",
- "bytemuck",
- "criterion",
- "cubecl",
- "linfa",
- "linfa-clustering",
- "linfa-linalg",
- "ndarray 0.16.1",
- "rayon",
- "realfft",
  "thiserror 2.0.18",
 ]
 
@@ -5135,6 +5257,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "lz4_flex"
+version = "0.13.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "db9a0d582c2874f68138a16ce1867e0ffde6c0bb0a0df85e1f36d04146db488a"
+dependencies = [
+ "twox-hash",
+]
+
+[[package]]
 name = "macerator"
 version = "0.2.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6151,6 +6282,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "pco"
+version = "0.4.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "42382de9fb564e2d10cb4d5ca97cc06d928f0f9667bbef456b57e60827b6548b"
+dependencies = [
+ "better_io",
+ "dtype_dispatch",
+ "half",
+ "rand_xoshiro",
+]
+
+[[package]]
 name = "peacoqc-cli"
 version = "0.2.4"
 dependencies = [
@@ -6469,6 +6612,7 @@ dependencies = [
  "polars-io",
  "polars-lazy",
  "polars-ops",
+ "polars-parquet",
  "polars-plan",
  "polars-sql",
  "polars-time",
@@ -6816,10 +6960,13 @@ checksum = "436bae3e89438cafe69400e7567057d7d9820d21ac9a4f69a33b413f2666f03d"
 dependencies = [
  "async-stream",
  "base64",
+ "brotli",
  "bytemuck",
  "ethnum",
+ "flate2",
  "futures",
  "hashbrown 0.16.1",
+ "lz4",
  "num-traits 0.2.19",
  "polars-arrow",
  "polars-buffer",
@@ -6830,7 +6977,9 @@ dependencies = [
  "regex",
  "serde",
  "simdutf8",
+ "snap",
  "streaming-decompression",
+ "zstd 0.13.3",
 ]
 
 [[package]]
@@ -6868,6 +7017,7 @@ dependencies = [
  "polars-error",
  "polars-io",
  "polars-ops",
+ "polars-parquet",
  "polars-time",
  "polars-utils",
  "rayon",
@@ -8528,6 +8678,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "67b1b7a3b5fe4f1376887184045fcf45c69e92af734b7aaddc05fb777b6fbd03"
 
 [[package]]
+name = "snap"
+version = "1.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1b6b67fb9a61334225b5b790716f609cd58395f895b3fe8b328786812a40bc3b"
+
+[[package]]
 name = "socket2"
 version = "0.6.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -9499,11 +9655,12 @@ dependencies = [
  "csv",
  "faer 0.24.0",
  "faer-ext",
+ "flow-clustering",
+ "flow-density",
  "flow-fcs",
  "flow-gates",
  "flow-plots",
  "flow-tru-ols",
- "flow-utils",
  "image 0.25.9",
  "indicatif",
  "inquire",
@@ -9586,6 +9743,12 @@ dependencies = [
  "thiserror 2.0.18",
  "utf-8",
 ]
+
+[[package]]
+name = "twox-hash"
+version = "2.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9ea3136b675547379c4bd395ca6b938e5ad3c3d20fad76e7fe85f9e0d011419c"
 
 [[package]]
 name = "type-map"
@@ -11054,6 +11217,12 @@ dependencies = [
  "memchr",
  "typed-path",
 ]
+
+[[package]]
+name = "zlib-rs"
+version = "0.6.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3be3d40e40a133f9c916ee3f9f4fa2d9d63435b5fbe1bfc6d9dae0aa0ada1513"
 
 [[package]]
 name = "zmij"

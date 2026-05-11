@@ -1,0 +1,40 @@
+[package]
+name = "flow-density"
+version = "0.1.0"
+edition.workspace = true
+authors.workspace = true
+license = "MIT"
+repository = "https://github.com/jrmoynihan/flow/flow-density"
+description = "FFT-accelerated kernel density estimation for flow cytometry"
+keywords = ["flow-cytometry", "kde", "kernel-density", "statistics"]
+categories = ["science", "algorithms"]
+
+[features]
+default = ["kde"]
+kde = []
+gpu = ["dep:burn", "dep:cubecl", "dep:bytemuck"]
+
+[dependencies]
+thiserror = { workspace = true }
+anyhow    = { workspace = true }
+rayon     = { workspace = true }
+ndarray   = { workspace = true }
+realfft   = "3.5.0"
+
+[dependencies.burn]
+version  = "0.20"
+optional = true
+features = ["wgpu"]
+
+[dependencies.cubecl]
+version  = "0.9"
+optional = true
+
+[dependencies.bytemuck]
+workspace = true
+optional  = true
+
+[package.metadata.scripts]
+dry-release = "cargo smart-release flow-density --update-crates-index"
+publish     = "cargo smart-release flow-density --update-crates-index --execute"
+changelog   = "cargo changelog flow-density --write"

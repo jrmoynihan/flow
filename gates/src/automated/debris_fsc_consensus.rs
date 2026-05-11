@@ -6,7 +6,7 @@
 use crate::GateError;
 use crate::GateResult;
 use flow_fcs::Fcs;
-use flow_utils::kde::KernelDensity;
+use flow_density::kde::KernelDensity;
 
 /// Parameters for consensus FSC debris gating.
 #[derive(Debug, Clone)]

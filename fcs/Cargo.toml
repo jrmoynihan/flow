@@ -1,6 +1,6 @@
 [package]
 name="flow-fcs"
-version= "0.3.0"
+version= "0.4.0"
 edition.workspace=true
 authors.workspace=true
 repository="https://github.com/jrmoynihan/flow/fcs"
@@ -37,6 +37,10 @@ ndarray-linalg={ version="0.18.1", optional=true, features=[
 ] }
 
 ts-rs = { workspace = true, optional = true }
+
+# Optional compression integration (Mode A `.fcz` reader/writer)
+flow-fcs-compress = { path = "../flow-fcs-compress", version = "0.1", default-features = false, features = ["multithread"], optional = true }
+flow-linalg = { path = "../flow-linalg", version = "0.1.0", optional = true, features = ["compensation"] }
 
 # Parallelization
 rayon={ workspace=true }
@@ -80,6 +84,7 @@ tracing={ workspace=true }
 approx = { workspace = true }
 criterion = { workspace = true }
 rand = { workspace = true }
+tempfile = { workspace = true }
 
 [[bench]]
 name   ="dataframe_parsing"
@@ -100,3 +105,10 @@ typescript=[
 ] # Enable TypeScript bindings for Rust types
 # Opt-in system BLAS (OpenBLAS) for linear algebra; default uses pure-Rust faer
 blas=["dep:ndarray-linalg", "dep:ndarray"]
+# Optional .fcz compressed read/write (via flow-fcs-compress)
+compress=["dep:flow-fcs-compress"]
+compensation = ["dep:flow-linalg"]
+# Optional Parquet sidecar: write/read FCS data as Parquet via Polars (Tier 1
+# of the M5d adapter — interop-first, doesn't yet plumb our specialized codecs
+# through Parquet's custom-codec slot).
+parquet-sidecar=["compress", "polars/parquet"]

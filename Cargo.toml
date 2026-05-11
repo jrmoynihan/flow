@@ -1,6 +1,11 @@
 [workspace]
 members = [
     "fcs",
+    "flow-fcs-compress",
+    "flow-fcs-bench",
+    "flow-linalg",
+    "flow-density",
+    "flow-clustering",
     "plots",
     "gates",
     "peacoqc-rs",
@@ -8,7 +13,6 @@ members = [
     "peacoqc-py",
     "tru-ols",
     "tru-ols-cli",
-    "utils",
 ]
 resolver = "3"
 
@@ -94,3 +98,10 @@ criterion = { version = "0.8.1", features = ["html_reports"] }
 approx = "0.5.1"
 tempfile = "3.26"
 loom = "12.0.1" # For multithreaded testing
+
+# Compression (flow-fcs-compress)
+fastlanes = "0.5"
+zstd = "0.13"
+xxhash-rust = { version = "0.8", features = ["xxh3"] }
+pco = "0.4"
+lz4_flex = { version = "0.13", default-features = false, features = ["frame"] }

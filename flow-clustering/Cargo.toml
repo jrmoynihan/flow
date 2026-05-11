@@ -1,0 +1,30 @@
+[package]
+name = "flow-clustering"
+version = "0.1.0"
+edition.workspace = true
+authors.workspace = true
+license = "MIT"
+repository = "https://github.com/jrmoynihan/flow/flow-clustering"
+description = "Clustering algorithms for flow cytometry: K-means, DBSCAN, GMM"
+keywords = ["flow-cytometry", "clustering", "kmeans", "dbscan", "gmm"]
+categories = ["science", "algorithms"]
+
+[features]
+default = ["kmeans", "dbscan", "gmm"]
+kmeans  = []
+dbscan  = []
+gmm     = []
+
+[dependencies]
+thiserror        = { workspace = true }
+anyhow           = { workspace = true }
+rayon            = { workspace = true }
+ndarray          = { workspace = true }
+linfa            = "0.8"
+linfa-clustering = "0.8"
+linfa-linalg     = "0.2"
+
+[package.metadata.scripts]
+dry-release = "cargo smart-release flow-clustering --update-crates-index"
+publish     = "cargo smart-release flow-clustering --update-crates-index --execute"
+changelog   = "cargo changelog flow-clustering --write"

@@ -2,7 +2,7 @@
 //!
 //! Extracts contour lines from 2D density estimates at multiple threshold levels.
 
-use flow_utils::KernelDensity2D;
+use flow_density::KernelDensity2D;
 use ndarray::Array2;
 
 /// Contour plot data: contour paths and optional outlier points
@@ -33,7 +33,7 @@ pub fn calculate_contours(
     draw_outliers: bool,
     x_range: (f32, f32),
     y_range: (f32, f32),
-) -> Result<ContourData, flow_utils::KdeError> {
+) -> Result<ContourData, flow_density::KdeError> {
     if data.len() < 3 {
         return Ok(ContourData {
             contours: Vec::new(),

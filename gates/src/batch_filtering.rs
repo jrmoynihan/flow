@@ -81,6 +81,32 @@ pub fn filter_by_ellipse_batch(
         .collect())
 }
 
+/// Batch 1D threshold filter on the X axis.
+/// `above = true` → x >= threshold; `above = false` → x < threshold.
+pub fn filter_by_threshold_x_batch(
+    points: &[(f32, f32)],
+    threshold: f32,
+    above: bool,
+) -> Result<Vec<bool>> {
+    Ok(points
+        .par_iter()
+        .map(|&(x, _)| if above { x >= threshold } else { x < threshold })
+        .collect())
+}
+
+/// Batch 1D threshold filter on the Y axis.
+/// `above = true` → y >= threshold; `above = false` → y < threshold.
+pub fn filter_by_threshold_y_batch(
+    points: &[(f32, f32)],
+    threshold: f32,
+    above: bool,
+) -> Result<Vec<bool>> {
+    Ok(points
+        .par_iter()
+        .map(|&(_, y)| if above { y >= threshold } else { y < threshold })
+        .collect())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

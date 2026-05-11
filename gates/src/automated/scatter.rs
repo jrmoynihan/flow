@@ -8,7 +8,7 @@ use crate::polygon::point_in_polygon;
 use crate::{Gate, GateError, GateResult, GateStatistics};
 use flow_fcs::Fcs;
 use flow_plots::contour::contour_paths_at_threshold;
-use flow_utils::kde::KernelDensity2D;
+use flow_density::kde::KernelDensity2D;
 use ndarray::Array2;
 use std::sync::Arc;
 
@@ -184,7 +184,7 @@ pub fn create_scatter_gate(fcs: &Fcs, config: &ScatterGateConfig) -> GateResult<
             GateStatistics {
                 event_count: 0,
                 percentage: 0.0,
-                centroid: (0.0, 0.0),
+                centroid: Some((0.0, 0.0)),
                 x_stats: crate::statistics::ParameterStatistics {
                     parameter: config.fsc_channel.clone(),
                     mean: 0.0,
@@ -197,7 +197,7 @@ pub fn create_scatter_gate(fcs: &Fcs, config: &ScatterGateConfig) -> GateResult<
                     q3: 0.0,
                     cv: 0.0,
                 },
-                y_stats: crate::statistics::ParameterStatistics {
+                y_stats: Some(crate::statistics::ParameterStatistics {
                     parameter: config.ssc_channel.clone(),
                     mean: 0.0,
                     geometric_mean: 0.0,
@@ -208,7 +208,7 @@ pub fn create_scatter_gate(fcs: &Fcs, config: &ScatterGateConfig) -> GateResult<
                     q1: 0.0,
                     q3: 0.0,
                     cv: 0.0,
-                },
+                }),
             }
         })
     } else {
@@ -216,7 +216,7 @@ pub fn create_scatter_gate(fcs: &Fcs, config: &ScatterGateConfig) -> GateResult<
         GateStatistics {
             event_count: 0,
             percentage: 0.0,
-            centroid: (0.0, 0.0),
+            centroid: Some((0.0, 0.0)),
             x_stats: crate::statistics::ParameterStatistics {
                 parameter: config.fsc_channel.clone(),
                 mean: 0.0,
@@ -229,7 +229,7 @@ pub fn create_scatter_gate(fcs: &Fcs, config: &ScatterGateConfig) -> GateResult<
                 q3: 0.0,
                 cv: 0.0,
             },
-            y_stats: crate::statistics::ParameterStatistics {
+            y_stats: Some(crate::statistics::ParameterStatistics {
                 parameter: config.ssc_channel.clone(),
                 mean: 0.0,
                 geometric_mean: 0.0,
@@ -240,7 +240,7 @@ pub fn create_scatter_gate(fcs: &Fcs, config: &ScatterGateConfig) -> GateResult<
                 q1: 0.0,
                 q3: 0.0,
                 cv: 0.0,
-            },
+            }),
         }
     };
 
@@ -336,7 +336,7 @@ fn create_clustering_gate(
     config: &ScatterGateConfig,
     algorithm: ClusterAlgorithm,
 ) -> GateResult<(Option<Gate>, Vec<bool>, String)> {
-    use flow_utils::clustering::{Gmm, GmmConfig, KMeans, KMeansConfig};
+    use flow_clustering::{Gmm, GmmConfig, KMeans, KMeansConfig};
 
     match algorithm {
         ClusterAlgorithm::KMeans => {

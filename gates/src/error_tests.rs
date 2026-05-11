@@ -232,7 +232,7 @@ mod tests {
         let x_values = vec![1.0, 2.0, 3.0];
         let y_values = vec![1.0, 2.0]; // Different length
 
-        let result = EventIndex::build(&x_values, &y_values);
+        let result = EventIndex::build("x", &x_values, "y", &y_values);
         assert!(result.is_err());
         // Check error type by matching on the result
         match result {

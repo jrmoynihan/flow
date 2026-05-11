@@ -419,7 +419,11 @@ pub fn add_column(
 
 // ==================== Internal Helper Functions ====================
 
-fn estimate_text_segment_size(metadata: &Metadata, _n_events: usize, n_params: usize) -> usize {
+pub(crate) fn estimate_text_segment_size(
+    metadata: &Metadata,
+    _n_events: usize,
+    n_params: usize,
+) -> usize {
     // Rough estimate: base size + keywords
     let base_size = 200; // Base keywords
     let keyword_size = metadata.keywords.len() * 50; // Average keyword size
@@ -427,7 +431,7 @@ fn estimate_text_segment_size(metadata: &Metadata, _n_events: usize, n_params: u
     base_size + keyword_size + param_keywords
 }
 
-fn serialize_metadata(
+pub(crate) fn serialize_metadata(
     metadata: &Metadata,
     n_events: usize,
     n_params: usize,
@@ -657,7 +661,7 @@ fn serialize_data(df: &DataFrame, metadata: &Metadata) -> Result<Vec<u8>> {
     Ok(data)
 }
 
-fn build_header(
+pub(crate) fn build_header(
     version: &Version,
     text_start: usize,
     text_end: usize,

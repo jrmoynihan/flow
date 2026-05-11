@@ -115,6 +115,16 @@ pub enum BooleanOperation {
     Not,
 }
 
+/// Direction of a threshold gate — which side of the boundary is "positive".
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ThresholdDirection {
+    /// Events with value >= threshold are positive.
+    Above,
+    /// Events with value < threshold are positive.
+    Below,
+}
+
 impl BooleanOperation {
     /// Get the expected number of operands for this operation
     ///
@@ -192,6 +202,11 @@ pub enum GateGeometry {
     Range {
         min: GateNode,
         max: GateNode,
+    },
+    /// 1D threshold gate: events on the `direction` side of `value_node` are positive.
+    Threshold {
+        value_node: GateNode,
+        direction: ThresholdDirection,
     },
     /// Boolean gate combining other gates with logical operations
     ///
@@ -274,6 +289,13 @@ impl GateGeometry {
                 };
                 range.bounding_box(x_param, y_param).ok()
             }
+            GateGeometry::Threshold { value_node, direction } => {
+                let t = crate::threshold::ThresholdGateGeometry {
+                    value_node: value_node.clone(),
+                    direction: *direction,
+                };
+                t.bounding_box(x_param, y_param).ok()
+            }
             GateGeometry::Boolean { .. } => {
                 // Boolean gates don't have a direct bounding box - would need to resolve operands
                 // For now, return None to indicate it can't be calculated directly
@@ -335,6 +357,13 @@ impl GateGeometry {
                     max: max.clone(),
                 };
                 range.calculate_center(x_param, y_param)
+            }
+            GateGeometry::Threshold { value_node, direction } => {
+                let t = crate::threshold::ThresholdGateGeometry {
+                    value_node: value_node.clone(),
+                    direction: *direction,
+                };
+                t.calculate_center(x_param, y_param)
             }
             GateGeometry::Boolean { .. } => {
                 // Boolean gates don't have a direct center - would need to resolve operands
@@ -415,6 +444,13 @@ impl GateGeometry {
                     max: max.clone(),
                 };
                 range.contains_point(x, y, x_param, y_param)
+            }
+            GateGeometry::Threshold { value_node, direction } => {
+                let t = crate::threshold::ThresholdGateGeometry {
+                    value_node: value_node.clone(),
+                    direction: *direction,
+                };
+                t.contains_point(x, y, x_param, y_param)
             }
             GateGeometry::Boolean { .. } => {
                 // Boolean gates require resolving referenced gates - can't check containment directly
@@ -510,6 +546,22 @@ impl GateGeometry {
                     }
                 }
             }
+            GateGeometry::Threshold { value_node, direction } => {
+                let t = crate::threshold::ThresholdGateGeometry {
+                    value_node: value_node.clone(),
+                    direction: *direction,
+                };
+                let (axis, val) = t.resolve_value(x_param, y_param)?;
+                let above = matches!(direction, ThresholdDirection::Above);
+                match axis {
+                    crate::threshold::ThresholdAxis::X => {
+                        crate::batch_filtering::filter_by_threshold_x_batch(points, val, above)
+                    }
+                    crate::threshold::ThresholdAxis::Y => {
+                        crate::batch_filtering::filter_by_threshold_y_batch(points, val, above)
+                    }
+                }
+            }
             GateGeometry::Boolean { .. } => {
                 // Boolean gates require resolving referenced gates - can't check containment directly
                 Err(GateError::invalid_geometry(
@@ -576,6 +628,13 @@ impl GateGeometry {
                 };
                 range.is_valid(x_param, y_param)
             }
+            GateGeometry::Threshold { value_node, direction } => {
+                let t = crate::threshold::ThresholdGateGeometry {
+                    value_node: value_node.clone(),
+                    direction: *direction,
+                };
+                t.is_valid(x_param, y_param)
+            }
             GateGeometry::Boolean {
                 operation,
                 operands,
@@ -605,6 +664,7 @@ impl GateGeometry {
             GateGeometry::Rectangle { .. } => "Rectangle",
             GateGeometry::Ellipse { .. } => "Ellipse",
             GateGeometry::Range { .. } => "Range",
+            GateGeometry::Threshold { .. } => "Threshold",
             GateGeometry::Boolean { .. } => "Boolean",
         }
     }
@@ -651,6 +711,13 @@ impl GateCenter for GateGeometry {
                 };
                 range.calculate_center(x_param, y_param)
             }
+            GateGeometry::Threshold { value_node, direction } => {
+                let t = crate::threshold::ThresholdGateGeometry {
+                    value_node: value_node.clone(),
+                    direction: *direction,
+                };
+                t.calculate_center(x_param, y_param)
+            }
             GateGeometry::Boolean { .. } => Err(GateError::invalid_geometry(
                 "Boolean gates do not have a direct center point",
             )),
@@ -695,6 +762,13 @@ impl GateContainment for GateGeometry {
                     max: max.clone(),
                 };
                 range.contains_point(x, y, x_param, y_param)
+            }
+            GateGeometry::Threshold { value_node, direction } => {
+                let t = crate::threshold::ThresholdGateGeometry {
+                    value_node: value_node.clone(),
+                    direction: *direction,
+                };
+                t.contains_point(x, y, x_param, y_param)
             }
             GateGeometry::Boolean { .. } => Err(GateError::invalid_geometry(
                 "Boolean gates require gate resolution to check containment",
@@ -741,6 +815,13 @@ impl GateBounds for GateGeometry {
                 };
                 range.bounding_box(x_param, y_param)
             }
+            GateGeometry::Threshold { value_node, direction } => {
+                let t = crate::threshold::ThresholdGateGeometry {
+                    value_node: value_node.clone(),
+                    direction: *direction,
+                };
+                t.bounding_box(x_param, y_param)
+            }
             GateGeometry::Boolean { .. } => Err(GateError::invalid_geometry(
                 "Boolean gates do not have a direct bounding box",
             )),
@@ -786,6 +867,13 @@ impl GateValidation for GateGeometry {
                 };
                 range.is_valid(x_param, y_param)
             }
+            GateGeometry::Threshold { value_node, direction } => {
+                let t = crate::threshold::ThresholdGateGeometry {
+                    value_node: value_node.clone(),
+                    direction: *direction,
+                };
+                t.is_valid(x_param, y_param)
+            }
             GateGeometry::Boolean {
                 operation,
                 operands,
@@ -823,6 +911,7 @@ impl GateGeometryOps for GateGeometry {
             GateGeometry::Rectangle { .. } => "Rectangle",
             GateGeometry::Ellipse { .. } => "Ellipse",
             GateGeometry::Range { .. } => "Range",
+            GateGeometry::Threshold { .. } => "Threshold",
             GateGeometry::Boolean { .. } => "Boolean",
         }
     }
@@ -907,22 +996,92 @@ impl GateMode {
     }
 }
 
-/// Label position stored as offset from the first node in raw data coordinates
-/// This allows labels to move with gates when they are edited
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+/// Label position stored as **per-channel** offsets from the gate's first node, in raw
+/// data coordinates. Each entry pairs a channel name (a key into a `GateNode`'s
+/// coordinate map) with an offset in that channel's units.
+///
+/// Two-channel gates carry two entries (one per gate axis); one-channel (range,
+/// threshold) gates carry one entry on the bounded channel. Pairing offsets with
+/// channel names — instead of with positional `x`/`y` slots — makes label rendering
+/// transpose-aware: each offset goes through the plot pipeline of the channel it
+/// belongs to, regardless of which screen axis that channel currently occupies.
+///
+/// Backward compatibility: the legacy `{ offset_x, offset_y }` JSON shape is
+/// accepted by the deserializer but cannot be auto-migrated without the parent
+/// `Gate`'s parameters (channel names live there, not on `LabelPosition`). The
+/// legacy form deserializes into a sentinel-keyed map; callers must invoke
+/// [`Gate::fixup_label_position`] after load to replace sentinels with real
+/// channel names.
+#[derive(Debug, Clone, PartialEq)]
 pub struct LabelPosition {
-    /// Offset in raw data coordinates from the first node
-    pub offset_x: f32,
-    pub offset_y: f32,
+    pub offsets: std::collections::HashMap<Arc<str>, f32>,
+}
+
+/// Sentinel keys used by the legacy `{offset_x, offset_y}` deserialization path.
+/// Replaced with real channel names by [`Gate::fixup_label_position`] when the
+/// gate is loaded and its `parameters` are known.
+pub const LABEL_LEGACY_X_KEY: &str = "__legacy_offset_x__";
+pub const LABEL_LEGACY_Y_KEY: &str = "__legacy_offset_y__";
+
+impl Serialize for LabelPosition {
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        use serde::ser::SerializeStruct;
+        let mut s = serializer.serialize_struct("LabelPosition", 1)?;
+        // Serialize the HashMap with `&str` keys so output is `{"channel": value, ...}`.
+        let map: std::collections::HashMap<&str, &f32> = self
+            .offsets
+            .iter()
+            .map(|(k, v)| (k.as_ref(), v))
+            .collect();
+        s.serialize_field("offsets", &map)?;
+        s.end()
+    }
+}
+
+impl<'de> Deserialize<'de> for LabelPosition {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        #[serde(untagged)]
+        enum LabelPositionDe {
+            New {
+                offsets: std::collections::HashMap<String, f32>,
+            },
+            Legacy {
+                offset_x: f32,
+                offset_y: f32,
+            },
+        }
+
+        match LabelPositionDe::deserialize(deserializer)? {
+            LabelPositionDe::New { offsets } => Ok(LabelPosition {
+                offsets: offsets
+                    .into_iter()
+                    .map(|(k, v)| (Arc::from(k.as_str()), v))
+                    .collect(),
+            }),
+            LabelPositionDe::Legacy { offset_x, offset_y } => {
+                let mut map = std::collections::HashMap::with_capacity(2);
+                map.insert(Arc::from(LABEL_LEGACY_X_KEY), offset_x);
+                map.insert(Arc::from(LABEL_LEGACY_Y_KEY), offset_y);
+                Ok(LabelPosition { offsets: map })
+            }
+        }
+    }
 }
 
 /// Which parameters (channels) a gate uses: full 2D gating, or 1D range on one channel.
 ///
 /// - **TwoChannel** — polygon, rectangle, ellipse, boolean operands: the gate is defined
 ///   in the `(x, y)` channel pair (order matches the plot / event column pair).
-/// - **OneChannel** — range gate: `channel` carries the min/max bounds; `companion` is the
-///   orthogonal plot parameter used only to build the 2D event/index plane (same role as
-///   the “other” axis in the legacy `[x, y]` tuple for ranges).
+/// - **OneChannel** — range gate: `channel` carries the min/max bounds. The gate has no
+///   second axis; consumers needing a "companion" axis (e.g. to build a 2D event plane for
+///   rendering) must supply it from the *plot context*, not from the gate.
 #[derive(Debug, Clone, PartialEq)]
 pub enum GateParameters {
     TwoChannel {
@@ -931,7 +1090,6 @@ pub enum GateParameters {
     },
     OneChannel {
         channel: Arc<str>,
-        companion: Arc<str>,
     },
 }
 
@@ -967,10 +1125,7 @@ impl Serialize for GateParameters {
         #[serde(tag = "type", rename_all = "snake_case")]
         enum GateParametersSer<'a> {
             TwoChannel { x: &'a str, y: &'a str },
-            OneChannel {
-                channel: &'a str,
-                companion: &'a str,
-            },
+            OneChannel { channel: &'a str },
         }
         match self {
             GateParameters::TwoChannel { x, y } => GateParametersSer::TwoChannel {
@@ -978,9 +1133,8 @@ impl Serialize for GateParameters {
                 y: y.as_ref(),
             }
             .serialize(serializer),
-            GateParameters::OneChannel { channel, companion } => GateParametersSer::OneChannel {
+            GateParameters::OneChannel { channel } => GateParametersSer::OneChannel {
                 channel: channel.as_ref(),
-                companion: companion.as_ref(),
             }
             .serialize(serializer),
         }
@@ -998,13 +1152,20 @@ impl<'de> Deserialize<'de> for GateParameters {
             Legacy([String; 2]),
             Tagged(GateParametersTaggedDe),
         }
+        // `companion` is accepted for backward compatibility with workspaces saved before
+        // the field was removed. The value is silently dropped — it was never authoritative.
         #[derive(Deserialize)]
         #[serde(tag = "type", rename_all = "snake_case")]
         enum GateParametersTaggedDe {
-            TwoChannel { x: String, y: String },
+            TwoChannel {
+                x: String,
+                y: String,
+            },
             OneChannel {
                 channel: String,
-                companion: String,
+                #[serde(default)]
+                #[allow(dead_code)]
+                companion: Option<String>,
             },
         }
         let helper = GateParametersDe::deserialize(deserializer)?;
@@ -1019,10 +1180,9 @@ impl<'de> Deserialize<'de> for GateParameters {
                     y: Arc::from(y.as_str()),
                 }
             }
-            GateParametersDe::Tagged(GateParametersTaggedDe::OneChannel { channel, companion }) => {
+            GateParametersDe::Tagged(GateParametersTaggedDe::OneChannel { channel, .. }) => {
                 GateParameters::OneChannel {
                     channel: Arc::from(channel.as_str()),
-                    companion: Arc::from(companion.as_str()),
                 }
             }
         })
@@ -1035,31 +1195,43 @@ pub fn gate_parameters_from_geometry_and_axes(
     plot_x: Arc<str>,
     plot_y: Arc<str>,
 ) -> GateParameters {
-    match geometry {
-        GateGeometry::Range { min, .. } => {
-            let channel_key = min.coordinates.keys().next().cloned().unwrap_or_else(|| {
-                // Should not happen for valid range geometry; preserve plot pair as 2D fallback.
-                plot_x.clone()
-            });
-            let companion =
-                if channel_key.as_ref() == plot_x.as_ref() {
-                    plot_y.clone()
-                } else if channel_key.as_ref() == plot_y.as_ref() {
-                    plot_x.clone()
-                } else {
-                    // Node key doesn't match either plot axis: keep a deterministic companion.
-                    plot_y.clone()
-                };
-            GateParameters::OneChannel {
-                channel: channel_key,
-                companion,
-            }
-        }
-        _ => GateParameters::TwoChannel {
-            x: plot_x,
-            y: plot_y,
-        },
+    let one_channel_node = match geometry {
+        GateGeometry::Range { min, .. } => Some(min),
+        GateGeometry::Threshold { value_node, .. } => Some(value_node),
+        _ => None,
+    };
+    if let Some(node) = one_channel_node {
+        let channel = node
+            .coordinates
+            .keys()
+            .next()
+            .cloned()
+            .unwrap_or_else(|| plot_x.clone());
+        return GateParameters::OneChannel { channel };
     }
+    GateParameters::TwoChannel { x: plot_x, y: plot_y }
+}
+
+/// Links a composite gate back to the source gates it was derived from.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum DerivedFrom {
+    RangePair {
+        #[serde(with = "arc_str_serde")]
+        x_range_id: Arc<str>,
+        #[serde(with = "arc_str_serde")]
+        y_range_id: Arc<str>,
+        /// When `true`, geometry updates on either source range propagate to this gate.
+        link_live: bool,
+    },
+    ThresholdPair {
+        #[serde(with = "arc_str_serde")]
+        x_threshold_id: Arc<str>,
+        #[serde(with = "arc_str_serde")]
+        y_threshold_id: Arc<str>,
+        /// When `true`, geometry updates on either source threshold propagate to this gate.
+        link_live: bool,
+    },
 }
 
 /// A gate represents a region of interest in flow cytometry data.
@@ -1076,7 +1248,7 @@ pub fn gate_parameters_from_geometry_and_axes(
 /// # Example
 ///
 /// ```rust
-/// use flow_gates::{Gate, GateGeometry, GateNode, geometry::*};
+/// use flow_gates::{Gate, GateGeometry, GateNode, GateCoordinateSpace, geometry::*};
 ///
 /// # fn example() -> Result<(), Box<dyn std::error::Error>> {
 /// // Create a polygon gate
@@ -1094,11 +1266,12 @@ pub fn gate_parameters_from_geometry_and_axes(
 ///     geometry,
 ///     "FSC-A",
 ///     "SSC-A",
+///     GateCoordinateSpace::Raw,
 /// );
 ///
 /// // Get parameter names
 /// assert_eq!(gate.x_parameter_channel_name(), "FSC-A");
-/// assert_eq!(gate.y_parameter_channel_name(), "SSC-A");
+/// assert_eq!(gate.two_channel_axes(), Some(("FSC-A", "SSC-A")));
 /// # Ok(())
 /// # }
 /// ```
@@ -1117,6 +1290,9 @@ pub struct Gate {
     pub coordinate_space: GateCoordinateSpace,
     /// Optional label position as offset from first node in raw data coordinates
     pub label_position: Option<LabelPosition>,
+    /// Source gates this gate was derived from, if any (Rectangle from ranges, Quadrant from thresholds).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub derived_from: Option<DerivedFrom>,
 }
 
 impl Gate {
@@ -1149,10 +1325,11 @@ impl Gate {
             id: id.into(),
             name: name.into(),
             geometry,
-            mode: GateMode::Global, // Default to global
+            mode: GateMode::Global,
             parameters,
             coordinate_space,
             label_position: None,
+            derived_from: None,
         }
     }
 
@@ -1184,20 +1361,18 @@ impl Gate {
         }
     }
 
-    /// First event/plot column name (for [`GateParameters::TwoChannel`], this is `x`;
-    /// for a range gate, the range `channel` — the “row” in the 2D event pair).
+    /// Primary channel the gate references in event-data space.
+    ///
+    /// For [`GateParameters::TwoChannel`] this is `x` (the first column of the 2-D pair).
+    /// For [`GateParameters::OneChannel`] this is the bounded `channel`.
+    ///
+    /// Use [`Gate::two_channel_axes`] when the caller specifically needs *both* axes — that
+    /// returns `None` for range gates and forces the caller to handle the 1-D case explicitly,
+    /// instead of silently substituting a stale "companion" axis.
     pub fn x_parameter_channel_name(&self) -> &str {
         match &self.parameters {
             GateParameters::TwoChannel { x, .. } => x.as_ref(),
-            GateParameters::OneChannel { channel, .. } => channel.as_ref(),
-        }
-    }
-
-    /// Second event/plot column name (for range gates, the orthogonal `companion` axis).
-    pub fn y_parameter_channel_name(&self) -> &str {
-        match &self.parameters {
-            GateParameters::TwoChannel { y, .. } => y.as_ref(),
-            GateParameters::OneChannel { companion, .. } => companion.as_ref(),
+            GateParameters::OneChannel { channel } => channel.as_ref(),
         }
     }
 
@@ -1218,22 +1393,22 @@ impl Gate {
     ///
     /// # Example
     /// ```rust
-    /// use flow_gates::Gate;
+    /// use flow_gates::{Gate, GateCoordinateSpace};
     ///
     /// # fn example() -> Result<(), Box<dyn std::error::Error>> {
-    /// let gate = Gate::rectangle("rect", "Rectangle", (100.0, 200.0), (500.0, 600.0), "FSC-A", "SSC-A")?;
+    /// let gate = Gate::rectangle("rect", "Rectangle", (100.0, 200.0), (500.0, 600.0), "FSC-A", "SSC-A", GateCoordinateSpace::Raw)?;
     /// assert!(gate.contains_point(300.0, 400.0)?);
     /// assert!(!gate.contains_point(50.0, 50.0)?);
     /// # Ok(())
     /// # }
     /// ```
     pub fn contains_point(&self, x: f32, y: f32) -> Result<bool> {
-        self.geometry.contains_point(
-            x,
-            y,
-            self.x_parameter_channel_name(),
-            self.y_parameter_channel_name(),
-        )
+        let (x_param, y_param) = self.two_channel_axes().ok_or_else(|| {
+            GateError::filtering_error(
+                "Gate::contains_point is 2-D only; call gate.geometry.contains_point with explicit plot axes for one-channel (range/threshold) gates",
+            )
+        })?;
+        self.geometry.contains_point(x, y, x_param, y_param)
     }
 
     /// Get the bounding box in gate's parameter space
@@ -1246,20 +1421,18 @@ impl Gate {
     ///
     /// # Example
     /// ```rust
-    /// use flow_gates::Gate;
+    /// use flow_gates::{Gate, GateCoordinateSpace};
     ///
     /// # fn example() -> Result<(), Box<dyn std::error::Error>> {
-    /// let gate = Gate::rectangle("rect", "Rectangle", (100.0, 200.0), (500.0, 600.0), "FSC-A", "SSC-A")?;
+    /// let gate = Gate::rectangle("rect", "Rectangle", (100.0, 200.0), (500.0, 600.0), "FSC-A", "SSC-A", GateCoordinateSpace::Raw)?;
     /// let bbox = gate.bounding_box();
     /// assert_eq!(bbox, Some((100.0, 200.0, 500.0, 600.0)));
     /// # Ok(())
     /// # }
     /// ```
     pub fn bounding_box(&self) -> Option<(f32, f32, f32, f32)> {
-        self.geometry.bounding_box(
-            self.x_parameter_channel_name(),
-            self.y_parameter_channel_name(),
-        )
+        let (x_param, y_param) = self.two_channel_axes()?;
+        self.geometry.bounding_box(x_param, y_param)
     }
 
     /// Get x and y coordinates from a node for this gate's parameters
@@ -1275,10 +1448,10 @@ impl Gate {
     ///
     /// # Example
     /// ```rust
-    /// use flow_gates::{Gate, GateNode};
+    /// use flow_gates::{Gate, GateNode, GateCoordinateSpace};
     ///
     /// # fn example() -> Result<(), Box<dyn std::error::Error>> {
-    /// let gate = Gate::rectangle("rect", "Rectangle", (100.0, 200.0), (500.0, 600.0), "FSC-A", "SSC-A")?;
+    /// let gate = Gate::rectangle("rect", "Rectangle", (100.0, 200.0), (500.0, 600.0), "FSC-A", "SSC-A", GateCoordinateSpace::Raw)?;
     /// let node = GateNode::new("node1")
     ///     .with_coordinate("FSC-A", 300.0)
     ///     .with_coordinate("SSC-A", 400.0);
@@ -1288,9 +1461,10 @@ impl Gate {
     /// # }
     /// ```
     pub fn get_node_coords(&self, node: &GateNode) -> Option<(f32, f32)> {
+        let (x_param, y_param) = self.two_channel_axes()?;
         Some((
-            node.get_coordinate(self.x_parameter_channel_name())?,
-            node.get_coordinate(self.y_parameter_channel_name())?,
+            node.get_coordinate(x_param)?,
+            node.get_coordinate(y_param)?,
         ))
     }
 
@@ -1307,10 +1481,10 @@ impl Gate {
     ///
     /// # Example
     /// ```rust
-    /// use flow_gates::Gate;
+    /// use flow_gates::{Gate, GateCoordinateSpace};
     ///
     /// # fn example() -> Result<(), Box<dyn std::error::Error>> {
-    /// let gate1 = Gate::rectangle("gate1", "Rectangle", (100.0, 200.0), (500.0, 600.0), "FSC-A", "SSC-A")?;
+    /// let gate1 = Gate::rectangle("gate1", "Rectangle", (100.0, 200.0), (500.0, 600.0), "FSC-A", "SSC-A", GateCoordinateSpace::Raw)?;
     /// let gate2 = gate1.clone_with_id("gate2");
     /// assert_eq!(gate2.id.as_ref(), "gate2");
     /// assert_eq!(gate1.name, gate2.name);
@@ -1326,6 +1500,43 @@ impl Gate {
             parameters: self.parameters.clone(),
             coordinate_space: self.coordinate_space,
             label_position: self.label_position.clone(),
+            derived_from: self.derived_from.clone(),
+        }
+    }
+
+    /// Replace any legacy `{offset_x, offset_y}` sentinel keys on this gate's
+    /// `label_position` with the gate's real channel names. Call after
+    /// deserializing a workspace saved before [`LabelPosition`] became
+    /// per-channel; no-op when the label is already in the new form.
+    ///
+    /// Two-channel gates: [`LABEL_LEGACY_X_KEY`] -> `parameters.x`,
+    /// [`LABEL_LEGACY_Y_KEY`] -> `parameters.y`.
+    /// One-channel (range, threshold) gates: [`LABEL_LEGACY_X_KEY`] ->
+    /// `parameters.channel`. The legacy `offset_y` is dropped (1-D gate has
+    /// no second axis; orthogonal pixel falls back to plot midpoint at render).
+    pub fn fixup_label_position(&mut self) {
+        let Some(label_pos) = self.label_position.as_mut() else {
+            return;
+        };
+        let legacy_x = label_pos.offsets.remove(LABEL_LEGACY_X_KEY);
+        let legacy_y = label_pos.offsets.remove(LABEL_LEGACY_Y_KEY);
+        if legacy_x.is_none() && legacy_y.is_none() {
+            return;
+        }
+        match &self.parameters {
+            GateParameters::TwoChannel { x, y } => {
+                if let Some(v) = legacy_x {
+                    label_pos.offsets.insert(x.clone(), v);
+                }
+                if let Some(v) = legacy_y {
+                    label_pos.offsets.insert(y.clone(), v);
+                }
+            }
+            GateParameters::OneChannel { channel } => {
+                if let Some(v) = legacy_x {
+                    label_pos.offsets.insert(channel.clone(), v);
+                }
+            }
         }
     }
 
@@ -1348,7 +1559,7 @@ impl Gate {
     ///
     /// # Example
     /// ```rust
-    /// use flow_gates::Gate;
+    /// use flow_gates::{Gate, GateCoordinateSpace};
     ///
     /// # fn example() -> Result<(), Box<dyn std::error::Error>> {
     /// let coords = vec![
@@ -1357,7 +1568,7 @@ impl Gate {
     ///     (300.0, 400.0),
     ///     (100.0, 400.0),
     /// ];
-    /// let gate = Gate::polygon("poly", "Polygon", coords, "FSC-A", "SSC-A")?;
+    /// let gate = Gate::polygon("poly", "Polygon", coords, "FSC-A", "SSC-A", GateCoordinateSpace::Raw)?;
     /// # Ok(())
     /// # }
     /// ```
@@ -1403,10 +1614,10 @@ impl Gate {
     ///
     /// # Example
     /// ```rust
-    /// use flow_gates::Gate;
+    /// use flow_gates::{Gate, GateCoordinateSpace};
     ///
     /// # fn example() -> Result<(), Box<dyn std::error::Error>> {
-    /// let gate = Gate::rectangle("rect", "Rectangle", (100.0, 200.0), (500.0, 600.0), "FSC-A", "SSC-A")?;
+    /// let gate = Gate::rectangle("rect", "Rectangle", (100.0, 200.0), (500.0, 600.0), "FSC-A", "SSC-A", GateCoordinateSpace::Raw)?;
     /// # Ok(())
     /// # }
     /// ```
@@ -1457,10 +1668,10 @@ impl Gate {
     ///
     /// # Example
     /// ```rust
-    /// use flow_gates::Gate;
+    /// use flow_gates::{Gate, GateCoordinateSpace};
     ///
     /// # fn example() -> Result<(), Box<dyn std::error::Error>> {
-    /// let gate = Gate::ellipse("ellipse", "Ellipse", (300.0, 400.0), 100.0, 50.0, 0.0, "FSC-A", "SSC-A")?;
+    /// let gate = Gate::ellipse("ellipse", "Ellipse", (300.0, 400.0), 100.0, 50.0, 0.0, "FSC-A", "SSC-A", GateCoordinateSpace::Raw)?;
     /// # Ok(())
     /// # }
     /// ```
@@ -1530,6 +1741,7 @@ pub struct GateBuilder {
     mode: GateMode,
     coordinate_space: Option<GateCoordinateSpace>,
     label_position: Option<LabelPosition>,
+    derived_from: Option<DerivedFrom>,
 }
 
 impl GateBuilder {
@@ -1548,6 +1760,7 @@ impl GateBuilder {
             mode: GateMode::Global,
             coordinate_space: None,
             label_position: None,
+            derived_from: None,
         }
     }
 
@@ -1717,7 +1930,14 @@ impl GateBuilder {
             parameters,
             coordinate_space,
             label_position: self.label_position,
+            derived_from: self.derived_from,
         })
+    }
+
+    /// Set the `derived_from` provenance for composite gates (Rectangle from ranges, Quadrant from thresholds).
+    pub fn derived_from(mut self, source: DerivedFrom) -> Self {
+        self.derived_from = Some(source);
+        self
     }
 }
 

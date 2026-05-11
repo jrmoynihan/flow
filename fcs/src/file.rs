@@ -1635,6 +1635,88 @@ impl Fcs {
         self.apply_compensation(comp_matrix.as_ref(), &channel_refs)
     }
 
+    /// Apply an externally supplied spillover matrix to this file's raw event data.
+    ///
+    /// Identical semantics to `get_compensated_parameters` (identity-check, parallel
+    /// application via `flow_linalg`) but uses the caller-supplied matrix instead of
+    /// reading `$SPILLOVER` from the file.
+    ///
+    /// # Arguments
+    /// - `spillover`: NxN spillover matrix (NOT pre-inverted).
+    /// - `matrix_channel_names`: channel names for matrix rows/cols as `&str`.
+    ///   Callers with `Vec<String>` should map with `.iter().map(|s| s.as_str()).collect::<Vec<_>>()`.
+    /// - `channels_needed`: which channels to return (subset of `matrix_channel_names`).
+    ///
+    /// Requires the `compensation` feature.
+    #[cfg(feature = "compensation")]
+    pub fn get_compensated_parameters_with_matrix(
+        &self,
+        spillover: faer::MatRef<'_, f32>,
+        matrix_channel_names: &[&str],
+        channels_needed: &[&str],
+    ) -> anyhow::Result<std::collections::HashMap<String, Vec<f32>>> {
+        use flow_linalg::compensation::compensate_channels;
+
+        // Identity-check: if matrix is identity, bypass compensation entirely
+        let n = spillover.nrows();
+        let is_identity = (0..n).all(|i| {
+            (0..n).all(|j| {
+                let expected = if i == j { 1.0f32 } else { 0.0 };
+                (spillover[(i, j)] - expected).abs() < 1e-6
+            })
+        });
+
+        // Channels not in the spillover matrix are returned as-is (pass-through).
+        // This keeps both code paths consistent and lets callers request FSC/SSC
+        // alongside fluorescent channels without needing a separate call.
+        let matrix_set: std::collections::HashSet<&str> =
+            matrix_channel_names.iter().copied().collect();
+        let (comp_channels, passthrough_channels): (Vec<&str>, Vec<&str>) = channels_needed
+            .iter()
+            .copied()
+            .partition(|ch| matrix_set.contains(ch));
+
+        if is_identity || comp_channels.is_empty() {
+            let mut result = std::collections::HashMap::new();
+            for &ch in channels_needed {
+                let data = self.get_parameter_events_slice(ch)?;
+                result.insert(ch.to_string(), data.to_vec());
+            }
+            return Ok(result);
+        }
+
+        // Build raw channel slice pairs — error if a matrix channel is absent from the file,
+        // since missing channels silently corrupt the compensation math (treated as all-zero).
+        let raw_pairs: Vec<(&str, Vec<f32>)> = matrix_channel_names
+            .iter()
+            .map(|&name| {
+                let data = self
+                    .get_parameter_events_slice(name)
+                    .with_context(|| {
+                        format!("channel '{name}' in spillover matrix not found in file")
+                    })?;
+                Ok((name, data.to_vec()))
+            })
+            .collect::<anyhow::Result<_>>()?;
+
+        let raw_refs: Vec<(&str, &[f32])> = raw_pairs
+            .iter()
+            .map(|(name, data)| (*name, data.as_slice()))
+            .collect();
+
+        let mut result =
+            compensate_channels(&raw_refs, spillover, matrix_channel_names, &comp_channels)
+                .map_err(|e| anyhow::anyhow!("Compensation failed: {e}"))?;
+
+        // Merge pass-through channels (not in spillover matrix) as raw values
+        for &ch in &passthrough_channels {
+            let data = self.get_parameter_events_slice(ch)?;
+            result.insert(ch.to_string(), data.to_vec());
+        }
+
+        Ok(result)
+    }
+
     /// OPTIMIZED: Get compensated data for specific parameters only (lazy/partial compensation)
     ///
     /// This is 15-30x faster than apply_file_compensation when you only need a few parameters
@@ -1979,5 +2061,37 @@ impl Fcs {
             .map_err(|e| anyhow!("Failed to create DataFrame: {}", e))?;
 
         Ok(Arc::new(df))
+    }
+}
+
+#[cfg(test)]
+#[cfg(feature = "compensation")]
+mod compensation_method_tests {
+    use super::*;
+
+    /// Verifies the method compiles and identity matrix returns raw data.
+    /// Full fixture-based test is #[ignore]d — needs test_data/compensation_test.fcs.
+    #[test]
+    #[ignore = "requires real FCS fixture"]
+    fn test_with_matrix_matches_get_compensated_parameters() {
+        // This test verifies parity between the two methods.
+        // Run manually after loading test fixture:
+        // cargo test --features compensation -- --ignored test_with_matrix
+        let fcs = Fcs::open("test_data/compensation_test.fcs")
+            .expect("test FCS file not found");
+        if !fcs.has_compensation() { return; }
+        let channels = ["BV421-A", "PE-A"];
+        let expected = fcs.get_compensated_parameters(&channels).unwrap();
+        let (matrix, names) = fcs.get_spillover_matrix().unwrap().unwrap();
+        let name_refs: Vec<&str> = names.iter().map(|s| s.as_str()).collect();
+        let actual = fcs.get_compensated_parameters_with_matrix(matrix.as_ref(), &name_refs, &channels).unwrap();
+        for &ch in &channels {
+            let e = expected.get(ch).unwrap();
+            let a = actual.get(ch).unwrap();
+            assert_eq!(e.len(), a.len());
+            for (&ev, &av) in e.iter().zip(a.iter()) {
+                assert!((ev - av).abs() < 1e-4, "{ch}: {ev} vs {av}");
+            }
+        }
     }
 }

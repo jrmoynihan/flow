@@ -5,7 +5,7 @@
 
 use crate::{Gate, GateError, GateResult};
 use flow_fcs::Fcs;
-use flow_utils::kde::KernelDensity;
+use flow_density::kde::KernelDensity;
 
 /// Configuration for doublet detection
 #[derive(Debug, Clone)]
