@@ -5,6 +5,109 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.4.0 (2026-05-11)
+
+### Chore
+
+ - <csr-id-74956f94c544d1fa83f6fffbb18e2d4f5e6072ff/> bump flow-fcs to 0.4.0, add publish metadata to new crates
+   - flow-fcs 0.3.0 → 0.4.0 (new compensation feature + public API)
+   - flow-linalg, flow-density, flow-clustering: add repository field
+     and smart-release scripts for first publish
+   - Update all workspace consumers to ^0.4.0
+
+### New Features
+
+ - <csr-id-a58674a3f1d42ca3a81b273602f8706aa01f9900/> add get_compensated_parameters_with_matrix backed by flow-linalg
+ - <csr-id-a4a5e18e06b55de252b74110118ac72aa2fc0891/> add compression crate, benchmarks, and ISAC proposal
+   Introduce two new workspace crates and an ISAC FCS WG proposal targeting
+   compression and column-major DATA layout for the FCS standard.
+   
+   flow-fcs-compress (new crate, codec library + container adapters):
+   - ColumnCodec trait with chunked encode/decode and zero-copy semantics
+   - Mode A lossless f32: byte-stream-split + zstd (default), pco backend
+     (optional, behind `pco-backend` feature)
+   - Mode B lossless within ADC bit depth: bit-reservoir bitpack with
+     per-chunk signed offset, ~3.5x decode speedup vs naive bit-extract
+   - Mode C lossy log-quantization: arcsinh transform + fixed-point quantize
+     with sinh LUT for bits <= 14 (~4x decode speedup at small widths)
+   - Auto codec picker: never selects a lossy codec without explicit opt-in
+   - lz4_flex baseline (optional, behind `lz4-baseline` feature)
+   - .fcz native container with mmap + rayon parallel decode
+   - Inline FCS DATA-segment payload format (codec-payload bytes intended
+     to live inside an FCS file with `$COMPRESSION = FCZ1` keyword)
+   - New EncodedChunk API splits parallel encode (`encode_chunk_payload`,
+     &self) from sequential append (`append_encoded_chunk`, &mut self)
+   
+   flow-fcs-bench (new bin crate):
+   - synth: per-codec/per-channel CSV table on synthetic channels
+   - file: per-codec table on real .fcs files, with auto-picker validation
+   - file-full / synth-full: whole-dataset roundtrip with both serial and
+     rayon-parallel encode and decode throughput
+   
+   flow-fcs (existing crate, gains optional `compress` and `parquet-sidecar`
+   features):
+   - Fcs::write_fcz / Fcs::events_from_fcz round-trip via .fcz container
+   - Fcs::write_inline_fcs / Fcs::events_from_inline_fcs (FCS-inline pilot
+     with `$COMPRESSION` extension keyword)
+   - Fcs::write_parquet / Fcs::events_from_parquet (Parquet sidecar Tier 1)
+   - Expose write::serialize_metadata, write::build_header,
+     write::estimate_text_segment_size as pub(crate) helpers for the
+     inline-FCS writer
+   
+   ISAC proposal (flow-fcs-compress/docs/isac-proposal.md):
+   - Verified against FCS 3.2 spec (Spidlen 2021): $PnB unambiguous
+     storage width per S3.3.38; $PnR for F/D types is the soft hint
+     per S3.3.51; row-major DATA layout mandated per S3.4
+   - New keywords proposed: $LAYOUT (column-major option), $COMPRESSION,
+     $PnCOMPRESSION, $COMPRESSIONPARAMS, $PnADCBITS, $PnLAYOUT,
+     $CHECKSUM, $CHUNKINDEX
+   - Sections: cache-friendliness rationale (cite ithare.com cycle
+     costs), why FCS is row-major (acquisition FIFO/DMA),
+     tradeoffs vs alternatives (status quo, file-level gzip, Parquet
+     migration, vendor variants), reviewer critiques and responses,
+     performance metrics (M1 Max 10-core, single + multi-threaded
+     encode + decode at 80 MB / 400 MB / 1024 MB), FlowRepository
+     impact, FCS 4.0 / ACS status (no FCS 4.0 in active development;
+     the 2007 working draft was renamed to ACS)
+   - Scope explicitly excludes HEADER (58 fixed bytes) and TEXT
+     (<0.01% of large files, bootstraps DATA offsets)
+
+### Bug Fixes
+
+ - <csr-id-bc1223f9f76fbf073d531945991b93f613fe84cc/> pass-through non-matrix channels, hard-error on missing matrix channel
+ - <csr-id-f6172992ac40dc8acbdceedabf9c894aaa63a69c/> gate arcsinh inverse debug logging behind debug_assertions
+
+### Refactor
+
+ - <csr-id-dd4dcbc9dd999b59155db42b0ad0db52712231bd/> remove debug eprintln from arcsinh inverse_transform
+ - <csr-id-006ba79325f7ea81d54af94224e81d3862cdbdb2/> improve parameter mapping and metadata for unmixing integration
+   Refines parameter mapping for unmixed FCS reconstruction, updates
+   matrix/metadata handling, and adjusts benchmarks and write path.
+
+### Commit Statistics
+
+<csr-read-only-do-not-edit/>
+
+ - 7 commits contributed to the release over the course of 53 calendar days.
+ - 7 commits were understood as [conventional](https://www.conventionalcommits.org).
+ - 0 issues like '(#ID)' were seen in commit messages
+
+### Commit Details
+
+<csr-read-only-do-not-edit/>
+
+<details><summary>view details</summary>
+
+ * **Uncategorized**
+    - Remove debug eprintln from arcsinh inverse_transform ([`dd4dcbc`](https://github.com/jrmoynihan/flow/commit/dd4dcbc9dd999b59155db42b0ad0db52712231bd))
+    - Bump flow-fcs to 0.4.0, add publish metadata to new crates ([`74956f9`](https://github.com/jrmoynihan/flow/commit/74956f94c544d1fa83f6fffbb18e2d4f5e6072ff))
+    - Pass-through non-matrix channels, hard-error on missing matrix channel ([`bc1223f`](https://github.com/jrmoynihan/flow/commit/bc1223f9f76fbf073d531945991b93f613fe84cc))
+    - Add get_compensated_parameters_with_matrix backed by flow-linalg ([`a58674a`](https://github.com/jrmoynihan/flow/commit/a58674a3f1d42ca3a81b273602f8706aa01f9900))
+    - Add compression crate, benchmarks, and ISAC proposal ([`a4a5e18`](https://github.com/jrmoynihan/flow/commit/a4a5e18e06b55de252b74110118ac72aa2fc0891))
+    - Improve parameter mapping and metadata for unmixing integration ([`006ba79`](https://github.com/jrmoynihan/flow/commit/006ba79325f7ea81d54af94224e81d3862cdbdb2))
+    - Gate arcsinh inverse debug logging behind debug_assertions ([`f617299`](https://github.com/jrmoynihan/flow/commit/f6172992ac40dc8acbdceedabf9c894aaa63a69c))
+</details>
+
 ## 0.2.2 (2026-02-26)
 
 <csr-id-6d8f95797fdd97e7fa1ffa34050cf3fcccb7a1f0/>
@@ -31,7 +134,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 <csr-read-only-do-not-edit/>
 
- - 8 commits contributed to the release over the course of 11 calendar days.
+ - 9 commits contributed to the release over the course of 11 calendar days.
  - 11 days passed between releases.
  - 4 commits were understood as [conventional](https://www.conventionalcommits.org).
  - 0 issues like '(#ID)' were seen in commit messages
@@ -43,6 +146,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 <details><summary>view details</summary>
 
  * **Uncategorized**
+    - Release flow-fcs v0.2.2, flow-plots v0.2.2, peacoqc-rs v0.2.2 ([`d8a6922`](https://github.com/jrmoynihan/flow/commit/d8a6922a47b2196a6dcf8362bab067b176757908))
     - Release flow-fcs v0.2.2, flow-plots v0.2.2, peacoqc-rs v0.2.2 ([`cb7b98e`](https://github.com/jrmoynihan/flow/commit/cb7b98ecbc3d012df79c2e70bd2aad2f89d9c303))
     - Update changelogs and READMEs for flow-fcs, flow-plots, peacoqc-rs patch release ([`ec0fcf8`](https://github.com/jrmoynihan/flow/commit/ec0fcf8823f4d35e47d7da935f1e70d1927f0f0c))
     - Remove deprecated attributes from MixedKeyword and StringKeyword enums ([`6d8f957`](https://github.com/jrmoynihan/flow/commit/6d8f95797fdd97e7fa1ffa34050cf3fcccb7a1f0))
@@ -215,7 +319,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
    - Updated benchmarks to use new `MatrixOps` API
 
 <csr-unknown>
-GPU transfer overhead and kernel launch costs exceeded benefits for small-to-medium datasets (10K-1M events, 5-30 channels)CPU BLAS/LAPACK implementations are highly optimized for these matrix sizesSee GPU_BENCHMARKING.md for detailed benchmark results and analysisGPU transfer overhead and kernel launch costs exceeded benefits for small-to-medium datasets (10K-1M events, 5-30 channels)CPU BLAS/LAPACK implementations are highly optimized for these matrix sizesSee GPU_BENCHMARKING.md for detailed benchmark results and analysisGPU transfer overhead and kernel launch costs exceeded benefits for small-to-medium datasets (10K-1M events, 5-30 channels)CPU BLAS/LAPACK implementations are highly optimized for these matrix sizesSee GPU_BENCHMARKING.md for detailed benchmark results and analysisGPU transfer overhead and kernel launch costs exceeded benefits for small-to-medium datasets (10K-1M events, 5-30 channels)CPU BLAS/LAPACK implementations are highly optimized for these matrix sizesSee GPU_BENCHMARKING.md for detailed benchmark results and analysisGPU transfer overhead and kernel launch costs exceeded benefits for small-to-medium datasets (10K-1M events, 5-30 channels)CPU BLAS/LAPACK implementations are highly optimized for these matrix sizesSee GPU_BENCHMARKING.md for detailed benchmark results and analysisGPU transfer overhead and kernel launch costs exceeded benefits for small-to-medium datasets (10K-1M events, 5-30 channels)CPU BLAS/LAPACK implementations are highly optimized for these matrix sizesSee GPU_BENCHMARKING.md for detailed benchmark results and analysisGPU transfer overhead and kernel launch costs exceeded benefits for small-to-medium datasets (10K-1M events, 5-30 channels)CPU BLAS/LAPACK implementations are highly optimized for these matrix sizesSee GPU_BENCHMARKING.md for detailed benchmark results and analysisGPU transfer overhead and kernel launch costs exceeded benefits for small-to-medium datasets (10K-1M events, 5-30 channels)CPU BLAS/LAPACK implementations are highly optimized for these matrix sizesSee GPU_BENCHMARKING.md for detailed benchmark results and analysisGPU transfer overhead and kernel launch costs exceeded benefits for small-to-medium datasets (10K-1M events, 5-30 channels)CPU BLAS/LAPACK implementations are highly optimized for these matrix sizesSee GPU_BENCHMARKING.md for detailed benchmark results and analysisGPU transfer overhead and kernel launch costs exceeded benefits for small-to-medium datasets (10K-1M events, 5-30 channels)CPU BLAS/LAPACK implementations are highly optimized for these matrix sizesSee GPU_BENCHMARKING.md for detailed benchmark results and analysis<csr-unknown/>
+GPU transfer overhead and kernel launch costs exceeded benefits for small-to-medium datasets (10K-1M events, 5-30 channels)CPU BLAS/LAPACK implementations are highly optimized for these matrix sizesSee GPU_BENCHMARKING.md for detailed benchmark results and analysisGPU transfer overhead and kernel launch costs exceeded benefits for small-to-medium datasets (10K-1M events, 5-30 channels)CPU BLAS/LAPACK implementations are highly optimized for these matrix sizesSee GPU_BENCHMARKING.md for detailed benchmark results and analysisGPU transfer overhead and kernel launch costs exceeded benefits for small-to-medium datasets (10K-1M events, 5-30 channels)CPU BLAS/LAPACK implementations are highly optimized for these matrix sizesSee GPU_BENCHMARKING.md for detailed benchmark results and analysisGPU transfer overhead and kernel launch costs exceeded benefits for small-to-medium datasets (10K-1M events, 5-30 channels)CPU BLAS/LAPACK implementations are highly optimized for these matrix sizesSee GPU_BENCHMARKING.md for detailed benchmark results and analysisGPU transfer overhead and kernel launch costs exceeded benefits for small-to-medium datasets (10K-1M events, 5-30 channels)CPU BLAS/LAPACK implementations are highly optimized for these matrix sizesSee GPU_BENCHMARKING.md for detailed benchmark results and analysisGPU transfer overhead and kernel launch costs exceeded benefits for small-to-medium datasets (10K-1M events, 5-30 channels)CPU BLAS/LAPACK implementations are highly optimized for these matrix sizesSee GPU_BENCHMARKING.md for detailed benchmark results and analysisGPU transfer overhead and kernel launch costs exceeded benefits for small-to-medium datasets (10K-1M events, 5-30 channels)CPU BLAS/LAPACK implementations are highly optimized for these matrix sizesSee GPU_BENCHMARKING.md for detailed benchmark results and analysisGPU transfer overhead and kernel launch costs exceeded benefits for small-to-medium datasets (10K-1M events, 5-30 channels)CPU BLAS/LAPACK implementations are highly optimized for these matrix sizesSee GPU_BENCHMARKING.md for detailed benchmark results and analysisGPU transfer overhead and kernel launch costs exceeded benefits for small-to-medium datasets (10K-1M events, 5-30 channels)CPU BLAS/LAPACK implementations are highly optimized for these matrix sizesSee GPU_BENCHMARKING.md for detailed benchmark results and analysisGPU transfer overhead and kernel launch costs exceeded benefits for small-to-medium datasets (10K-1M events, 5-30 channels)CPU BLAS/LAPACK implementations are highly optimized for these matrix sizesSee GPU_BENCHMARKING.md for detailed benchmark results and analysisGPU transfer overhead and kernel launch costs exceeded benefits for small-to-medium datasets (10K-1M events, 5-30 channels)CPU BLAS/LAPACK implementations are highly optimized for these matrix sizesSee GPU_BENCHMARKING.md for detailed benchmark results and analysis<csr-unknown/>
 <csr-unknown/>
 
 ## 0.1.5 (2026-01-21)
