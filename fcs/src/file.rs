@@ -1666,7 +1666,17 @@ impl Fcs {
             })
         });
 
-        if is_identity {
+        // Channels not in the spillover matrix are returned as-is (pass-through).
+        // This keeps both code paths consistent and lets callers request FSC/SSC
+        // alongside fluorescent channels without needing a separate call.
+        let matrix_set: std::collections::HashSet<&str> =
+            matrix_channel_names.iter().copied().collect();
+        let (comp_channels, passthrough_channels): (Vec<&str>, Vec<&str>) = channels_needed
+            .iter()
+            .copied()
+            .partition(|ch| matrix_set.contains(ch));
+
+        if is_identity || comp_channels.is_empty() {
             let mut result = std::collections::HashMap::new();
             for &ch in channels_needed {
                 let data = self.get_parameter_events_slice(ch)?;
@@ -1675,23 +1685,36 @@ impl Fcs {
             return Ok(result);
         }
 
-        // Build raw channel slice pairs for all channels in the matrix
+        // Build raw channel slice pairs — error if a matrix channel is absent from the file,
+        // since missing channels silently corrupt the compensation math (treated as all-zero).
         let raw_pairs: Vec<(&str, Vec<f32>)> = matrix_channel_names
             .iter()
-            .filter_map(|&name| {
-                self.get_parameter_events_slice(name)
-                    .ok()
-                    .map(|s| (name, s.to_vec()))
+            .map(|&name| {
+                let data = self
+                    .get_parameter_events_slice(name)
+                    .with_context(|| {
+                        format!("channel '{name}' in spillover matrix not found in file")
+                    })?;
+                Ok((name, data.to_vec()))
             })
-            .collect();
+            .collect::<anyhow::Result<_>>()?;
 
         let raw_refs: Vec<(&str, &[f32])> = raw_pairs
             .iter()
             .map(|(name, data)| (*name, data.as_slice()))
             .collect();
 
-        compensate_channels(&raw_refs, spillover, matrix_channel_names, channels_needed)
-            .map_err(|e| anyhow::anyhow!("Compensation failed: {e}"))
+        let mut result =
+            compensate_channels(&raw_refs, spillover, matrix_channel_names, &comp_channels)
+                .map_err(|e| anyhow::anyhow!("Compensation failed: {e}"))?;
+
+        // Merge pass-through channels (not in spillover matrix) as raw values
+        for &ch in &passthrough_channels {
+            let data = self.get_parameter_events_slice(ch)?;
+            result.insert(ch.to_string(), data.to_vec());
+        }
+
+        Ok(result)
     }
 
     /// OPTIMIZED: Get compensated data for specific parameters only (lazy/partial compensation)
