@@ -97,22 +97,7 @@ impl Transformable for TransformType {
     fn inverse_transform(&self, value: &f32) -> f32 {
         match self {
             TransformType::Linear => *value,
-            TransformType::Arcsinh { cofactor } => {
-                #[cfg(debug_assertions)]
-                eprintln!(
-                    "🔧 [INVERSE_TRANSFORM] Arcsinh inverse: value={}, cofactor={}",
-                    value, cofactor
-                );
-                let final_result = (*value).sinh() * *cofactor;
-                #[cfg(debug_assertions)]
-                eprintln!(
-                    "🔧 [INVERSE_TRANSFORM] final result: {} * {} = {}",
-                    value.sinh(),
-                    cofactor,
-                    final_result
-                );
-                final_result
-            }
+            TransformType::Arcsinh { cofactor } => (*value).sinh() * *cofactor,
             TransformType::Biexponential {
                 top_of_scale,
                 positive_decades,
