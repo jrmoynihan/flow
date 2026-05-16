@@ -18,6 +18,22 @@ pub fn get_plotting_area(width: u32, height: u32) -> (Range<u32>, Range<u32>) {
     (x_start..x_end, y_start..y_end)
 }
 
+/// Calculate plotting area with explicit layout parameters (not hardcoded constants).
+pub fn get_plotting_area_with_layout(
+    width: u32,
+    height: u32,
+    plot_margin: u32,
+    x_label_area_size: u32,
+    y_label_area_size: u32,
+) -> (Range<u32>, Range<u32>) {
+    let x_start = y_label_area_size + plot_margin;
+    let x_end = width.saturating_sub(plot_margin);
+    let y_start = plot_margin;
+    let y_end = height.saturating_sub(x_label_area_size + plot_margin);
+
+    (x_start..x_end, y_start..y_end)
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Axis {
     X,
@@ -301,6 +317,47 @@ where
     );
 
     let (x_pixel_range, y_pixel_range) = get_plotting_area(width, height);
+
+    pixel_coords_vec
+        .into_iter()
+        .map(|(pixel_x, pixel_y)| {
+            let raw_x = pixel_to_raw(pixel_x, x_data_range, &x_pixel_range, x_transform);
+            let raw_y = pixel_to_raw_y(pixel_y, y_data_range, &y_pixel_range, y_transform);
+            (raw_x, raw_y)
+        })
+        .collect()
+}
+
+/// Like `pixels_to_raw_coords` but uses caller-supplied layout instead of hardcoded constants.
+pub fn pixels_to_raw_coords_with_layout<I>(
+    pixel_coords: I,
+    x_data_range: &PlotRange,
+    y_data_range: &PlotRange,
+    width: u32,
+    height: u32,
+    x_transform: &TransformType,
+    y_transform: &TransformType,
+    plot_margin: u32,
+    x_label_area_size: u32,
+    y_label_area_size: u32,
+) -> Vec<(f32, f32)>
+where
+    I: IntoIterator<Item = (f32, f32)>,
+{
+    let pixel_coords_vec: Vec<(f32, f32)> = pixel_coords.into_iter().collect();
+
+    debug_assert!(width > 0 && height > 0, "Plot dimensions must be positive: {}x{}", width, height);
+    debug_assert!(
+        x_data_range.start().is_finite() && x_data_range.end().is_finite(),
+        "X data range must be finite: {:?}", x_data_range
+    );
+    debug_assert!(
+        y_data_range.start().is_finite() && y_data_range.end().is_finite(),
+        "Y data range must be finite: {:?}", y_data_range
+    );
+
+    let (x_pixel_range, y_pixel_range) =
+        get_plotting_area_with_layout(width, height, plot_margin, x_label_area_size, y_label_area_size);
 
     pixel_coords_vec
         .into_iter()
