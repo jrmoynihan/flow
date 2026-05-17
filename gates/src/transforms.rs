@@ -282,6 +282,35 @@ where
         .collect()
 }
 
+/// Like `raw_coords_to_pixels` but uses caller-supplied layout.
+pub fn raw_coords_to_pixels_with_layout<I>(
+    raw_coords: I,
+    x_data_range: &PlotRange,
+    y_data_range: &PlotRange,
+    width: u32,
+    height: u32,
+    x_transform: &TransformType,
+    y_transform: &TransformType,
+    plot_margin: u32,
+    x_label_area_size: u32,
+    y_label_area_size: u32,
+) -> Vec<(f32, f32)>
+where
+    I: IntoIterator<Item = (f32, f32)>,
+{
+    let (x_pixel_range, y_pixel_range) =
+        get_plotting_area_with_layout(width, height, plot_margin, x_label_area_size, y_label_area_size);
+
+    raw_coords
+        .into_iter()
+        .map(|(raw_x, raw_y)| {
+            let pixel_x = raw_to_pixel(raw_x, x_data_range, &x_pixel_range, x_transform);
+            let pixel_y = raw_to_pixel_y(raw_y, y_data_range, &y_pixel_range, y_transform);
+            (pixel_x, pixel_y)
+        })
+        .collect()
+}
+
 /// Convert display pixel coordinates to raw gate coordinates
 ///
 /// # Arguments
