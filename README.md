@@ -2,7 +2,7 @@
 
 # flow
 
-Flow cytometry analysis tools, _oxidized_.  The aim of this workspace is to leverage the blazing-fast speed, memory and type safety, and fearless concurrency of the Rust language to scale-up to modern flow cytometry workflows requiring millions of events without breaking a sweat.  Biological daa can be unpredictable; the tools to analyze it shouldn't be.
+Flow cytometry analysis tools, _oxidized_.  The aim of this workspace is to leverage the blazing-fast speed, memory and type safety, and fearless concurrency of the Rust language to scale-up to modern flow cytometry workflows requiring millions of events without breaking a sweat.  Biological data can be unpredictable; the tools to analyze it shouldn't be.
 
 The workspace includes libaries for:
 
