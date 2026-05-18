@@ -616,4 +616,90 @@ mod tests {
             }
         }
     }
+
+    #[test]
+    fn test_with_layout_roundtrip_linear() {
+        let transform = TransformType::Linear;
+        let x_range = 0.0..=4000000.0;
+        let y_range = 0.0..=2000000.0;
+        let width = 500;
+        let height = 400;
+        let margin = 0;
+        let x_label = 20;
+        let y_label = 48;
+
+        let raw_coords = vec![(1000000.0, 500000.0), (2000000.0, 1000000.0), (3500000.0, 1800000.0)];
+
+        let pixels = raw_coords_to_pixels_with_layout(
+            raw_coords.clone(), &x_range, &y_range, width, height,
+            &transform, &transform, margin, x_label, y_label,
+        );
+
+        let recovered = pixels_to_raw_coords_with_layout(
+            pixels, &x_range, &y_range, width, height,
+            &transform, &transform, margin, x_label, y_label,
+        );
+
+        for ((orig_x, orig_y), (rec_x, rec_y)) in raw_coords.iter().zip(recovered.iter()) {
+            assert!((orig_x - rec_x).abs() < 100.0,
+                "X roundtrip failed: {} vs {}", orig_x, rec_x);
+            assert!((orig_y - rec_y).abs() < 100.0,
+                "Y roundtrip failed: {} vs {}", orig_y, rec_y);
+        }
+    }
+
+    #[test]
+    fn test_with_layout_roundtrip_arcsinh() {
+        let transform = TransformType::Arcsinh { cofactor: 150.0 };
+        let x_range = (-4.0)..=10.0; // transformed space
+        let y_range = (-3.0)..=9.0;
+        let width = 500;
+        let height = 400;
+        let margin = 0;
+        let x_label = 20;
+        let y_label = 48;
+
+        let raw_coords = vec![(500.0, 200.0), (50000.0, 10000.0), (-1000.0, -500.0)];
+
+        let pixels = raw_coords_to_pixels_with_layout(
+            raw_coords.clone(), &x_range, &y_range, width, height,
+            &transform, &transform, margin, x_label, y_label,
+        );
+
+        let recovered = pixels_to_raw_coords_with_layout(
+            pixels, &x_range, &y_range, width, height,
+            &transform, &transform, margin, x_label, y_label,
+        );
+
+        for ((orig_x, orig_y), (rec_x, rec_y)) in raw_coords.iter().zip(recovered.iter()) {
+            let tol_x = orig_x.abs() * 0.01 + 1.0;
+            let tol_y = orig_y.abs() * 0.01 + 1.0;
+            assert!((orig_x - rec_x).abs() < tol_x,
+                "X arcsinh roundtrip failed: {} vs {} (tol {})", orig_x, rec_x, tol_x);
+            assert!((orig_y - rec_y).abs() < tol_y,
+                "Y arcsinh roundtrip failed: {} vs {} (tol {})", orig_y, rec_y, tol_y);
+        }
+    }
+
+    #[test]
+    fn test_with_layout_zero_margins() {
+        // GPU mode: all margins zero, full canvas = data area
+        let transform = TransformType::Linear;
+        let x_range = 0.0..=1000.0;
+        let y_range = 0.0..=1000.0;
+        let width = 400;
+        let height = 400;
+
+        let pixels = raw_coords_to_pixels_with_layout(
+            vec![(0.0, 0.0), (1000.0, 1000.0)],
+            &x_range, &y_range, width, height,
+            &transform, &transform, 0, 0, 0,
+        );
+
+        // With zero margins: pixel 0 = data min, pixel 400 = data max
+        assert!((pixels[0].0 - 0.0).abs() < 1.0, "Bottom-left x: {}", pixels[0].0);
+        assert!((pixels[0].1 - 400.0).abs() < 1.0, "Bottom-left y (inverted): {}", pixels[0].1);
+        assert!((pixels[1].0 - 400.0).abs() < 1.0, "Top-right x: {}", pixels[1].0);
+        assert!((pixels[1].1 - 0.0).abs() < 1.0, "Top-right y (inverted): {}", pixels[1].1);
+    }
 }
