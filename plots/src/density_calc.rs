@@ -292,11 +292,8 @@ pub fn scatter_to_pixels(
 
 /// Dispatch to density, scatter, overlay, or colored scatter based on plot_type and data.
 ///
-/// **Important:** For `Contour` and `ContourOverlay`, this function produces a *density heatmap*
-/// (same as `PlotType::Density`), not contour lines. To render contour lines, use
-/// [`DensityPlot::render`](crate::plots::density::DensityPlot) or call
-/// [`calculate_contours`](crate::contour::calculate_contours) +
-/// [`render_contour`](crate::render::plotters_backend::render_contour) directly.
+/// Compute pixel data for a plot. For Contour type, this produces a density heatmap
+/// (not contour lines). Use `calculate_contours` + `render_contour` for contour lines.
 pub fn calculate_plot_pixels(
     data: &ScatterPlotData,
     width: usize,
@@ -305,34 +302,21 @@ pub fn calculate_plot_pixels(
 ) -> Vec<RawPixelData> {
     let xy = data.xy();
     match options.plot_type.canonical() {
-        PlotType::ScatterSolid | PlotType::Dot => scatter_to_pixels(xy, width, height, options),
-        PlotType::ScatterOverlay => {
-            if data.has_gates() {
-                scatter_to_pixels_overlay(data, width, height, options)
-            } else {
-                scatter_to_pixels(xy, width, height, options)
-            }
-        }
-        PlotType::ScatterColoredContinuous => {
+        PlotType::Scatter => scatter_to_pixels(xy, width, height, options),
+        PlotType::Intensity => {
             if data.has_z() {
                 scatter_to_pixels_colored(data, width, height, options)
             } else {
                 calculate_density_per_pixel(xy, width, height, options)
             }
         }
-        PlotType::Density
-        | PlotType::Contour
-        | PlotType::ContourOverlay
-        | PlotType::Zebra
-        | PlotType::Histogram => calculate_density_per_pixel(xy, width, height, options),
+        PlotType::Density | PlotType::Contour | PlotType::Histogram => {
+            calculate_density_per_pixel(xy, width, height, options)
+        }
     }
 }
 
 /// Cancelable version of calculate_plot_pixels.
-///
-/// Same caveat as [`calculate_plot_pixels`]: for Contour/ContourOverlay, this produces
-/// density pixels, not contour lines. Use [`DensityPlot::render`](crate::plots::density::DensityPlot)
-/// for contour rendering.
 pub fn calculate_plot_pixels_cancelable(
     data: &ScatterPlotData,
     width: usize,
@@ -342,26 +326,15 @@ pub fn calculate_plot_pixels_cancelable(
 ) -> Option<Vec<RawPixelData>> {
     let xy = data.xy();
     match options.plot_type.canonical() {
-        PlotType::ScatterSolid | PlotType::Dot => {
-            Some(scatter_to_pixels(xy, width, height, options))
-        }
-        PlotType::ScatterOverlay => Some(if data.has_gates() {
-            scatter_to_pixels_overlay(data, width, height, options)
-        } else {
-            scatter_to_pixels(xy, width, height, options)
-        }),
-        PlotType::ScatterColoredContinuous => {
+        PlotType::Scatter => Some(scatter_to_pixels(xy, width, height, options)),
+        PlotType::Intensity => {
             if data.has_z() {
                 Some(scatter_to_pixels_colored(data, width, height, options))
             } else {
                 calculate_density_per_pixel_cancelable(xy, width, height, options, should_cancel)
             }
         }
-        PlotType::Density
-        | PlotType::Contour
-        | PlotType::ContourOverlay
-        | PlotType::Zebra
-        | PlotType::Histogram => {
+        PlotType::Density | PlotType::Contour | PlotType::Histogram => {
             calculate_density_per_pixel_cancelable(xy, width, height, options, should_cancel)
         }
     }

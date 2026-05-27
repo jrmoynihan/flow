@@ -69,7 +69,7 @@ impl DensityPlot {
         let mut results = Vec::with_capacity(requests.len());
         for (data, options) in requests.iter() {
             let bytes = match options.plot_type.canonical() {
-                PlotType::Contour | PlotType::ContourOverlay => {
+                PlotType::Contour => {
                     let xy = data.xy();
                     let x_range = (*options.x_axis.range.start(), *options.x_axis.range.end());
                     let y_range = (*options.y_axis.range.start(), *options.y_axis.range.end());
@@ -123,7 +123,7 @@ impl Plot for DensityPlot {
         let plot_start = std::time::Instant::now();
 
         match options.plot_type.canonical() {
-            PlotType::Contour | PlotType::ContourOverlay => {
+            PlotType::Contour => {
                 let xy = data.xy();
                 let x_range = (*options.x_axis.range.start(), *options.x_axis.range.end());
                 let y_range = (*options.y_axis.range.start(), *options.y_axis.range.end());
