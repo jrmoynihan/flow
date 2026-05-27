@@ -702,4 +702,113 @@ mod tests {
         assert!((pixels[1].0 - 400.0).abs() < 1.0, "Top-right x: {}", pixels[1].0);
         assert!((pixels[1].1 - 0.0).abs() < 1.0, "Top-right y (inverted): {}", pixels[1].1);
     }
+
+    #[test]
+    fn roundtrip_with_layout_linear() {
+        let transform = TransformType::Linear;
+        let x_range = 0.0f32..=262144.0;
+        let y_range = (-107433.0f32)..=15681399.0;
+
+        let test_coords = vec![
+            (50000.0, 1000000.0),
+            (100000.0, 5000000.0),
+            (200000.0, 10000000.0),
+        ];
+
+        for &(margin, x_label, y_label) in &[(0, 0, 0), (10, 50, 50), (6, 40, 40)] {
+            let pixels = raw_coords_to_pixels_with_layout(
+                test_coords.clone(),
+                &x_range, &y_range, 800, 600,
+                &transform, &transform,
+                margin, x_label, y_label,
+            );
+            let recovered = pixels_to_raw_coords_with_layout(
+                pixels,
+                &x_range, &y_range, 800, 600,
+                &transform, &transform,
+                margin, x_label, y_label,
+            );
+            for (i, ((orig_x, orig_y), (rec_x, rec_y))) in test_coords.iter().zip(recovered.iter()).enumerate() {
+                assert!(
+                    (rec_x - orig_x).abs() < 1.0,
+                    "layout({},{},{}) coord {} x: expected {}, got {}",
+                    margin, x_label, y_label, i, orig_x, rec_x
+                );
+                assert!(
+                    (rec_y - orig_y).abs() < 100.0,
+                    "layout({},{},{}) coord {} y: expected {}, got {}",
+                    margin, x_label, y_label, i, orig_y, rec_y
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn roundtrip_with_layout_arcsinh() {
+        let cofactor = 150.0f32;
+        let transform = TransformType::Arcsinh { cofactor };
+        // Ranges are in TRANSFORMED space (arcsinh of raw / cofactor)
+        let x_range = (-1.0f32)..=8.0;
+        let y_range = (-1.0f32)..=8.0;
+
+        // Raw values that fall within transformed range
+        let test_coords = vec![
+            (1000.0, 2000.0),
+            (10000.0, 50000.0),
+        ];
+
+        for &(margin, x_label, y_label) in &[(0, 0, 0), (10, 50, 50)] {
+            let pixels = raw_coords_to_pixels_with_layout(
+                test_coords.clone(),
+                &x_range, &y_range, 800, 600,
+                &transform, &transform,
+                margin, x_label, y_label,
+            );
+            let recovered = pixels_to_raw_coords_with_layout(
+                pixels,
+                &x_range, &y_range, 800, 600,
+                &transform, &transform,
+                margin, x_label, y_label,
+            );
+            for (i, ((orig_x, orig_y), (rec_x, rec_y))) in test_coords.iter().zip(recovered.iter()).enumerate() {
+                let x_err = (rec_x - orig_x).abs() / orig_x.abs().max(1.0);
+                let y_err = (rec_y - orig_y).abs() / orig_y.abs().max(1.0);
+                assert!(
+                    x_err < 0.01,
+                    "arcsinh layout({},{},{}) coord {} x: expected {}, got {} (err={})",
+                    margin, x_label, y_label, i, orig_x, rec_x, x_err
+                );
+                assert!(
+                    y_err < 0.01,
+                    "arcsinh layout({},{},{}) coord {} y: expected {}, got {} (err={})",
+                    margin, x_label, y_label, i, orig_y, rec_y, y_err
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn mismatched_layout_breaks_roundtrip() {
+        let transform = TransformType::Linear;
+        let x_range = 0.0f32..=262144.0;
+        let y_range = 0.0f32..=262144.0;
+        let coords = vec![(131072.0, 131072.0)];
+
+        let pixels = raw_coords_to_pixels_with_layout(
+            coords.clone(), &x_range, &y_range, 800, 600,
+            &transform, &transform, 0, 0, 0,
+        );
+        let recovered = pixels_to_raw_coords_with_layout(
+            pixels, &x_range, &y_range, 800, 600,
+            &transform, &transform, 10, 50, 50,
+        );
+
+        let (orig_x, orig_y) = coords[0];
+        let (rec_x, rec_y) = recovered[0];
+        assert!(
+            (rec_x - orig_x).abs() > 1000.0 || (rec_y - orig_y).abs() > 1000.0,
+            "Mismatched layout should produce significant error, but got ({}, {}) vs ({}, {})",
+            rec_x, rec_y, orig_x, orig_y,
+        );
+    }
 }
