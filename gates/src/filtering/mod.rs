@@ -1187,14 +1187,13 @@ where
     let mut current_indices: Option<Vec<usize>> = None;
     for step in gate_chain {
         let (gate, corner) = *step;
-        if matches!(
-            gate.geometry,
-            GateGeometry::Boolean { .. } | GateGeometry::Mask { .. }
-        ) {
+        if matches!(gate.geometry, GateGeometry::Boolean { .. }) {
             return Err(GateError::filtering_error(
-                "Hierarchy contains boolean/mask gates. Use filter_events_by_hierarchy_with_resolver() instead.",
+                "Hierarchy contains boolean gates. Use filter_events_by_hierarchy_with_resolver() instead.",
             ));
         }
+        // Mask gates are handled by the caller's closure (which has access to
+        // the MaskResolver). Don't reject them here.
 
         let gate_indices = filter_one_step(gate, corner)?;
 
