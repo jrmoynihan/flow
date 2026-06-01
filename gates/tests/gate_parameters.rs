@@ -15,7 +15,7 @@ fn legacy_tuple_deserializes_to_two_channel() {
             assert_eq!(x.as_ref(), "FSC-A");
             assert_eq!(y.as_ref(), "SSC-A");
         }
-        GateParameters::OneChannel { .. } => panic!("expected two_channel"),
+        _ => panic!("expected two_channel"),
     }
 }
 
@@ -37,7 +37,7 @@ fn legacy_one_channel_with_companion_drops_companion() {
     let gp: GateParameters = serde_json::from_str(json).expect("params");
     match gp {
         GateParameters::OneChannel { channel } => assert_eq!(channel.as_ref(), "FL1-A"),
-        GateParameters::TwoChannel { .. } => panic!("expected one_channel"),
+        _ => panic!("expected one_channel"),
     }
 }
 
@@ -66,7 +66,7 @@ fn range_geometry_builds_one_channel_parameters() {
         GateParameters::OneChannel { channel } => {
             assert_eq!(channel.as_ref(), "FL1-A");
         }
-        GateParameters::TwoChannel { .. } => panic!("expected one_channel"),
+        _ => panic!("expected one_channel"),
     }
 }
 

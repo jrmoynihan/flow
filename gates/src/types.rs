@@ -1,7 +1,11 @@
 use crate::error::{GateError, Result};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
+
+fn is_false(v: &bool) -> bool {
+    !v
+}
 
 /// A node in a gate, representing a control point with coordinates in raw data space.
 ///
@@ -125,6 +129,23 @@ pub enum ThresholdDirection {
     Below,
 }
 
+/// Source of a precomputed event mask for [`GateGeometry::Mask`] gates.
+///
+/// Mask gates delegate containment to an external resolver at filter time.
+/// The source identifies which mask to load.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum MaskSource {
+    /// Quality-control mask produced by PeacoQC (or similar).
+    Qc {
+        #[serde(with = "arc_str_serde")]
+        file_guid: Arc<str>,
+        /// If true, returns events that *failed* QC (bad events).
+        #[serde(default)]
+        invert: bool,
+    },
+}
+
 impl BooleanOperation {
     /// Get the expected number of operands for this operation
     ///
@@ -208,6 +229,20 @@ pub enum GateGeometry {
         value_node: GateNode,
         direction: ThresholdDirection,
     },
+    /// A quadrant gate: one gate owning its dividers and 4 sub-quadrants,
+    /// matching GatingML's `QuadrantGate` encapsulation.
+    ///
+    /// Unlike a single shape, a quadrant gate defines *four* sub-populations
+    /// (the corners). Each [`QuadrantSub`] carries its own stable id so a corner
+    /// is individually addressable — for per-corner stats, as a child gate's
+    /// `parent_id`, and in the hierarchy tree — even though one gate owns them
+    /// all. Corner-selective containment is exposed via
+    /// [`GateGeometry::contains_point_corner`] and friends; the gate-level
+    /// [`GateContainment::contains_point`] errors (a whole quadrant has no
+    /// single answer), exactly like [`GateGeometry::Boolean`].
+    ///
+    /// Boxed so this variant doesn't bloat the enum (clippy `large_enum_variant`).
+    QuadrantGate(Box<QuadrantGate>),
     /// Boolean gate combining other gates with logical operations
     ///
     /// Boolean gates reference other gates by ID and combine their results
@@ -219,9 +254,79 @@ pub enum GateGeometry {
         /// IDs of the gates to combine (gate IDs, not the gates themselves)
         operands: Vec<Arc<str>>,
     },
+    /// Precomputed event mask (e.g. from QC). Containment is resolved at filter
+    /// time via a [`MaskResolver`](crate::filtering::MaskResolver) — geometry
+    /// methods like `contains_point` return an error, same as [`Boolean`].
+    Mask {
+        source: MaskSource,
+    },
 }
 
 impl GateGeometry {
+    /// Borrow a [`crate::quadrant::QuadrantGateGeometry`] view over a
+    /// `QuadrantGate` variant. Returns `None` for any other geometry.
+    fn quadrant_geometry(&self) -> Option<crate::quadrant::QuadrantGateGeometry<'_>> {
+        if let GateGeometry::QuadrantGate(q) = self {
+            Some(crate::quadrant::QuadrantGateGeometry {
+                dividers: &q.dividers,
+                quadrants: &q.quadrants,
+            })
+        } else {
+            None
+        }
+    }
+
+    /// Index of a sub-quadrant (corner) by its stable id, or `None` if this is
+    /// not a quadrant gate or the id is unknown.
+    pub fn quadrant_corner_index(&self, sub_id: &str) -> Option<usize> {
+        self.quadrant_geometry()?.corner_index(sub_id)
+    }
+
+    /// Stable ids of every sub-quadrant, in order. Empty for non-quadrant gates.
+    pub fn quadrant_sub_ids(&self) -> Vec<Arc<str>> {
+        match self {
+            GateGeometry::QuadrantGate(q) => q.quadrants.iter().map(|s| s.id.clone()).collect(),
+            _ => Vec::new(),
+        }
+    }
+
+    /// Corner-selective point containment: is `(x, y)` inside the sub-quadrant
+    /// identified by `sub_id`? Errors if this is not a quadrant gate or the id
+    /// is unknown. This is the "pass the corner as a parameter" entry point.
+    pub fn contains_point_corner(
+        &self,
+        sub_id: &str,
+        x: f32,
+        y: f32,
+        x_param: &str,
+        y_param: &str,
+    ) -> Result<bool> {
+        let geom = self
+            .quadrant_geometry()
+            .ok_or_else(|| GateError::invalid_geometry("not a quadrant gate"))?;
+        let corner = geom
+            .corner_index(sub_id)
+            .ok_or_else(|| GateError::invalid_geometry("unknown sub-quadrant id"))?;
+        geom.contains_point_corner(corner, x, y, x_param, y_param)
+    }
+
+    /// Corner-selective batch containment for the sub-quadrant `sub_id`.
+    pub fn contains_points_batch_corner(
+        &self,
+        sub_id: &str,
+        points: &[(f32, f32)],
+        x_param: &str,
+        y_param: &str,
+    ) -> Result<Vec<bool>> {
+        let geom = self
+            .quadrant_geometry()
+            .ok_or_else(|| GateError::invalid_geometry("not a quadrant gate"))?;
+        let corner = geom
+            .corner_index(sub_id)
+            .ok_or_else(|| GateError::invalid_geometry("unknown sub-quadrant id"))?;
+        geom.contains_points_batch_corner(corner, points, x_param, y_param)
+    }
+
     /// Calculate the bounding box for this geometry in the specified parameter space
     pub fn bounding_box(&self, x_param: &str, y_param: &str) -> Option<(f32, f32, f32, f32)> {
         match self {
@@ -296,9 +401,14 @@ impl GateGeometry {
                 };
                 t.bounding_box(x_param, y_param).ok()
             }
-            GateGeometry::Boolean { .. } => {
-                // Boolean gates don't have a direct bounding box - would need to resolve operands
-                // For now, return None to indicate it can't be calculated directly
+            GateGeometry::QuadrantGate(_) => {
+                // A quadrant partitions the whole plane into 4 corners; the
+                // union has no meaningful finite box. Per-corner bounds are
+                // available via the corner-selective geometry view.
+                None
+            }
+            GateGeometry::Boolean { .. } | GateGeometry::Mask { .. } => {
+                // Boolean/Mask gates don't have a direct bounding box
                 None
             }
         }
@@ -365,10 +475,13 @@ impl GateGeometry {
                 };
                 t.calculate_center(x_param, y_param)
             }
-            GateGeometry::Boolean { .. } => {
-                // Boolean gates don't have a direct center - would need to resolve operands
+            GateGeometry::QuadrantGate(_) => self
+                .quadrant_geometry()
+                .ok_or_else(|| GateError::invalid_geometry("not a quadrant gate"))?
+                .dividers_center(x_param, y_param),
+            GateGeometry::Boolean { .. } | GateGeometry::Mask { .. } => {
                 Err(GateError::invalid_geometry(
-                    "Boolean gates do not have a direct center point",
+                    "Boolean/Mask gates do not have a direct center point",
                 ))
             }
         }
@@ -452,11 +565,12 @@ impl GateGeometry {
                 };
                 t.contains_point(x, y, x_param, y_param)
             }
-            GateGeometry::Boolean { .. } => {
-                // Boolean gates require resolving referenced gates - can't check containment directly
-                // This should be handled by the filtering functions that resolve gate references
+            GateGeometry::QuadrantGate(_) => Err(GateError::invalid_geometry(
+                "QuadrantGate has 4 sub-populations; use contains_point_corner(sub_id, ...)",
+            )),
+            GateGeometry::Boolean { .. } | GateGeometry::Mask { .. } => {
                 Err(GateError::invalid_geometry(
-                    "Boolean gates require gate resolution to check containment",
+                    "Boolean/Mask gates require external resolution to check containment",
                 ))
             }
         }
@@ -562,10 +676,12 @@ impl GateGeometry {
                     }
                 }
             }
-            GateGeometry::Boolean { .. } => {
-                // Boolean gates require resolving referenced gates - can't check containment directly
+            GateGeometry::QuadrantGate(_) => Err(GateError::invalid_geometry(
+                "QuadrantGate has 4 sub-populations; use contains_points_batch_corner(sub_id, ...)",
+            )),
+            GateGeometry::Boolean { .. } | GateGeometry::Mask { .. } => {
                 Err(GateError::invalid_geometry(
-                    "Boolean gates require gate resolution to check containment",
+                    "Boolean/Mask gates require external resolution to check containment",
                 ))
             }
         }
@@ -635,6 +751,10 @@ impl GateGeometry {
                 };
                 t.is_valid(x_param, y_param)
             }
+            GateGeometry::QuadrantGate(_) => self
+                .quadrant_geometry()
+                .ok_or_else(|| GateError::invalid_geometry("not a quadrant gate"))?
+                .dividers_valid(x_param, y_param),
             GateGeometry::Boolean {
                 operation,
                 operands,
@@ -654,6 +774,7 @@ impl GateGeometry {
                 }
                 Ok(true)
             }
+            GateGeometry::Mask { .. } => Ok(true),
         }
     }
 
@@ -665,7 +786,9 @@ impl GateGeometry {
             GateGeometry::Ellipse { .. } => "Ellipse",
             GateGeometry::Range { .. } => "Range",
             GateGeometry::Threshold { .. } => "Threshold",
+            GateGeometry::QuadrantGate(_) => "QuadrantGate",
             GateGeometry::Boolean { .. } => "Boolean",
+            GateGeometry::Mask { .. } => "Mask",
         }
     }
 }
@@ -718,9 +841,15 @@ impl GateCenter for GateGeometry {
                 };
                 t.calculate_center(x_param, y_param)
             }
-            GateGeometry::Boolean { .. } => Err(GateError::invalid_geometry(
-                "Boolean gates do not have a direct center point",
-            )),
+            GateGeometry::QuadrantGate(_) => self
+                .quadrant_geometry()
+                .ok_or_else(|| GateError::invalid_geometry("not a quadrant gate"))?
+                .dividers_center(x_param, y_param),
+            GateGeometry::Boolean { .. } | GateGeometry::Mask { .. } => Err(
+                GateError::invalid_geometry(
+                    "Boolean/Mask gates do not have a direct center point",
+                ),
+            ),
         }
     }
 }
@@ -770,9 +899,14 @@ impl GateContainment for GateGeometry {
                 };
                 t.contains_point(x, y, x_param, y_param)
             }
-            GateGeometry::Boolean { .. } => Err(GateError::invalid_geometry(
-                "Boolean gates require gate resolution to check containment",
+            GateGeometry::QuadrantGate(_) => Err(GateError::invalid_geometry(
+                "QuadrantGate has 4 sub-populations; use contains_point_corner(sub_id, ...)",
             )),
+            GateGeometry::Boolean { .. } | GateGeometry::Mask { .. } => Err(
+                GateError::invalid_geometry(
+                    "Boolean/Mask gates require external resolution to check containment",
+                ),
+            ),
         }
     }
 }
@@ -822,9 +956,14 @@ impl GateBounds for GateGeometry {
                 };
                 t.bounding_box(x_param, y_param)
             }
-            GateGeometry::Boolean { .. } => Err(GateError::invalid_geometry(
-                "Boolean gates do not have a direct bounding box",
+            GateGeometry::QuadrantGate(_) => Err(GateError::invalid_geometry(
+                "QuadrantGate partitions the plane; use the corner-selective bounding box",
             )),
+            GateGeometry::Boolean { .. } | GateGeometry::Mask { .. } => Err(
+                GateError::invalid_geometry(
+                    "Boolean/Mask gates do not have a direct bounding box",
+                ),
+            ),
         }
     }
 }
@@ -874,6 +1013,10 @@ impl GateValidation for GateGeometry {
                 };
                 t.is_valid(x_param, y_param)
             }
+            GateGeometry::QuadrantGate(_) => self
+                .quadrant_geometry()
+                .ok_or_else(|| GateError::invalid_geometry("not a quadrant gate"))?
+                .dividers_valid(x_param, y_param),
             GateGeometry::Boolean {
                 operation,
                 operands,
@@ -900,6 +1043,7 @@ impl GateValidation for GateGeometry {
                 }
                 Ok(true)
             }
+            GateGeometry::Mask { .. } => Ok(true),
         }
     }
 }
@@ -912,7 +1056,9 @@ impl GateGeometryOps for GateGeometry {
             GateGeometry::Ellipse { .. } => "Ellipse",
             GateGeometry::Range { .. } => "Range",
             GateGeometry::Threshold { .. } => "Threshold",
+            GateGeometry::QuadrantGate(_) => "QuadrantGate",
             GateGeometry::Boolean { .. } => "Boolean",
+            GateGeometry::Mask { .. } => "Mask",
         }
     }
 }
@@ -1082,6 +1228,8 @@ impl<'de> Deserialize<'de> for LabelPosition {
 /// - **OneChannel** — range gate: `channel` carries the min/max bounds. The gate has no
 ///   second axis; consumers needing a "companion" axis (e.g. to build a 2D event plane for
 ///   rendering) must supply it from the *plot context*, not from the gate.
+/// - **NoChannel** — mask gates: parameter-agnostic, applies to all plots regardless of
+///   axes. The gate filters events by precomputed membership, not geometric containment.
 #[derive(Debug, Clone, PartialEq)]
 pub enum GateParameters {
     TwoChannel {
@@ -1091,6 +1239,7 @@ pub enum GateParameters {
     OneChannel {
         channel: Arc<str>,
     },
+    NoChannel,
 }
 
 impl GateParameters {
@@ -1104,6 +1253,7 @@ impl GateParameters {
             GateParameters::OneChannel { channel, .. } => {
                 channel.as_ref() == plot_x || channel.as_ref() == plot_y
             }
+            GateParameters::NoChannel => true,
         }
     }
 
@@ -1111,7 +1261,7 @@ impl GateParameters {
     pub fn range_channel_name(&self) -> Option<&str> {
         match self {
             GateParameters::OneChannel { channel, .. } => Some(channel.as_ref()),
-            GateParameters::TwoChannel { .. } => None,
+            GateParameters::TwoChannel { .. } | GateParameters::NoChannel => None,
         }
     }
 }
@@ -1126,6 +1276,7 @@ impl Serialize for GateParameters {
         enum GateParametersSer<'a> {
             TwoChannel { x: &'a str, y: &'a str },
             OneChannel { channel: &'a str },
+            NoChannel {},
         }
         match self {
             GateParameters::TwoChannel { x, y } => GateParametersSer::TwoChannel {
@@ -1137,6 +1288,7 @@ impl Serialize for GateParameters {
                 channel: channel.as_ref(),
             }
             .serialize(serializer),
+            GateParameters::NoChannel => GateParametersSer::NoChannel {}.serialize(serializer),
         }
     }
 }
@@ -1167,6 +1319,7 @@ impl<'de> Deserialize<'de> for GateParameters {
                 #[allow(dead_code)]
                 companion: Option<String>,
             },
+            NoChannel {},
         }
         let helper = GateParametersDe::deserialize(deserializer)?;
         Ok(match helper {
@@ -1185,6 +1338,9 @@ impl<'de> Deserialize<'de> for GateParameters {
                     channel: Arc::from(channel.as_str()),
                 }
             }
+            GateParametersDe::Tagged(GateParametersTaggedDe::NoChannel {}) => {
+                GateParameters::NoChannel
+            }
         })
     }
 }
@@ -1195,6 +1351,26 @@ pub fn gate_parameters_from_geometry_and_axes(
     plot_x: Arc<str>,
     plot_y: Arc<str>,
 ) -> GateParameters {
+    // Mask gates are parameter-agnostic.
+    if matches!(geometry, GateGeometry::Mask { .. }) {
+        return GateParameters::NoChannel;
+    }
+    // A quadrant gate is inherently two-channel; derive its axes from the two
+    // dividers (one per channel) so it matches a plot regardless of the axes
+    // passed in. Falls back to the plot axes if dividers are incomplete.
+    if let GateGeometry::QuadrantGate(q) = geometry {
+        let x = q
+            .dividers
+            .first()
+            .map(|d| d.channel.clone())
+            .unwrap_or_else(|| plot_x.clone());
+        let y = q
+            .dividers
+            .get(1)
+            .map(|d| d.channel.clone())
+            .unwrap_or_else(|| plot_y.clone());
+        return GateParameters::TwoChannel { x, y };
+    }
     let one_channel_node = match geometry {
         GateGeometry::Range { min, .. } => Some(min),
         GateGeometry::Threshold { value_node, .. } => Some(value_node),
@@ -1232,6 +1408,64 @@ pub enum DerivedFrom {
         /// When `true`, geometry updates on either source threshold propagate to this gate.
         link_live: bool,
     },
+}
+
+/// A quadrant gate: dividers (boundaries) plus the sub-quadrants (corners) they
+/// partition the plane into. One [`Gate`] owns this whole structure, mirroring
+/// GatingML's `<gating:QuadrantGate>` (N `<gating:divider>` + M `<gating:Quadrant>`).
+///
+/// The standard 2-D quadrant has 2 dividers (one per channel, one value each)
+/// and 4 sub-quadrants, each placed by 2 positions. The structure generalizes
+/// to GatingML's n-ary case, but the app constructs and renders only the 2×4 form.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct QuadrantGate {
+    pub dividers: Vec<QuadrantDivider>,
+    pub quadrants: Vec<QuadrantSub>,
+}
+
+/// One `<gating:divider>`: a boundary on ONE channel. Axis-agnostic and
+/// channel-keyed exactly like [`GateGeometry::Threshold`]'s `value_node` — the
+/// axis it maps to is resolved at containment time from the plot's `(x, y)`.
+///
+/// `values` is a `Vec` to match GatingML (a divider may carry several values for
+/// n-ary splits); the standard 2-D quadrant uses exactly one value per divider.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct QuadrantDivider {
+    #[serde(with = "arc_str_serde")]
+    pub id: Arc<str>,
+    /// GatingML `fcs-dimension` — the channel this divider bounds.
+    #[serde(with = "arc_str_serde")]
+    pub channel: Arc<str>,
+    pub values: Vec<f32>,
+}
+
+/// One `<gating:Quadrant>` sub-element: an addressable sub-population (a corner).
+/// Carries its own stable `id` (used for per-corner stats, child-gate parenting,
+/// and the hierarchy tree) and a user-facing `label` (replaces the per-corner
+/// gate name AND the old `QuadrantGroup` label record). `positions` place this
+/// corner relative to each divider.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct QuadrantSub {
+    #[serde(with = "arc_str_serde")]
+    pub id: Arc<str>,
+    pub label: String,
+    pub positions: Vec<QuadrantPosition>,
+}
+
+/// One `<gating:position>`: which side of `divider_ref` this sub-quadrant sits on.
+///
+/// `location` is the divider value the corner is placed at; `direction`
+/// (`Above` = value `>= location` inclusive, `Below` = `< location` exclusive)
+/// is carried explicitly so containment preserves the same boundary semantics as
+/// [`GateGeometry::Threshold`] — every point lands in exactly one corner,
+/// including points exactly on a divider line. On GatingML export, `direction`
+/// collapses back into the standard location-based representation.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct QuadrantPosition {
+    #[serde(with = "arc_str_serde")]
+    pub divider_ref: Arc<str>,
+    pub location: f32,
+    pub direction: ThresholdDirection,
 }
 
 /// A gate represents a region of interest in flow cytometry data.
@@ -1293,6 +1527,21 @@ pub struct Gate {
     /// Source gates this gate was derived from, if any (Rectangle from ranges, Quadrant from thresholds).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub derived_from: Option<DerivedFrom>,
+    /// Parent gate id, or `None` for a root gate. This is the AUTHORITATIVE,
+    /// serialized source of truth for the gate hierarchy (mirrors GatingML's
+    /// `parent_id` IDREF attribute). [`crate::GateHierarchy`] is a derived
+    /// in-memory index rebuilt from these via [`GateHierarchy::from_gates`];
+    /// it exists only for fast child/root/ancestor queries and cycle checks.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub parent_id: Option<Arc<str>>,
+    /// Per-file or per-group geometry overrides. Keys are file GUIDs or group IDs.
+    /// When resolving geometry for a specific file, precedence is:
+    /// file-specific override > group override > base `geometry`.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub overrides: BTreeMap<Arc<str>, GateGeometry>,
+    /// System-managed gates (e.g. QC) cannot be renamed, deleted, or moved by the user.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub system_managed: bool,
 }
 
 impl Gate {
@@ -1330,6 +1579,9 @@ impl Gate {
             coordinate_space,
             label_position: None,
             derived_from: None,
+            parent_id: None,
+            overrides: BTreeMap::new(),
+            system_managed: false,
         }
     }
 
@@ -1340,16 +1592,33 @@ impl Gate {
         self.parameters.matches_plot_parameters(plot_x, plot_y)
     }
 
+    /// Resolve the effective geometry for a given file, considering overrides.
+    ///
+    /// Precedence: file-specific override > group override > base geometry.
+    /// `group_ids` should be ordered by specificity (most-specific first) if
+    /// multiple groups could match.
+    pub fn effective_geometry(&self, file_guid: &str, group_ids: &[&str]) -> &GateGeometry {
+        if let Some(geom) = self.overrides.get(file_guid) {
+            return geom;
+        }
+        for gid in group_ids {
+            if let Some(geom) = self.overrides.get(*gid) {
+                return geom;
+            }
+        }
+        &self.geometry
+    }
+
     /// For range (`OneChannel`) gates, the single bounded axis; for 2D gates, `None`.
     pub fn range_channel_name(&self) -> Option<&str> {
         self.parameters.range_channel_name()
     }
 
-    /// `Some((x, y))` for [`GateParameters::TwoChannel`]; `None` for one-channel range gates.
+    /// `Some((x, y))` for [`GateParameters::TwoChannel`]; `None` for one-channel or no-channel gates.
     pub fn two_channel_axes(&self) -> Option<(&str, &str)> {
         match &self.parameters {
             GateParameters::TwoChannel { x, y } => Some((x.as_ref(), y.as_ref())),
-            GateParameters::OneChannel { .. } => None,
+            GateParameters::OneChannel { .. } | GateParameters::NoChannel => None,
         }
     }
 
@@ -1357,7 +1626,7 @@ impl Gate {
     pub fn one_channel_axis(&self) -> Option<&str> {
         match &self.parameters {
             GateParameters::OneChannel { channel, .. } => Some(channel.as_ref()),
-            GateParameters::TwoChannel { .. } => None,
+            GateParameters::TwoChannel { .. } | GateParameters::NoChannel => None,
         }
     }
 
@@ -1365,14 +1634,26 @@ impl Gate {
     ///
     /// For [`GateParameters::TwoChannel`] this is `x` (the first column of the 2-D pair).
     /// For [`GateParameters::OneChannel`] this is the bounded `channel`.
+    /// For [`GateParameters::NoChannel`] (mask gates) returns `None`.
     ///
     /// Use [`Gate::two_channel_axes`] when the caller specifically needs *both* axes — that
     /// returns `None` for range gates and forces the caller to handle the 1-D case explicitly,
     /// instead of silently substituting a stale "companion" axis.
+    pub fn primary_channel_name(&self) -> Option<&str> {
+        match &self.parameters {
+            GateParameters::TwoChannel { x, .. } => Some(x.as_ref()),
+            GateParameters::OneChannel { channel } => Some(channel.as_ref()),
+            GateParameters::NoChannel => None,
+        }
+    }
+
+    /// Deprecated alias for [`Gate::primary_channel_name`] that panics on NoChannel.
+    /// Prefer `primary_channel_name()` which returns `Option`.
     pub fn x_parameter_channel_name(&self) -> &str {
         match &self.parameters {
             GateParameters::TwoChannel { x, .. } => x.as_ref(),
             GateParameters::OneChannel { channel } => channel.as_ref(),
+            GateParameters::NoChannel => "",
         }
     }
 
@@ -1501,6 +1782,9 @@ impl Gate {
             coordinate_space: self.coordinate_space,
             label_position: self.label_position.clone(),
             derived_from: self.derived_from.clone(),
+            parent_id: self.parent_id.clone(),
+            overrides: self.overrides.clone(),
+            system_managed: self.system_managed,
         }
     }
 
@@ -1537,6 +1821,7 @@ impl Gate {
                     label_pos.offsets.insert(channel.clone(), v);
                 }
             }
+            GateParameters::NoChannel => {}
         }
     }
 
@@ -1742,6 +2027,8 @@ pub struct GateBuilder {
     coordinate_space: Option<GateCoordinateSpace>,
     label_position: Option<LabelPosition>,
     derived_from: Option<DerivedFrom>,
+    parent_id: Option<Arc<str>>,
+    system_managed: bool,
 }
 
 impl GateBuilder {
@@ -1761,6 +2048,8 @@ impl GateBuilder {
             coordinate_space: None,
             label_position: None,
             derived_from: None,
+            parent_id: None,
+            system_managed: false,
         }
     }
 
@@ -1931,12 +2220,27 @@ impl GateBuilder {
             coordinate_space,
             label_position: self.label_position,
             derived_from: self.derived_from,
+            parent_id: self.parent_id,
+            overrides: BTreeMap::new(),
+            system_managed: self.system_managed,
         })
+    }
+
+    /// Set the parent gate id (hierarchy). `None`/unset means a root gate.
+    pub fn parent_id(mut self, id: impl Into<Arc<str>>) -> Self {
+        self.parent_id = Some(id.into());
+        self
     }
 
     /// Set the `derived_from` provenance for composite gates (Rectangle from ranges, Quadrant from thresholds).
     pub fn derived_from(mut self, source: DerivedFrom) -> Self {
         self.derived_from = Some(source);
+        self
+    }
+
+    /// Mark this gate as system-managed (non-editable by users).
+    pub fn system_managed(mut self) -> Self {
+        self.system_managed = true;
         self
     }
 }

@@ -97,6 +97,7 @@ pub mod geometry;
 pub mod hierarchy;
 pub mod linking;
 pub mod polygon;
+pub mod quadrant;
 pub mod range;
 pub mod rectangle;
 pub mod scope;
@@ -115,16 +116,17 @@ pub use error::{GateError, Result as GateResult};
 
 /// Event filtering and spatial indexing
 pub use filtering::{
-    EventIndex, FilterCache, FilterCacheKey, GateResolver, combine_gates_and, combine_gates_not,
-    combine_gates_or, filter_events_boolean, filter_events_by_gate,
-    filter_events_by_gate_with_resolver, filter_events_by_hierarchy,
-    filter_events_by_hierarchy_with_resolver,
+    EventIndex, FilterCache, FilterCacheKey, GateResolver, MaskResolver, combine_gates_and,
+    combine_gates_not, combine_gates_or, filter_events_boolean, filter_events_by_gate,
+    filter_events_by_gate_corner, filter_events_by_gate_with_resolver,
+    filter_events_by_hierarchy, filter_events_by_hierarchy_steps,
+    filter_events_by_hierarchy_with_resolver, filter_events_by_hierarchy_with_resolvers,
 };
 
 /// Geometry construction helpers
 pub use geometry::{
-    create_ellipse_geometry, create_polygon_geometry, create_range_geometry,
-    create_rectangle_geometry,
+    create_ellipse_geometry, create_polygon_geometry, create_quadrant_gate_geometry,
+    create_range_geometry, create_rectangle_geometry,
 };
 
 /// Gate hierarchy management
@@ -148,7 +150,8 @@ pub use gatingml::{gates_to_gatingml, gatingml_to_gates};
 /// Core gate types and structures
 pub use types::{
     BooleanOperation, DerivedFrom, Gate, GateBuilder, GateCoordinateSpace, GateGeometry, GateMode,
-    GateNode, GateParameters, ThresholdDirection,
+    GateNode, GateParameters, MaskSource, QuadrantDivider, QuadrantGate, QuadrantPosition,
+    QuadrantSub, ThresholdDirection,
 };
 
 /// Gate geometry traits

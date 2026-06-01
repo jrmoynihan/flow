@@ -106,6 +106,9 @@ impl GateStatistics {
             GateParameters::OneChannel { channel } => {
                 Self::calculate_one_channel(fcs, gate, channel)
             }
+            GateParameters::NoChannel => Err(anyhow!(
+                "Mask gates do not support direct statistics calculation"
+            )),
         }
     }
 

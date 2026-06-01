@@ -124,6 +124,23 @@ impl<'a> GateResolver for [(&'a str, &'a Gate)] {
     }
 }
 
+/// Resolves a [`MaskSource`] to event indices at filter time.
+///
+/// Mask gates delegate containment to this trait instead of performing geometric
+/// calculations. The application layer implements this to load precomputed masks
+/// (e.g. QC results) from disk or cache.
+pub trait MaskResolver {
+    /// Resolve a mask source to the set of event indices that pass.
+    ///
+    /// `n_events` is the total number of events in the file, needed to
+    /// correctly interpret bit-packed mask files.
+    fn resolve_mask(
+        &self,
+        source: &crate::types::MaskSource,
+        n_events: usize,
+    ) -> crate::error::Result<Vec<usize>>;
+}
+
 pub mod cache;
 pub use cache::{FilterCache, FilterCacheKey};
 
@@ -255,8 +272,14 @@ impl EventIndex {
             GateGeometry::Ellipse { .. } => Ok(self.filter_by_ellipse(gate)),
             GateGeometry::Range { .. } => Ok(self.filter_by_range(gate)),
             GateGeometry::Threshold { .. } => Ok(self.filter_by_threshold(gate)),
+            GateGeometry::QuadrantGate(_) => Err(GateError::filtering_error(
+                "QuadrantGate has 4 sub-populations. Use filter_by_quadrant_corner(gate, sub_id) instead.",
+            )),
             GateGeometry::Boolean { .. } => Err(GateError::filtering_error(
                 "Boolean gates require a resolver. Use filter_by_gate_with_resolver() instead.",
+            )),
+            GateGeometry::Mask { .. } => Err(GateError::filtering_error(
+                "Mask gates require a MaskResolver. Use the hierarchy filter with a mask resolver.",
             )),
         }
     }
@@ -325,6 +348,9 @@ impl EventIndex {
             GateGeometry::Ellipse { .. } => Ok(self.filter_by_ellipse(gate)),
             GateGeometry::Range { .. } => Ok(self.filter_by_range(gate)),
             GateGeometry::Threshold { .. } => Ok(self.filter_by_threshold(gate)),
+            GateGeometry::QuadrantGate(_) => Err(GateError::filtering_error(
+                "QuadrantGate has 4 sub-populations. Use filter_by_quadrant_corner(gate, sub_id) instead.",
+            )),
             GateGeometry::Boolean {
                 operation,
                 operands,
@@ -357,6 +383,9 @@ impl EventIndex {
                 // Filter using boolean operation
                 filter_events_boolean(*operation, &resolved_gates, fcs, None)
             }
+            GateGeometry::Mask { .. } => Err(GateError::filtering_error(
+                "Mask gates require a MaskResolver. Use the hierarchy filter with a mask resolver.",
+            )),
         }
     }
 
@@ -635,6 +664,60 @@ impl EventIndex {
         }
     }
 
+    /// Filter events inside ONE sub-quadrant (corner) of a quadrant gate,
+    /// identified by its stable `sub_id`. The intersection of the corner's
+    /// position half-planes. Narrow with the corner's bounding box (an AABB),
+    /// then confirm each candidate with the AND'd containment test.
+    ///
+    /// A whole quadrant gate is not one population, so there is no
+    /// `filter_by_quadrant(gate)` — callers must say which corner they want.
+    pub fn filter_by_quadrant_corner(&self, gate: &Gate, sub_id: &str) -> Result<Vec<usize>> {
+        let corner = gate
+            .geometry
+            .quadrant_corner_index(sub_id)
+            .ok_or_else(|| GateError::filtering_error("unknown sub-quadrant id or not a quadrant gate"))?;
+        // The corner-selective geometry view gives us the per-corner box.
+        let view = match &gate.geometry {
+            GateGeometry::QuadrantGate(q) => crate::quadrant::QuadrantGateGeometry {
+                dividers: &q.dividers,
+                quadrants: &q.quadrants,
+            },
+            _ => return Err(GateError::filtering_error("not a quadrant gate")),
+        };
+        let (min_x, min_y, max_x, max_y) =
+            view.corner_bounding_box(corner, self.x_param.as_ref(), self.y_param.as_ref())?;
+        // Replace infinities with f32::MIN/MAX for the rtree envelope.
+        let env = AABB::from_corners(
+            Point::new(
+                if min_x.is_finite() { min_x } else { f32::MIN },
+                if min_y.is_finite() { min_y } else { f32::MIN },
+            ),
+            Point::new(
+                if max_x.is_finite() { max_x } else { f32::MAX },
+                if max_y.is_finite() { max_y } else { f32::MAX },
+            ),
+        );
+        let candidates: Vec<_> = self.rtree.locate_in_envelope(&env).collect();
+        let candidate_points: Vec<(f32, f32)> = candidates
+            .iter()
+            .map(|geom| {
+                let p = geom.geom();
+                (p.x(), p.y())
+            })
+            .collect();
+        let results = view.contains_points_batch_corner(
+            corner,
+            &candidate_points,
+            self.x_param.as_ref(),
+            self.y_param.as_ref(),
+        )?;
+        Ok(candidates
+            .into_iter()
+            .zip(results)
+            .filter_map(|(geom, inside)| if inside { Some(geom.data) } else { None })
+            .collect())
+    }
+
     /// Build a geo::Polygon from gate nodes
     fn _build_geo_polygon(&self, gate: &Gate) -> Option<GeoPolygon<f32>> {
         if let GateGeometry::Polygon { nodes, closed } = &gate.geometry {
@@ -763,6 +846,29 @@ pub fn filter_events_by_gate(
     Ok(indices)
 }
 
+/// Filter events by ONE sub-quadrant (corner) of a quadrant `gate`, identified
+/// by its stable `sub_id`. Sibling of [`filter_events_by_gate`] for the quadrant
+/// case, where a single gate owns four addressable sub-populations.
+pub fn filter_events_by_gate_corner(
+    data: EventData<'_>,
+    gate: &Gate,
+    sub_id: &str,
+    spatial_index: Option<&EventIndex>,
+) -> Result<Vec<usize>> {
+    if data.space != gate.coordinate_space {
+        return Err(GateError::space_mismatch(gate.coordinate_space, data.space));
+    }
+
+    let indices = if let Some(index) = spatial_index {
+        index.filter_by_quadrant_corner(gate, sub_id)?
+    } else {
+        let index = EventIndex::build(data.x_param, data.x, data.y_param, data.y)?;
+        index.filter_by_quadrant_corner(gate, sub_id)?
+    };
+
+    Ok(indices)
+}
+
 /// Filter events from an FCS file by a gate with resolver support for boolean gates.
 ///
 /// This function handles all gate types, including boolean gates that reference
@@ -847,6 +953,13 @@ pub fn filter_events_by_gate_with_resolver<R: GateResolver>(
         return filter_boolean_gate_with_resolver(fcs, gate, resolver);
     }
 
+    // Mask gates cannot be resolved here — they require a MaskResolver.
+    if matches!(gate.geometry, GateGeometry::Mask { .. }) {
+        return Err(GateError::filtering_error(
+            "Mask gates require a MaskResolver. Resolve at the application layer.",
+        ));
+    }
+
     let (x_param, y_param) = gate_axis_pair_for_raw_filter(gate);
     let data = EventData::raw_from_fcs(fcs, x_param, y_param)?;
 
@@ -864,6 +977,8 @@ pub fn filter_events_by_gate_with_resolver<R: GateResolver>(
 /// for `gate`. Two-channel gates use the gate's `(x, y)`; one-channel gates use the
 /// bounded channel for both slots (the batch filter only inspects the bounded axis,
 /// so the second slice is harmless and lets us reuse the 2-D `EventData` shape).
+/// NoChannel (mask) gates should never reach this function — they are resolved by
+/// the MaskResolver before geometric filtering.
 fn gate_axis_pair_for_raw_filter(gate: &Gate) -> (&str, &str) {
     match &gate.parameters {
         crate::types::GateParameters::TwoChannel { x, y } => (x.as_ref(), y.as_ref()),
@@ -871,6 +986,7 @@ fn gate_axis_pair_for_raw_filter(gate: &Gate) -> (&str, &str) {
             let c = channel.as_ref();
             (c, c)
         }
+        crate::types::GateParameters::NoChannel => ("", ""),
     }
 }
 
@@ -1000,22 +1116,65 @@ pub fn filter_events_by_hierarchy<F>(
 where
     F: FnMut(&Gate) -> Result<Vec<usize>>,
 {
+    // Delegate to the corner-aware variant with no corner selectors. Each step
+    // is a whole gate; the callback ignores the (always-`None`) corner arg.
+    let steps: Vec<(&Gate, Option<&str>)> = gate_chain.iter().map(|g| (*g, None)).collect();
+    filter_events_by_hierarchy_steps(
+        total_event_count,
+        &steps,
+        |gate, _corner| filter_one_gate(gate),
+        filter_cache,
+        file_guid,
+    )
+}
+
+/// Corner-aware variant of [`filter_events_by_hierarchy`]. Each step is a gate
+/// plus an optional sub-quadrant id: when present, the step filters only that
+/// corner of a quadrant gate (the population a child gate parents under).
+///
+/// The `filter_one_step` callback receives `(gate, corner)` and must filter
+/// accordingly — calling [`filter_events_by_gate`] for `None`, or
+/// [`filter_events_by_gate_corner`] for `Some(sub_id)`.
+///
+/// Cache-keying uses each step's **effective id** — the sub-quadrant id when the
+/// step is a corner, otherwise the gate id — so two corners of the same quadrant
+/// never collide on one cache entry.
+pub fn filter_events_by_hierarchy_steps<F>(
+    total_event_count: usize,
+    gate_chain: &[(&Gate, Option<&str>)],
+    mut filter_one_step: F,
+    filter_cache: Option<&dyn FilterCache>,
+    file_guid: Option<&str>,
+) -> Result<Vec<usize>>
+where
+    F: FnMut(&Gate, Option<&str>) -> Result<Vec<usize>>,
+{
     if gate_chain.is_empty() {
         return Ok((0..total_event_count).collect());
     }
 
+    // A step's effective id for cache-keying: the corner sub-id if present,
+    // else the gate id.
+    fn effective_id<'a>(step: &(&'a Gate, Option<&'a str>)) -> Arc<str> {
+        match step.1 {
+            Some(sub_id) => Arc::from(sub_id),
+            None => step.0.id.clone(),
+        }
+    }
+
     // Try cache.
     if let (Some(cache), Some(guid)) = (filter_cache, file_guid) {
-        if let Some(last_gate) = gate_chain.last() {
+        if let Some(last_step) = gate_chain.last() {
             let parent_chain: Vec<Arc<str>> = gate_chain[..gate_chain.len() - 1]
                 .iter()
-                .map(|g| g.id.clone())
+                .map(effective_id)
                 .collect();
+            let last_id = effective_id(last_step);
 
             let cache_key = if parent_chain.is_empty() {
-                FilterCacheKey::simple(guid, last_gate.id.as_ref())
+                FilterCacheKey::simple(guid, last_id.as_ref())
             } else {
-                FilterCacheKey::new(guid, last_gate.id.as_ref(), parent_chain)
+                FilterCacheKey::new(guid, last_id.as_ref(), parent_chain)
             };
 
             if let Some(cached_indices) = cache.get(&cache_key) {
@@ -1024,16 +1183,20 @@ where
         }
     }
 
-    // Cache miss — filter each gate and intersect.
+    // Cache miss — filter each step and intersect.
     let mut current_indices: Option<Vec<usize>> = None;
-    for gate in gate_chain {
-        if matches!(gate.geometry, GateGeometry::Boolean { .. }) {
+    for step in gate_chain {
+        let (gate, corner) = *step;
+        if matches!(
+            gate.geometry,
+            GateGeometry::Boolean { .. } | GateGeometry::Mask { .. }
+        ) {
             return Err(GateError::filtering_error(
-                "Hierarchy contains boolean gates. Use filter_events_by_hierarchy_with_resolver() instead.",
+                "Hierarchy contains boolean/mask gates. Use filter_events_by_hierarchy_with_resolver() instead.",
             ));
         }
 
-        let gate_indices = filter_one_gate(gate)?;
+        let gate_indices = filter_one_step(gate, corner)?;
 
         current_indices = Some(match current_indices {
             None => gate_indices,
@@ -1050,16 +1213,17 @@ where
     let result = current_indices.unwrap_or_default();
 
     if let (Some(cache), Some(guid)) = (filter_cache, file_guid) {
-        if let Some(last_gate) = gate_chain.last() {
+        if let Some(last_step) = gate_chain.last() {
             let parent_chain: Vec<Arc<str>> = gate_chain[..gate_chain.len() - 1]
                 .iter()
-                .map(|g| g.id.clone())
+                .map(effective_id)
                 .collect();
+            let last_id = effective_id(last_step);
 
             let cache_key = if parent_chain.is_empty() {
-                FilterCacheKey::simple(guid, last_gate.id.as_ref())
+                FilterCacheKey::simple(guid, last_id.as_ref())
             } else {
-                FilterCacheKey::new(guid, last_gate.id.as_ref(), parent_chain)
+                FilterCacheKey::new(guid, last_id.as_ref(), parent_chain)
             };
 
             cache.insert(cache_key, Arc::new(result.clone()));
@@ -1133,19 +1297,61 @@ pub fn filter_events_by_hierarchy_with_resolver<R: GateResolver>(
     file_guid: Option<&str>,
     resolver: Option<&R>,
 ) -> Result<Vec<usize>> {
+    filter_events_by_hierarchy_with_resolvers(
+        fcs,
+        gate_chain,
+        filter_cache,
+        file_guid,
+        resolver,
+        None::<&NoopMaskResolver>,
+    )
+}
+
+/// No-op mask resolver that always errors (used when no mask resolver is provided).
+struct NoopMaskResolver;
+impl MaskResolver for NoopMaskResolver {
+    fn resolve_mask(
+        &self,
+        _source: &crate::types::MaskSource,
+        _n_events: usize,
+    ) -> crate::error::Result<Vec<usize>> {
+        Err(GateError::filtering_error(
+            "No MaskResolver provided for mask gate",
+        ))
+    }
+}
+
+/// Like [`filter_events_by_hierarchy_with_resolver`] but also accepts a
+/// [`MaskResolver`] for handling mask gates in the chain.
+pub fn filter_events_by_hierarchy_with_resolvers<R: GateResolver, M: MaskResolver>(
+    fcs: &Fcs,
+    gate_chain: &[&Gate],
+    filter_cache: Option<&dyn FilterCache>,
+    file_guid: Option<&str>,
+    resolver: Option<&R>,
+    mask_resolver: Option<&M>,
+) -> Result<Vec<usize>> {
     if gate_chain.is_empty() {
         // No gates - return all indices
         let event_count = fcs.data_frame.height();
         return Ok((0..event_count).collect());
     }
 
-    // Check if any gate is boolean and requires resolver
+    // Check if any gate requires external resolution
     let has_boolean = gate_chain
         .iter()
         .any(|g| matches!(g.geometry, GateGeometry::Boolean { .. }));
     if has_boolean && resolver.is_none() {
         return Err(GateError::filtering_error(
-            "Hierarchy contains boolean gates. A resolver is required.",
+            "Hierarchy contains boolean gates. A GateResolver is required.",
+        ));
+    }
+    let has_mask = gate_chain
+        .iter()
+        .any(|g| matches!(g.geometry, GateGeometry::Mask { .. }));
+    if has_mask && mask_resolver.is_none() {
+        return Err(GateError::filtering_error(
+            "Hierarchy contains mask gates. A MaskResolver is required.",
         ));
     }
 
@@ -1176,8 +1382,15 @@ pub fn filter_events_by_hierarchy_with_resolver<R: GateResolver>(
 
     for gate in gate_chain {
         let gate_indices = if matches!(gate.geometry, GateGeometry::Boolean { .. }) {
-            // Boolean gate - use resolver
+            // Boolean gate - use gate resolver
             filter_boolean_gate_with_resolver(fcs, gate, resolver)?
+        } else if let GateGeometry::Mask { source } = &gate.geometry {
+            // Mask gate - use mask resolver
+            let mr = mask_resolver.ok_or_else(|| {
+                GateError::filtering_error("Mask gate encountered but no MaskResolver provided")
+            })?;
+            let n_events = fcs.data_frame.height();
+            mr.resolve_mask(source, n_events)?
         } else {
             // Geometric gate - use standard filtering
             filter_events_by_gate_raw(fcs, gate)?

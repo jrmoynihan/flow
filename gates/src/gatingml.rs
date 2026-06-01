@@ -112,11 +112,18 @@ fn write_gate_to_xml(writer: &mut Writer<Cursor<Vec<u8>>>, gate: &Gate) -> Resul
         GateGeometry::Threshold { value_node, direction } => {
             write_threshold_gate(writer, value_node, *direction)?;
         }
+        GateGeometry::QuadrantGate(q) => {
+            write_quadrant_gate(writer, q)?;
+        }
         GateGeometry::Boolean {
             operation,
             operands,
         } => {
             write_boolean_gate(writer, *operation, operands)?;
+        }
+        GateGeometry::Mask { .. } => {
+            // Mask gates are application-specific and have no GatingML representation.
+            // Skip silently — they won't round-trip through GatingML export/import.
         }
     }
 
@@ -198,6 +205,56 @@ fn write_threshold_gate(
     write_vertex(writer, value_node)?;
 
     writer.write_event(Event::End(BytesEnd::new("gating:ThresholdGate")))?;
+    Ok(())
+}
+
+/// Write a quadrant gate to XML, mirroring GatingML's `QuadrantGate`:
+/// one `gating:divider` per boundary (id, fcs-dimension, value children) and one
+/// `gating:Quadrant` per sub-population (id, name, `gating:position` children).
+///
+/// Each position carries `divider_ref`, `location`, and our boundary `direction`
+/// (`above`/`below`) so the round-trip is exactly lossless — `direction`
+/// preserves the inclusive-`>=`/exclusive-`<` semantics that make the four
+/// corners partition the plane.
+fn write_quadrant_gate(
+    writer: &mut Writer<Cursor<Vec<u8>>>,
+    quadrant: &crate::types::QuadrantGate,
+) -> Result<()> {
+    writer.write_event(Event::Start(BytesStart::new("gating:QuadrantGate")))?;
+
+    for divider in &quadrant.dividers {
+        let mut div_start = BytesStart::new("gating:divider");
+        div_start.push_attribute(("gating:id", divider.id.as_ref()));
+        div_start.push_attribute(("data-type:fcs-dimension", divider.channel.as_ref()));
+        writer.write_event(Event::Start(div_start))?;
+        for value in &divider.values {
+            let mut v = BytesStart::new("gating:value");
+            v.push_attribute(("gating:value", value.to_string().as_str()));
+            writer.write_event(Event::Empty(v))?;
+        }
+        writer.write_event(Event::End(BytesEnd::new("gating:divider")))?;
+    }
+
+    for sub in &quadrant.quadrants {
+        let mut quad_start = BytesStart::new("gating:Quadrant");
+        quad_start.push_attribute(("gating:id", sub.id.as_ref()));
+        quad_start.push_attribute(("gating:name", sub.label.as_str()));
+        writer.write_event(Event::Start(quad_start))?;
+        for pos in &sub.positions {
+            let direction_str = match pos.direction {
+                crate::types::ThresholdDirection::Above => "above",
+                crate::types::ThresholdDirection::Below => "below",
+            };
+            let mut p = BytesStart::new("gating:position");
+            p.push_attribute(("gating:divider_ref", pos.divider_ref.as_ref()));
+            p.push_attribute(("gating:location", pos.location.to_string().as_str()));
+            p.push_attribute(("gating:direction", direction_str));
+            writer.write_event(Event::Empty(p))?;
+        }
+        writer.write_event(Event::End(BytesEnd::new("gating:Quadrant")))?;
+    }
+
+    writer.write_event(Event::End(BytesEnd::new("gating:QuadrantGate")))?;
     Ok(())
 }
 
@@ -466,6 +523,10 @@ fn parse_gate_geometry_v2(
                 } else if name.as_ref() == b"gating:BooleanGate" || name.as_ref() == b"BooleanGate"
                 {
                     return Ok(Some(parse_boolean_geometry_v2(reader, e, depth)?));
+                } else if name.as_ref() == b"gating:QuadrantGate"
+                    || name.as_ref() == b"QuadrantGate"
+                {
+                    return Ok(Some(parse_quadrant_geometry_v2(reader, depth)?));
                 }
             }
             Ok(Event::End(_)) => {
@@ -482,6 +543,114 @@ fn parse_gate_geometry_v2(
     }
 
     Ok(None)
+}
+
+/// Parse a quadrant gate in v2.0 format: `gating:divider` children (id,
+/// fcs-dimension, value children) and `gating:Quadrant` children (id, name,
+/// `gating:position` children carrying divider_ref + location + direction).
+/// The inverse of [`write_quadrant_gate`].
+fn parse_quadrant_geometry_v2(
+    reader: &mut Reader<&[u8]>,
+    depth: &mut u32,
+) -> Result<GateGeometry> {
+    use crate::types::{QuadrantDivider, QuadrantGate, QuadrantPosition, QuadrantSub};
+    use std::sync::Arc;
+
+    let start_depth = *depth;
+    let mut dividers: Vec<QuadrantDivider> = Vec::new();
+    let mut quadrants: Vec<QuadrantSub> = Vec::new();
+    // Accumulators for the divider/quadrant currently being parsed.
+    let mut cur_divider: Option<(Arc<str>, Arc<str>, Vec<f32>)> = None;
+    let mut cur_quadrant: Option<(Arc<str>, String, Vec<QuadrantPosition>)> = None;
+    let mut buf = Vec::new();
+
+    let attr_str = |e: &BytesStart, keys: &[&[u8]]| -> Option<String> {
+        e.attributes().flatten().find_map(|a| {
+            if keys.contains(&a.key.as_ref()) {
+                String::from_utf8(a.value.into_owned()).ok()
+            } else {
+                None
+            }
+        })
+    };
+
+    loop {
+        match reader.read_event_into(&mut buf) {
+            Ok(Event::Start(ref e)) => {
+                *depth += 1;
+                let name = e.name();
+                if name.as_ref() == b"gating:divider" || name.as_ref() == b"divider" {
+                    let id = attr_str(e, &[b"gating:id", b"id"]).unwrap_or_default();
+                    let channel = attr_str(
+                        e,
+                        &[b"data-type:fcs-dimension", b"fcs-dimension", b"gating:fcs-dimension"],
+                    )
+                    .unwrap_or_default();
+                    cur_divider = Some((Arc::from(id.as_str()), Arc::from(channel.as_str()), Vec::new()));
+                } else if name.as_ref() == b"gating:Quadrant" || name.as_ref() == b"Quadrant" {
+                    let id = attr_str(e, &[b"gating:id", b"id"]).unwrap_or_default();
+                    let label = attr_str(e, &[b"gating:name", b"name"]).unwrap_or_default();
+                    cur_quadrant = Some((Arc::from(id.as_str()), label, Vec::new()));
+                }
+            }
+            Ok(Event::Empty(ref e)) => {
+                let name = e.name();
+                if name.as_ref() == b"gating:value" || name.as_ref() == b"value" {
+                    if let Some((_, _, values)) = cur_divider.as_mut() {
+                        if let Some(v) = attr_str(e, &[b"gating:value", b"value"])
+                            .and_then(|s| s.parse::<f32>().ok())
+                        {
+                            values.push(v);
+                        }
+                    }
+                } else if name.as_ref() == b"gating:position" || name.as_ref() == b"position" {
+                    if let Some((_, _, positions)) = cur_quadrant.as_mut() {
+                        let divider_ref =
+                            attr_str(e, &[b"gating:divider_ref", b"divider_ref"]).unwrap_or_default();
+                        let location = attr_str(e, &[b"gating:location", b"location"])
+                            .and_then(|s| s.parse::<f32>().ok())
+                            .unwrap_or(0.0);
+                        let direction = match attr_str(e, &[b"gating:direction", b"direction"])
+                            .as_deref()
+                        {
+                            Some("below") => crate::types::ThresholdDirection::Below,
+                            _ => crate::types::ThresholdDirection::Above,
+                        };
+                        positions.push(QuadrantPosition {
+                            divider_ref: Arc::from(divider_ref.as_str()),
+                            location,
+                            direction,
+                        });
+                    }
+                }
+            }
+            Ok(Event::End(ref e)) => {
+                let name = e.name();
+                if name.as_ref() == b"gating:divider" || name.as_ref() == b"divider" {
+                    if let Some((id, channel, values)) = cur_divider.take() {
+                        dividers.push(QuadrantDivider { id, channel, values });
+                    }
+                } else if name.as_ref() == b"gating:Quadrant" || name.as_ref() == b"Quadrant" {
+                    if let Some((id, label, positions)) = cur_quadrant.take() {
+                        quadrants.push(QuadrantSub { id, label, positions });
+                    }
+                }
+                if *depth <= start_depth {
+                    break;
+                }
+                *depth -= 1;
+            }
+            Ok(Event::Eof) => break,
+            Err(e) => return Err(e.into()),
+            _ => {}
+        }
+        buf.clear();
+    }
+
+    Ok(GateGeometry::QuadrantGate(Box::new(QuadrantGate {
+        dividers,
+        quadrants,
+    })))
 }
 
 /// Parse rectangle gate in v1.5 format
@@ -1190,10 +1359,20 @@ fn extract_parameters_from_geometry(geometry: &GateGeometry) -> Result<(String, 
         GateGeometry::Ellipse { center, .. } => Some(center),
         GateGeometry::Range { min, .. } => Some(min),
         GateGeometry::Threshold { value_node, .. } => Some(value_node),
-        GateGeometry::Boolean { .. } => {
-            // Boolean gates don't have direct parameters - they reference other gates
+        GateGeometry::QuadrantGate(q) => {
+            // The two dividers carry the (x, y) channel pair.
+            let a = q.dividers.first().map(|d| d.channel.as_ref().to_string());
+            let b = q.dividers.get(1).map(|d| d.channel.as_ref().to_string());
+            if let (Some(a), Some(b)) = (a, b) {
+                return Ok((a, b));
+            }
             return Err(GateError::invalid_geometry(
-                "Boolean gates do not have direct parameters",
+                "Quadrant gate is missing divider channels",
+            ));
+        }
+        GateGeometry::Boolean { .. } | GateGeometry::Mask { .. } => {
+            return Err(GateError::invalid_geometry(
+                "Boolean/Mask gates do not have direct parameters",
             ));
         }
     };
@@ -1256,6 +1435,66 @@ mod tests {
         assert!(xml.contains("Test Gate"));
         assert!(xml.contains("FSC-A"));
         assert!(xml.contains("SSC-A"));
+    }
+
+    #[test]
+    fn test_quadrant_gate_gatingml_roundtrip() {
+        // A quadrant on (CD8, CD4) with crosshair at (1000, 2000).
+        let geometry =
+            crate::geometry::create_quadrant_gate_geometry("quad1", "CD8", 1000.0, "CD4", 2000.0)
+                .unwrap();
+        let gate = Gate::new(
+            "quad1",
+            "My Quadrant",
+            geometry,
+            "CD8",
+            "CD4",
+            GateCoordinateSpace::Raw,
+        );
+
+        let xml = gates_to_gatingml(&[gate.clone()]).unwrap();
+        assert!(xml.contains("gating:QuadrantGate"));
+        assert!(xml.contains("gating:divider"));
+        assert!(xml.contains("gating:Quadrant"));
+        assert!(xml.contains("gating:position"));
+
+        let parsed = gatingml_to_gates(&xml).unwrap();
+        assert_eq!(parsed.len(), 1, "exactly one quadrant gate round-trips");
+        let parsed = &parsed[0];
+
+        let (orig_q, parsed_q) = match (&gate.geometry, &parsed.geometry) {
+            (GateGeometry::QuadrantGate(a), GateGeometry::QuadrantGate(b)) => (a, b),
+            _ => panic!("expected QuadrantGate on both sides"),
+        };
+        assert_eq!(parsed_q.dividers.len(), orig_q.dividers.len());
+        assert_eq!(parsed_q.quadrants.len(), orig_q.quadrants.len());
+
+        // Containment must be identical for every corner across a grid of points
+        // — the real test of a lossless round-trip.
+        let points = [
+            (500.0, 3000.0),
+            (1500.0, 3000.0),
+            (1500.0, 100.0),
+            (500.0, 100.0),
+            (1000.0, 2000.0),
+        ];
+        for sub in &orig_q.quadrants {
+            for (px, py) in points {
+                let before = gate
+                    .geometry
+                    .contains_point_corner(&sub.id, px, py, "CD8", "CD4")
+                    .unwrap();
+                let after = parsed
+                    .geometry
+                    .contains_point_corner(&sub.id, px, py, "CD8", "CD4")
+                    .unwrap();
+                assert_eq!(
+                    before, after,
+                    "corner {} point ({px},{py}) containment changed across round-trip",
+                    sub.id
+                );
+            }
+        }
     }
 
     #[test]
