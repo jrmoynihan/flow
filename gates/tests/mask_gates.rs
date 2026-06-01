@@ -460,3 +460,152 @@ fn effective_geometry_file_beats_group() {
     // file-3 has neither → base geometry
     assert_eq!(gate.effective_geometry("file-3", &[]), &gate.geometry);
 }
+
+// ─── Mixed QC Status Tests ─────────────────────────────────────────────────
+
+/// Simulates the real scenario: 3 files concatenated, only 2 have QC masks.
+/// The QC root node should exclude the un-QC'd file (return empty for it),
+/// and Good/Bad Events should only reflect the QC'd files' events.
+#[test]
+fn mixed_qc_status_excludes_unqcd_file_from_stats() {
+    // File A: 100 events, QC'd (80 good, 20 bad)
+    // File B: 150 events, QC'd (120 good, 30 bad)
+    // File C: 200 events, NOT QC'd (no mask)
+    let mut resolver = TestMaskResolver::new();
+    let mask_a: Vec<bool> = (0..100).map(|i| i < 80).collect();
+    let mask_b: Vec<bool> = (0..150).map(|i| i < 120).collect();
+    resolver.add_mask("file-a", mask_a);
+    resolver.add_mask("file-b", mask_b);
+    // file-c deliberately has no mask
+
+    // QC root gate (pass-through for files with masks, exclude others)
+    let qc_root = Gate {
+        id: Arc::from("qc-root"),
+        name: "QC".to_string(),
+        geometry: GateGeometry::Mask {
+            source: MaskSource::Qc { file_guid: None, invert: false },
+        },
+        mode: GateMode::Global,
+        parameters: GateParameters::NoChannel,
+        coordinate_space: GateCoordinateSpace::Raw,
+        label_position: None,
+        derived_from: None,
+        parent_id: None,
+        overrides: BTreeMap::new(),
+        system_managed: true,
+    };
+
+    let good_gate = Gate {
+        id: Arc::from("qc-good"),
+        name: "Good Events".to_string(),
+        geometry: GateGeometry::Mask {
+            source: MaskSource::Qc { file_guid: None, invert: false },
+        },
+        mode: GateMode::Global,
+        parameters: GateParameters::NoChannel,
+        coordinate_space: GateCoordinateSpace::Raw,
+        label_position: None,
+        derived_from: None,
+        parent_id: Some(Arc::from("qc-root")),
+        overrides: BTreeMap::new(),
+        system_managed: true,
+    };
+
+    let bad_gate = Gate {
+        id: Arc::from("qc-bad"),
+        name: "Bad Events".to_string(),
+        geometry: GateGeometry::Mask {
+            source: MaskSource::Qc { file_guid: None, invert: true },
+        },
+        mode: GateMode::Global,
+        parameters: GateParameters::NoChannel,
+        coordinate_space: GateCoordinateSpace::Raw,
+        label_position: None,
+        derived_from: None,
+        parent_id: Some(Arc::from("qc-root")),
+        overrides: BTreeMap::new(),
+        system_managed: true,
+    };
+
+    // Helper: simulate per-file filtering through the chain, mimicking the
+    // app's closure behavior (qc-root = pass-all if mask exists, else empty).
+    let filter_file = |file_guid: &str, n_events: usize, chain: &[&Gate]| -> Vec<usize> {
+        let steps: Vec<(&Gate, Option<&str>)> = chain.iter().map(|g| (*g, None)).collect();
+        filter_events_by_hierarchy_steps(
+            n_events,
+            &steps,
+            |gate, _corner| {
+                if gate.id.as_ref() == "qc-root" {
+                    // Pass-through if mask exists, else exclude
+                    if resolver.masks.contains_key(file_guid) {
+                        return Ok((0..n_events).collect());
+                    } else {
+                        return Ok(Vec::new());
+                    }
+                }
+                if let GateGeometry::Mask { ref source } = gate.geometry {
+                    let effective = MaskSource::Qc {
+                        file_guid: Some(Arc::from(file_guid)),
+                        invert: match source {
+                            MaskSource::Qc { invert, .. } => *invert,
+                        },
+                    };
+                    return resolver.resolve_mask(&effective, n_events);
+                }
+                unreachable!();
+            },
+            None,
+            None,
+        )
+        .expect("filtering should succeed")
+    };
+
+    // ── Test qc-root behavior ──
+    let root_chain = [&qc_root];
+    // File A (QC'd): all 100 events pass through root
+    assert_eq!(filter_file("file-a", 100, &root_chain).len(), 100);
+    // File B (QC'd): all 150 events pass through root
+    assert_eq!(filter_file("file-b", 150, &root_chain).len(), 150);
+    // File C (NOT QC'd): 0 events pass — excluded
+    assert_eq!(filter_file("file-c", 200, &root_chain).len(), 0);
+
+    // ── Test Good Events ──
+    let good_chain = [&qc_root, &good_gate];
+    assert_eq!(filter_file("file-a", 100, &good_chain).len(), 80);
+    assert_eq!(filter_file("file-b", 150, &good_chain).len(), 120);
+    assert_eq!(filter_file("file-c", 200, &good_chain).len(), 0);
+
+    // ── Test Bad Events ──
+    let bad_chain = [&qc_root, &bad_gate];
+    assert_eq!(filter_file("file-a", 100, &bad_chain).len(), 20);
+    assert_eq!(filter_file("file-b", 150, &bad_chain).len(), 30);
+    assert_eq!(filter_file("file-c", 200, &bad_chain).len(), 0);
+
+    // ── Aggregated stats (sum across files) ──
+    let total_all = 100 + 150 + 200; // 450
+    let total_qc_root = 100 + 150 + 0; // 250 (file-c excluded)
+    let total_good = 80 + 120 + 0; // 200
+    let total_bad = 20 + 30 + 0; // 50
+
+    let agg_root: usize = ["file-a", "file-b", "file-c"]
+        .iter()
+        .map(|f| filter_file(f, match *f { "file-a" => 100, "file-b" => 150, _ => 200 }, &root_chain).len())
+        .sum();
+    let agg_good: usize = ["file-a", "file-b", "file-c"]
+        .iter()
+        .map(|f| filter_file(f, match *f { "file-a" => 100, "file-b" => 150, _ => 200 }, &good_chain).len())
+        .sum();
+    let agg_bad: usize = ["file-a", "file-b", "file-c"]
+        .iter()
+        .map(|f| filter_file(f, match *f { "file-a" => 100, "file-b" => 150, _ => 200 }, &bad_chain).len())
+        .sum();
+
+    assert_eq!(agg_root, total_qc_root);
+    assert_eq!(agg_good, total_good);
+    assert_eq!(agg_bad, total_bad);
+
+    // QC root shows < 100% of total (250/450 = 55.6%), indicating mixed status
+    let qc_coverage = agg_root as f64 / total_all as f64;
+    assert!(qc_coverage < 1.0, "QC coverage should be < 100% with mixed status");
+    assert!((qc_coverage - 250.0 / 450.0).abs() < 0.001);
+}
