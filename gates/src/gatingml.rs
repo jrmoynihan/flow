@@ -632,7 +632,13 @@ fn parse_quadrant_geometry_v2(
                     }
                 } else if name.as_ref() == b"gating:Quadrant" || name.as_ref() == b"Quadrant" {
                     if let Some((id, label, positions)) = cur_quadrant.take() {
-                        quadrants.push(QuadrantSub { id, label, positions });
+                        quadrants.push(QuadrantSub {
+                            id,
+                            label,
+                            positions,
+                            // GatingML has no on-plot label-offset concept; default placement.
+                            label_position: None,
+                        });
                     }
                 }
                 if *depth <= start_depth {

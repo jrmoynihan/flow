@@ -764,6 +764,33 @@ impl GateHierarchy {
         Ok(hierarchy)
     }
 
+    /// Rebuild the hierarchy index from a set of gates, using each gate's
+    /// `parent_id` field as the source of truth. This is the derived-index
+    /// constructor: `Gate::parent_id` is authoritative (and serialized), while
+    /// this index exists only for fast child/root/ancestor queries.
+    ///
+    /// Every gate is registered (roots via [`Self::add_root`], children via
+    /// [`Self::add_gate_child`]). A `parent_id` referencing a gate not in the
+    /// slice is treated as a root (defensive: a dangling parent shouldn't drop
+    /// the gate from the tree). Returns an error only if the parent_ids form a
+    /// cycle.
+    pub fn from_gates(gates: &[crate::types::Gate]) -> Result<Self> {
+        let mut hierarchy = Self::new();
+        let ids: HashSet<&str> = gates.iter().map(|g| g.id.as_ref()).collect();
+
+        for gate in gates {
+            match &gate.parent_id {
+                Some(parent) if ids.contains(parent.as_ref()) => {
+                    hierarchy.add_gate_child(parent.clone(), gate.id.clone())?;
+                }
+                // None, or a dangling parent reference → treat as root.
+                _ => hierarchy.add_root(gate.id.clone()),
+            }
+        }
+
+        Ok(hierarchy)
+    }
+
     /// Iterate gates in topological order (parents before children)
     ///
     /// Returns an iterator over gate IDs in topological order, where parents

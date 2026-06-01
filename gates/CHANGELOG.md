@@ -5,6 +5,30 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.4.0 (unreleased)
+
+### Breaking
+
+ - **`GateGeometry::Quadrant` (single corner) replaced by
+   `GateGeometry::QuadrantGate(Box<QuadrantGate>)`.** A quadrant is now ONE gate
+   owning its dividers and 4 addressable sub-quadrants (matching GatingML's
+   `<gating:QuadrantGate>`), instead of four independent corner gates. Each
+   `QuadrantSub` carries a stable id; corner-selective containment is exposed via
+   `GateGeometry::contains_point_corner(sub_id, ...)` /
+   `contains_points_batch_corner(...)` and `EventIndex::filter_by_quadrant_corner`.
+   The gate-level containment traits error for a quadrant gate (no single
+   population), like `Boolean`.
+ - Removed `QuadrantGroup` struct and `DerivedFrom::QuadrantGroup` — the label and
+   dividers now live inside the gate, so no side record is needed.
+ - `create_quadrant_corner_geometry(...)` replaced by
+   `create_quadrant_gate_geometry(base_id, x_channel, x_value, y_channel, y_value)`.
+ - GatingML export/import now supports quadrant gates losslessly (round-trips
+   dividers + sub-quadrants + per-position direction).
+ - Added `filter_events_by_gate_corner` and `filter_events_by_hierarchy_steps`
+   (corner-aware sibling of `filter_events_by_hierarchy`).
+ - **No migration:** serialized gates with the old `"type":"Quadrant"` shape will
+   not deserialize. Callers must handle the load failure (log + continue).
+
 ## 0.2.2 (2026-02-16)
 
 ### Refactor

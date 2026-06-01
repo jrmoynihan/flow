@@ -1,6 +1,6 @@
 [package]
 name="flow-gates"
-version= "0.3.0"
+version= "0.4.0"
 edition.workspace=true
 authors.workspace=true
 repository="https://github.com/jrmoynihan/flow/gates"
@@ -25,7 +25,7 @@ anyhow.workspace    =true
 thiserror.workspace =true
 serde.workspace     =true
 serde_json.workspace=true
-geo                 ="0.32"
+geo                 ="0.33"
 rstar               ="0.12"
 quick-xml           ={ version="0.39", features=["serialize"] }
 rayon               ={ workspace=true }

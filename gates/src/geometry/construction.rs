@@ -1,5 +1,8 @@
 use crate::error::{GateError, Result};
-use crate::types::{GateGeometry, GateNode};
+use crate::types::{
+    GateGeometry, GateNode, QuadrantDivider, QuadrantGate, QuadrantPosition, QuadrantSub,
+    ThresholdDirection,
+};
 use std::sync::Arc;
 
 /// Create a polygon geometry from raw coordinates
@@ -168,6 +171,102 @@ pub fn create_range_geometry(
         min: min_node,
         max: max_node,
     })
+}
+
+/// Build a complete quadrant gate: two dividers (one per channel) and the four
+/// sub-quadrants (corners) they partition the plane into. One [`Gate`] owns this
+/// whole structure, matching GatingML's `<gating:QuadrantGate>`.
+///
+/// The four corners follow the standard convention relative to the `(x, y)`
+/// crosshair at `(x_value, y_value)`:
+/// - **Q1** top-left:     `x < x_value`, `y >= y_value`
+/// - **Q2** top-right:    `x >= x_value`, `y >= y_value`
+/// - **Q3** bottom-right: `x >= x_value`, `y < y_value`
+/// - **Q4** bottom-left:  `x < x_value`, `y < y_value`
+///
+/// `Above` is inclusive (`>=`) and `Below` exclusive (`<`), so the four corners
+/// partition the plane: every point belongs to exactly one corner.
+///
+/// Sub-quadrant ids are derived from `base_id` (`"{base_id}-q1".."q4"`) so they
+/// are stable and globally unique as long as gate ids are unique. They are the
+/// addressable population handles used for per-corner stats and child parenting.
+///
+/// [`Gate`]: crate::types::Gate
+///
+/// # Errors
+/// Returns `GateError::InvalidGeometry` if either value is not finite or the two
+/// channels are equal (a quadrant needs two distinct axes).
+pub fn create_quadrant_gate_geometry(
+    base_id: &str,
+    x_channel: &str,
+    x_value: f32,
+    y_channel: &str,
+    y_value: f32,
+) -> Result<GateGeometry> {
+    use ThresholdDirection::{Above, Below};
+
+    if !x_value.is_finite() {
+        return Err(GateError::invalid_coordinate("quadrant_x", x_value));
+    }
+    if !y_value.is_finite() {
+        return Err(GateError::invalid_coordinate("quadrant_y", y_value));
+    }
+    if x_channel == y_channel {
+        return Err(GateError::invalid_geometry(format!(
+            "Quadrant requires two distinct channels, both were '{}'",
+            x_channel
+        )));
+    }
+
+    let div_x_id: Arc<str> = Arc::from(format!("{base_id}-divx").as_str());
+    let div_y_id: Arc<str> = Arc::from(format!("{base_id}-divy").as_str());
+
+    let dividers = vec![
+        QuadrantDivider {
+            id: div_x_id.clone(),
+            channel: Arc::from(x_channel),
+            values: vec![x_value],
+        },
+        QuadrantDivider {
+            id: div_y_id.clone(),
+            channel: Arc::from(y_channel),
+            values: vec![y_value],
+        },
+    ];
+
+    // (sub-id suffix, label, x-side, y-side)
+    let corners = [
+        ("q1", "Q1", Below, Above),
+        ("q2", "Q2", Above, Above),
+        ("q3", "Q3", Above, Below),
+        ("q4", "Q4", Below, Below),
+    ];
+
+    let quadrants = corners
+        .into_iter()
+        .map(|(suffix, label, x_dir, y_dir)| QuadrantSub {
+            id: Arc::from(format!("{base_id}-{suffix}").as_str()),
+            label: label.to_string(),
+            positions: vec![
+                QuadrantPosition {
+                    divider_ref: div_x_id.clone(),
+                    location: x_value,
+                    direction: x_dir,
+                },
+                QuadrantPosition {
+                    divider_ref: div_y_id.clone(),
+                    location: y_value,
+                    direction: y_dir,
+                },
+            ],
+            label_position: None,
+        })
+        .collect();
+
+    Ok(GateGeometry::QuadrantGate(Box::new(QuadrantGate {
+        dividers,
+        quadrants,
+    })))
 }
 
 /// Create an ellipse geometry from raw coordinates
