@@ -137,10 +137,15 @@ pub enum ThresholdDirection {
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum MaskSource {
     /// Quality-control mask produced by PeacoQC (or similar).
+    ///
+    /// When `file_guid` is `None`, the mask is resolved from the filtering
+    /// context (the file currently being plotted). This is the normal case for
+    /// Global QC gates — one gate applies to all files, resolving per-file at
+    /// filter time. When `Some`, a specific file's mask is used (rare; for
+    /// file-pinned display or stats only).
     Qc {
-        #[serde(with = "arc_str_serde")]
-        file_guid: Arc<str>,
-        /// If true, returns events that *failed* QC (bad events).
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        file_guid: Option<Arc<str>>,
         #[serde(default)]
         invert: bool,
     },
@@ -1450,6 +1455,12 @@ pub struct QuadrantSub {
     pub id: Arc<str>,
     pub label: String,
     pub positions: Vec<QuadrantPosition>,
+    /// Optional on-plot label offset for THIS corner, in raw data coordinates
+    /// (per-channel offsets, like [`Gate::label_position`]). A quadrant draws
+    /// four independent labels, so each corner owns its own offset rather than
+    /// the gate carrying a single one. `None` = default screen-corner placement.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub label_position: Option<LabelPosition>,
 }
 
 /// One `<gating:position>`: which side of `divider_ref` this sub-quadrant sits on.
