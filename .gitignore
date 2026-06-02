@@ -42,6 +42,11 @@ tru-ols-cli/synthetic_test_data/
 tru-ols-cli/comparison_output/
 plot_types_output/
 
+# ts-rs binding output from `cargo test -p flow-gates --features typescript`.
+# These are a local verification artifact; the consumed copies are generated
+# into the app (fast-flow/src-tauri/bindings) by its own export test.
+gates/bindings/
+
 # Research papers (large binaries)
 *.pdf
 

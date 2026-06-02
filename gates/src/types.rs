@@ -24,6 +24,8 @@ fn is_false(v: &bool) -> bool {
 /// assert_eq!(node.get_coordinate("FSC-A"), Some(1000.0));
 /// ```
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
+#[cfg_attr(feature = "typescript", ts(export))]
 pub struct GateNode {
     /// Unique identifier for this node
     pub id: Arc<str>,
@@ -32,6 +34,7 @@ pub struct GateNode {
     /// Using `Arc<str>` for channel names reduces allocations since they're shared
     /// across multiple nodes and gates.
     #[serde(with = "arc_str_hashmap")]
+    #[cfg_attr(feature = "typescript", ts(type = "Record<string, number>"))]
     pub coordinates: HashMap<Arc<str>, f32>,
 }
 
@@ -101,6 +104,8 @@ impl GateNode {
 /// evaluation — gate coordinates are never stored in *transformed* space.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Hash)]
 #[serde(rename_all = "snake_case")]
+#[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
+#[cfg_attr(feature = "typescript", ts(export, rename_all = "snake_case"))]
 pub enum GateCoordinateSpace {
     /// Coordinates measured against stored file values — no compensation applied.
     Raw,
@@ -110,6 +115,8 @@ pub enum GateCoordinateSpace {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
+#[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
+#[cfg_attr(feature = "typescript", ts(export, rename_all = "lowercase"))]
 pub enum BooleanOperation {
     /// AND operation - events must pass all operand gates
     And,
@@ -122,6 +129,8 @@ pub enum BooleanOperation {
 /// Direction of a threshold gate — which side of the boundary is "positive".
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+#[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
+#[cfg_attr(feature = "typescript", ts(export, rename_all = "snake_case"))]
 pub enum ThresholdDirection {
     /// Events with value >= threshold are positive.
     Above,
@@ -135,6 +144,8 @@ pub enum ThresholdDirection {
 /// The source identifies which mask to load.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(tag = "type", rename_all = "snake_case")]
+#[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
+#[cfg_attr(feature = "typescript", ts(export, tag = "type", rename_all = "snake_case"))]
 pub enum MaskSource {
     /// Quality-control mask produced by PeacoQC (or similar).
     ///
@@ -209,6 +220,8 @@ impl BooleanOperation {
 /// ```
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(tag = "type")]
+#[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
+#[cfg_attr(feature = "typescript", ts(export, tag = "type"))]
 pub enum GateGeometry {
     Polygon {
         nodes: Vec<GateNode>,
@@ -247,6 +260,10 @@ pub enum GateGeometry {
     /// single answer), exactly like [`GateGeometry::Boolean`].
     ///
     /// Boxed so this variant doesn't bloat the enum (clippy `large_enum_variant`).
+    /// `ts(inline)` flattens the inner struct's fields next to the `type` tag,
+    /// matching serde's internally-tagged-newtype wire shape
+    /// (`{"type":"QuadrantGate","dividers":[…],"quadrants":[…]}`).
+    #[cfg_attr(feature = "typescript", ts(inline))]
     QuadrantGate(Box<QuadrantGate>),
     /// Boolean gate combining other gates with logical operations
     ///
@@ -1117,6 +1134,8 @@ fn point_in_polygon(x: f32, y: f32, polygon: &[(f32, f32)]) -> bool {
 /// ```
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(tag = "name")]
+#[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
+#[cfg_attr(feature = "typescript", ts(export, tag = "name"))]
 pub enum GateMode {
     /// Gate applies to all files
     Global,
@@ -1124,12 +1143,14 @@ pub enum GateMode {
     FileSpecific {
         /// File GUID
         #[serde(with = "arc_str_serde")]
+        #[cfg_attr(feature = "typescript", ts(type = "string"))]
         guid: Arc<str>,
     },
     /// Gate applies to a group of files
     FileGroup {
         /// List of file GUIDs
         #[serde(with = "arc_str_vec")]
+        #[cfg_attr(feature = "typescript", ts(type = "string[]"))]
         guids: Vec<Arc<str>>,
     },
 }
@@ -1396,19 +1417,25 @@ pub fn gate_parameters_from_geometry_and_axes(
 /// Links a composite gate back to the source gates it was derived from.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(tag = "type", rename_all = "snake_case")]
+#[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
+#[cfg_attr(feature = "typescript", ts(export, tag = "type", rename_all = "snake_case"))]
 pub enum DerivedFrom {
     RangePair {
         #[serde(with = "arc_str_serde")]
+        #[cfg_attr(feature = "typescript", ts(type = "string"))]
         x_range_id: Arc<str>,
         #[serde(with = "arc_str_serde")]
+        #[cfg_attr(feature = "typescript", ts(type = "string"))]
         y_range_id: Arc<str>,
         /// When `true`, geometry updates on either source range propagate to this gate.
         link_live: bool,
     },
     ThresholdPair {
         #[serde(with = "arc_str_serde")]
+        #[cfg_attr(feature = "typescript", ts(type = "string"))]
         x_threshold_id: Arc<str>,
         #[serde(with = "arc_str_serde")]
+        #[cfg_attr(feature = "typescript", ts(type = "string"))]
         y_threshold_id: Arc<str>,
         /// When `true`, geometry updates on either source threshold propagate to this gate.
         link_live: bool,
@@ -1423,6 +1450,8 @@ pub enum DerivedFrom {
 /// and 4 sub-quadrants, each placed by 2 positions. The structure generalizes
 /// to GatingML's n-ary case, but the app constructs and renders only the 2×4 form.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
+#[cfg_attr(feature = "typescript", ts(export))]
 pub struct QuadrantGate {
     pub dividers: Vec<QuadrantDivider>,
     pub quadrants: Vec<QuadrantSub>,
@@ -1435,11 +1464,15 @@ pub struct QuadrantGate {
 /// `values` is a `Vec` to match GatingML (a divider may carry several values for
 /// n-ary splits); the standard 2-D quadrant uses exactly one value per divider.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
+#[cfg_attr(feature = "typescript", ts(export))]
 pub struct QuadrantDivider {
     #[serde(with = "arc_str_serde")]
+    #[cfg_attr(feature = "typescript", ts(type = "string"))]
     pub id: Arc<str>,
     /// GatingML `fcs-dimension` — the channel this divider bounds.
     #[serde(with = "arc_str_serde")]
+    #[cfg_attr(feature = "typescript", ts(type = "string"))]
     pub channel: Arc<str>,
     pub values: Vec<f32>,
 }
@@ -1450,8 +1483,11 @@ pub struct QuadrantDivider {
 /// gate name AND the old `QuadrantGroup` label record). `positions` place this
 /// corner relative to each divider.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
+#[cfg_attr(feature = "typescript", ts(export))]
 pub struct QuadrantSub {
     #[serde(with = "arc_str_serde")]
+    #[cfg_attr(feature = "typescript", ts(type = "string"))]
     pub id: Arc<str>,
     pub label: String,
     pub positions: Vec<QuadrantPosition>,
@@ -1460,6 +1496,10 @@ pub struct QuadrantSub {
     /// four independent labels, so each corner owns its own offset rather than
     /// the gate carrying a single one. `None` = default screen-corner placement.
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(
+        feature = "typescript",
+        ts(optional, type = "{ offsets: Record<string, number> }")
+    )]
     pub label_position: Option<LabelPosition>,
 }
 
@@ -1472,8 +1512,11 @@ pub struct QuadrantSub {
 /// including points exactly on a divider line. On GatingML export, `direction`
 /// collapses back into the standard location-based representation.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
+#[cfg_attr(feature = "typescript", ts(export))]
 pub struct QuadrantPosition {
     #[serde(with = "arc_str_serde")]
+    #[cfg_attr(feature = "typescript", ts(type = "string"))]
     pub divider_ref: Arc<str>,
     pub location: f32,
     pub direction: ThresholdDirection,
@@ -1521,22 +1564,38 @@ pub struct QuadrantPosition {
 /// # }
 /// ```
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
+#[cfg_attr(feature = "typescript", ts(export))]
 pub struct Gate {
     #[serde(with = "arc_str_serde")]
+    #[cfg_attr(feature = "typescript", ts(type = "string"))]
     pub id: Arc<str>,
     pub name: String,
     pub geometry: GateGeometry,
     pub mode: GateMode,
     /// Channels this gate uses in raw/event space (see [`GateParameters`]).
+    /// `GateParameters` has a custom serde impl (tagged, snake_case), so its TS
+    /// shape is given inline here rather than deriving `TS` on the enum.
+    #[cfg_attr(
+        feature = "typescript",
+        ts(type = "{ type: \"two_channel\", x: string, y: string } | { type: \"one_channel\", channel: string } | { type: \"no_channel\" }")
+    )]
     pub parameters: GateParameters,
     /// The parameter-processing state the node coordinates are expressed in.
     /// Filters compare against event data in the same space; a mismatch is a
     /// typed error, not silent corruption. No default — every gate must declare.
     pub coordinate_space: GateCoordinateSpace,
-    /// Optional label position as offset from first node in raw data coordinates
+    /// Optional label position as offset from first node in raw data coordinates.
+    /// `LabelPosition` has a custom serde impl (`{ offsets }`, with a legacy
+    /// accept-only form), so its TS shape is given inline.
+    #[cfg_attr(
+        feature = "typescript",
+        ts(type = "{ offsets: Record<string, number> } | null")
+    )]
     pub label_position: Option<LabelPosition>,
     /// Source gates this gate was derived from, if any (Rectangle from ranges, Quadrant from thresholds).
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "typescript", ts(optional))]
     pub derived_from: Option<DerivedFrom>,
     /// Parent gate id, or `None` for a root gate. This is the AUTHORITATIVE,
     /// serialized source of truth for the gate hierarchy (mirrors GatingML's
@@ -1544,13 +1603,18 @@ pub struct Gate {
     /// in-memory index rebuilt from these via [`GateHierarchy::from_gates`];
     /// it exists only for fast child/root/ancestor queries and cycle checks.
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "typescript", ts(optional))]
     pub parent_id: Option<Arc<str>>,
     /// Per-file or per-group geometry overrides. Keys are file GUIDs or group IDs.
     /// When resolving geometry for a specific file, precedence is:
     /// file-specific override > group override > base `geometry`.
+    /// (`Arc<str>` keys map to `string`, so this is `Record<string, GateGeometry>`
+    /// in TS; always present — empty object when there are no overrides.)
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub overrides: BTreeMap<Arc<str>, GateGeometry>,
     /// System-managed gates (e.g. QC) cannot be renamed, deleted, or moved by the user.
+    /// Serialized only when true (`skip_serializing_if`), but always present after
+    /// deserialize (defaults false), so the TS type is a plain `boolean`, not optional.
     #[serde(default, skip_serializing_if = "is_false")]
     pub system_managed: bool,
 }
