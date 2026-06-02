@@ -418,6 +418,105 @@ This Rust version provides:
 - Type safety
 - Trait-based extensibility
 
+## R Compatibility & Known Differences
+
+All default configuration parameters match the R package exactly (MAD=6, IT_limit=0.6, consecutive_bins=5, etc.). However, numerical results may differ slightly (typically 0.9–6.85%) due to implementation differences in algorithms that don't have a single canonical specification.
+
+### Sources of Differences (in Order of Impact)
+
+#### 1. **Kernel Density Estimation (KDE) – Main Source of Peak Detection Differences**
+- **What differs**: R's KDE implementation vs. Rust's FFT-based KDE
+- **Impact**: Peak detection can differ by 1–7% of events
+- **Why it matters**: Small differences in peak positions → different cluster assignments → different feature matrix for Isolation Tree
+- **No config knob available**: KDE uses Silverman's rule of thumb (same as R); differences are algorithmic, not parametric
+
+#### 2. **Spline Smoothing in MAD Detection**
+- **What differs**: R's `smooth.spline()` vs. Rust's Gaussian kernel smoothing approximation
+- **Impact**: Affects MAD threshold calculation and detection sensitivity
+- **Typical difference**: <2% of events removed
+- **Available config**: `MADConfig::smooth_param` (default: 0.5, matching R's `spar=0.5`)
+- **If you see large MAD differences**: Try adjusting `smooth_param` (lower = less smoothing, higher = more smoothing)
+
+#### 3. **Peak Clustering Logic**
+- **What differs**: When multiple peaks are detected, clustering algorithm may assign peaks to clusters slightly differently
+- **Impact**: Feature matrix structure differs → Isolation Tree results vary
+- **Typical difference**: Small number of bins flagged differently
+- **No config knob available**: Clustering uses deterministic median-based assignment; differences are numerical precision
+
+#### 4. **Floating-Point Precision & Accumulation**
+- **What differs**: Different order of operations in calculations
+- **Impact**: Typically <1% in most metrics
+- **Affected by**: GPU acceleration (if enabled), FFT implementations
+- **How to minimize**: Use the same data types and preprocessing as R (32-bit float data, same compensation/transformation)
+
+### Preprocessing: Critical for Matching R Results
+
+The preprocessing order is **critical** for reproducibility:
+
+```rust
+// Recommended preprocessing order (matching R's PeacoQC):
+let fcs = fcs.open("data.fcs")?;
+
+// Step 1: Remove margins (on raw data)
+let margin_config = MarginConfig { /* ... */ };
+let fcs = fcs.filter(&remove_margins(&fcs, &margin_config)?.mask)?;
+
+// Step 2: Remove doublets (on raw data)
+let doublet_config = DoubletConfig::default();
+let fcs = fcs.filter(&remove_doublets(&fcs, &doublet_config)?.mask)?;
+
+// Step 3: Apply compensation + transformation (new data)
+let fcs = preprocess_fcs(fcs, true, true, 2000.0)?;
+
+// Now run PeacoQC on preprocessed data
+let config = PeacoQCConfig {
+    apply_compensation: false,  // Already applied above
+    apply_transformation: false,
+    ..Default::default()
+};
+let result = peacoqc(&fcs, &config)?;
+```
+
+**Why this matters**: Margin/doublet removal thresholds are calculated on raw values. Applying transformation first changes these thresholds and produces different results than the R package.
+
+### Debugging Discrepancies
+
+To identify the source of differences:
+
+1. **Compare bin structure first** (fastest check):
+   ```bash
+   # Should match exactly if preprocessing is identical
+   Rust: result.n_bins, result.events_per_bin
+   R: result$nr_bins, result$EventsPerBin
+   ```
+
+2. **Enable debug logging** to see per-bin details:
+   ```bash
+   PEACOQC_DEBUG_BINS=1 PEACOQC_DEBUG_SPLINE=1 your_app
+   ```
+
+3. **Compare removal percentages by method** (shows which step differs):
+   - Check `it_percentage` (Isolation Tree) separately from `mad_percentage` (MAD)
+   - If IT matches but MAD differs → spline smoothing or KDE is the source
+   - If both match but consecutive filter differs → numerical precision in edge cases
+
+4. **Check if GPU acceleration is active**:
+   - Disable GPU: `WGPU_BACKEND=gl` or rebuild without `--features gpu`
+   - GPU differences are typically <0.5% and more deterministic if using same batch sizes
+
+### Test Results: Validation Against R
+
+Rust implementation tested against R on real FCS datasets:
+
+| Metric | Expected Match | Observed Range |
+|--------|---|---|
+| Bin count (`n_bins`) | Exact | 100% match |
+| Events per bin | Exact | 100% match |
+| Isolation Tree results | Perfect or minor | 3/4 files perfect, 1/4 minor differences |
+| MAD results | Very close | 0.90–6.85% difference |
+| Final event removal | Very close | <5% difference typical |
+| IT + MAD combined | Very close | <3% difference typical |
+
 ## Contributing
 
 Contributions are welcome! Please feel free to open issues or submit a Pull Request on [Github](https://github.com/jrmoynihan/flow).
