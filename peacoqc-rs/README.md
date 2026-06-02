@@ -162,12 +162,27 @@ fn remove_doublets<T: PeacoQCData>(fcs: &T, config: &DoubletConfig) -> Result<Do
 
 ### Configuration
 
-- `PeacoQCConfig`: Main configuration for quality control
+- `PeacoQCConfig`: Main configuration for quality control (now with builder pattern)
   - `channels`: Channels to analyze
   - `determine_good_cells`: QC mode (All, IsolationTree, MAD, None)
   - `mad`: MAD threshold (default: 6.0)
   - `it_limit`: Isolation Tree limit (default: 0.6)
   - `consecutive_bins`: Consecutive bins threshold (default: 5)
+  - `kde_bandwidth_adjust`: KDE bandwidth scaling (default: 1.0) - **NEW**
+  - `kde_grid_points`: KDE grid resolution (default: 512) - **NEW**
+  - `cluster_distance_threshold`: Peak clustering threshold (default: None) - **NEW**
+
+**Builder pattern usage:**
+```rust
+use peacoqc_rs::PeacoQCConfig;
+
+let config = PeacoQCConfig::builder()
+    .channels(vec!["FL1-A".to_string(), "FL2-A".to_string()])
+    .kde_bandwidth_adjust(1.2)  // Tune for smoother peaks
+    .kde_grid_points(1024)       // Higher precision
+    .build()
+    .unwrap();
+```
 
 - `MarginConfig`: Configuration for margin event removal
 - `DoubletConfig`: Configuration for doublet detection

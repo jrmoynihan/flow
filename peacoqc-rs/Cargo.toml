@@ -32,6 +32,7 @@ image = { workspace = true }
 serde.workspace     =true
 serde_json.workspace=true
 tracing.workspace   =true
+derive_builder      ={ workspace = true } # Builder pattern for config structs
 realfft             ="3.5.0" # FFT-based KDE for performance
 csaps               ="0.3" # Cubic smoothing splines (matches R's smooth.spline)
 ndarray             ={ workspace = true } # Required by csaps for array types

@@ -33,6 +33,18 @@ fn main() -> Result<()> {
 
     // 4. Run full PeacoQC analysis
     println!("\nStep 3: Running PeacoQC analysis...");
+
+    // Example using builder pattern for tuning KDE (new style):
+    // let peacoqc_config = PeacoQCConfig::builder()
+    //     .channels(vec!["FL1-A".to_string(), "FL2-A".to_string()])
+    //     .determine_good_cells(QCMode::MAD)
+    //     .kde_bandwidth_adjust(1.2)           // Increase for smoother peaks
+    //     .kde_grid_points(1024)               // Increase for more precision
+    //     .cluster_distance_threshold(Some(1000.0))  // Prevent far outliers
+    //     .build()
+    //     .unwrap();
+
+    // Struct literal still works (backward compatible):
     let peacoqc_config = PeacoQCConfig {
         channels: vec!["FL1-A".to_string(), "FL2-A".to_string()],
         determine_good_cells: QCMode::MAD,

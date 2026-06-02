@@ -7,6 +7,7 @@ use crate::qc::mad::{MADConfig, mad_outlier_method};
 use crate::qc::peaks::{
     ChannelPeakFrame, PeakDetectionConfig, create_breaks, determine_peaks_all_channels,
 };
+use derive_builder::Builder;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
@@ -28,7 +29,8 @@ pub enum QCMode {
 /// Main PeacoQC configuration
 ///
 /// Default parameters match the R PeacoQC package exactly.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Builder)]
+#[builder(default)]
 pub struct PeacoQCConfig {
     /// Channels to analyze
     pub channels: Vec<String>,
@@ -88,6 +90,25 @@ pub struct PeacoQCConfig {
     /// IT is skipped if fewer bins than this are available.
     pub force_it: usize,
 
+    /// Bandwidth adjustment factor for KDE (default: 1.0)
+    ///
+    /// **For R compatibility**: Adjust this if KDE-based peak detection differs from R.
+    /// See `PeakDetectionConfig::kde_bandwidth_adjust` for details.
+    pub kde_bandwidth_adjust: f64,
+
+    /// Number of grid points for KDE (default: 512)
+    ///
+    /// **For R compatibility**: Increase for higher precision peak detection.
+    /// See `PeakDetectionConfig::kde_grid_points` for details.
+    pub kde_grid_points: usize,
+
+    /// Maximum distance for assigning peaks to clusters (default: None)
+    ///
+    /// **For R compatibility**: Set a threshold to prevent outlier peak misassignment.
+    /// See `PeakDetectionConfig::cluster_distance_threshold` for details.
+    #[builder(default)]
+    pub cluster_distance_threshold: Option<f64>,
+
     /// Preprocessing: Apply compensation from file's $SPILLOVER keyword (requires flow-fcs feature)
     /// This matches the original R implementation: `flowCore::compensate(ff, flowCore::keyword(ff)$SPILL)`
     #[cfg(feature = "flow-fcs")]
@@ -119,6 +140,9 @@ impl Default for PeacoQCConfig {
             peak_removal: 1.0 / 3.0,
             min_nr_bins_peakdetection: 10.0,
             force_it: 150,
+            kde_bandwidth_adjust: 1.0,
+            kde_grid_points: 512,
+            cluster_distance_threshold: None,
             #[cfg(feature = "flow-fcs")]
             apply_compensation: true,
             #[cfg(feature = "flow-fcs")]
@@ -184,14 +208,14 @@ pub struct PeacoQCResult {
     /// Consecutive cells percentage
     pub consecutive_percentage: f64,
 
-    /// Peak detection results per channel
-    pub peaks: HashMap<String, ChannelPeakFrame>,
-
     /// Number of bins used
     pub n_bins: usize,
 
     /// Events per bin
     pub events_per_bin: usize,
+
+    /// Peak detection results per channel
+    pub peaks: HashMap<String, ChannelPeakFrame>,
 }
 
 impl PeacoQCResult {
@@ -350,6 +374,9 @@ pub fn peacoqc<T: PeacoQCData>(fcs: &T, config: &PeacoQCConfig) -> Result<PeacoQ
         peak_removal: config.peak_removal,
         min_nr_bins_peakdetection: config.min_nr_bins_peakdetection,
         remove_zeros: config.remove_zeros,
+        kde_bandwidth_adjust: config.kde_bandwidth_adjust,
+        kde_grid_points: config.kde_grid_points,
+        cluster_distance_threshold: config.cluster_distance_threshold,
     };
     debug!(
         "Peak detection config: peak_removal={}, min_nr_bins={}, remove_zeros={}",

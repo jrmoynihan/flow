@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Builder Pattern Support**: Added `derive_builder` to `PeacoQCConfig` and `PeakDetectionConfig` for ergonomic configuration
+- **R Compatibility Tuning**: Added three new configuration parameters for fine-tuning peak detection to match R results:
+  - `kde_bandwidth_adjust`: Scale KDE bandwidth (default: 1.0)
+  - `kde_grid_points`: Configure KDE grid resolution (default: 512)
+  - `cluster_distance_threshold`: Set max distance for peak-to-cluster assignment (default: None)
+- All new parameters default to current behavior (100% backward compatible)
+- Both builder pattern and struct literal instantiation are supported
 - **Removal reason visualization**: QC plots can now show why regions were removed by color-coding:
   - `PeacoQCResult::removal_reason_per_bin` (optional) exposes per-bin reason: Isolation Tree, MAD, or Consecutive.
   - Time and channel plots draw shaded regions and scatter points by reason when this data is present (orange = IT, purple = MAD, amber = Consecutive by default).

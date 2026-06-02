@@ -2,13 +2,15 @@ use crate::PeacoQCData;
 use crate::error::{PeacoQCError, Result};
 use crate::stats::density::KernelDensity;
 use crate::stats::median;
+use derive_builder::Builder;
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use tracing::debug;
 
 /// Configuration for peak detection
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Builder)]
+#[builder(default)]
 pub struct PeakDetectionConfig {
     /// Number of events per bin
     pub events_per_bin: usize,
@@ -21,6 +23,32 @@ pub struct PeakDetectionConfig {
 
     /// Whether to remove zeros before peak detection
     pub remove_zeros: bool,
+
+    /// Bandwidth adjustment factor for kernel density estimation (default: 1.0)
+    ///
+    /// Scales the bandwidth calculated by Silverman's rule.
+    /// - Lower values (0.5-0.9): Narrower bandwidth, more peaks detected, more sensitive
+    /// - Higher values (1.1-2.0): Wider bandwidth, fewer/smoother peaks, less sensitive
+    ///
+    /// **Use case**: Adjust to match R's KDE behavior or tune peak detection sensitivity
+    pub kde_bandwidth_adjust: f64,
+
+    /// Number of grid points for KDE (default: 512)
+    ///
+    /// Higher values provide more accurate density estimation at the cost of computation.
+    /// Common values: 512 (fast), 1024 (balanced), 2048 (accurate)
+    ///
+    /// **Use case**: Increase for more precise peak detection on high-resolution data
+    pub kde_grid_points: usize,
+
+    /// Maximum distance for assigning peaks to clusters (default: None = unlimited)
+    ///
+    /// When set, peaks farther than this distance from the nearest cluster median
+    /// will not be assigned to any cluster (filtered out).
+    ///
+    /// **Use case**: Prevent outlier peaks from being misassigned to distant clusters
+    #[builder(default)]
+    pub cluster_distance_threshold: Option<f64>,
 }
 
 impl Default for PeakDetectionConfig {
@@ -30,6 +58,9 @@ impl Default for PeakDetectionConfig {
             peak_removal: 1.0 / 3.0,
             min_nr_bins_peakdetection: 10.0,
             remove_zeros: false,
+            kde_bandwidth_adjust: 1.0,
+            kde_grid_points: 512,
+            cluster_distance_threshold: None,
         }
     }
 }
@@ -168,7 +199,11 @@ fn determine_channel_peaks_from_data(
             // Compute KDE and find peaks
             // R's FindThemPeaks returns peaks sorted by x-value (from dens$x)
             // We need to sort peaks to match R's column ordering in the matrix
-            let mut peaks = match KernelDensity::estimate(&bin_data, 1.0, 512) {
+            let mut peaks = match KernelDensity::estimate(
+                &bin_data,
+                config.kde_bandwidth_adjust,
+                config.kde_grid_points,
+            ) {
                 Ok(kde) => kde.find_peaks(config.peak_removal),
                 Err(_) => Vec::new(),
             };
@@ -213,7 +248,7 @@ fn determine_channel_peaks_from_data(
 
 /// Cluster peaks across bins using median clustering
 fn cluster_peaks(
-    all_peaks: &mut [PeakInfo],
+    all_peaks: &mut Vec<PeakInfo>,
     bin_peaks: &[Vec<f64>],
     config: &PeakDetectionConfig,
 ) -> Result<()> {
@@ -285,8 +320,20 @@ fn cluster_peaks(
             }
         }
 
+        // Check distance threshold
+        if let Some(threshold) = config.cluster_distance_threshold {
+            if min_dist > threshold {
+                // Skip this peak (don't assign to any cluster)
+                peak.cluster = 0; // Mark as unassigned
+                continue;
+            }
+        }
+
         peak.cluster = best_cluster;
     }
+
+    // Remove unassigned peaks (cluster = 0)
+    all_peaks.retain(|peak| peak.cluster > 0);
 
     Ok(())
 }
