@@ -284,8 +284,87 @@ fn find_unstable_regions(good_cells: &[bool]) -> Vec<(usize, usize)> {
     regions
 }
 
+/// Per-channel (or time overview) trend data for overlay rendering.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ChannelTrendSeries {
+    pub channel: String,
+    /// X coordinates (cell index for fluorescence; time for `__time__` overview).
+    pub x: Vec<f64>,
+    /// Per-bin median values (or event rate for time overview).
+    pub median: Vec<f64>,
+    /// Smoothed spline through bin medians (empty when fewer than 3 bins).
+    pub spline: Vec<f64>,
+    /// Horizontal lower MAD bound from smoothed trajectory (fluorescence only).
+    pub mad_low: Option<f64>,
+    /// Horizontal upper MAD bound from smoothed trajectory (fluorescence only).
+    pub mad_high: Option<f64>,
+    pub mad_threshold: f64,
+}
+
+/// Build median, spline, and ±MAD horizontal bounds for a fluorescence channel.
+pub fn build_channel_trend_series(
+    channel: &str,
+    values: &[f64],
+    events_per_bin: usize,
+    mad_threshold: f64,
+) -> ChannelTrendSeries {
+    let medians = calculate_median_per_bin(values, events_per_bin);
+    let x: Vec<f64> = medians
+        .iter()
+        .map(|(bin_idx, _)| (*bin_idx * events_per_bin) as f64)
+        .collect();
+    let median: Vec<f64> = medians.iter().map(|(_, m)| *m).collect();
+
+    let mut spline = Vec::new();
+    let mut mad_low = None;
+    let mut mad_high = None;
+
+    if medians.len() >= 3 {
+        let bin_indices: Vec<f64> = medians.iter().map(|(i, _)| *i as f64).collect();
+        let bin_medians: Vec<f64> = median.clone();
+        if let Ok(smoothed) = crate::stats::spline::smooth_spline(&bin_indices, &bin_medians, 0.5)
+        {
+            spline = smoothed.clone();
+            if let Ok((med, mad)) = crate::stats::median_mad::median_mad_scaled(&smoothed) {
+                mad_low = Some(med - mad_threshold * mad);
+                mad_high = Some(med + mad_threshold * mad);
+            }
+        }
+    }
+
+    ChannelTrendSeries {
+        channel: channel.to_string(),
+        x,
+        median,
+        spline,
+        mad_low,
+        mad_high,
+        mad_threshold,
+    }
+}
+
+/// Events-per-second rate series for the time overview (`channel == "__time__"`).
+pub fn build_time_overview_series<T: PeacoQCData>(fcs: &T) -> Result<Option<ChannelTrendSeries>> {
+    let Some(time_channel) = find_time_channel(fcs) else {
+        return Ok(None);
+    };
+    let events_per_sec = calculate_events_per_second(fcs, &time_channel, 1000)?;
+    if events_per_sec.is_empty() {
+        return Ok(None);
+    }
+    Ok(Some(ChannelTrendSeries {
+        channel: "__time__".to_string(),
+        x: events_per_sec.iter().map(|(t, _)| *t).collect(),
+        median: events_per_sec.iter().map(|(_, r)| *r).collect(),
+        spline: Vec::new(),
+        mad_low: None,
+        mad_high: None,
+        mad_threshold: 0.0,
+    }))
+}
+
 /// Regions with reason: (start_cell, end_cell, reason). One entry per bad bin (overlapping bins may produce overlapping regions).
-pub(crate) fn regions_by_reason(
+pub fn regions_by_reason(
     n_events: usize,
     events_per_bin: usize,
     removal_reason_per_bin: &[Option<RemovalReason>],
@@ -705,16 +784,11 @@ pub fn create_qc_plots<T: PeacoQCData>(
 
         let subplot_area = &subplot_areas[subplot_idx];
 
-        // Calculate MAD percentage for title
+        // Use per-channel MAD contribution for title
         let mad_pct = qc_result
-            .mad_percentage
-            .and_then(|_| {
-                // Calculate channel-specific MAD percentage
-                qc_result.peaks.get(channel).map(|_| {
-                    // This is approximate - we'd need to track per-channel MAD
-                    qc_result.mad_percentage.unwrap_or(0.0)
-                })
-            })
+            .mad_contribution
+            .get(channel)
+            .copied()
             .unwrap_or(0.0);
 
         let title = if mad_pct > 0.0 {
@@ -905,15 +979,19 @@ pub fn create_qc_plots<T: PeacoQCData>(
                 })?;
         }
 
-        // Draw median line per bin
-        let medians = calculate_median_per_bin(&channel_data, qc_result.events_per_bin);
-        if !medians.is_empty() {
-            let median_points: Vec<(f64, f64)> = medians
+        // Draw median line per bin and optional spline / MAD bounds
+        let trend = build_channel_trend_series(
+            channel,
+            &channel_data,
+            qc_result.events_per_bin,
+            6.0,
+        );
+        if !trend.median.is_empty() {
+            let median_points: Vec<(f64, f64)> = trend
+                .x
                 .iter()
-                .map(|(bin_idx, median)| {
-                    let cell_idx = (*bin_idx * qc_result.events_per_bin) as f64;
-                    (cell_idx, *median)
-                })
+                .zip(trend.median.iter())
+                .map(|(&x, &y)| (x, y))
                 .collect();
 
             chart
@@ -948,82 +1026,66 @@ pub fn create_qc_plots<T: PeacoQCData>(
             }
 
             // Draw smoothed spline and MAD threshold lines (if enabled)
-            if config.show_spline_and_mad && medians.len() >= 3 {
-                let bin_medians: Vec<f64> = medians.iter().map(|(_, m)| *m).collect();
-                let bin_indices: Vec<f64> = medians.iter().map(|(i, _)| *i as f64).collect();
+            if config.show_spline_and_mad && trend.spline.len() >= 3 {
+                let smoothed_points: Vec<(f64, f64)> = trend
+                    .spline
+                    .iter()
+                    .enumerate()
+                    .map(|(i, &y)| ((i * qc_result.events_per_bin) as f64, y))
+                    .collect();
 
-                // Apply smoothing (using default spar=0.5)
-                if let Ok(smoothed) =
-                    crate::stats::spline::smooth_spline(&bin_indices, &bin_medians, 0.5)
+                chart
+                    .draw_series(LineSeries::new(
+                        smoothed_points.clone(),
+                        config.smoothed_spline_color.stroke_width(2),
+                    ))
+                    .map_err(|e| {
+                        PeacoQCError::ExportError(format!(
+                            "Failed to draw smoothed spline: {:?}",
+                            e
+                        ))
+                    })?;
+
+                if let (Some(upper_threshold), Some(lower_threshold)) =
+                    (trend.mad_high, trend.mad_low)
                 {
-                    let smoothed_points: Vec<(f64, f64)> = smoothed
-                        .iter()
-                        .enumerate()
-                        .map(|(i, &y)| {
-                            let cell_idx = (i * qc_result.events_per_bin) as f64;
-                            (cell_idx, y)
-                        })
-                        .collect();
+                    let threshold_points_upper: Vec<(f64, f64)> =
+                        vec![(0.0, upper_threshold), (n_events as f64, upper_threshold)];
+                    let threshold_points_lower: Vec<(f64, f64)> =
+                        vec![(0.0, lower_threshold), (n_events as f64, lower_threshold)];
+                    let mad_style = config.mad_threshold_color.stroke_width(2);
 
                     chart
-                        .draw_series(LineSeries::new(
-                            smoothed_points.clone(),
-                            config.smoothed_spline_color.stroke_width(2),
+                        .draw_series(std::iter::once(
+                            plotters::element::DashedPathElement::new(
+                                threshold_points_upper,
+                                MAD_DASH_LEN,
+                                MAD_DASH_GAP,
+                                mad_style.clone(),
+                            ),
                         ))
                         .map_err(|e| {
                             PeacoQCError::ExportError(format!(
-                                "Failed to draw smoothed spline: {:?}",
+                                "Failed to draw upper threshold: {:?}",
                                 e
                             ))
                         })?;
 
-                    // Compute and draw MAD threshold lines
-                    if let Ok((median, mad)) =
-                        crate::stats::median_mad::median_mad_scaled(&smoothed)
-                    {
-                        let mad_threshold = 6.0; // Default MAD threshold
-                        let upper_threshold = median + mad_threshold * mad;
-                        let lower_threshold = median - mad_threshold * mad;
-
-                        // Draw threshold lines (dashed: longer dashes, narrower gaps)
-                        let threshold_points_upper: Vec<(f64, f64)> =
-                            vec![(0.0, upper_threshold), (n_events as f64, upper_threshold)];
-                        let threshold_points_lower: Vec<(f64, f64)> =
-                            vec![(0.0, lower_threshold), (n_events as f64, lower_threshold)];
-                        let mad_style = config.mad_threshold_color.stroke_width(2);
-
-                        chart
-                            .draw_series(std::iter::once(
-                                plotters::element::DashedPathElement::new(
-                                    threshold_points_upper,
-                                    MAD_DASH_LEN,
-                                    MAD_DASH_GAP,
-                                    mad_style.clone(),
-                                ),
+                    chart
+                        .draw_series(std::iter::once(
+                            plotters::element::DashedPathElement::new(
+                                threshold_points_lower,
+                                MAD_DASH_LEN,
+                                MAD_DASH_GAP,
+                                mad_style,
+                            ),
+                        ))
+                        .map_err(|e| {
+                            PeacoQCError::ExportError(format!(
+                                "Failed to draw lower threshold: {:?}",
+                                e
                             ))
-                            .map_err(|e| {
-                                PeacoQCError::ExportError(format!(
-                                    "Failed to draw upper threshold: {:?}",
-                                    e
-                                ))
-                            })?;
-
-                        chart
-                            .draw_series(std::iter::once(
-                                plotters::element::DashedPathElement::new(
-                                    threshold_points_lower,
-                                    MAD_DASH_LEN,
-                                    MAD_DASH_GAP,
-                                    mad_style,
-                                ),
-                            ))
-                            .map_err(|e| {
-                                PeacoQCError::ExportError(format!(
-                                    "Failed to draw lower threshold: {:?}",
-                                    e
-                                ))
-                            })?;
-                    }
+                        })?;
                 }
             }
 
@@ -1219,6 +1281,22 @@ mod tests {
         assert_eq!(medians.len(), 4);
         assert_eq!(medians[0], (0, 1.5));
         assert_eq!(medians[1], (1, 3.5));
+    }
+
+    #[test]
+    fn test_build_channel_trend_series_uses_mad_threshold() {
+        let values: Vec<f64> = (0..20).map(|i| i as f64).collect();
+        let trend = build_channel_trend_series("FL1-A", &values, 5, 3.0);
+        assert_eq!(trend.channel, "FL1-A");
+        assert_eq!(trend.median.len(), 4);
+        assert_eq!(trend.mad_threshold, 3.0);
+        if trend.spline.len() >= 3 {
+            assert!(trend.mad_low.is_some());
+            assert!(trend.mad_high.is_some());
+            let low = trend.mad_low.expect("mad_low");
+            let high = trend.mad_high.expect("mad_high");
+            assert!(high > low);
+        }
     }
 
     #[test]

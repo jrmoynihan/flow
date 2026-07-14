@@ -1,5 +1,7 @@
 use crate::PeacoQCData;
 use crate::error::{PeacoQCError, Result};
+use crate::qc::progress::PeacoQCProgressEvent;
+use std::sync::Arc;
 use crate::qc::consecutive::{ConsecutiveConfig, remove_short_regions};
 use crate::qc::debug;
 use crate::qc::isolation_tree::{IsolationTreeConfig, isolation_tree_detect};
@@ -193,7 +195,7 @@ pub struct PeacoQCResult {
 
     /// Per-bin removal reason (same length as n_bins). None = good bin, Some(reason) = bad bin.
     /// Used for plotting: color removed regions by reason. Priority IT > MAD > Consecutive.
-    #[serde(skip)]
+    /// Persisted in peaks JSON sidecar (mask remains separate).
     pub removal_reason_per_bin: Option<Vec<Option<RemovalReason>>>,
 
     /// Percentage of cells removed
@@ -204,6 +206,10 @@ pub struct PeacoQCResult {
 
     /// MAD percentage (if used)
     pub mad_percentage: Option<f64>,
+
+    /// Per-channel MAD contribution (channel_name -> percentage of bins flagged by that channel)
+    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
+    pub mad_contribution: HashMap<String, f64>,
 
     /// Consecutive cells percentage
     pub consecutive_percentage: f64,
@@ -318,6 +324,24 @@ impl PeacoQCResult {
     }
 }
 
+/// Progress callback for [`peacoqc_with_progress`].
+pub type PeacoQCProgressCallback = Arc<dyn Fn(PeacoQCProgressEvent) + Send + Sync>;
+
+fn emit_progress(
+    progress: &Option<PeacoQCProgressCallback>,
+    stage: &str,
+    pct: u8,
+    message: impl Into<String>,
+) {
+    if let Some(cb) = progress {
+        cb(PeacoQCProgressEvent {
+            stage: stage.to_string(),
+            progress: pct,
+            message: message.into(),
+        });
+    }
+}
+
 /// Main PeacoQC quality control function
 ///
 /// # Algorithm (matches R's PeacoQC)
@@ -328,6 +352,15 @@ impl PeacoQCResult {
 /// 5. Filter consecutive bins to remove short isolated regions
 /// 6. Generate cell-level boolean mask with de-duplication for overlapping bins
 pub fn peacoqc<T: PeacoQCData>(fcs: &T, config: &PeacoQCConfig) -> Result<PeacoQCResult> {
+    peacoqc_with_progress(fcs, config, None)
+}
+
+/// Like [`peacoqc`], with optional structured progress events for UI / workflow logs.
+pub fn peacoqc_with_progress<T: PeacoQCData>(
+    fcs: &T,
+    config: &PeacoQCConfig,
+    progress: Option<PeacoQCProgressCallback>,
+) -> Result<PeacoQCResult> {
     if config.channels.is_empty() {
         return Err(PeacoQCError::ConfigError(
             "No channels specified".to_string(),
@@ -340,6 +373,16 @@ pub fn peacoqc<T: PeacoQCData>(fcs: &T, config: &PeacoQCConfig) -> Result<PeacoQ
         "Starting PeacoQC analysis: {} events, {} channels",
         n_events,
         config.channels.len()
+    );
+    emit_progress(
+        &progress,
+        "starting",
+        5,
+        format!(
+            "Starting PeacoQC: {} events, {} channels",
+            n_events,
+            config.channels.len()
+        ),
     );
     debug!("Channels: {:?}", config.channels);
 
@@ -356,6 +399,15 @@ pub fn peacoqc<T: PeacoQCData>(fcs: &T, config: &PeacoQCConfig) -> Result<PeacoQ
         "Binning configuration: {} bins (50% overlap), {} events per bin (min_cells={}, max_bins={})",
         n_bins, events_per_bin, config.min_cells, config.max_bins
     );
+    emit_progress(
+        &progress,
+        "binning",
+        10,
+        format!(
+            "{} bins, {} events/bin",
+            n_bins, events_per_bin
+        ),
+    );
 
     // Debug logging: Find time channel for bin analysis
     let time_channel = if std::env::var("PEACOQC_DEBUG_BINS").is_ok() {
@@ -368,6 +420,12 @@ pub fn peacoqc<T: PeacoQCData>(fcs: &T, config: &PeacoQCConfig) -> Result<PeacoQ
     info!(
         "Starting peak detection across {} channels",
         config.channels.len()
+    );
+    emit_progress(
+        &progress,
+        "peak_detection",
+        20,
+        format!("Peak detection across {} channels", config.channels.len()),
     );
     let peak_config = PeakDetectionConfig {
         events_per_bin,
@@ -393,6 +451,12 @@ pub fn peacoqc<T: PeacoQCData>(fcs: &T, config: &PeacoQCConfig) -> Result<PeacoQ
         "Peak detection complete: {} channels with peaks detected",
         peaks.len()
     );
+    emit_progress(
+        &progress,
+        "peak_detection",
+        35,
+        format!("Peak detection complete ({} channels)", peaks.len()),
+    );
     trace!(
         "Peak details per channel: {:?}",
         peaks
@@ -405,6 +469,7 @@ pub fn peacoqc<T: PeacoQCData>(fcs: &T, config: &PeacoQCConfig) -> Result<PeacoQ
     let mut outlier_bins = vec![false; n_bins];
     let mut it_percentage = None;
     let mut mad_percentage = None;
+    let mut mad_contribution: HashMap<String, f64> = HashMap::new();
 
     // Track outlier states for debug logging
     let mut it_outliers = vec![false; n_bins];
@@ -418,6 +483,12 @@ pub fn peacoqc<T: PeacoQCData>(fcs: &T, config: &PeacoQCConfig) -> Result<PeacoQ
                 info!(
                     "Running Isolation Tree analysis (IT_limit={})",
                     config.it_limit
+                );
+                emit_progress(
+                    &progress,
+                    "isolation_tree",
+                    45,
+                    format!("Running Isolation Tree (limit={})", config.it_limit),
                 );
                 let it_config = IsolationTreeConfig {
                     it_limit: config.it_limit,
@@ -436,6 +507,15 @@ pub fn peacoqc<T: PeacoQCData>(fcs: &T, config: &PeacoQCConfig) -> Result<PeacoQ
                         info!(
                             "Isolation Tree analysis removed {:.2}% of the bins ({} outlier bins)",
                             it_pct, n_it_outliers
+                        );
+                        emit_progress(
+                            &progress,
+                            "isolation_tree",
+                            55,
+                            format!(
+                                "Isolation Tree removed {:.1}% of bins ({} outliers)",
+                                it_pct, n_it_outliers
+                            ),
                         );
 
                         // Debug logging
@@ -475,6 +555,12 @@ pub fn peacoqc<T: PeacoQCData>(fcs: &T, config: &PeacoQCConfig) -> Result<PeacoQ
             "Running MAD outlier detection (MAD threshold={})",
             config.mad
         );
+        emit_progress(
+            &progress,
+            "mad",
+            65,
+            format!("Running MAD outlier detection (threshold={})", config.mad),
+        );
         let mad_config = MADConfig {
             mad_threshold: config.mad,
             ..Default::default()
@@ -488,6 +574,7 @@ pub fn peacoqc<T: PeacoQCData>(fcs: &T, config: &PeacoQCConfig) -> Result<PeacoQ
             outlier_bins.iter().map(|&is_outlier| !is_outlier).collect();
 
         let mad_result = mad_outlier_method(&peaks, &existing_good_bins, n_bins, &mad_config)?;
+        mad_contribution = mad_result.contribution;
 
         // Combine with existing outliers
         let n_mad_outliers_before = outlier_bins.iter().filter(|&&x| x).count();
@@ -505,6 +592,12 @@ pub fn peacoqc<T: PeacoQCData>(fcs: &T, config: &PeacoQCConfig) -> Result<PeacoQ
         info!(
             "MAD analysis removed {:.2}% of the bins ({} outlier bins, {} from IT, {} new from MAD)",
             mad_pct, n_mad_outliers, n_mad_outliers_before, n_new_from_mad
+        );
+        emit_progress(
+            &progress,
+            "mad",
+            75,
+            format!("MAD removed {:.1}% of bins ({} new)", mad_pct, n_new_from_mad),
         );
 
         // Debug logging
@@ -532,6 +625,15 @@ pub fn peacoqc<T: PeacoQCData>(fcs: &T, config: &PeacoQCConfig) -> Result<PeacoQ
         info!(
             "Applying consecutive bin filtering (consecutive_bins={})",
             config.consecutive_bins
+        );
+        emit_progress(
+            &progress,
+            "consecutive",
+            85,
+            format!(
+                "Consecutive bin filter (threshold={})",
+                config.consecutive_bins
+            ),
         );
         let consecutive_config = ConsecutiveConfig {
             consecutive_bins: config.consecutive_bins,
@@ -598,6 +700,15 @@ pub fn peacoqc<T: PeacoQCData>(fcs: &T, config: &PeacoQCConfig) -> Result<PeacoQ
         n_events - n_removed,
         100.0 - percentage_removed
     );
+    emit_progress(
+        &progress,
+        "complete",
+        100,
+        format!(
+            "PeacoQC complete: {:.1}% removed ({} / {} events)",
+            percentage_removed, n_removed, n_events
+        ),
+    );
 
     if percentage_removed > 70.0 {
         warn!(
@@ -646,6 +757,7 @@ pub fn peacoqc<T: PeacoQCData>(fcs: &T, config: &PeacoQCConfig) -> Result<PeacoQ
         percentage_removed,
         it_percentage,
         mad_percentage,
+        mad_contribution,
         consecutive_percentage,
         peaks,
         n_bins,
@@ -755,11 +867,11 @@ mod tests {
 
             // Handle both f32 and f64 columns (FCS files typically use f32)
             let values = if let Ok(f64_vals) = series.f64() {
-                f64_vals.into_iter().filter_map(|x| x).collect()
+                f64_vals.iter().filter_map(|x| x).collect()
             } else if let Ok(f32_vals) = series.f32() {
                 // Cast f32 to f64
                 f32_vals
-                    .into_iter()
+                    .iter()
                     .filter_map(|x| x.map(|v| v as f64))
                     .collect()
             } else {
@@ -933,5 +1045,35 @@ mod tests {
         assert_eq!(r.good_cells.len(), 5000);
         // With QCMode::None, no cells should be removed
         assert_eq!(r.percentage_removed, 0.0);
+    }
+
+    #[test]
+    fn removal_reason_per_bin_round_trips_in_json() {
+        use std::collections::HashMap;
+
+        let result = PeacoQCResult {
+            good_cells: vec![],
+            removal_reason_per_bin: Some(vec![None, Some(RemovalReason::MAD)]),
+            percentage_removed: 0.0,
+            it_percentage: None,
+            mad_percentage: None,
+            mad_contribution: HashMap::new(),
+            consecutive_percentage: 0.0,
+            n_bins: 2,
+            events_per_bin: 500,
+            peaks: HashMap::new(),
+        };
+        let json = serde_json::to_string(&result).expect("serialize peaks JSON");
+        assert!(
+            json.contains("removal_reason_per_bin") || json.contains("MAD"),
+            "json: {json}"
+        );
+        let back: PeacoQCResult =
+            serde_json::from_str(&json).expect("deserialize peaks JSON");
+        assert!(back.removal_reason_per_bin.is_some());
+        assert_eq!(
+            back.removal_reason_per_bin.as_ref().and_then(|r| r.get(1)),
+            Some(&Some(RemovalReason::MAD))
+        );
     }
 }

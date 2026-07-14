@@ -7,6 +7,7 @@ pub mod mad;
 pub mod margins;
 pub mod monotonic;
 pub mod peacoqc;
+pub mod progress;
 pub mod peaks;
 pub mod plots;
 
@@ -20,6 +21,10 @@ pub use isolation_tree::{IsolationTreeConfig, IsolationTreeResult, isolation_tre
 pub use mad::{MADConfig, MADResult, mad_outlier_method};
 pub use margins::{MarginConfig, MarginResult, remove_margins};
 pub use monotonic::{MonotonicConfig, MonotonicResult, find_increasing_decreasing_channels};
-pub use peacoqc::{PeacoQCConfig, PeacoQCResult, QCMode, RemovalReason, peacoqc};
+pub use peacoqc::{
+    peacoqc, peacoqc_with_progress, PeacoQCConfig, PeacoQCProgressCallback, PeacoQCResult,
+    QCMode, RemovalReason,
+};
+pub use progress::PeacoQCProgressEvent;
 pub use peaks::{ChannelPeakFrame, PeakDetectionConfig, PeakInfo, determine_peaks_all_channels};
-pub use plots::{QCPlotConfig, create_qc_plots};
+pub use plots::{QCPlotConfig, create_qc_plots, build_channel_trend_series, build_time_overview_series, regions_by_reason, ChannelTrendSeries};
