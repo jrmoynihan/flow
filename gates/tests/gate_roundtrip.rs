@@ -95,3 +95,33 @@ fn from_gates_rejects_cycle() {
     b.parent_id = Some(Arc::from("a"));
     assert!(GateHierarchy::from_gates(&[a, b]).is_err());
 }
+
+/// Gates stored in workspaces use lowercase coordinate_space values ("raw",
+/// "compensated") matching the serde rename_all = "snake_case" on GateCoordinateSpace.
+/// This test ensures the exact JSON shape written by the app can be read back.
+#[test]
+fn gate_workspace_json_deser() {
+    // Exact JSON shape stored in workspace XML (from qc_test.xml)
+    let json = r#"{"id":"qc-root","name":"QC","geometry":{"type":"Mask","source":{"type":"qc","invert":false}},"mode":{"name":"Global"},"parameters":{"type":"no_channel"},"coordinate_space":"raw","label_position":null}"#;
+    let gate: Gate = serde_json::from_str(json).expect("gate with lowercase coordinate_space should deserialize");
+    assert_eq!(gate.coordinate_space, GateCoordinateSpace::Raw);
+
+    // Verify round-trip: serialize back and check coordinate_space is still lowercase
+    let re_json = serde_json::to_string(&gate).expect("serialize");
+    assert!(re_json.contains("\"coordinate_space\":\"raw\""), "coordinate_space should serialize as lowercase 'raw', got: {}", re_json);
+}
+
+/// Reproduce the exact gate JSON from qc_test.xml to catch any deserialization failure.
+#[test]
+fn qc_workspace_gates_deser() {
+    let gates = vec![
+        r#"{"id":"qc-root","name":"QC","geometry":{"type":"Mask","source":{"type":"qc","invert":false}},"mode":{"name":"Global"},"parameters":{"type":"no_channel"},"coordinate_space":"raw","label_position":null}"#,
+        r#"{"id":"qc-bad","name":"Bad Events","geometry":{"type":"Mask","source":{"type":"qc","invert":true}},"mode":{"name":"Global"},"parameters":{"type":"no_channel"},"coordinate_space":"raw","label_position":null,"parent_id":"qc-root"}"#,
+        r#"{"id":"qc-good","name":"Good Events","geometry":{"type":"Mask","source":{"type":"qc","invert":false}},"mode":{"name":"Global"},"parameters":{"type":"no_channel"},"coordinate_space":"raw","label_position":null,"parent_id":"qc-root"}"#,
+        r#"{"id":"31cc0b43-4011-4291-bad6-024e154ac0a7","name":"FSC-A vs SSC-A (copy)","geometry":{"type":"Ellipse","center":{"id":"af5f054c-aef7-445c-816e-58b8b2dee650","coordinates":{"SSC-A":1279333.0,"FSC-A":1911042.9}},"radius_x":1964217.4,"radius_y":1081011.6,"angle":0.6168946},"mode":{"name":"Global"},"parameters":{"type":"two_channel","x":"FSC-A","y":"SSC-A"},"coordinate_space":"raw","label_position":null,"parent_id":"qc-good"}"#,
+    ];
+    for (i, json) in gates.iter().enumerate() {
+        let result = serde_json::from_str::<Gate>(json);
+        assert!(result.is_ok(), "Gate {i} failed: {}", result.unwrap_err());
+    }
+}

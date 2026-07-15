@@ -8,7 +8,7 @@
 //! - system_managed and overrides fields persist through serialization
 
 use flow_gates::{
-    filtering::{MaskResolver, filter_events_by_hierarchy_steps},
+    filtering::{filter_events_by_hierarchy_steps, MaskResolver},
     types::{
         Gate, GateCoordinateSpace, GateGeometry, GateMode, GateNode, GateParameters, MaskSource,
     },
@@ -122,6 +122,8 @@ fn gate_with_mask_geometry_roundtrip() {
         parent_id: Some(Arc::from("qc-root")),
         overrides: BTreeMap::new(),
         system_managed: true,
+        spillover_group_id: None,
+        data_context_id: None,
     };
     let json = serde_json::to_string(&gate).expect("serialize");
     let restored: Gate = serde_json::from_str(&json).expect("deserialize");
@@ -134,11 +136,9 @@ fn system_managed_false_not_serialized() {
         "test",
         "Test",
         GateGeometry::Polygon {
-            nodes: vec![
-                GateNode::new("n1")
-                    .with_coordinate("X", 0.0)
-                    .with_coordinate("Y", 0.0),
-            ],
+            nodes: vec![GateNode::new("n1")
+                .with_coordinate("X", 0.0)
+                .with_coordinate("Y", 0.0)],
             closed: true,
         },
         "X",
@@ -211,6 +211,8 @@ fn make_mask_gate(id: &str, invert: bool, parent_id: Option<&str>) -> Gate {
         parent_id: parent_id.map(|s| Arc::from(s)),
         overrides: BTreeMap::new(),
         system_managed: true,
+        spillover_group_id: None,
+        data_context_id: None,
     }
 }
 
@@ -220,7 +222,9 @@ fn mask_gate_in_hierarchy_steps_resolves_via_closure() {
     let total_events = 10;
 
     // Mask: events 0,1,2,3,4 are good; 5,6,7,8,9 are bad
-    let mask = vec![true, true, true, true, true, false, false, false, false, false];
+    let mask = vec![
+        true, true, true, true, true, false, false, false, false, false,
+    ];
 
     let steps: Vec<(&Gate, Option<&str>)> = vec![(&good_gate, None)];
 
@@ -249,7 +253,9 @@ fn bad_events_gate_returns_inverted_mask() {
     let bad_gate = make_mask_gate("qc-bad", true, None);
     let total_events = 10;
 
-    let mask = vec![true, true, true, true, true, false, false, false, false, false];
+    let mask = vec![
+        true, true, true, true, true, false, false, false, false, false,
+    ];
 
     let steps: Vec<(&Gate, Option<&str>)> = vec![(&bad_gate, None)];
 
@@ -299,11 +305,15 @@ fn mask_gate_chain_intersects_with_geometric_gate() {
         parent_id: Some(Arc::from("qc-good")),
         overrides: BTreeMap::new(),
         system_managed: false,
+        spillover_group_id: None,
+        data_context_id: None,
     };
 
     let total_events = 10;
     // QC mask: events 0..5 are good
-    let mask = vec![true, true, true, true, true, false, false, false, false, false];
+    let mask = vec![
+        true, true, true, true, true, false, false, false, false, false,
+    ];
 
     let mut resolver = TestMaskResolver::new();
     resolver.add_mask("test-file", mask);
@@ -322,7 +332,7 @@ fn mask_gate_chain_intersects_with_geometric_gate() {
                 return resolver.resolve_mask(source, total_events);
             }
             // Geometric filtering for the rectangle
-            use flow_gates::filtering::{EventData, filter_events_by_gate};
+            use flow_gates::filtering::{filter_events_by_gate, EventData};
             let data = EventData {
                 space: GateCoordinateSpace::Raw,
                 x_param: "X",
@@ -363,6 +373,8 @@ fn missing_mask_returns_empty_set() {
         parent_id: None,
         overrides: BTreeMap::new(),
         system_managed: true,
+        spillover_group_id: None,
+        data_context_id: None,
     };
 
     let total_events = 100;
@@ -395,7 +407,9 @@ fn effective_geometry_returns_base_when_no_overrides() {
         "test",
         "Test",
         GateGeometry::Polygon {
-            nodes: vec![GateNode::new("n1").with_coordinate("X", 1.0).with_coordinate("Y", 2.0)],
+            nodes: vec![GateNode::new("n1")
+                .with_coordinate("X", 1.0)
+                .with_coordinate("Y", 2.0)],
             closed: true,
         },
         "X",
@@ -412,7 +426,9 @@ fn effective_geometry_file_override_wins() {
         "test",
         "Test",
         GateGeometry::Polygon {
-            nodes: vec![GateNode::new("n1").with_coordinate("X", 1.0).with_coordinate("Y", 2.0)],
+            nodes: vec![GateNode::new("n1")
+                .with_coordinate("X", 1.0)
+                .with_coordinate("Y", 2.0)],
             closed: true,
         },
         "X",
@@ -420,10 +436,13 @@ fn effective_geometry_file_override_wins() {
         GateCoordinateSpace::Raw,
     );
     let override_geom = GateGeometry::Polygon {
-        nodes: vec![GateNode::new("n2").with_coordinate("X", 99.0).with_coordinate("Y", 99.0)],
+        nodes: vec![GateNode::new("n2")
+            .with_coordinate("X", 99.0)
+            .with_coordinate("Y", 99.0)],
         closed: true,
     };
-    gate.overrides.insert(Arc::from("file-1"), override_geom.clone());
+    gate.overrides
+        .insert(Arc::from("file-1"), override_geom.clone());
 
     assert_eq!(gate.effective_geometry("file-1", &[]), &override_geom);
     assert_eq!(gate.effective_geometry("file-2", &[]), &gate.geometry);
@@ -435,7 +454,9 @@ fn effective_geometry_file_beats_group() {
         "test",
         "Test",
         GateGeometry::Polygon {
-            nodes: vec![GateNode::new("n1").with_coordinate("X", 1.0).with_coordinate("Y", 2.0)],
+            nodes: vec![GateNode::new("n1")
+                .with_coordinate("X", 1.0)
+                .with_coordinate("Y", 2.0)],
             closed: true,
         },
         "X",
@@ -443,15 +464,21 @@ fn effective_geometry_file_beats_group() {
         GateCoordinateSpace::Raw,
     );
     let group_geom = GateGeometry::Polygon {
-        nodes: vec![GateNode::new("g").with_coordinate("X", 50.0).with_coordinate("Y", 50.0)],
+        nodes: vec![GateNode::new("g")
+            .with_coordinate("X", 50.0)
+            .with_coordinate("Y", 50.0)],
         closed: true,
     };
     let file_geom = GateGeometry::Polygon {
-        nodes: vec![GateNode::new("f").with_coordinate("X", 99.0).with_coordinate("Y", 99.0)],
+        nodes: vec![GateNode::new("f")
+            .with_coordinate("X", 99.0)
+            .with_coordinate("Y", 99.0)],
         closed: true,
     };
-    gate.overrides.insert(Arc::from("group-a"), group_geom.clone());
-    gate.overrides.insert(Arc::from("file-1"), file_geom.clone());
+    gate.overrides
+        .insert(Arc::from("group-a"), group_geom.clone());
+    gate.overrides
+        .insert(Arc::from("file-1"), file_geom.clone());
 
     // file-1 has direct override → wins over group
     assert_eq!(gate.effective_geometry("file-1", &["group-a"]), &file_geom);
@@ -483,7 +510,10 @@ fn mixed_qc_status_excludes_unqcd_file_from_stats() {
         id: Arc::from("qc-root"),
         name: "QC".to_string(),
         geometry: GateGeometry::Mask {
-            source: MaskSource::Qc { file_guid: None, invert: false },
+            source: MaskSource::Qc {
+                file_guid: None,
+                invert: false,
+            },
         },
         mode: GateMode::Global,
         parameters: GateParameters::NoChannel,
@@ -493,13 +523,18 @@ fn mixed_qc_status_excludes_unqcd_file_from_stats() {
         parent_id: None,
         overrides: BTreeMap::new(),
         system_managed: true,
+        spillover_group_id: None,
+        data_context_id: None,
     };
 
     let good_gate = Gate {
         id: Arc::from("qc-good"),
         name: "Good Events".to_string(),
         geometry: GateGeometry::Mask {
-            source: MaskSource::Qc { file_guid: None, invert: false },
+            source: MaskSource::Qc {
+                file_guid: None,
+                invert: false,
+            },
         },
         mode: GateMode::Global,
         parameters: GateParameters::NoChannel,
@@ -509,13 +544,18 @@ fn mixed_qc_status_excludes_unqcd_file_from_stats() {
         parent_id: Some(Arc::from("qc-root")),
         overrides: BTreeMap::new(),
         system_managed: true,
+        spillover_group_id: None,
+        data_context_id: None,
     };
 
     let bad_gate = Gate {
         id: Arc::from("qc-bad"),
         name: "Bad Events".to_string(),
         geometry: GateGeometry::Mask {
-            source: MaskSource::Qc { file_guid: None, invert: true },
+            source: MaskSource::Qc {
+                file_guid: None,
+                invert: true,
+            },
         },
         mode: GateMode::Global,
         parameters: GateParameters::NoChannel,
@@ -525,6 +565,8 @@ fn mixed_qc_status_excludes_unqcd_file_from_stats() {
         parent_id: Some(Arc::from("qc-root")),
         overrides: BTreeMap::new(),
         system_managed: true,
+        spillover_group_id: None,
+        data_context_id: None,
     };
 
     // Helper: simulate per-file filtering through the chain, mimicking the
@@ -589,15 +631,48 @@ fn mixed_qc_status_excludes_unqcd_file_from_stats() {
 
     let agg_root: usize = ["file-a", "file-b", "file-c"]
         .iter()
-        .map(|f| filter_file(f, match *f { "file-a" => 100, "file-b" => 150, _ => 200 }, &root_chain).len())
+        .map(|f| {
+            filter_file(
+                f,
+                match *f {
+                    "file-a" => 100,
+                    "file-b" => 150,
+                    _ => 200,
+                },
+                &root_chain,
+            )
+            .len()
+        })
         .sum();
     let agg_good: usize = ["file-a", "file-b", "file-c"]
         .iter()
-        .map(|f| filter_file(f, match *f { "file-a" => 100, "file-b" => 150, _ => 200 }, &good_chain).len())
+        .map(|f| {
+            filter_file(
+                f,
+                match *f {
+                    "file-a" => 100,
+                    "file-b" => 150,
+                    _ => 200,
+                },
+                &good_chain,
+            )
+            .len()
+        })
         .sum();
     let agg_bad: usize = ["file-a", "file-b", "file-c"]
         .iter()
-        .map(|f| filter_file(f, match *f { "file-a" => 100, "file-b" => 150, _ => 200 }, &bad_chain).len())
+        .map(|f| {
+            filter_file(
+                f,
+                match *f {
+                    "file-a" => 100,
+                    "file-b" => 150,
+                    _ => 200,
+                },
+                &bad_chain,
+            )
+            .len()
+        })
         .sum();
 
     assert_eq!(agg_root, total_qc_root);
@@ -606,6 +681,9 @@ fn mixed_qc_status_excludes_unqcd_file_from_stats() {
 
     // QC root shows < 100% of total (250/450 = 55.6%), indicating mixed status
     let qc_coverage = agg_root as f64 / total_all as f64;
-    assert!(qc_coverage < 1.0, "QC coverage should be < 100% with mixed status");
+    assert!(
+        qc_coverage < 1.0,
+        "QC coverage should be < 100% with mixed status"
+    );
     assert!((qc_coverage - 250.0 / 450.0).abs() < 0.001);
 }

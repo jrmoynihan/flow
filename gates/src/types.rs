@@ -24,10 +24,12 @@ fn is_false(v: &bool) -> bool {
 /// assert_eq!(node.get_coordinate("FSC-A"), Some(1000.0));
 /// ```
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
 #[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
 #[cfg_attr(feature = "typescript", ts(export))]
 pub struct GateNode {
     /// Unique identifier for this node
+    #[cfg_attr(feature = "specta", specta(type = String))]
     pub id: Arc<str>,
     /// Coordinates in raw data space, keyed by channel name.
     ///
@@ -35,6 +37,7 @@ pub struct GateNode {
     /// across multiple nodes and gates.
     #[serde(with = "arc_str_hashmap")]
     #[cfg_attr(feature = "typescript", ts(type = "Record<string, number>"))]
+    #[cfg_attr(feature = "specta", specta(type = std::collections::HashMap<String, f32>))]
     pub coordinates: HashMap<Arc<str>, f32>,
 }
 
@@ -104,6 +107,7 @@ impl GateNode {
 /// evaluation — gate coordinates are never stored in *transformed* space.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Hash)]
 #[serde(rename_all = "snake_case")]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
 #[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
 #[cfg_attr(feature = "typescript", ts(export, rename_all = "snake_case"))]
 pub enum GateCoordinateSpace {
@@ -114,6 +118,7 @@ pub enum GateCoordinateSpace {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
 #[serde(rename_all = "lowercase")]
 #[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
 #[cfg_attr(feature = "typescript", ts(export, rename_all = "lowercase"))]
@@ -128,6 +133,7 @@ pub enum BooleanOperation {
 
 /// Direction of a threshold gate — which side of the boundary is "positive".
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
 #[cfg_attr(feature = "typescript", ts(export, rename_all = "snake_case"))]
@@ -143,9 +149,13 @@ pub enum ThresholdDirection {
 /// Mask gates delegate containment to an external resolver at filter time.
 /// The source identifies which mask to load.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
 #[serde(tag = "type", rename_all = "snake_case")]
 #[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
-#[cfg_attr(feature = "typescript", ts(export, tag = "type", rename_all = "snake_case"))]
+#[cfg_attr(
+    feature = "typescript",
+    ts(export, tag = "type", rename_all = "snake_case")
+)]
 pub enum MaskSource {
     /// Quality-control mask produced by PeacoQC (or similar).
     ///
@@ -220,6 +230,7 @@ impl BooleanOperation {
 /// ```
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(tag = "type")]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
 #[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
 #[cfg_attr(feature = "typescript", ts(export, tag = "type"))]
 pub enum GateGeometry {
@@ -416,7 +427,10 @@ impl GateGeometry {
                 };
                 range.bounding_box(x_param, y_param).ok()
             }
-            GateGeometry::Threshold { value_node, direction } => {
+            GateGeometry::Threshold {
+                value_node,
+                direction,
+            } => {
                 let t = crate::threshold::ThresholdGateGeometry {
                     value_node: value_node.clone(),
                     direction: *direction,
@@ -490,7 +504,10 @@ impl GateGeometry {
                 };
                 range.calculate_center(x_param, y_param)
             }
-            GateGeometry::Threshold { value_node, direction } => {
+            GateGeometry::Threshold {
+                value_node,
+                direction,
+            } => {
                 let t = crate::threshold::ThresholdGateGeometry {
                     value_node: value_node.clone(),
                     direction: *direction,
@@ -501,11 +518,9 @@ impl GateGeometry {
                 .quadrant_geometry()
                 .ok_or_else(|| GateError::invalid_geometry("not a quadrant gate"))?
                 .dividers_center(x_param, y_param),
-            GateGeometry::Boolean { .. } | GateGeometry::Mask { .. } => {
-                Err(GateError::invalid_geometry(
-                    "Boolean/Mask gates do not have a direct center point",
-                ))
-            }
+            GateGeometry::Boolean { .. } | GateGeometry::Mask { .. } => Err(
+                GateError::invalid_geometry("Boolean/Mask gates do not have a direct center point"),
+            ),
         }
     }
 
@@ -580,7 +595,10 @@ impl GateGeometry {
                 };
                 range.contains_point(x, y, x_param, y_param)
             }
-            GateGeometry::Threshold { value_node, direction } => {
+            GateGeometry::Threshold {
+                value_node,
+                direction,
+            } => {
                 let t = crate::threshold::ThresholdGateGeometry {
                     value_node: value_node.clone(),
                     direction: *direction,
@@ -682,7 +700,10 @@ impl GateGeometry {
                     }
                 }
             }
-            GateGeometry::Threshold { value_node, direction } => {
+            GateGeometry::Threshold {
+                value_node,
+                direction,
+            } => {
                 let t = crate::threshold::ThresholdGateGeometry {
                     value_node: value_node.clone(),
                     direction: *direction,
@@ -766,7 +787,10 @@ impl GateGeometry {
                 };
                 range.is_valid(x_param, y_param)
             }
-            GateGeometry::Threshold { value_node, direction } => {
+            GateGeometry::Threshold {
+                value_node,
+                direction,
+            } => {
                 let t = crate::threshold::ThresholdGateGeometry {
                     value_node: value_node.clone(),
                     direction: *direction,
@@ -856,7 +880,10 @@ impl GateCenter for GateGeometry {
                 };
                 range.calculate_center(x_param, y_param)
             }
-            GateGeometry::Threshold { value_node, direction } => {
+            GateGeometry::Threshold {
+                value_node,
+                direction,
+            } => {
                 let t = crate::threshold::ThresholdGateGeometry {
                     value_node: value_node.clone(),
                     direction: *direction,
@@ -868,9 +895,7 @@ impl GateCenter for GateGeometry {
                 .ok_or_else(|| GateError::invalid_geometry("not a quadrant gate"))?
                 .dividers_center(x_param, y_param),
             GateGeometry::Boolean { .. } | GateGeometry::Mask { .. } => Err(
-                GateError::invalid_geometry(
-                    "Boolean/Mask gates do not have a direct center point",
-                ),
+                GateError::invalid_geometry("Boolean/Mask gates do not have a direct center point"),
             ),
         }
     }
@@ -914,7 +939,10 @@ impl GateContainment for GateGeometry {
                 };
                 range.contains_point(x, y, x_param, y_param)
             }
-            GateGeometry::Threshold { value_node, direction } => {
+            GateGeometry::Threshold {
+                value_node,
+                direction,
+            } => {
                 let t = crate::threshold::ThresholdGateGeometry {
                     value_node: value_node.clone(),
                     direction: *direction,
@@ -924,11 +952,11 @@ impl GateContainment for GateGeometry {
             GateGeometry::QuadrantGate(_) => Err(GateError::invalid_geometry(
                 "QuadrantGate has 4 sub-populations; use contains_point_corner(sub_id, ...)",
             )),
-            GateGeometry::Boolean { .. } | GateGeometry::Mask { .. } => Err(
-                GateError::invalid_geometry(
+            GateGeometry::Boolean { .. } | GateGeometry::Mask { .. } => {
+                Err(GateError::invalid_geometry(
                     "Boolean/Mask gates require external resolution to check containment",
-                ),
-            ),
+                ))
+            }
         }
     }
 }
@@ -971,7 +999,10 @@ impl GateBounds for GateGeometry {
                 };
                 range.bounding_box(x_param, y_param)
             }
-            GateGeometry::Threshold { value_node, direction } => {
+            GateGeometry::Threshold {
+                value_node,
+                direction,
+            } => {
                 let t = crate::threshold::ThresholdGateGeometry {
                     value_node: value_node.clone(),
                     direction: *direction,
@@ -982,9 +1013,7 @@ impl GateBounds for GateGeometry {
                 "QuadrantGate partitions the plane; use the corner-selective bounding box",
             )),
             GateGeometry::Boolean { .. } | GateGeometry::Mask { .. } => Err(
-                GateError::invalid_geometry(
-                    "Boolean/Mask gates do not have a direct bounding box",
-                ),
+                GateError::invalid_geometry("Boolean/Mask gates do not have a direct bounding box"),
             ),
         }
     }
@@ -1028,7 +1057,10 @@ impl GateValidation for GateGeometry {
                 };
                 range.is_valid(x_param, y_param)
             }
-            GateGeometry::Threshold { value_node, direction } => {
+            GateGeometry::Threshold {
+                value_node,
+                direction,
+            } => {
                 let t = crate::threshold::ThresholdGateGeometry {
                     value_node: value_node.clone(),
                     direction: *direction,
@@ -1133,6 +1165,7 @@ fn point_in_polygon(x: f32, y: f32, polygon: &[(f32, f32)]) -> bool {
 /// assert!(!group.applies_to("file-3"));
 /// ```
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
 #[serde(tag = "name")]
 #[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
 #[cfg_attr(feature = "typescript", ts(export, tag = "name"))]
@@ -1144,6 +1177,7 @@ pub enum GateMode {
         /// File GUID
         #[serde(with = "arc_str_serde")]
         #[cfg_attr(feature = "typescript", ts(type = "string"))]
+        #[cfg_attr(feature = "specta", specta(type = String))]
         guid: Arc<str>,
     },
     /// Gate applies to a group of files
@@ -1151,6 +1185,7 @@ pub enum GateMode {
         /// List of file GUIDs
         #[serde(with = "arc_str_vec")]
         #[cfg_attr(feature = "typescript", ts(type = "string[]"))]
+        #[cfg_attr(feature = "specta", specta(type = Vec<String>))]
         guids: Vec<Arc<str>>,
     },
 }
@@ -1185,7 +1220,9 @@ impl GateMode {
 /// [`Gate::fixup_label_position`] after load to replace sentinels with real
 /// channel names.
 #[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
 pub struct LabelPosition {
+    #[cfg_attr(feature = "specta", specta(type = std::collections::HashMap<String, f32>))]
     pub offsets: std::collections::HashMap<Arc<str>, f32>,
 }
 
@@ -1203,11 +1240,8 @@ impl Serialize for LabelPosition {
         use serde::ser::SerializeStruct;
         let mut s = serializer.serialize_struct("LabelPosition", 1)?;
         // Serialize the HashMap with `&str` keys so output is `{"channel": value, ...}`.
-        let map: std::collections::HashMap<&str, &f32> = self
-            .offsets
-            .iter()
-            .map(|(k, v)| (k.as_ref(), v))
-            .collect();
+        let map: std::collections::HashMap<&str, &f32> =
+            self.offsets.iter().map(|(k, v)| (k.as_ref(), v)).collect();
         s.serialize_field("offsets", &map)?;
         s.end()
     }
@@ -1257,14 +1291,10 @@ impl<'de> Deserialize<'de> for LabelPosition {
 /// - **NoChannel** — mask gates: parameter-agnostic, applies to all plots regardless of
 ///   axes. The gate filters events by precomputed membership, not geometric containment.
 #[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
 pub enum GateParameters {
-    TwoChannel {
-        x: Arc<str>,
-        y: Arc<str>,
-    },
-    OneChannel {
-        channel: Arc<str>,
-    },
+    TwoChannel { x: Arc<str>, y: Arc<str> },
+    OneChannel { channel: Arc<str> },
     NoChannel,
 }
 
@@ -1288,6 +1318,16 @@ impl GateParameters {
         match self {
             GateParameters::OneChannel { channel, .. } => Some(channel.as_ref()),
             GateParameters::TwoChannel { .. } | GateParameters::NoChannel => None,
+        }
+    }
+
+    /// All channel names referenced by this gate. Used to determine whether a gate's
+    /// channels are present in a spillover matrix (matrix-scoping).
+    pub fn channel_names(&self) -> Vec<&str> {
+        match self {
+            GateParameters::TwoChannel { x, y } => vec![x.as_ref(), y.as_ref()],
+            GateParameters::OneChannel { channel } => vec![channel.as_ref()],
+            GateParameters::NoChannel => vec![],
         }
     }
 }
@@ -1411,21 +1451,30 @@ pub fn gate_parameters_from_geometry_and_axes(
             .unwrap_or_else(|| plot_x.clone());
         return GateParameters::OneChannel { channel };
     }
-    GateParameters::TwoChannel { x: plot_x, y: plot_y }
+    GateParameters::TwoChannel {
+        x: plot_x,
+        y: plot_y,
+    }
 }
 
 /// Links a composite gate back to the source gates it was derived from.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(tag = "type", rename_all = "snake_case")]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
 #[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
-#[cfg_attr(feature = "typescript", ts(export, tag = "type", rename_all = "snake_case"))]
+#[cfg_attr(
+    feature = "typescript",
+    ts(export, tag = "type", rename_all = "snake_case")
+)]
 pub enum DerivedFrom {
     RangePair {
         #[serde(with = "arc_str_serde")]
         #[cfg_attr(feature = "typescript", ts(type = "string"))]
+        #[cfg_attr(feature = "specta", specta(type = String))]
         x_range_id: Arc<str>,
         #[serde(with = "arc_str_serde")]
         #[cfg_attr(feature = "typescript", ts(type = "string"))]
+        #[cfg_attr(feature = "specta", specta(type = String))]
         y_range_id: Arc<str>,
         /// When `true`, geometry updates on either source range propagate to this gate.
         link_live: bool,
@@ -1433,9 +1482,11 @@ pub enum DerivedFrom {
     ThresholdPair {
         #[serde(with = "arc_str_serde")]
         #[cfg_attr(feature = "typescript", ts(type = "string"))]
+        #[cfg_attr(feature = "specta", specta(type = String))]
         x_threshold_id: Arc<str>,
         #[serde(with = "arc_str_serde")]
         #[cfg_attr(feature = "typescript", ts(type = "string"))]
+        #[cfg_attr(feature = "specta", specta(type = String))]
         y_threshold_id: Arc<str>,
         /// When `true`, geometry updates on either source threshold propagate to this gate.
         link_live: bool,
@@ -1450,6 +1501,7 @@ pub enum DerivedFrom {
 /// and 4 sub-quadrants, each placed by 2 positions. The structure generalizes
 /// to GatingML's n-ary case, but the app constructs and renders only the 2×4 form.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
 #[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
 #[cfg_attr(feature = "typescript", ts(export))]
 pub struct QuadrantGate {
@@ -1464,15 +1516,18 @@ pub struct QuadrantGate {
 /// `values` is a `Vec` to match GatingML (a divider may carry several values for
 /// n-ary splits); the standard 2-D quadrant uses exactly one value per divider.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
 #[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
 #[cfg_attr(feature = "typescript", ts(export))]
 pub struct QuadrantDivider {
     #[serde(with = "arc_str_serde")]
     #[cfg_attr(feature = "typescript", ts(type = "string"))]
+    #[cfg_attr(feature = "specta", specta(type = String))]
     pub id: Arc<str>,
     /// GatingML `fcs-dimension` — the channel this divider bounds.
     #[serde(with = "arc_str_serde")]
     #[cfg_attr(feature = "typescript", ts(type = "string"))]
+    #[cfg_attr(feature = "specta", specta(type = String))]
     pub channel: Arc<str>,
     pub values: Vec<f32>,
 }
@@ -1483,11 +1538,13 @@ pub struct QuadrantDivider {
 /// gate name AND the old `QuadrantGroup` label record). `positions` place this
 /// corner relative to each divider.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
 #[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
 #[cfg_attr(feature = "typescript", ts(export))]
 pub struct QuadrantSub {
     #[serde(with = "arc_str_serde")]
     #[cfg_attr(feature = "typescript", ts(type = "string"))]
+    #[cfg_attr(feature = "specta", specta(type = String))]
     pub id: Arc<str>,
     pub label: String,
     pub positions: Vec<QuadrantPosition>,
@@ -1512,11 +1569,13 @@ pub struct QuadrantSub {
 /// including points exactly on a divider line. On GatingML export, `direction`
 /// collapses back into the standard location-based representation.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
 #[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
 #[cfg_attr(feature = "typescript", ts(export))]
 pub struct QuadrantPosition {
     #[serde(with = "arc_str_serde")]
     #[cfg_attr(feature = "typescript", ts(type = "string"))]
+    #[cfg_attr(feature = "specta", specta(type = String))]
     pub divider_ref: Arc<str>,
     pub location: f32,
     pub direction: ThresholdDirection,
@@ -1564,11 +1623,13 @@ pub struct QuadrantPosition {
 /// # }
 /// ```
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
 #[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
 #[cfg_attr(feature = "typescript", ts(export))]
 pub struct Gate {
     #[serde(with = "arc_str_serde")]
     #[cfg_attr(feature = "typescript", ts(type = "string"))]
+    #[cfg_attr(feature = "specta", specta(type = String))]
     pub id: Arc<str>,
     pub name: String,
     pub geometry: GateGeometry,
@@ -1578,7 +1639,9 @@ pub struct Gate {
     /// shape is given inline here rather than deriving `TS` on the enum.
     #[cfg_attr(
         feature = "typescript",
-        ts(type = "{ type: \"two_channel\", x: string, y: string } | { type: \"one_channel\", channel: string } | { type: \"no_channel\" }")
+        ts(
+            type = "{ type: \"two_channel\", x: string, y: string } | { type: \"one_channel\", channel: string } | { type: \"no_channel\" }"
+        )
     )]
     pub parameters: GateParameters,
     /// The parameter-processing state the node coordinates are expressed in.
@@ -1617,6 +1680,19 @@ pub struct Gate {
     /// deserialize (defaults false), so the TS type is a plain `boolean`, not optional.
     #[serde(default, skip_serializing_if = "is_false")]
     pub system_managed: bool,
+    /// Spillover group this gate was drawn against, if the gate's channels are fluorescent.
+    /// `None` for legacy gates, FSC/SSC/Time gates, or any gate drawn on channels absent
+    /// from all spillover matrices — those gates are unscoped and visible on all files.
+    /// When `Some(group_id)`, the gate is only geometrically valid for files whose
+    /// `FILE_TO_GROUP` maps to this group id; files from other groups see it as mismatched.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "typescript", ts(optional))]
+    pub spillover_group_id: Option<Arc<str>>,
+    /// Data context this gate belongs to. `None` keeps legacy gates unscoped.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "typescript", ts(optional, type = "string"))]
+    #[cfg_attr(feature = "specta", specta(type = Option<String>))]
+    pub data_context_id: Option<Arc<str>>,
 }
 
 impl Gate {
@@ -1657,6 +1733,8 @@ impl Gate {
             parent_id: None,
             overrides: BTreeMap::new(),
             system_managed: false,
+            spillover_group_id: None,
+            data_context_id: None,
         }
     }
 
@@ -1818,10 +1896,7 @@ impl Gate {
     /// ```
     pub fn get_node_coords(&self, node: &GateNode) -> Option<(f32, f32)> {
         let (x_param, y_param) = self.two_channel_axes()?;
-        Some((
-            node.get_coordinate(x_param)?,
-            node.get_coordinate(y_param)?,
-        ))
+        Some((node.get_coordinate(x_param)?, node.get_coordinate(y_param)?))
     }
 
     /// Clone this gate with a new ID
@@ -1860,6 +1935,8 @@ impl Gate {
             parent_id: self.parent_id.clone(),
             overrides: self.overrides.clone(),
             system_managed: self.system_managed,
+            spillover_group_id: self.spillover_group_id.clone(),
+            data_context_id: self.data_context_id.clone(),
         }
     }
 
@@ -2104,6 +2181,7 @@ pub struct GateBuilder {
     derived_from: Option<DerivedFrom>,
     parent_id: Option<Arc<str>>,
     system_managed: bool,
+    data_context_id: Option<Arc<str>>,
 }
 
 impl GateBuilder {
@@ -2125,6 +2203,7 @@ impl GateBuilder {
             derived_from: None,
             parent_id: None,
             system_managed: false,
+            data_context_id: None,
         }
     }
 
@@ -2298,6 +2377,8 @@ impl GateBuilder {
             parent_id: self.parent_id,
             overrides: BTreeMap::new(),
             system_managed: self.system_managed,
+            spillover_group_id: None,
+            data_context_id: self.data_context_id,
         })
     }
 
@@ -2310,6 +2391,12 @@ impl GateBuilder {
     /// Set the `derived_from` provenance for composite gates (Rectangle from ranges, Quadrant from thresholds).
     pub fn derived_from(mut self, source: DerivedFrom) -> Self {
         self.derived_from = Some(source);
+        self
+    }
+
+    /// Associate this gate with a data context.
+    pub fn data_context_id(mut self, id: impl Into<Arc<str>>) -> Self {
+        self.data_context_id = Some(id.into());
         self
     }
 
@@ -2384,5 +2471,48 @@ mod arc_str_hashmap {
             .into_iter()
             .map(|(k, v)| (Arc::from(k.as_str()), v))
             .collect())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Gate, GateCoordinateSpace, GateGeometry, MaskSource};
+    use std::sync::Arc;
+
+    #[test]
+    fn data_context_id_serde_roundtrip_and_legacy_default() {
+        let mut gate = Gate::new(
+            "contextual-gate",
+            "Contextual Gate",
+            GateGeometry::Mask {
+                source: MaskSource::Qc {
+                    file_guid: None,
+                    invert: false,
+                },
+            },
+            "FSC-A",
+            "SSC-A",
+            GateCoordinateSpace::Raw,
+        );
+        gate.data_context_id = Some(Arc::from("data-context-42"));
+
+        let serialized = serde_json::to_value(&gate).expect("serialize gate");
+        assert_eq!(
+            serialized
+                .get("data_context_id")
+                .and_then(serde_json::Value::as_str),
+            Some("data-context-42")
+        );
+        let restored: Gate = serde_json::from_value(serialized.clone()).expect("deserialize gate");
+        assert_eq!(restored.data_context_id.as_deref(), Some("data-context-42"));
+
+        let mut legacy = serialized;
+        legacy
+            .as_object_mut()
+            .expect("gate serializes as a JSON object")
+            .remove("data_context_id");
+        let restored_legacy: Gate =
+            serde_json::from_value(legacy).expect("deserialize legacy gate");
+        assert_eq!(restored_legacy.data_context_id, None);
     }
 }

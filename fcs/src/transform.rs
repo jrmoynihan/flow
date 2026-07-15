@@ -7,6 +7,8 @@ use std::hash::Hash;
 /// The most common transformation for fluorescence data is arcsinh (inverse hyperbolic sine),
 /// which provides a log-like scale that handles both positive and negative values.
 #[derive(Clone, Serialize, Deserialize, Debug, PartialEq)]
+
+#[cfg_attr(feature = "specta", derive(specta::Type))]
 pub enum TransformType {
     /// Linear transformation (no scaling, identity function)
     /// Used for scatter parameters (FSC, SSC) and time

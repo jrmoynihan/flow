@@ -62,7 +62,7 @@ faer-ext={ workspace=true }
 csv={ workspace=true }
 rand={ workspace=true }
 rand_distr={ workspace=true }
-plotters={ workspace=true }
+plotters={ workspace=true, optional=true }
 image={ workspace=true }
 inquire="0.9"
 shellexpand="3.1.2"

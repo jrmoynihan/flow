@@ -99,13 +99,9 @@ impl Metadata {
             } else {
                 // This is a value - parse and store the keyword-value pair
                 if !current_key.is_empty() {
-                    // Normalize key: ensure it has $ prefix (FCS spec requires it)
-                    // Store with $ prefix for consistent lookups
-                    let normalized_key: String = if current_key.starts_with('$') {
-                        current_key.clone()
-                    } else {
-                        format!("${}", current_key)
-                    };
+                    // Preserve key as-is: FCS spec reserves $ for standard keywords only.
+                    // User-defined keywords (e.g. "Tissue") must not gain a $ prefix.
+                    let normalized_key = current_key.clone();
 
                     match match_and_parse_keyword(&current_key, text) {
                         KeywordCreationResult::Int(int_keyword) => {
@@ -125,7 +121,7 @@ impl Metadata {
                             keywords.insert(normalized_key.clone(), Keyword::Mixed(mixed_keyword));
                         }
                         KeywordCreationResult::UnableToParse => {
-                            eprintln!(
+                            tracing::debug!(
                                 "Unable to parse keyword: {} with value: {}",
                                 current_key, text
                             );
@@ -147,18 +143,14 @@ impl Metadata {
             if !text.is_empty() {
                 if is_keyword {
                     // This is a keyword without a value - shouldn't happen in valid FCS files
-                    eprintln!(
+                    tracing::debug!(
                         "Warning: Keyword '{}' at end of text segment has no value \n {:?}",
                         text, header
                     );
                 } else {
                     // This is a value - store the keyword-value pair
                     if !current_key.is_empty() {
-                        let normalized_key: String = if current_key.starts_with('$') {
-                            current_key.clone()
-                        } else {
-                            format!("${}", current_key)
-                        };
+                        let normalized_key = current_key.clone();
 
                         match match_and_parse_keyword(&current_key, text) {
                             KeywordCreationResult::Int(int_keyword) => {
@@ -183,7 +175,7 @@ impl Metadata {
                                     .insert(normalized_key.clone(), Keyword::Mixed(mixed_keyword));
                             }
                             KeywordCreationResult::UnableToParse => {
-                                eprintln!(
+                                tracing::debug!(
                                     "Unable to parse keyword: {} with value: {}",
                                     current_key, text
                                 );

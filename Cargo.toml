@@ -6,13 +6,14 @@ members = [
     "flow-linalg",
     "flow-density",
     "flow-clustering",
+    "flow-pacmap",
     "plots",
     "gates",
     "peacoqc-rs",
     "peacoqc-cli",
-    "peacoqc-py",
+
     "tru-ols",
-    "tru-ols-cli",
+
 ]
 resolver = "3"
 
@@ -33,10 +34,15 @@ publish-workspace = "cargo publish --workspace"
 [workspace.dependencies]
 # Polars for columnar data storage
 # Note: Using default-features = false to reduce bloat, but keeping dtype-full as it's needed
-polars = { version = "0.53.0", default-features = false, features = [
+polars = { version = "0.54.4", default-features = false, features = [
     "lazy",
     "ndarray",
-    "dtype-full"
+    "dtype-full",
+    "ipc",
+    "ipc_streaming",
+    "parquet",
+    "strings",
+    "temporal"
 ] }
 # Matrix manipulation (ndarray 0.16 for linfa/faer-ext compatibility)
 ndarray = { version = "0.16.1", features = [
@@ -77,6 +83,7 @@ bytemuck = { version = "1.24", features = ["derive"] } # Bytemuck for zero-copy 
 rand = "0.10.0"
 rand_distr = "0.6.0"
 ts-rs = "12.0.1"
+specta = { version = "=2.0.0-rc.25", features = ["derive"] }
 
 # CLI (indicatif used in peacoqc-cli, tru-ols-cli)
 clap = { version = "4.5.60", features = ["derive", "cargo"] }

@@ -282,7 +282,7 @@ pub fn parse_parameter_keywords(key: &str, value: &str) -> Option<KeywordCreatio
                 .unwrap_or(KeywordCreationResult::UnableToParse),
         ),
         _ => {
-            eprintln!(
+            tracing::debug!(
                 "Unknown parameter keyword suffix: '{}' for key: '{}' with value: '{}'",
                 suffix, key, value
             );

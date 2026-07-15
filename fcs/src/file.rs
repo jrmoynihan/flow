@@ -429,8 +429,7 @@ impl Fcs {
 
                     match bytemuck::try_cast_slice::<u8, f32>(data_bytes) {
                         Ok(f32_slice) => {
-                            #[cfg(debug_assertions)]
-                            eprintln!(
+                            tracing::debug!(
                                 "✓ Fast path (bytemuck zero-copy, sequential): {} bytes, {} f32s",
                                 data_bytes.len(),
                                 f32_slice.len()
@@ -447,8 +446,7 @@ impl Fcs {
                             }
                         }
                         Err(_) => {
-                            #[cfg(debug_assertions)]
-                            eprintln!(
+                            tracing::debug!(
                                 "⚠ Fast path (bytemuck fallback, sequential): unaligned data ({} bytes)",
                                 data_bytes.len()
                             );
@@ -552,8 +550,7 @@ impl Fcs {
             number_of_parameters
         );
 
-        #[cfg(debug_assertions)]
-        eprintln!(
+        tracing::debug!(
             "✓ Created DataFrame: {} events × {} parameters",
             df.height(),
             df.width()
@@ -1248,7 +1245,7 @@ impl Fcs {
                 col(channel_name).mean().alias("mean"),
                 col(channel_name).std(1).alias("std"),
             ])
-            .collect_with_engine(Engine::Streaming)?;
+            .collect_with_engine(Engine::Streaming)?.unwrap_single();
         let min = stats
             .column("min")
             .map_err(|e| anyhow!("Column 'min' not found in statistics: {}", e))?
@@ -1767,7 +1764,7 @@ impl Fcs {
         };
 
         if is_identity {
-            eprintln!("🚀 Identity matrix detected - bypassing compensation");
+            tracing::debug!("🚀 Identity matrix detected - bypassing compensation");
             // Just return original data
             let mut result = HashMap::new();
             for &channel in channels_needed {
@@ -1790,7 +1787,7 @@ impl Fcs {
         let sparsity = 1.0 - (non_zero_count as f64 / total_elements as f64);
         let is_sparse = sparsity > 0.8;
 
-        eprintln!(
+        tracing::debug!(
             "📊 Compensation matrix: {:.1}% sparse, {} non-zero coefficients",
             sparsity * 100.0,
             non_zero_count
@@ -1839,7 +1836,7 @@ impl Fcs {
         let mut involved_vec: Vec<usize> = involved_indices.into_iter().collect();
         involved_vec.sort_unstable();
 
-        eprintln!(
+        tracing::debug!(
             "🎯 Lazy compensation: loading {} channels (vs {} total)",
             involved_vec.len(),
             matrix_channel_names.len()
@@ -1889,7 +1886,7 @@ impl Fcs {
             }
         }
 
-        eprintln!("🚀 Lazy compensation completed");
+        tracing::debug!("🚀 Lazy compensation completed");
         Ok(result)
     }
 

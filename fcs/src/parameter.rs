@@ -32,6 +32,8 @@ pub type ParameterMap = FxHashMap<ChannelName, Parameter>;
 /// name. An unmixed-stored file with no further compensation is `Raw` from the
 /// filter's perspective; applying compensation on top is `Compensated`.
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, Hash)]
+
+#[cfg_attr(feature = "specta", derive(specta::Type))]
 #[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
 #[cfg_attr(feature = "typescript", ts(export))]
 pub enum ParameterProcessing {
@@ -52,6 +54,8 @@ impl Default for ParameterProcessing {
 /// This enum helps organize parameters by their processing state and type,
 /// making it easier to present options to users in plotting or analysis interfaces.
 #[derive(Serialize, Debug, Clone, PartialEq, Eq)]
+
+#[cfg_attr(feature = "specta", derive(specta::Type))]
 pub enum ParameterCategory {
     /// Raw parameters (FSC, SSC, Time, custom params)
     Raw,
@@ -63,6 +67,8 @@ pub enum ParameterCategory {
     Transformed,
     /// Both compensated and transformed
     CompensatedTransformed,
+    /// Dimensionality-reduction embedding axes (PaCMAP, t-SNE, UMAP, …)
+    Embedding,
 }
 
 /// A parameter option for plotting that includes display information
@@ -70,6 +76,8 @@ pub enum ParameterCategory {
 /// This struct combines a `Parameter` with UI-specific metadata like display labels
 /// and categories, making it easy to present parameter options to users in plotting interfaces.
 #[derive(Serialize, Debug, Clone)]
+
+#[cfg_attr(feature = "specta", derive(specta::Type))]
 pub struct ParameterOption {
     /// Unique identifier for this option (e.g., "comp_trans::UV379-A")
     pub id: String,
@@ -82,9 +90,12 @@ pub struct ParameterOption {
 }
 
 #[derive(Serialize, Debug, Clone, Builder, Hash)]
+
+#[cfg_attr(feature = "specta", derive(specta::Type))]
 #[builder(setter(into))]
 pub struct Parameter {
     /// The offset of the parameter in the FCS file's event data (1-based index)
+    #[cfg_attr(feature = "specta", specta(type = u32))]
     pub parameter_number: usize,
     /// The name of the channel ($PnN keyword)
     pub channel_name: ChannelName,
@@ -102,6 +113,7 @@ pub struct Parameter {
     /// Excitation wavelength in nanometers (from $PnL keyword, if available)
     #[builder(default)]
     // #[serde(skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "specta", specta(type = Option<u32>))]
     pub excitation_wavelength: Option<usize>,
 }
 impl Parameter {

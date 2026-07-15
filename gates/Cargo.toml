@@ -35,12 +35,14 @@ ndarray              ={ workspace = true }
 # Optional: TypeScript binding generation (mirrors flow-fcs's `typescript` feature).
 # Enabled only when generating bindings; off for normal builds + crates.io consumers.
 ts-rs               ={ workspace=true, optional=true }
+specta              ={ workspace=true, optional=true }
 
 [features]
 default=[]
 # Derive ts_rs::TS on the public gate types so the app can generate TS bindings
 # (run via a gated test). See tests/export_bindings.rs.
 typescript=["dep:ts-rs"]
+specta=["dep:specta"]
 
 [dev-dependencies]
 criterion = { workspace = true }
