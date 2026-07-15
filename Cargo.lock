@@ -6291,7 +6291,7 @@ dependencies = [
 
 [[package]]
 name = "peacoqc-cli"
-version = "0.2.4"
+version = "0.3.0"
 dependencies = [
  "anyhow",
  "clap",
@@ -6322,7 +6322,7 @@ dependencies = [
 
 [[package]]
 name = "peacoqc-rs"
-version = "0.2.4"
+version = "0.3.0"
 dependencies = [
  "anyhow",
  "approx 0.5.1",
@@ -6331,6 +6331,7 @@ dependencies = [
  "criterion",
  "csaps",
  "cubecl",
+ "derive_builder",
  "flow-fcs",
  "image 0.25.9",
  "ndarray 0.16.1",
@@ -9653,7 +9654,7 @@ dependencies = [
 
 [[package]]
 name = "tru-ols"
-version = "0.1.1"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "clap",

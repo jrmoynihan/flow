@@ -1,6 +1,6 @@
 [package]
 name="tru-ols"
-version="0.1.1"
+version= "0.2.0"
 edition.workspace=true
 authors.workspace=true
 repository="https://github.com/jrmoynihan/flow/tru-ols-cli"
@@ -44,7 +44,7 @@ flow-plots={ path="../plots", version="^0.3.1", default-features=false }
 flow-density={ path="../flow-density", version= "^0.1.1" }
 flow-clustering={ path="../flow-clustering", version= "^0.1.1" }
 flow-gates={ path="../gates", version="^0.4.0" }
-peacoqc-rs={ path="../peacoqc-rs", version="^0.2.4", features=[
+peacoqc-rs={ path="../peacoqc-rs", version= "^0.3.0", features=[
     "flow-fcs",
 ] }
 polars={ workspace=true }
