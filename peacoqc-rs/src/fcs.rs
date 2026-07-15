@@ -47,11 +47,11 @@ impl PeacoQCData for SimpleFcs {
 
         // Handle both f32 and f64 columns (FCS files typically use f32)
         let values = if let Ok(f64_vals) = series.f64() {
-            f64_vals.into_iter().filter_map(|x| x).collect()
+            f64_vals.iter().filter_map(|x| x).collect()
         } else if let Ok(f32_vals) = series.f32() {
             // Cast f32 to f64
             f32_vals
-                .into_iter()
+                .iter()
                 .filter_map(|x| x.map(|v| v as f64))
                 .collect()
         } else {

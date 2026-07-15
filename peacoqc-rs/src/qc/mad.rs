@@ -10,7 +10,7 @@ use crate::error::{PeacoQCError, Result};
 use crate::qc::peaks::{ChannelPeakFrame, PeakInfo};
 use crate::stats::median_mad::{MAD_SCALE_FACTOR, median_mad_scaled};
 use crate::stats::spline::smooth_spline;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use tracing::{debug, warn};
 
 /// Configuration for MAD outlier detection
@@ -290,7 +290,7 @@ pub fn mad_outlier_method(
     // Process each cluster trajectory
     // R: to_remove_bins_df <- apply(peak_frame, 2, MADOutliers, MAD)
     let mut outlier_bins_per_cluster: Vec<Vec<bool>> = Vec::new();
-    let mut contribution = HashMap::new();
+    let mut channel_outlier_bins: HashMap<String, HashSet<usize>> = HashMap::new();
 
     for (channel, _cluster_id, trajectory) in &cluster_trajectories {
         // Filter to bins that passed IT (matching R: peak_frame <- peaks[outlier_bins, , drop = FALSE])
@@ -350,16 +350,25 @@ pub fn mad_outlier_method(
             }
         }
 
-        // Track contribution per channel (sum across all clusters)
-        let n_outliers: usize = full_outliers.iter().filter(|&&x| x).count();
+        // Track unique outlier bin indices per channel (union across clusters)
+        let bin_set = channel_outlier_bins.entry(channel.clone()).or_default();
+        for (bin_idx, &is_outlier) in full_outliers.iter().enumerate() {
+            if is_outlier {
+                bin_set.insert(bin_idx);
+            }
+        }
 
-        outlier_bins_per_cluster.push(full_outliers.clone());
-        let contrib_pct = (n_outliers as f64 / n_bins as f64) * 100.0;
-        contribution
-            .entry(channel.clone())
-            .and_modify(|e| *e += contrib_pct)
-            .or_insert(contrib_pct);
+        outlier_bins_per_cluster.push(full_outliers);
     }
+
+    // Compute per-channel contribution from unique outlier bins
+    let contribution: HashMap<String, f64> = channel_outlier_bins
+        .iter()
+        .map(|(channel, bins)| {
+            let pct = (bins.len() as f64 / n_bins as f64) * 100.0;
+            (channel.clone(), pct)
+        })
+        .collect();
 
     // Combine: a bin is an outlier if ANY cluster marks it
     // R: outlier_bins_MAD <- apply(to_remove_bins_df, 1, any)

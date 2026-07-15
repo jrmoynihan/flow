@@ -7,21 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## 0.3.0 (2026-07-14)
+
 ### Added
 
-- **Builder Pattern Support**: Added `derive_builder` to `PeacoQCConfig` and `PeakDetectionConfig` for ergonomic configuration
-- **R Compatibility Tuning**: Added three new configuration parameters for fine-tuning peak detection to match R results:
-  - `kde_bandwidth_adjust`: Scale KDE bandwidth (default: 1.0)
-  - `kde_grid_points`: Configure KDE grid resolution (default: 512)
-  - `cluster_distance_threshold`: Set max distance for peak-to-cluster assignment (default: None)
-- All new parameters default to current behavior (100% backward compatible)
-- Both builder pattern and struct literal instantiation are supported
-- **Removal reason visualization**: QC plots can now show why regions were removed by color-coding:
-  - `PeacoQCResult::removal_reason_per_bin` (optional) exposes per-bin reason: Isolation Tree, MAD, or Consecutive.
-  - Time and channel plots draw shaded regions and scatter points by reason when this data is present (orange = IT, purple = MAD, amber = Consecutive by default).
-  - `QCPlotConfig`: optional `unstable_color_it`, `unstable_color_mad`, `unstable_color_consecutive` for custom colors; fallback to `unstable_color` / `bad_color` when not set.
-- **Legend legibility**: Legend row spacing and text width increased so multiple entries (e.g. "Removed (Isolation Tree)", "Removed (MAD)", "Removed (Consecutive)", Median, Spline, MAD ±6) no longer overlap.
-- **`RemovalReason`** enum and re-export for use in custom tooling or plots.
+- **WebGPU / overlay IPC helpers** for consumers that render QC overlays without plotters:
+  - Persist `PeacoQCResult::removal_reason_per_bin` in peaks JSON (no longer serde-skipped).
+  - Public `regions_by_reason`, `build_channel_trend_series`, `build_time_overview_series`, and `ChannelTrendSeries`.
+- **Progress callbacks**: `peacoqc_with_progress`, `PeacoQCProgressCallback`, and `PeacoQCProgressEvent` for UI / workflow progress.
+- **Builder Pattern Support**: `derive_builder` on `PeacoQCConfig` and `PeakDetectionConfig` for ergonomic configuration.
+- **R Compatibility Tuning**: new peak-detection knobs (defaults preserve prior behavior):
+  - `kde_bandwidth_adjust` (default: 1.0)
+  - `kde_grid_points` (default: 512)
+  - `cluster_distance_threshold` (default: None)
+- **Removal reason visualization**: QC plots color-code why regions were removed:
+  - `PeacoQCResult::removal_reason_per_bin` exposes per-bin reason: Isolation Tree, MAD, or Consecutive.
+  - Time/channel plots shade and scatter by reason when present (orange = IT, purple = MAD, amber = Consecutive by default).
+  - `QCPlotConfig`: optional `unstable_color_it`, `unstable_color_mad`, `unstable_color_consecutive`; falls back to `unstable_color` / `bad_color`.
+- **Legend legibility**: wider legend rows so multi-reason entries no longer overlap.
+- **`RemovalReason`** enum (and re-export) for custom tooling or plots.
+- **`mad_contribution`** on `PeacoQCResult` (per-channel MAD contribution percentages).
+
+### Changed
+
+- Depend on `flow-fcs` `^0.4.0` (optional `flow-fcs` feature).
+- MAD per-channel contribution uses unique outlier bins (union across clusters) instead of summing cluster percentages.
+
+### Fixed
+
+- Polars series iteration in `SimpleFcs` (`iter()` instead of removed `into_iter()`).
 
 ## 0.2.4 (2026-02-27)
 
