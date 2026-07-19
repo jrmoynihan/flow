@@ -1,6 +1,6 @@
 [package]
 name="peacoqc-rs"
-version= "0.3.0"
+version= "0.3.1"
 edition.workspace=true
 authors.workspace=true
 license.workspace=true
@@ -34,8 +34,7 @@ serde_json.workspace=true
 tracing.workspace   =true
 derive_builder      ={ workspace = true } # Builder pattern for config structs
 realfft             ="3.5.0" # FFT-based KDE for performance
-csaps               ="0.3" # Cubic smoothing splines (matches R's smooth.spline)
-ndarray             ={ workspace = true } # Required by csaps for array types
+faer                ={ workspace = true } # Cholesky for R-compatible smooth.spline
 burn                ={ version = "0.20", optional = true, features = ["wgpu"] }
 cubecl              ={ version = "0.9", optional = true }
 bytemuck            ={ workspace = true, optional = true }

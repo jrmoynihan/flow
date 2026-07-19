@@ -121,7 +121,7 @@ fn test_smooth_spline_flow_cytometry_like() {
         };
 
         // Add noise (simulating measurement noise)
-        let noise = ((i * 17) % 13 - 6) as f64 * 0.05;
+        let noise = (((i * 17) % 13) as i32 - 6) as f64 * 0.05;
         y.push(base + noise);
     }
 
@@ -369,20 +369,11 @@ cat(paste(result$y, collapse=","))
         );
     }
 
-    // Warn if differences are large
-    if max_diff > 0.1 {
-        eprintln!(
-            "\nWARNING: Large differences detected! Max diff = {:.6}",
-            max_diff
-        );
-    } else if max_diff > 0.01 {
-        eprintln!(
-            "\nNOTE: Moderate differences detected. Max diff = {:.6}",
-            max_diff
-        );
-    } else {
-        println!("\n✓ Differences are small. Implementation matches R well.");
-    }
+    assert!(
+        max_diff < 1e-3,
+        "Rust smooth_spline must match R within 1e-3; max_diff={max_diff:.6}"
+    );
+    println!("\n✓ Differences are small. Implementation matches R well.");
 }
 
 fn variance(data: &[f64]) -> f64 {

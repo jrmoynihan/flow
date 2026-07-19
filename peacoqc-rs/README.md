@@ -22,14 +22,14 @@ Add this to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-peacoqc-rs = { path = "../peacoqc-rs", version = "0.3.0", features = ["flow-fcs"] }
+peacoqc-rs = { path = "../peacoqc-rs", version = "0.3.1", features = ["flow-fcs"] }
 ```
 
-Or from crates.io (when published):
+Or from crates.io:
 
 ```toml
 [dependencies]
-peacoqc-rs = { version = "0.3.0", features = ["flow-fcs"] }
+peacoqc-rs = { version = "0.3.1", features = ["flow-fcs"] }
 ```
 
 ### Feature Flags
@@ -435,7 +435,7 @@ This Rust version provides:
 
 ## R Compatibility & Known Differences
 
-All default configuration parameters match the R package exactly (MAD=6, IT_limit=0.6, consecutive_bins=5, etc.). However, numerical results may differ slightly (typically 0.9–6.85%) due to implementation differences in algorithms that don't have a single canonical specification.
+All default configuration parameters match the R package exactly (MAD=6, IT_limit=0.6, consecutive_bins=5, etc.). After the 0.3.1 `smooth.spline` port, end-to-end removal rates are typically within ~1 pp of R (D10 Well_013 ~0.5 pp; multi-well mean |Δ| ~0.9 pp). Larger historical gaps (up to ~6–7 pp) were dominated by the old spline approximation; remaining residual is mainly KDE / peak-trajectory differences.
 
 ### Sources of Differences (in Order of Impact)
 
@@ -446,11 +446,9 @@ All default configuration parameters match the R package exactly (MAD=6, IT_limi
 - **No config knob available**: KDE uses Silverman's rule of thumb (same as R); differences are algorithmic, not parametric
 
 #### 2. **Spline Smoothing in MAD Detection**
-- **What differs**: R's `smooth.spline()` vs. Rust's Gaussian kernel smoothing approximation
-- **Impact**: Affects MAD threshold calculation and detection sensitivity
-- **Typical difference**: <2% of events removed
+- **Implementation**: Rust ports R's `stats::smooth.spline` (B-spline ridge, `.nknots.smspl` thinning, `spar→λ` via interior trace ratio). Golden tests vs R keep max\|diff\| ≲ 1e-4 at `spar=0.5`.
+- **Impact**: Remaining MAD differences vs R are typically from upstream peak trajectories (KDE), not the spline itself.
 - **Available config**: `MADConfig::smooth_param` (default: 0.5, matching R's `spar=0.5`)
-- **If you see large MAD differences**: Try adjusting `smooth_param` (lower = less smoothing, higher = more smoothing)
 
 #### 3. **Peak Clustering Logic**
 - **What differs**: When multiple peaks are detected, clustering algorithm may assign peaks to clusters slightly differently

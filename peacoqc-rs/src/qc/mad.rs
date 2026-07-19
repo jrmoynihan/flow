@@ -3,8 +3,8 @@
 //! This module implements the MAD-based outlier detection from R's PeacoQC package.
 //! Key feature: applies smoothing before MAD calculation to reduce sensitivity to local noise.
 //!
-//! R's smooth.spline is approximated using kernel smoothing (Gaussian kernel) which
-//! provides similar noise reduction characteristics.
+//! Peak trajectories are smoothed with an R-compatible `smooth.spline(spar=…)` port
+//! (`crate::stats::spline`) before MAD thresholds are applied.
 
 use crate::error::{PeacoQCError, Result};
 use crate::qc::peaks::{ChannelPeakFrame, PeakInfo};
@@ -23,9 +23,7 @@ pub struct MADConfig {
     pub mad_threshold: f64,
 
     /// Smoothing parameter (default: 0.5)
-    /// Higher values = more smoothing. Matches R's smooth.spline spar parameter.
-    /// The smoothing is implemented using a Gaussian kernel with bandwidth
-    /// proportional to this parameter.
+    /// Higher values = more smoothing. Matches R's `smooth.spline` `spar` parameter.
     pub smooth_param: f64,
 }
 
@@ -139,7 +137,7 @@ fn mad_outliers_single_channel(
         return Ok(vec![false; peak_values.len()]);
     }
 
-    // 1. Apply smoothing (approximates R's smooth.spline)
+    // 1. Apply smoothing (R-compatible smooth.spline)
     let smoothed = smooth_peak_trajectory(peak_values, smooth_param);
 
     // 2. Calculate median and MAD on smoothed values (with R's scale factor)

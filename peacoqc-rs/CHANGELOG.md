@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## 0.3.1 (2026-07-19)
+
+### Fixed
+
+- **R `smooth.spline` parity** (`fast-flow-12w`): replace `csaps` + naive `spar→λ` mapping with a B-spline ridge regression that matches R's knot thinning (`.nknots.smspl`), interior-only trace ratio, and `λ = r · 16^(6·spar−2)`. Dependency swap: `csaps`/`ndarray` → `faer` (Cholesky). Golden tests vs R for n∈{30,100,520}; live R comparison max\|diff\| ≈ 1e-4 (was ≈ 5e-2). End-to-end PeacoQC: D10 Well_013 within ~0.5 pp of R; multi-well mean |Δ| ~0.9 pp.
+
 ## 0.3.0 (2026-07-14)
 
 ### Added
