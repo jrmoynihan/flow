@@ -16,7 +16,7 @@ keywords=[
 categories=["science", "visualization"]
 
 [dependencies]
-flow-fcs = { path = "../fcs", version = "^0.4.0" }
+flow-fcs = { path = "../fcs", version = "^0.4.1" }
 # Plotters backend for density; omit default "raster" so dependents (e.g. tru-ols-cli) get plotters
 flow-plots          ={ path="../plots", version= "^0.3.1", default-features=false }
 flow-density    = { path = "../flow-density",    version = "^0.1.1" }

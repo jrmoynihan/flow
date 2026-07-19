@@ -5,7 +5,47 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.4.1 (2026-07-19)
+
+### New Features
+
+ - <csr-id-cf0df0a44cf8ea82aab571f4bfe3684d99aaf213/> specta derives, matrix-context gate fields, Polars 0.54
+   Restore the pre-peacoqc WIP so path consumers (fast-flow) get optional
+   `specta` features, Embedding parameter category, gate spillover/data-context
+   ids, and a Polars 0.54 workspace pin compatible with chrono 0.4.42.
+
+### Changed
+
+- Depend on workspace `polars` `0.54.4` so crates.io consumers (notably `peacoqc-rs` + `plotters`) resolve without the Polars 0.53 / `chrono<=0.4.41` conflict.
+
+### Commit Statistics
+
+<csr-read-only-do-not-edit/>
+
+ - 5 commits contributed to the release over the course of 69 calendar days.
+ - 69 days passed between releases.
+ - 1 commit was understood as [conventional](https://www.conventionalcommits.org).
+ - 0 issues like '(#ID)' were seen in commit messages
+
+### Commit Details
+
+<csr-read-only-do-not-edit/>
+
+<details><summary>view details</summary>
+
+ * **Uncategorized**
+    - Specta derives, matrix-context gate fields, Polars 0.54 ([`cf0df0a`](https://github.com/jrmoynihan/flow/commit/cf0df0a44cf8ea82aab571f4bfe3684d99aaf213))
+    - Release flow-fcs-compress v0.1.2 ([`0eb992c`](https://github.com/jrmoynihan/flow/commit/0eb992c3d8e97e305a0a957d0a8bbbecb6e56467))
+    - Release flow-linalg v0.1.1, flow-density v0.1.1, flow-clustering v0.1.1, flow-fcs-compress v0.1.1 ([`966d22a`](https://github.com/jrmoynihan/flow/commit/966d22ae4fbdd6114dc3862d45648fce7ebf53cc))
+    - Merge branch 'feat/flow-fcs-compress' ([`ef239b2`](https://github.com/jrmoynihan/flow/commit/ef239b24dbacfabc1e68dfa5f4dc8baa49f9704a))
+    - Merge pull request #20 from jrmoynihan/feat/flow-fcs-compress ([`f953bc5`](https://github.com/jrmoynihan/flow/commit/f953bc5df8f6978e3fe511538cb2943730a35eff))
+</details>
+
 ## 0.4.0 (2026-05-11)
+
+<csr-id-74956f94c544d1fa83f6fffbb18e2d4f5e6072ff/>
+<csr-id-dd4dcbc9dd999b59155db42b0ad0db52712231bd/>
+<csr-id-006ba79325f7ea81d54af94224e81d3862cdbdb2/>
 
 ### Chore
 
@@ -25,52 +65,52 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
    flow-fcs-compress (new crate, codec library + container adapters):
    - ColumnCodec trait with chunked encode/decode and zero-copy semantics
    - Mode A lossless f32: byte-stream-split + zstd (default), pco backend
-     (optional, behind `pco-backend` feature)
+   (optional, behind `pco-backend` feature)
    - Mode B lossless within ADC bit depth: bit-reservoir bitpack with
-     per-chunk signed offset, ~3.5x decode speedup vs naive bit-extract
+   per-chunk signed offset, ~3.5x decode speedup vs naive bit-extract
    - Mode C lossy log-quantization: arcsinh transform + fixed-point quantize
-     with sinh LUT for bits <= 14 (~4x decode speedup at small widths)
+   with sinh LUT for bits <= 14 (~4x decode speedup at small widths)
    - Auto codec picker: never selects a lossy codec without explicit opt-in
    - lz4_flex baseline (optional, behind `lz4-baseline` feature)
    - .fcz native container with mmap + rayon parallel decode
    - Inline FCS DATA-segment payload format (codec-payload bytes intended
-     to live inside an FCS file with `$COMPRESSION = FCZ1` keyword)
+   to live inside an FCS file with `$COMPRESSION = FCZ1` keyword)
    - New EncodedChunk API splits parallel encode (`encode_chunk_payload`,
-     &self) from sequential append (`append_encoded_chunk`, &mut self)
+   &self) from sequential append (`append_encoded_chunk`, &mut self)
    
    flow-fcs-bench (new bin crate):
    - synth: per-codec/per-channel CSV table on synthetic channels
    - file: per-codec table on real .fcs files, with auto-picker validation
    - file-full / synth-full: whole-dataset roundtrip with both serial and
-     rayon-parallel encode and decode throughput
+   rayon-parallel encode and decode throughput
    
    flow-fcs (existing crate, gains optional `compress` and `parquet-sidecar`
    features):
    - Fcs::write_fcz / Fcs::events_from_fcz round-trip via .fcz container
    - Fcs::write_inline_fcs / Fcs::events_from_inline_fcs (FCS-inline pilot
-     with `$COMPRESSION` extension keyword)
+   with `$COMPRESSION` extension keyword)
    - Fcs::write_parquet / Fcs::events_from_parquet (Parquet sidecar Tier 1)
    - Expose write::serialize_metadata, write::build_header,
-     write::estimate_text_segment_size as pub(crate) helpers for the
-     inline-FCS writer
+   write::estimate_text_segment_size as pub(crate) helpers for the
+   inline-FCS writer
    
    ISAC proposal (flow-fcs-compress/docs/isac-proposal.md):
    - Verified against FCS 3.2 spec (Spidlen 2021): $PnB unambiguous
-     storage width per S3.3.38; $PnR for F/D types is the soft hint
-     per S3.3.51; row-major DATA layout mandated per S3.4
+   storage width per S3.3.38; $PnR for F/D types is the soft hint
+   per S3.3.51; row-major DATA layout mandated per S3.4
    - New keywords proposed: $LAYOUT (column-major option), $COMPRESSION,
-     $PnCOMPRESSION, $COMPRESSIONPARAMS, $PnADCBITS, $PnLAYOUT,
-     $CHECKSUM, $CHUNKINDEX
+   $PnCOMPRESSION, $COMPRESSIONPARAMS, $PnADCBITS, $PnLAYOUT,
+   $CHECKSUM, $CHUNKINDEX
    - Sections: cache-friendliness rationale (cite ithare.com cycle
-     costs), why FCS is row-major (acquisition FIFO/DMA),
-     tradeoffs vs alternatives (status quo, file-level gzip, Parquet
-     migration, vendor variants), reviewer critiques and responses,
-     performance metrics (M1 Max 10-core, single + multi-threaded
-     encode + decode at 80 MB / 400 MB / 1024 MB), FlowRepository
-     impact, FCS 4.0 / ACS status (no FCS 4.0 in active development;
-     the 2007 working draft was renamed to ACS)
+   costs), why FCS is row-major (acquisition FIFO/DMA),
+   tradeoffs vs alternatives (status quo, file-level gzip, Parquet
+   migration, vendor variants), reviewer critiques and responses,
+   performance metrics (M1 Max 10-core, single + multi-threaded
+   encode + decode at 80 MB / 400 MB / 1024 MB), FlowRepository
+   impact, FCS 4.0 / ACS status (no FCS 4.0 in active development;
+   the 2007 working draft was renamed to ACS)
    - Scope explicitly excludes HEADER (58 fixed bytes) and TEXT
-     (<0.01% of large files, bootstraps DATA offsets)
+   (<0.01% of large files, bootstraps DATA offsets)
 
 ### Bug Fixes
 
@@ -88,7 +128,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 <csr-read-only-do-not-edit/>
 
- - 7 commits contributed to the release over the course of 53 calendar days.
+ - 8 commits contributed to the release over the course of 53 calendar days.
  - 7 commits were understood as [conventional](https://www.conventionalcommits.org).
  - 0 issues like '(#ID)' were seen in commit messages
 
@@ -99,6 +139,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 <details><summary>view details</summary>
 
  * **Uncategorized**
+    - Release flow-linalg v0.1.0, flow-density v0.1.0, flow-clustering v0.1.0, flow-fcs-compress v0.1.0, flow-fcs v0.4.0 ([`e8c908e`](https://github.com/jrmoynihan/flow/commit/e8c908ef92fb68b8e2d01d3c1e8d6a294c8c6bda))
     - Remove debug eprintln from arcsinh inverse_transform ([`dd4dcbc`](https://github.com/jrmoynihan/flow/commit/dd4dcbc9dd999b59155db42b0ad0db52712231bd))
     - Bump flow-fcs to 0.4.0, add publish metadata to new crates ([`74956f9`](https://github.com/jrmoynihan/flow/commit/74956f94c544d1fa83f6fffbb18e2d4f5e6072ff))
     - Pass-through non-matrix channels, hard-error on missing matrix channel ([`bc1223f`](https://github.com/jrmoynihan/flow/commit/bc1223f9f76fbf073d531945991b93f613fe84cc))
