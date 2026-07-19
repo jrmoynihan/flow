@@ -5,13 +5,36 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## Unreleased
-
 ## 0.3.1 (2026-07-19)
 
 ### Fixed
 
 - **R `smooth.spline` parity** (`fast-flow-12w`): replace `csaps` + naive `spar→λ` mapping with a B-spline ridge regression that matches R's knot thinning (`.nknots.smspl`), interior-only trace ratio, and `λ = r · 16^(6·spar−2)`. Dependency swap: `csaps`/`ndarray` → `faer` (Cholesky). Golden tests vs R for n∈{30,100,520}; live R comparison max\|diff\| ≈ 1e-4 (was ≈ 5e-2). End-to-end PeacoQC: D10 Well_013 within ~0.5 pp of R; multi-well mean |Δ| ~0.9 pp.
+
+### Bug Fixes
+
+ - <csr-id-576c416c455e0d820fa5fb2748da56df88a746e6/> R-compatible smooth.spline for MAD parity
+   Replace csaps with a B-spline ridge port matching R stats::smooth.spline
+   (.nknots.smspl, interior trace ratio) so MAD removal rates align with R.
+
+### Commit Statistics
+
+<csr-read-only-do-not-edit/>
+
+ - 1 commit contributed to the release.
+ - 4 days passed between releases.
+ - 1 commit was understood as [conventional](https://www.conventionalcommits.org).
+ - 0 issues like '(#ID)' were seen in commit messages
+
+### Commit Details
+
+<csr-read-only-do-not-edit/>
+
+<details><summary>view details</summary>
+
+ * **Uncategorized**
+    - R-compatible smooth.spline for MAD parity ([`576c416`](https://github.com/jrmoynihan/flow/commit/576c416c455e0d820fa5fb2748da56df88a746e6))
+</details>
 
 ## 0.3.0 (2026-07-14)
 
@@ -43,6 +66,119 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Polars series iteration in `SimpleFcs` (`iter()` instead of removed `into_iter()`).
 
+### Refactor
+
+ - <csr-id-f179bb3fb82f79a0f64667577b7ebd5340ba479c/> migrate to structured tracing and improve GPU diagnostics
+   Replaces all eprintln! debug output with tracing::debug! for
+   production-ready structured logging across QC modules (mad, debug,
+   export, plots). Enhances trajectory and bin-level diagnostics.
+   
+   Improves GPU batch operation error handling and context lifecycle.
+   Expands regression test coverage and adds synthetic drift test.
+   CLI: refactored argument parsing and improved output formatting.
+   Python bindings: updated for API changes.
+
+### Bug Fixes
+
+ - <csr-id-b1517bc64304844ad4eb18ec3ae4cc60a4a4c5cc/> read $PnR as integer keyword and drop saturated events
+   Two bugs in margin removal conspired to let saturated events survive on
+   spectral cytometer data clipped at $PnR (e.g. 4.2e6):
+   
+   1. `get_channel_range` looked up `$PnR` via `get_float_keyword`, but $PnR
+      is stored as `IntegerKeyword::PnR`, so the call always returned `None`
+      and the margin code fell back to `data_max.max(262144)` — effectively
+      `data_max`, yielding no upper-margin removal.
+   2. The upper-margin comparison used `v > threshold`. When `data_max ==
+      max_range`, events exactly at the saturation ceiling slip through. R's
+      original PeacoQC has the same asymmetry but happened to work because
+      some cytometers store saturation slightly above the ceiling.
+   
+   Switch to `get_parameter_numeric_metadata(.., "R")` + `IntegerKeyword::PnR`
+   match, and use `>=` for the upper bound. Existing test still passes
+   (262144.0 at max_range == 262144.0 is now removed inclusively).
+
+### New Features
+
+ - <csr-id-21be96453d54bd68854e12694204ad722947da29/> persist removal_reason_per_bin for overlay IPC
+   Serialize per-bin removal reasons in peaks JSON, expose regions_by_reason
+   and build_channel_trend_series for WebGPU overlay consumers.
+ - <csr-id-6f4cf41fe6ac01608fcf5fd6ee36d975b250877e/> add KDE tuning parameters with builder pattern
+   - Add derive_builder dependency for ergonomic configuration
+   - Add three new parameters to PeakDetectionConfig and PeacoQCConfig:
+     - kde_bandwidth_adjust: Scale KDE bandwidth (default: 1.0)
+     - kde_grid_points: Configure KDE grid resolution (default: 512)
+     - cluster_distance_threshold: Threshold for peak-to-cluster assignment (default: None)
+   - Update KernelDensity::estimate() to use configurable parameters
+   - Implement cluster distance threshold in peak assignment logic
+   - Add builder pattern support to both config structs (#[derive(Builder)])
+   - Update README with builder pattern usage examples
+   - Add example code in basic_usage.rs showing both builder and struct literal patterns
+   - Update CHANGELOG.md with new feature entry
+   - All new parameters default to current hardcoded behavior (100% backward compatible)
+   - Both builder pattern and struct literal instantiation continue to work
+   
+   This enables users to fine-tune KDE and peak detection to better match R results or
+   for specific data characteristics without requiring algorithm changes.
+ - <csr-id-907a77cbe2adf5c7654c9a86e3a6bae15c344026/> removal reason visualization and export from mask
+   - Add RemovalReason and per-bin reason data to PeacoQCResult
+   - Color-code removal reasons (IT, MAD, Consecutive) in QC time/channel plots
+   - Add export_csv_boolean_from_mask and export_csv_numeric_from_mask
+   - Improve legend legibility; optional reason-specific colors in QCPlotConfig
+   - peacoqc-cli: tempfile dep, README and CLI updates for new options
+
+### Documentation
+
+ - <csr-id-39626d9990d87aefa36f2a709eb7bda0340188d2/> bump README version pins to 0.3.0
+ - <csr-id-6a4a1f8d6f9811f1d02799b790e4cf2cb28a8605/> add R compatibility guide documenting known differences and debugging strategies
+   - Document sources of differences between Rust and R implementations (KDE, spline smoothing, peak clustering, floating-point precision)
+   - Provide expected difference ranges (0.9-6.85% typical)
+   - Add preprocessing order recommendations to minimize discrepancies
+   - Include debugging guide with logging, bin structure comparison, and per-method analysis
+   - Note which parameters are configurable vs algorithmic limitations
+   - Add test results showing validation against R on real FCS data
+   
+   This helps users understand when Rust results differ slightly from R and how to investigate discrepancies.
+
+### Chore
+
+ - <csr-id-af6fc1e03ddb258ad2c692904dfce3c54097e4c6/> prepare 0.3.0 release artifacts
+   Add missing progress.rs module required by peacoqc_with_progress,
+   fix MAD contribution double-count and export test fixtures, and polish
+   the 0.3.0 changelog for overlay IPC / public plot helpers.
+ - <csr-id-74956f94c544d1fa83f6fffbb18e2d4f5e6072ff/> bump flow-fcs to 0.4.0, add publish metadata to new crates
+   - flow-fcs 0.3.0 → 0.4.0 (new compensation feature + public API)
+   - flow-linalg, flow-density, flow-clustering: add repository field
+     and smart-release scripts for first publish
+   - Update all workspace consumers to ^0.4.0
+
+### Commit Statistics
+
+<csr-read-only-do-not-edit/>
+
+ - 11 commits contributed to the release over the course of 118 calendar days.
+ - 9 commits were understood as [conventional](https://www.conventionalcommits.org).
+ - 0 issues like '(#ID)' were seen in commit messages
+
+### Commit Details
+
+<csr-read-only-do-not-edit/>
+
+<details><summary>view details</summary>
+
+ * **Uncategorized**
+    - Bump README version pins to 0.3.0 ([`39626d9`](https://github.com/jrmoynihan/flow/commit/39626d9990d87aefa36f2a709eb7bda0340188d2))
+    - Release peacoqc-rs v0.3.0, safety bump 2 crates ([`604a94e`](https://github.com/jrmoynihan/flow/commit/604a94e13464acb60582292768ce3f97598ea55e))
+    - Prepare 0.3.0 release artifacts ([`af6fc1e`](https://github.com/jrmoynihan/flow/commit/af6fc1e03ddb258ad2c692904dfce3c54097e4c6))
+    - Persist removal_reason_per_bin for overlay IPC ([`21be964`](https://github.com/jrmoynihan/flow/commit/21be96453d54bd68854e12694204ad722947da29))
+    - Add KDE tuning parameters with builder pattern ([`6f4cf41`](https://github.com/jrmoynihan/flow/commit/6f4cf41fe6ac01608fcf5fd6ee36d975b250877e))
+    - Add R compatibility guide documenting known differences and debugging strategies ([`6a4a1f8`](https://github.com/jrmoynihan/flow/commit/6a4a1f8d6f9811f1d02799b790e4cf2cb28a8605))
+    - Merge pull request #20 from jrmoynihan/feat/flow-fcs-compress ([`f953bc5`](https://github.com/jrmoynihan/flow/commit/f953bc5df8f6978e3fe511538cb2943730a35eff))
+    - Bump flow-fcs to 0.4.0, add publish metadata to new crates ([`74956f9`](https://github.com/jrmoynihan/flow/commit/74956f94c544d1fa83f6fffbb18e2d4f5e6072ff))
+    - Migrate to structured tracing and improve GPU diagnostics ([`f179bb3`](https://github.com/jrmoynihan/flow/commit/f179bb3fb82f79a0f64667577b7ebd5340ba479c))
+    - Read $PnR as integer keyword and drop saturated events ([`b1517bc`](https://github.com/jrmoynihan/flow/commit/b1517bc64304844ad4eb18ec3ae4cc60a4a4c5cc))
+    - Removal reason visualization and export from mask ([`907a77c`](https://github.com/jrmoynihan/flow/commit/907a77cbe2adf5c7654c9a86e3a6bae15c344026))
+</details>
+
 ## 0.2.4 (2026-02-27)
 
 ### Added
@@ -62,18 +198,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
  - <csr-id-7aad630ce2e5e9ebcda2273cef86f22777efc05b/> plot aesthetics, GPU fix, CLI plot options
    - peacoqc-rs: Plot improvements (issue #16): larger fonts, axis/legend/title
-     config; grid and MAD dashed lines; legend semi-transparent background;
-     spline blue/MAD green; scatter alpha. Add caption_font_size and
-     font_family to QCPlotConfig. Fix GPU tensor shape (Burn Float is f32).
+   config; grid and MAD dashed lines; legend semi-transparent background;
+   spline blue/MAD green; scatter alpha. Add caption_font_size and
+   font_family to QCPlotConfig. Fix GPU tensor shape (Burn Float is f32).
    - peacoqc-cli: Apply --hide-spline-mad and --show-bin-boundaries; add
-     --plot-width, --plot-height, --plot-title-size, --plot-axis-size,
-     --plot-tick-size, --plot-legend-size, --plot-font; document in README.
+   --plot-width, --plot-height, --plot-title-size, --plot-axis-size,
+   --plot-tick-size, --plot-legend-size, --plot-font; document in README.
 
 ### Commit Statistics
 
 <csr-read-only-do-not-edit/>
 
- - 2 commits contributed to the release.
+ - 3 commits contributed to the release.
  - 2 commits were understood as [conventional](https://www.conventionalcommits.org).
  - 0 issues like '(#ID)' were seen in commit messages
 
@@ -84,6 +220,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 <details><summary>view details</summary>
 
  * **Uncategorized**
+    - Release peacoqc-rs v0.2.4, peacoqc-cli v0.2.4 ([`cea03b0`](https://github.com/jrmoynihan/flow/commit/cea03b013c10ae71a83a00fdf96dbea205afc961))
     - Plot aesthetics, GPU fix, CLI plot options ([`7aad630`](https://github.com/jrmoynihan/flow/commit/7aad630ce2e5e9ebcda2273cef86f22777efc05b))
     - Remove duplicate entry for bad events visualization in QC plots ([`bf44383`](https://github.com/jrmoynihan/flow/commit/bf4438343008fc1f4501b1ba13e661cfe9d0c6f1))
 </details>
