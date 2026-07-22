@@ -26,6 +26,114 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added `flow-utils` for KDE contour support
 - Added `ndarray` for marching squares contour extraction
 
+## 0.3.2 (2026-07-22)
+
+### Chore
+
+ - <csr-id-74956f94c544d1fa83f6fffbb18e2d4f5e6072ff/> bump flow-fcs to 0.4.0, add publish metadata to new crates
+   - flow-fcs 0.3.0 → 0.4.0 (new compensation feature + public API)
+   - flow-linalg, flow-density, flow-clustering: add repository field
+     and smart-release scripts for first publish
+   - Update all workspace consumers to ^0.4.0
+ - <csr-id-2fb6aa22990f90582f20d4e46f6bfc0701cd41e9/> update Cargo.lock and Cargo.toml with new dependencies
+   - Added multiple new dependencies in Cargo.lock, including colorous, core_maths, data-url, euclid, float-cmp, fontdue, image-webp, imagesize, pico-args, resvg, roxmltree, rustybuzz, simplecss, strict-num, svgtypes, and tiny-skia.
+   - Updated Cargo.toml to modify the kuva dependency to include the "raster" feature.
+   - Ensured consistency in dependency management across the project.
+ - <csr-id-0883e2813c189a443bbe105808e302634a96abf6/> update dependencies in Cargo.lock and Cargo.toml
+   - Added new dependencies: fontconfig-parser, fontdb, kurbo, kuva, and ttf-parser with their respective versions and checksums in Cargo.lock.
+   - Updated Cargo.toml to include the kuva dependency from a Git repository with specific features.
+   - Cleaned up formatting in Cargo.toml for consistency.
+
+### New Features
+
+ - <csr-id-fe642f65aa7d03fac6d688f4598143d8c2955137/> split flow-utils into flow-density + flow-clustering crates
+   flow-utils bundled unrelated concerns (KDE, clustering, PCA). Split into
+   focused crates so consumers only pull what they need. flow-utils removed
+   from workspace members; existing code updated to import from new crates.
+ - <csr-id-7674f5f49c84ab9f4147ae0fbd79dd9a823bfb29/> raw-scale AF medians plot for unstained control
+   The normalised spectral plot (max=1.0) hides the actual AF values that
+   get subtracted from every fluorophore control, so the user can't tell
+   whether "AF=1.0 on B3-A" is 500 or 50,000 raw units. For the unstained
+   control, the concrete per-detector medians are what matter.
+   
+   Add `generate_af_medians_plot`, written as step 08 under the unstained
+   control's plot folder, with:
+   - y-axis in raw detector units (not normalised)
+   - y-axis range set to `[0, 1.1 * max_median]` so the peak isn't pinned
+     to the frame
+   - the max median printed in the title so the bar heights have a clear
+     anchor
+   
+   To enable this, `render_spectral_signature` now honours
+   `y_axis.range` when it differs from `AxisOptions::default()`. The
+   default is treated as "unset" so existing normalised-spectrum call
+   sites (all of them use a plain `AxisOptions::new()` without a range)
+   keep their 0..1 axis unchanged.
+ - <csr-id-e68b500d7a7c6f3874c16862e722addbcdf34b59/> contour paths API and density normalization percentile
+   - Add contour_paths_at_threshold for ordered closed paths from KDE
+   - Optional density_normalization_percentile for colormap scaling
+   - Wire plotters backend options as needed
+ - <csr-id-d09dc93e60217d9cd87f787d8ce63b2ec89e10d2/> expose kuva raster APIs for Tauri/zero-copy display
+   - Add optional 'raster' feature with kuva fork dependency
+   - New kuva module: render_to_rgba, render_to_rgba_no_text,
+     render_to_png_direct, render_to_png_direct_no_text
+   - Re-export render_to_raster, render_to_raster_no_text, Layout, Plot
+   - Document raster feature in README
+ - <csr-id-8d79dd17b3a38a8bcdc26126333abf8d2555fcd9/> implement contour path clipping to axis range
+   - Added `clip_contour_paths` function to clamp contour path points to specified x and y axis ranges, dropping degenerate paths.
+   - Updated `calculate_contours` to utilize the new clipping function, ensuring contour paths do not exceed the chart's axis range.
+   - Enhanced documentation for `x_range` and `y_range` parameters to clarify their purpose.
+   - Added regression tests to verify clipping behavior and prevent panics when rendering contours with out-of-range data.
+
+### Refactor
+
+ - <csr-id-4e8f876e384c47ce9c63579811b7f384bb84f21a/> simplify PlotType enum to Scatter, Density, Intensity, Contour, Histogram
+   Remove legacy variants (ScatterSolid, Dot, Zebra, ContourOverlay, ScatterOverlay,
+   ScatterColoredContinuous) and consolidate into fewer, clearer types. Simplify
+   match arms in calculate_plot_pixels accordingly.
+ - <csr-id-53ce755944243a1fdcef85d5f40a7fc59fd6ef1c/> improve density KDE, contour extraction, and histogram rendering
+   Refines density grid calculations, contour extraction logic, and
+   kuva backend histogram/spectral rendering.
+ - <csr-id-32a41aa05c1db8f10bf9cf8150b4bddd1872dd1f/> move kuva into render, add kuva_backend and kuva_axis
+   - Replace top-level kuva module with render::kuva_backend and render::kuva_axis
+   - Add density arcsinh kuva examples and arcsinh-kuva plan doc
+   - Update density options, batch_density bench, and plot_types_validation
+
+### Commit Statistics
+
+<csr-read-only-do-not-edit/>
+
+ - 18 commits contributed to the release.
+ - 11 commits were understood as [conventional](https://www.conventionalcommits.org).
+ - 0 issues like '(#ID)' were seen in commit messages
+
+### Commit Details
+
+<csr-read-only-do-not-edit/>
+
+<details><summary>view details</summary>
+
+ * **Uncategorized**
+    - Release flow-fcs v0.4.1 ([`597f21b`](https://github.com/jrmoynihan/flow/commit/597f21bef7ea787437071685fc3cce9d2269270f))
+    - Simplify PlotType enum to Scatter, Density, Intensity, Contour, Histogram ([`4e8f876`](https://github.com/jrmoynihan/flow/commit/4e8f876e384c47ce9c63579811b7f384bb84f21a))
+    - Release flow-linalg v0.1.1, flow-density v0.1.1, flow-clustering v0.1.1, flow-fcs-compress v0.1.1 ([`966d22a`](https://github.com/jrmoynihan/flow/commit/966d22ae4fbdd6114dc3862d45648fce7ebf53cc))
+    - Merge branch 'feat/flow-fcs-compress' ([`ef239b2`](https://github.com/jrmoynihan/flow/commit/ef239b24dbacfabc1e68dfa5f4dc8baa49f9704a))
+    - Merge pull request #20 from jrmoynihan/feat/flow-fcs-compress ([`f953bc5`](https://github.com/jrmoynihan/flow/commit/f953bc5df8f6978e3fe511538cb2943730a35eff))
+    - Release flow-linalg v0.1.0, flow-density v0.1.0, flow-clustering v0.1.0, flow-fcs-compress v0.1.0, flow-fcs v0.4.0 ([`e8c908e`](https://github.com/jrmoynihan/flow/commit/e8c908ef92fb68b8e2d01d3c1e8d6a294c8c6bda))
+    - Bump flow-fcs to 0.4.0, add publish metadata to new crates ([`74956f9`](https://github.com/jrmoynihan/flow/commit/74956f94c544d1fa83f6fffbb18e2d4f5e6072ff))
+    - Split flow-utils into flow-density + flow-clustering crates ([`fe642f6`](https://github.com/jrmoynihan/flow/commit/fe642f65aa7d03fac6d688f4598143d8c2955137))
+    - Improve density KDE, contour extraction, and histogram rendering ([`53ce755`](https://github.com/jrmoynihan/flow/commit/53ce755944243a1fdcef85d5f40a7fc59fd6ef1c))
+    - Raw-scale AF medians plot for unstained control ([`7674f5f`](https://github.com/jrmoynihan/flow/commit/7674f5f49c84ab9f4147ae0fbd79dd9a823bfb29))
+    - Contour paths API and density normalization percentile ([`e68b500`](https://github.com/jrmoynihan/flow/commit/e68b500d7a7c6f3874c16862e722addbcdf34b59))
+    - Move kuva into render, add kuva_backend and kuva_axis ([`32a41aa`](https://github.com/jrmoynihan/flow/commit/32a41aa05c1db8f10bf9cf8150b4bddd1872dd1f))
+    - Update Cargo.lock and Cargo.toml with new dependencies ([`2fb6aa2`](https://github.com/jrmoynihan/flow/commit/2fb6aa22990f90582f20d4e46f6bfc0701cd41e9))
+    - Merge pull request #19 from jrmoynihan/cursor/kuva-rendering-api-exposure-9206 ([`7f840c8`](https://github.com/jrmoynihan/flow/commit/7f840c81bbe4c6749ed77bd7cd052a18bc64ab5c))
+    - Merge branch 'main' into cursor/kuva-rendering-api-exposure-9206 ([`370a4cd`](https://github.com/jrmoynihan/flow/commit/370a4cdadb8481166ef17239d6fbe55c6c0a831a))
+    - Update dependencies in Cargo.lock and Cargo.toml ([`0883e28`](https://github.com/jrmoynihan/flow/commit/0883e2813c189a443bbe105808e302634a96abf6))
+    - Expose kuva raster APIs for Tauri/zero-copy display ([`d09dc93`](https://github.com/jrmoynihan/flow/commit/d09dc93e60217d9cd87f787d8ce63b2ec89e10d2))
+    - Implement contour path clipping to axis range ([`8d79dd1`](https://github.com/jrmoynihan/flow/commit/8d79dd17b3a38a8bcdc26126333abf8d2555fcd9))
+</details>
+
 ## 0.3.1 (2026-03-05)
 
 <csr-id-9ab231f53ebb8a4aa8cefbc9db2542a69bbd66ca/>
@@ -45,7 +153,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 <csr-read-only-do-not-edit/>
 
- - 4 commits contributed to the release.
+ - 5 commits contributed to the release.
  - 2 commits were understood as [conventional](https://www.conventionalcommits.org).
  - 0 issues like '(#ID)' were seen in commit messages
 
@@ -56,6 +164,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 <details><summary>view details</summary>
 
  * **Uncategorized**
+    - Release flow-plots v0.3.1 ([`2050584`](https://github.com/jrmoynihan/flow/commit/2050584238b7b516ee209e4f0cb67543d3c3ba09))
     - Update CHANGELOG for unreleased features and chore updates ([`44a0537`](https://github.com/jrmoynihan/flow/commit/44a0537157521ed77ee0098f6051f6e64e6f56d0))
     - Merge branch 'cursor/axis-gate-interaction-630e' into main ([`c021235`](https://github.com/jrmoynihan/flow/commit/c021235f1555962be2177f2edd5a49de646effd4))
     - Remove point size UI mapping; use backend values directly ([`9ab231f`](https://github.com/jrmoynihan/flow/commit/9ab231f53ebb8a4aa8cefbc9db2542a69bbd66ca))

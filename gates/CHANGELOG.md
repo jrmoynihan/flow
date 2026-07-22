@@ -5,7 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## Unreleased
+## 0.4.0 (2026-07-22)
+
+<csr-id-1e7cca7cde867e127e8e4a4b253cab187799ceb5/>
+<csr-id-713aaaf067f0055296dc31e8027f09dfc7c220d0/>
+<csr-id-3cb462369965122ff7d78874f2bfa4f4d7cdf4e4/>
+<csr-id-bef89e377dd77e83cf69e03d150fa92d4a1ceaed/>
+<csr-id-bbe31765ae740038c394ebefb1e09e825259e8b5/>
 
 ### Breaking
 
@@ -28,6 +34,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
    (corner-aware sibling of `filter_events_by_hierarchy`).
  - **No migration:** serialized gates with the old `"type":"Quadrant"` shape will
    not deserialize. Callers must handle the load failure (log + continue).
+
+### Chore
+
+ - <csr-id-c9b7448fef935e2ba6f3ea568ce092f9c777b53b/> polish pacmap/linalg/gates for crates.io release
+   Neutralize third-party publication attribution in flow-pacmap, add
+   README and publish metadata, and refresh install/API notes for the
+   upcoming flow-linalg and flow-gates releases.
+ - <csr-id-74956f94c544d1fa83f6fffbb18e2d4f5e6072ff/> bump flow-fcs to 0.4.0, add publish metadata to new crates
+   - flow-fcs 0.3.0 → 0.4.0 (new compensation feature + public API)
+   - flow-linalg, flow-density, flow-clustering: add repository field
+     and smart-release scripts for first publish
+   - Update all workspace consumers to ^0.4.0
+ - <csr-id-fd1cc4a76af40804018e24792dce407860302857/> Release
 
 ### New Features
 
@@ -59,10 +78,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  - <csr-id-ba241218da5d1222f83e9864255a40074f6f410e/> add Range variant to GateGeometry enum with trait delegation
  - <csr-id-874d38211d388d890c5731c59c026692b4648acc/> add filter_by_range_batch with test
  - <csr-id-2b8b1c9b96f0ef1bb735854ad19c75b80005caed/> add RangeGateGeometry struct with trait implementations
+ - <csr-id-fe642f65aa7d03fac6d688f4598143d8c2955137/> split flow-utils into flow-density + flow-clustering crates
+   flow-utils bundled unrelated concerns (KDE, clustering, PCA). Split into
+   focused crates so consumers only pull what they need. flow-utils removed
+   from workspace members; existing code updated to import from new crates.
+ - <csr-id-8b26c1418137646bb311d45a678d1d43ef05a22d/> scatter overlay, z-axis coloring, density point size, contours, histograms
+   - ScatterPlotData: discrete gate colors (ScatterOverlay), continuous z-axis (ScatterColoredContinuous)
+   - Density plots: point_size affects contribution radius (matches scatter behavior)
+   - Contour plots: KDE-based contours, draw_outliers, contour_smoothing
+   - HistogramPlot: filled/unfilled, overlaid with gate colors, baseline separation, scale_to_peak
+   - Breaking: DensityPlot::Data is now ScatterPlotData; use .into() for Vec<(f32,f32)>
+   - Updated tru-ols, tru-ols-cli, gates for new API
+ - <csr-id-d36e19b2d86c270e905f84451ccf1757fd16a56c/> add round-trip test for Gate serialization and deserialization
+   - Introduced a new test file to validate the serialization and deserialization of the Gate struct using JSON.
+   - Implemented a helper function to create a test Gate instance for the round-trip check, ensuring that the original and restored Gate instances are equal.
 
 ### Documentation
 
  - <csr-id-c9b7448fef935e2ba6f3ea568ce092f9c777b53b/> refresh README install pin and GateOrigin feature note
+ - <csr-id-1d5806048f15f590ebe7b2ba449501aa73868b95/> polish changelogs for pacmap, linalg, and gates releases
 
 ### Bug Fixes
 
@@ -70,6 +104,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  - <csr-id-f683ff6cae4aa54118db491b0d5bdfd2fb5a17f2/> support y-axis range gates in containment, bounds, and batch filtering
  - <csr-id-9684227966218f774a32825c64f3168917549ca5/> use point-in-polygon for density contour scatter mask
  - <csr-id-45e14e82fb8af124e5f08a08dbe2d21ff131e2cf/> ordered density contours for automated scatter gating
+ - <csr-id-32f1c91b33433f2fbe0d1c48d20ac4f286ebb5be/> update DataFrame creation in synthetic data visualization example
+   - Modified the DataFrame initialization in the visualize_synthetic_data example to include the number of events, ensuring accurate test data representation.
+   - This change enhances the reliability of the synthetic data generation for testing purposes.
+ - <csr-id-581fd0d8b728198be59a4be79ab64defcb281069/> replace thread_rng with rng for random number generation
+   - Updated random number generation in multiple functions to use `rand::rng()` instead of `rand::thread_rng()`, ensuring consistent RNG usage across synthetic data generation methods.
 
 ### Refactor
 
@@ -86,8 +125,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 <csr-read-only-do-not-edit/>
 
- - 42 commits contributed to the release.
- - 32 commits were understood as [conventional](https://www.conventionalcommits.org).
+ - 43 commits contributed to the release.
+ - 33 commits were understood as [conventional](https://www.conventionalcommits.org).
  - 0 issues like '(#ID)' were seen in commit messages
 
 ### Commit Details
@@ -97,6 +136,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 <details><summary>view details</summary>
 
  * **Uncategorized**
+    - Polish changelogs for pacmap, linalg, and gates releases ([`1d58060`](https://github.com/jrmoynihan/flow/commit/1d5806048f15f590ebe7b2ba449501aa73868b95))
     - Polish pacmap/linalg/gates for crates.io release ([`c9b7448`](https://github.com/jrmoynihan/flow/commit/c9b7448fef935e2ba6f3ea568ce092f9c777b53b))
     - Add GateOrigin provenance for compensation-control gates ([`b14cbd4`](https://github.com/jrmoynihan/flow/commit/b14cbd40e6ccac96d04602e86a7934c51d08a706))
     - Release flow-fcs v0.4.1 ([`597f21b`](https://github.com/jrmoynihan/flow/commit/597f21bef7ea787437071685fc3cce9d2269270f))

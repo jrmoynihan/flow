@@ -5,17 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## v0.1.2 (2026-05-11)
+## v0.1.3 (2026-07-22)
 
 ### Documentation
 
- - <csr-id-c5bda8ca7e17807268121b5027cfdc7849a91dd4/> consolidate codec table with encode/decode throughput and fidelity columns
+ - <csr-id-b0010d3e67e8531fd345f404f369ee52af5a9169/> add row vs column major layout diagram
 
 ### Commit Statistics
 
 <csr-read-only-do-not-edit/>
 
- - 1 commit contributed to the release.
+ - 1 commit contributed to the release over the course of 55 calendar days.
+ - 72 days passed between releases.
  - 1 commit was understood as [conventional](https://www.conventionalcommits.org).
  - 0 issues like '(#ID)' were seen in commit messages
 
@@ -26,6 +27,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 <details><summary>view details</summary>
 
  * **Uncategorized**
+    - Add row vs column major layout diagram ([`b0010d3`](https://github.com/jrmoynihan/flow/commit/b0010d3e67e8531fd345f404f369ee52af5a9169))
+</details>
+
+## v0.1.2 (2026-05-11)
+
+### Documentation
+
+ - <csr-id-c5bda8ca7e17807268121b5027cfdc7849a91dd4/> consolidate codec table with encode/decode throughput and fidelity columns
+
+### Commit Statistics
+
+<csr-read-only-do-not-edit/>
+
+ - 2 commits contributed to the release.
+ - 1 commit was understood as [conventional](https://www.conventionalcommits.org).
+ - 0 issues like '(#ID)' were seen in commit messages
+
+### Commit Details
+
+<csr-read-only-do-not-edit/>
+
+<details><summary>view details</summary>
+
+ * **Uncategorized**
+    - Release flow-fcs-compress v0.1.2 ([`0eb992c`](https://github.com/jrmoynihan/flow/commit/0eb992c3d8e97e305a0a957d0a8bbbecb6e56467))
     - Consolidate codec table with encode/decode throughput and fidelity columns ([`c5bda8c`](https://github.com/jrmoynihan/flow/commit/c5bda8ca7e17807268121b5027cfdc7849a91dd4))
 </details>
 
@@ -102,7 +128,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - Add FczReader::warm_cache for page fault elimination before timed reads ([`53b4eba`](https://github.com/jrmoynihan/flow/commit/53b4eba342397dffb258f37c1a80a430683955b7))
     - Add compression crate, benchmarks, and ISAC proposal ([`a4a5e18`](https://github.com/jrmoynihan/flow/commit/a4a5e18e06b55de252b74110118ac72aa2fc0891))
 </details>
-
-<csr-unknown>
-Mode A lossless f32: byte-stream-split + zstd (default), pco backend(optional, behind pco-backend feature)Mode B lossless within ADC bit depth: bit-reservoir bitpack withper-chunk signed offset, ~3.5x decode speedup vs naive bit-extractMode C lossy log-quantization: arcsinh transform + fixed-point quantizewith sinh LUT for bits <= 14 (~4x decode speedup at small widths)Auto codec picker: never selects a lossy codec without explicit opt-inlz4_flex baseline (optional, behind lz4-baseline feature).fcz native container with mmap + rayon parallel decodeInline FCS DATA-segment payload format (codec-payload bytes intendedto live inside an FCS file with $COMPRESSION = FCZ1 keyword)New EncodedChunk API splits parallel encode (encode_chunk_payload,&self) from sequential append (append_encoded_chunk, &mut self)synth: per-codec/per-channel CSV table on synthetic channelsfile: per-codec table on real .fcs files, with auto-picker validationfile-full / synth-full: whole-dataset roundtrip with both serial andrayon-parallel encode and decode throughputFcs::write_fcz / Fcs::events_from_fcz round-trip via .fcz containerFcs::write_inline_fcs / Fcs::events_from_inline_fcs (FCS-inline pilotwith $COMPRESSION extension keyword)Fcs::write_parquet / Fcs::events_from_parquet (Parquet sidecar Tier 1)Expose write::serialize_metadata, write::build_header,write::estimate_text_segment_size as pub(crate) helpers for theinline-FCS writerVerified against FCS 3.2 spec (Spidlen 2021): $PnB unambiguousstorage width per S3.3.38; $PnR for F/D types is the soft hintper S3.3.51; row-major DATA layout mandated per S3.4New keywords proposed: $LAYOUT (column-major option), $COMPRESSION,$PnCOMPRESSION, $COMPRESSIONPARAMS, $PnADCBITS, $PnLAYOUT,$CHECKSUM, $CHUNKINDEXSections: cache-friendliness rationale (cite ithare.com cyclecosts), why FCS is row-major (acquisition FIFO/DMA),tradeoffs vs alternatives (status quo, file-level gzip, Parquetmigration, vendor variants), reviewer critiques and responses,performance metrics (M1 Max 10-core, single + multi-threadedencode + decode at 80 MB / 400 MB / 1024 MB), FlowRepositoryimpact, FCS 4.0 / ACS status (no FCS 4.0 in active development;the 2007 working draft was renamed to ACS)Scope explicitly excludes HEADER (58 fixed bytes) and TEXT(<0.01% of large files, bootstraps DATA offsets)<csr-unknown/>
 

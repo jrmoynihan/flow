@@ -31,7 +31,7 @@ unmix-cache=["dep:quick_cache"]
 [dependencies]
 flow-fcs = { path = "../fcs", version = "^0.4.1", optional=true }
 # Plotters backend until kuva stabilizes (omit default "raster" feature)
-flow-plots={ path="../plots", version= "^0.3.1", optional=true, default-features=false }
+flow-plots={ path="../plots", version= "^0.3.2", optional=true, default-features=false }
 polars={ workspace=true, optional=true }
 faer={ workspace=true }
 faer-ext={ workspace=true }

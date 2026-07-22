@@ -5,7 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## Unreleased
+## 0.1.2 (2026-07-22)
+
+### Chore
+
+ - <csr-id-c9b7448fef935e2ba6f3ea568ce092f9c777b53b/> polish pacmap/linalg/gates for crates.io release
+   Neutralize third-party publication attribution in flow-pacmap, add
+   README and publish metadata, and refresh install/API notes for the
+   upcoming flow-linalg and flow-gates releases.
 
 ### New Features
 
@@ -18,14 +25,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
  - <csr-id-c9b7448fef935e2ba6f3ea568ce092f9c777b53b/> document spillover estimation in README
    Installation pin and public API examples for the new estimation helpers.
+ - <csr-id-1d5806048f15f590ebe7b2ba449501aa73868b95/> polish changelogs for pacmap, linalg, and gates releases
 
 ### Commit Statistics
 
 <csr-read-only-do-not-edit/>
 
- - 2 commits contributed to the release.
+ - 3 commits contributed to the release.
  - 72 days passed between releases.
- - 2 commits were understood as [conventional](https://www.conventionalcommits.org).
+ - 3 commits were understood as [conventional](https://www.conventionalcommits.org).
  - 0 issues like '(#ID)' were seen in commit messages
 
 ### Commit Details
@@ -35,6 +43,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 <details><summary>view details</summary>
 
  * **Uncategorized**
+    - Polish changelogs for pacmap, linalg, and gates releases ([`1d58060`](https://github.com/jrmoynihan/flow/commit/1d5806048f15f590ebe7b2ba449501aa73868b95))
     - Polish pacmap/linalg/gates for crates.io release ([`c9b7448`](https://github.com/jrmoynihan/flow/commit/c9b7448fef935e2ba6f3ea568ce092f9c777b53b))
     - Estimate spillover from single-stain controls ([`130af07`](https://github.com/jrmoynihan/flow/commit/130af0763c00f9e1ab6b16c0b33bf94253ffb340))
 </details>
