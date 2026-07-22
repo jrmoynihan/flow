@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## 0.4.0 (unreleased)
+## Unreleased
 
 ### Breaking
 
@@ -29,7 +29,121 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  - **No migration:** serialized gates with the old `"type":"Quadrant"` shape will
    not deserialize. Callers must handle the load failure (log + continue).
 
+### New Features
+
+ - <csr-id-b14cbd40e6ccac96d04602e86a7934c51d08a706/> add GateOrigin provenance for compensation-control gates
+   Distinguish user, QC, and compensation-control gates so UIs can hide
+   control-seeded gates while keeping QC visible; serde skips the User default
+   for backward compatibility.
+ - <csr-id-cf0df0a44cf8ea82aab571f4bfe3684d99aaf213/> specta derives, matrix-context gate fields, Polars 0.54
+   Optional `specta` features, Embedding parameter category, gate
+   spillover/data-context ids, and a Polars 0.54 workspace pin.
+ - <csr-id-5258357b4c5049d5ba76c0208aa4fb53571d2bd3/> optional `typescript` feature — derive ts_rs::TS on gate types
+   Off-by-default `typescript` cargo feature that derives `ts_rs::TS` on public
+   gate types for TypeScript binding generation.
+ - <csr-id-7bca5d4ffe1467d8d8f1d7e9ecd618163b2a63b5/> QuadrantGate redesign — one gate owning dividers + 4 sub-quadrants
+   See Breaking above for API migration notes.
+ - <csr-id-bfe56b715fb1bae7b5b03e66deeea2671f505833/> add Mask geometry, NoChannel parameters, overrides, system_managed
+   - GateGeometry::Mask { source: MaskSource } for precomputed event masks
+   - MaskSource::Qc { file_guid, invert } for QC pass/fail
+   - GateParameters::NoChannel for parameter-agnostic gates
+   - MaskResolver trait and filter_events_by_hierarchy_with_resolvers()
+   - Gate.overrides / Gate.system_managed / Gate.effective_geometry(...)
+ - <csr-id-d1f6b53e5e55fab080b0ae1b57b1b304d7a20ad2/> add raw_coords_to_pixels_with_layout for gate rendering
+ - <csr-id-c36c7bc9cc05b36ec712275955f04d2ce92d6ab4/> pass actual plot layout to pixel→data conversion
+ - <csr-id-f837912c1e9d69251d4c4262044ade4713749558/> add threshold gate geometry, refactor statistics and filtering
+ - <csr-id-1ad410a3185f357bbecc11277607a8e2694a8ae3/> add enum plot parameters with legacy migration
+ - <csr-id-93835900bc09c3081379143336361b8695034acb/> multi-channel doublet detection and RatioInflectionOrFixed method
+ - <csr-id-62c0adda9e1e2e14cf26a6dc5b39ff94b006649a/> add create_range_geometry constructor and GatingML serialization
+ - <csr-id-499716c7db8470901168fa933b67022cee9f3bdf/> add Range to EventIndex filtering
+ - <csr-id-ba241218da5d1222f83e9864255a40074f6f410e/> add Range variant to GateGeometry enum with trait delegation
+ - <csr-id-874d38211d388d890c5731c59c026692b4648acc/> add filter_by_range_batch with test
+ - <csr-id-2b8b1c9b96f0ef1bb735854ad19c75b80005caed/> add RangeGateGeometry struct with trait implementations
+
+### Documentation
+
+ - <csr-id-c9b7448fef935e2ba6f3ea568ce092f9c777b53b/> refresh README install pin and GateOrigin feature note
+
+### Bug Fixes
+
+ - <csr-id-09d2f0868510710d31f4bbbcaf677a584c6ac2da/> don't reject Mask gates in hierarchy_steps closure path
+ - <csr-id-f683ff6cae4aa54118db491b0d5bdfd2fb5a17f2/> support y-axis range gates in containment, bounds, and batch filtering
+ - <csr-id-9684227966218f774a32825c64f3168917549ca5/> use point-in-polygon for density contour scatter mask
+ - <csr-id-45e14e82fb8af124e5f08a08dbe2d21ff131e2cf/> ordered density contours for automated scatter gating
+
+### Refactor
+
+ - <csr-id-1e7cca7cde867e127e8e4a4b253cab187799ceb5/> make MaskSource::Qc.file_guid optional for global QC gates
+
+### Test
+
+ - <csr-id-713aaaf067f0055296dc31e8027f09dfc7c220d0/> add mixed QC status integration test
+ - <csr-id-3cb462369965122ff7d78874f2bfa4f4d7cdf4e4/> add mask gate test suite covering QC design scenarios
+ - <csr-id-bef89e377dd77e83cf69e03d150fa92d4a1ceaed/> add pixel↔data roundtrip tests with layout params
+ - <csr-id-bbe31765ae740038c394ebefb1e09e825259e8b5/> add roundtrip tests for _with_layout coordinate transforms
+
+### Commit Statistics
+
+<csr-read-only-do-not-edit/>
+
+ - 42 commits contributed to the release.
+ - 32 commits were understood as [conventional](https://www.conventionalcommits.org).
+ - 0 issues like '(#ID)' were seen in commit messages
+
+### Commit Details
+
+<csr-read-only-do-not-edit/>
+
+<details><summary>view details</summary>
+
+ * **Uncategorized**
+    - Polish pacmap/linalg/gates for crates.io release ([`c9b7448`](https://github.com/jrmoynihan/flow/commit/c9b7448fef935e2ba6f3ea568ce092f9c777b53b))
+    - Add GateOrigin provenance for compensation-control gates ([`b14cbd4`](https://github.com/jrmoynihan/flow/commit/b14cbd40e6ccac96d04602e86a7934c51d08a706))
+    - Release flow-fcs v0.4.1 ([`597f21b`](https://github.com/jrmoynihan/flow/commit/597f21bef7ea787437071685fc3cce9d2269270f))
+    - Specta derives, matrix-context gate fields, Polars 0.54 ([`cf0df0a`](https://github.com/jrmoynihan/flow/commit/cf0df0a44cf8ea82aab571f4bfe3684d99aaf213))
+    - Optional `typescript` feature — derive ts_rs::TS on gate types ([`5258357`](https://github.com/jrmoynihan/flow/commit/5258357b4c5049d5ba76c0208aa4fb53571d2bd3))
+    - Add mixed QC status integration test ([`713aaaf`](https://github.com/jrmoynihan/flow/commit/713aaaf067f0055296dc31e8027f09dfc7c220d0))
+    - Add mask gate test suite covering QC design scenarios ([`3cb4623`](https://github.com/jrmoynihan/flow/commit/3cb462369965122ff7d78874f2bfa4f4d7cdf4e4))
+    - Don't reject Mask gates in hierarchy_steps closure path ([`09d2f08`](https://github.com/jrmoynihan/flow/commit/09d2f0868510710d31f4bbbcaf677a584c6ac2da))
+    - QuadrantGate redesign — one gate owning dividers + 4 sub-quadrants ([`7bca5d4`](https://github.com/jrmoynihan/flow/commit/7bca5d4ffe1467d8d8f1d7e9ecd618163b2a63b5))
+    - Make MaskSource::Qc.file_guid optional for global QC gates ([`1e7cca7`](https://github.com/jrmoynihan/flow/commit/1e7cca7cde867e127e8e4a4b253cab187799ceb5))
+    - Add Mask geometry, NoChannel parameters, overrides, system_managed ([`bfe56b7`](https://github.com/jrmoynihan/flow/commit/bfe56b715fb1bae7b5b03e66deeea2671f505833))
+    - Add pixel↔data roundtrip tests with layout params ([`bef89e3`](https://github.com/jrmoynihan/flow/commit/bef89e377dd77e83cf69e03d150fa92d4a1ceaed))
+    - Add roundtrip tests for _with_layout coordinate transforms ([`bbe3176`](https://github.com/jrmoynihan/flow/commit/bbe31765ae740038c394ebefb1e09e825259e8b5))
+    - Add raw_coords_to_pixels_with_layout for gate rendering ([`d1f6b53`](https://github.com/jrmoynihan/flow/commit/d1f6b53e5e55fab080b0ae1b57b1b304d7a20ad2))
+    - Pass actual plot layout to pixel→data conversion ([`c36c7bc`](https://github.com/jrmoynihan/flow/commit/c36c7bc9cc05b36ec712275955f04d2ce92d6ab4))
+    - Release flow-linalg v0.1.1, flow-density v0.1.1, flow-clustering v0.1.1, flow-fcs-compress v0.1.1 ([`966d22a`](https://github.com/jrmoynihan/flow/commit/966d22ae4fbdd6114dc3862d45648fce7ebf53cc))
+    - Merge branch 'feat/flow-fcs-compress' ([`ef239b2`](https://github.com/jrmoynihan/flow/commit/ef239b24dbacfabc1e68dfa5f4dc8baa49f9704a))
+    - Merge pull request #20 from jrmoynihan/feat/flow-fcs-compress ([`f953bc5`](https://github.com/jrmoynihan/flow/commit/f953bc5df8f6978e3fe511538cb2943730a35eff))
+    - Release flow-linalg v0.1.0, flow-density v0.1.0, flow-clustering v0.1.0, flow-fcs-compress v0.1.0, flow-fcs v0.4.0 ([`e8c908e`](https://github.com/jrmoynihan/flow/commit/e8c908ef92fb68b8e2d01d3c1e8d6a294c8c6bda))
+    - Add threshold gate geometry, refactor statistics and filtering ([`f837912`](https://github.com/jrmoynihan/flow/commit/f837912c1e9d69251d4c4262044ade4713749558))
+    - Bump flow-fcs to 0.4.0, add publish metadata to new crates ([`74956f9`](https://github.com/jrmoynihan/flow/commit/74956f94c544d1fa83f6fffbb18e2d4f5e6072ff))
+    - Split flow-utils into flow-density + flow-clustering crates ([`fe642f6`](https://github.com/jrmoynihan/flow/commit/fe642f65aa7d03fac6d688f4598143d8c2955137))
+    - Add enum plot parameters with legacy migration ([`1ad410a`](https://github.com/jrmoynihan/flow/commit/1ad410a3185f357bbecc11277607a8e2694a8ae3))
+    - Multi-channel doublet detection and RatioInflectionOrFixed method ([`9383590`](https://github.com/jrmoynihan/flow/commit/93835900bc09c3081379143336361b8695034acb))
+    - Support y-axis range gates in containment, bounds, and batch filtering ([`f683ff6`](https://github.com/jrmoynihan/flow/commit/f683ff6cae4aa54118db491b0d5bdfd2fb5a17f2))
+    - Add create_range_geometry constructor and GatingML serialization ([`62c0add`](https://github.com/jrmoynihan/flow/commit/62c0adda9e1e2e14cf26a6dc5b39ff94b006649a))
+    - Add Range to EventIndex filtering ([`499716c`](https://github.com/jrmoynihan/flow/commit/499716c7db8470901168fa933b67022cee9f3bdf))
+    - Add Range variant to GateGeometry enum with trait delegation ([`ba24121`](https://github.com/jrmoynihan/flow/commit/ba241218da5d1222f83e9864255a40074f6f410e))
+    - Add filter_by_range_batch with test ([`874d382`](https://github.com/jrmoynihan/flow/commit/874d38211d388d890c5731c59c026692b4648acc))
+    - Add RangeGateGeometry struct with trait implementations ([`2b8b1c9`](https://github.com/jrmoynihan/flow/commit/2b8b1c9b96f0ef1bb735854ad19c75b80005caed))
+    - Use point-in-polygon for density contour scatter mask ([`9684227`](https://github.com/jrmoynihan/flow/commit/9684227966218f774a32825c64f3168917549ca5))
+    - Ordered density contours for automated scatter gating ([`45e14e8`](https://github.com/jrmoynihan/flow/commit/45e14e82fb8af124e5f08a08dbe2d21ff131e2cf))
+    - Release flow-plots v0.3.1 ([`2050584`](https://github.com/jrmoynihan/flow/commit/2050584238b7b516ee209e4f0cb67543d3c3ba09))
+    - Merge branch 'cursor/axis-gate-interaction-630e' into main ([`c021235`](https://github.com/jrmoynihan/flow/commit/c021235f1555962be2177f2edd5a49de646effd4))
+    - Release ([`fd1cc4a`](https://github.com/jrmoynihan/flow/commit/fd1cc4a76af40804018e24792dce407860302857))
+    - Scatter overlay, z-axis coloring, density point size, contours, histograms ([`8b26c14`](https://github.com/jrmoynihan/flow/commit/8b26c1418137646bb311d45a678d1d43ef05a22d))
+    - Release flow-fcs v0.2.2, flow-plots v0.2.2, peacoqc-rs v0.2.2 ([`cb7b98e`](https://github.com/jrmoynihan/flow/commit/cb7b98ecbc3d012df79c2e70bd2aad2f89d9c303))
+    - Update DataFrame creation in synthetic data visualization example ([`32f1c91`](https://github.com/jrmoynihan/flow/commit/32f1c91b33433f2fbe0d1c48d20ac4f286ebb5be))
+    - Add round-trip test for Gate serialization and deserialization ([`d36e19b`](https://github.com/jrmoynihan/flow/commit/d36e19b2d86c270e905f84451ccf1757fd16a56c))
+    - Replace thread_rng with rng for random number generation ([`581fd0d`](https://github.com/jrmoynihan/flow/commit/581fd0d8b728198be59a4be79ab64defcb281069))
+    - Merge PR #15: add PartialEq to Gate, GateNode, GateGeometry and TransformType ([`98455bc`](https://github.com/jrmoynihan/flow/commit/98455bc69a3789f5c8eb9741a3cc024451e63a3e))
+    - Add partialeq ([`e2ac3ec`](https://github.com/jrmoynihan/flow/commit/e2ac3ecf031a6a265c482a08f33ebed5c1f35bdd))
+</details>
+
 ## 0.2.2 (2026-02-16)
+
+<csr-id-1016027ac34ae0cb187d59d0d9562200321d5281/>
 
 ### Refactor
 
@@ -40,7 +154,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 <csr-read-only-do-not-edit/>
 
- - 2 commits contributed to the release.
+ - 3 commits contributed to the release.
  - 1 commit was understood as [conventional](https://www.conventionalcommits.org).
  - 0 issues like '(#ID)' were seen in commit messages
 
@@ -51,6 +165,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 <details><summary>view details</summary>
 
  * **Uncategorized**
+    - Release peacoqc-rs v0.2.1, flow-utils v0.1.1, flow-gates v0.2.2, flow-tru-ols v0.1.0 ([`c3d9774`](https://github.com/jrmoynihan/flow/commit/c3d97742b3f83d01f1b831eea6eb662a2511adb9))
     - Derive PartialEq, Eq, Hash on FilterCacheKey ([`1016027`](https://github.com/jrmoynihan/flow/commit/1016027ac34ae0cb187d59d0d9562200321d5281))
     - Merge pull request #14 from jrmoynihan/gpu-acceleration ([`01edbec`](https://github.com/jrmoynihan/flow/commit/01edbecfc222685a8e052eb26b001d3fae4dfe13))
 </details>
