@@ -1,0 +1,40 @@
+[package]
+name = "flow-pacmap"
+version = "0.1.0"
+edition.workspace = true
+authors.workspace = true
+license = "MIT"
+description = "First-party PaCMAP dimensionality reduction (Wang et al. 2021) — large-n safe, faer PCA, usearch HNSW"
+keywords = ["pacmap", "dimensionality-reduction", "embedding", "flow-cytometry"]
+categories = ["science", "algorithms", "mathematics"]
+
+[features]
+default = ["hnsw", "kdtree"]
+# HNSW approximate nearest-neighbor via usearch (C++ FFI, hardware SIMD)
+hnsw   = ["dep:usearch"]
+# k-d tree exact search via kiddo (pure Rust, good for d < 10, n < 1M)
+kdtree = ["dep:kiddo"]
+
+[dependencies]
+faer      = { workspace = true }
+rayon     = { workspace = true }
+thiserror = { workspace = true }
+rand      = { workspace = true }
+
+[dependencies.usearch]
+version          = "2.25"
+features         = ["simsimd"]  # enables SIMD-accelerated distance computations
+default-features = false
+optional         = true
+
+[dependencies.kiddo]
+version  = "5"
+optional = true
+
+[dev-dependencies]
+approx = { workspace = true }
+
+[package.metadata.scripts]
+dry-release = "cargo smart-release flow-pacmap --update-crates-index"
+publish     = "cargo smart-release flow-pacmap --update-crates-index --execute"
+changelog   = "cargo changelog flow-pacmap --write"
