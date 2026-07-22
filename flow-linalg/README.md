@@ -17,11 +17,24 @@ Pure-Rust linear algebra primitives for flow cytometry, built on [`faer`](https:
 | `compensation` | Spillover matrix inversion and per-event compensation |
 | `unmixing` | *(stub)* Spectral unmixing — future implementation |
 
+## Installation
+
+```toml
+[dependencies]
+flow-linalg = { version = "0.1.2", features = ["compensation"] }
+```
+
 ## Public API
 
 ```rust
-use flow_linalg::compensation::{invert_spillover, apply_compensation_inv, compensate_channels};
+use flow_linalg::compensation::{
+    invert_spillover, apply_compensation_inv, compensate_channels,
+    estimate_spillover, SingleStainControl,
+};
 use faer::MatRef;
+
+// Estimate spillover from single-stain positive/negative populations
+let spillover = estimate_spillover(&controls, n_detectors)?;
 
 // Invert a spillover matrix (partial-pivot LU decomposition)
 let inv = invert_spillover(spillover.as_ref())?;
@@ -35,6 +48,7 @@ let compensated = compensate_channels(&raw_channels, spillover.as_ref(), &matrix
 
 ## Algorithms
 
+- **Spillover estimation**: Per-control column from median(positive) − median(negative), diagonal-normalized so `S[j][j] = 1`.
 - **Spillover inversion**: Partial-pivot LU decomposition via `faer`. Validates matrix is square and non-singular before inversion.
 - **Compensation application**: Per-event matrix-vector multiply, parallelized across output channels with `rayon`. Validates event count consistency across input channels.
 
@@ -42,6 +56,7 @@ let compensated = compensate_channels(&raw_channels, spillover.as_ref(), &matrix
 
 This crate is intentionally narrow — it owns:
 
+- Spillover matrix estimation from single-stain controls
 - Spillover matrix inversion
 - Compensation matrix application to event vectors
 - *(Future)* Ordinary least-squares and non-negative least-squares for spectral unmixing
@@ -55,7 +70,7 @@ It does **not** own: FCS file parsing, spillover keyword extraction, transform a
 cargo test -p flow-linalg --features compensation
 ```
 
-4 unit tests covering identity matrices, known spillover removal, channel filtering, and error cases.
+Unit tests covering identity matrices, known spillover removal, channel filtering, spillover estimation recovery, and error cases.
 
 ## License
 

@@ -6,6 +6,7 @@ A comprehensive Rust library for working with gates in flow cytometry data analy
 
 - **Multiple Gate Types**: Polygon, Rectangle, and Ellipse geometries
 - **Gate Hierarchies**: Parent-child relationships for sequential gating strategies
+- **Gate Provenance**: `GateOrigin` distinguishes user, QC, and compensation-control gates
 - **Efficient Event Filtering**: Spatial indexing (R*-tree) for fast point-in-gate queries
 - **Comprehensive Statistics**: Detailed statistical analysis of gated populations
 - **GatingML 2.0 Support**: Import/export gates in standard XML format
@@ -18,8 +19,8 @@ Add this to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-flow-gates = { path = "../flow-gates" }
-flow-fcs = { path = "../flow-fcs" }  # Required for FCS file support
+flow-gates = "0.4.0"
+flow-fcs = "0.4"  # Required for FCS file support
 ```
 
 ## Quick Start

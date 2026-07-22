@@ -1,4 +1,4 @@
-//! Three-phase weight schedule from Algorithm 1 of Wang et al. 2021.
+//! Three-phase weight schedule for near-neighbour, mid-near, and further pairs.
 
 /// Weights for the three pair types at a given iteration.
 #[derive(Debug, Clone, Copy)]

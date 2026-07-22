@@ -4,7 +4,9 @@ version = "0.1.0"
 edition.workspace = true
 authors.workspace = true
 license = "MIT"
-description = "First-party PaCMAP dimensionality reduction (Wang et al. 2021) — large-n safe, faer PCA, usearch HNSW"
+repository = "https://github.com/jrmoynihan/flow/flow-pacmap"
+readme = "README.md"
+description = "PaCMAP dimensionality reduction for large-n flow cytometry — faer PCA, optional HNSW and k-d tree KNN"
 keywords = ["pacmap", "dimensionality-reduction", "embedding", "flow-cytometry"]
 categories = ["science", "algorithms", "mathematics"]
 
