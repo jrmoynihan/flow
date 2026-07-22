@@ -15,12 +15,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
    Add README and publish metadata for flow-pacmap, and refresh install/API
    notes for the upcoming flow-linalg and flow-gates releases.
 
-### Chore
-
- - <csr-id-ba96d7fb2b887ab666a3ecdea9f9f49b0cbbf3f4/> prepare 0.1.1 release with Wang et al. attribution
-   Bump flow-pacmap to 0.1.1, pin the README install line, and scrub changelog
-   wording that celebrated neutralizing academic attribution.
-
 ### New Features
 
  - <csr-id-130af0763c00f9e1ab6b16c0b33bf94253ffb340/> estimate spillover from single-stain controls

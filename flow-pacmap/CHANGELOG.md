@@ -15,12 +15,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Chore
 
  - <csr-id-ba96d7fb2b887ab666a3ecdea9f9f49b0cbbf3f4/> prepare 0.1.1 release with Wang et al. attribution
-   Bump flow-pacmap to 0.1.1, pin the README install line, and scrub changelog
-   wording that celebrated neutralizing academic attribution.
+   Bump flow-pacmap to 0.1.1 and pin the README install line for the
+   attribution-restoring docs patch.
  - <csr-id-c9b7448fef935e2ba6f3ea568ce092f9c777b53b/> polish pacmap/linalg/gates for crates.io release
-   Neutralize third-party publication attribution in flow-pacmap, add
-   README and publish metadata, and refresh install/API notes for the
-   upcoming flow-linalg and flow-gates releases.
+   Add README and publish metadata for flow-pacmap, and refresh install/API
+   notes for the upcoming flow-linalg and flow-gates releases.
 
 ### Documentation
 
