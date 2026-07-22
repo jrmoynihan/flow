@@ -1,7 +1,7 @@
 //! # flow-pacmap
 //!
-//! PaCMAP (Pairwise Controlled Manifold Approximation Projection) dimensionality
-//! reduction: three-phase pair-weighted embedding with PCA initialization.
+//! First-party implementation of PaCMAP (Pairwise Controlled Manifold
+//! Approximation Projection) from Wang et al. 2021 (JMLR 22, Algorithm 1).
 //!
 //! Designed for large-n flow cytometry data:
 //! - No ndarray version conflicts — pure `&[f32]` / `Vec<[f32;2]>` API

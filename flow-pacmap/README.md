@@ -8,7 +8,9 @@ PaCMAP dimensionality reduction for large-n flow cytometry datasets.
 
 ## Overview
 
-`flow-pacmap` embeds high-dimensional event data into 2D using a three-phase
+`flow-pacmap` is an implementation of PaCMAP (Pairwise Controlled Manifold
+Approximation Projection) as described by Wang et al. 2021 (JMLR 22,
+Algorithm 1). It embeds high-dimensional event data into 2D using a three-phase
 pair-weighted optimization: near-neighbour attraction, mid-near attraction, and
 further-pair repulsion. It is designed for large event counts typical in flow
 cytometry:
@@ -46,6 +48,13 @@ let embedding = fit_transform(
     None, // cancel token
 )?;
 ```
+
+## References
+
+Wang, Y., Huang, H., Rudin, C., & Shaposhnik, Y. (2021). Understanding How
+Dimension Reduction Tools Work: An Empirical Approach to Deciphering t-SNE,
+UMAP, TriMap, and PaCMAP for Data Visualization.
+*Journal of Machine Learning Research*, 22(201), 1–73.
 
 ## License
 

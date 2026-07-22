@@ -6,7 +6,7 @@ authors.workspace = true
 license = "MIT"
 repository = "https://github.com/jrmoynihan/flow/flow-pacmap"
 readme = "README.md"
-description = "PaCMAP dimensionality reduction for large-n flow cytometry — faer PCA, optional HNSW and k-d tree KNN"
+description = "PaCMAP dimensionality reduction (Wang et al. 2021) for large-n flow cytometry — faer PCA, optional HNSW and k-d tree KNN"
 keywords = ["pacmap", "dimensionality-reduction", "embedding", "flow-cytometry"]
 categories = ["science", "algorithms", "mathematics"]
 

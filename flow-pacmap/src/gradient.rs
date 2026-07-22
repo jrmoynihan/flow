@@ -1,4 +1,4 @@
-//! PaCMAP loss gradient computation for near-neighbour, mid-near, and further pairs.
+//! PaCMAP loss gradient computation (Algorithm 1, Wang et al. 2021).
 //!
 //! Loss terms (where d̃_ab = ‖ya − yb‖² + 1):
 //!   L_NB  = d̃_ij / (10   + d̃_ij)     attractive — near neighbours
