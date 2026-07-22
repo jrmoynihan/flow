@@ -117,6 +117,44 @@ pub enum GateCoordinateSpace {
     Compensated,
 }
 
+/// Provenance of a gate — who or what created it.
+///
+/// Lets UIs treat system-seeded gates differently from user-drawn ones. In
+/// particular, the Data Canvas gate hierarchy hides [`GateOrigin::CompensationControl`]
+/// gates: they are defined on control files (single stains / unstained), not the
+/// experimental samples shown on the canvas, so overlaying or counting them
+/// against arbitrary canvas plots is meaningless, and they are re-seeded /
+/// invalidated as controls change (out-of-band edits would silently break the
+/// matrix). `system_managed` alone can't distinguish them from QC gates, which
+/// *should* remain visible — hence a dedicated origin.
+///
+/// Variants serialize as their names (`"User"`, `"Qc"`, `"CompensationControl"`),
+/// matching the capitalized `ParameterProcessing` convention. Defaults to `User`;
+/// the field is serialized only when non-default (see [`Gate::origin`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+#[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
+#[cfg_attr(feature = "typescript", ts(export))]
+pub enum GateOrigin {
+    /// User-created gate (default).
+    #[default]
+    User,
+    /// System-managed QC gate (PeacoQC good/bad masks and their container).
+    Qc,
+    /// System-managed compensation / unmixing control gate (FSC/SSC Size pools
+    /// and per-channel fluorescence range gates) seeded on control files.
+    /// Hidden from general gate-hierarchy browsers.
+    CompensationControl,
+}
+
+impl GateOrigin {
+    /// True for the default (`User`) origin. Used by serde `skip_serializing_if`
+    /// so user gates don't carry a redundant `origin` key on the wire / in CRDT.
+    pub fn is_user(&self) -> bool {
+        matches!(self, GateOrigin::User)
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
 #[serde(rename_all = "lowercase")]
@@ -1693,6 +1731,14 @@ pub struct Gate {
     #[cfg_attr(feature = "typescript", ts(optional, type = "string"))]
     #[cfg_attr(feature = "specta", specta(type = Option<String>))]
     pub data_context_id: Option<Arc<str>>,
+    /// Provenance of this gate — who/what created it (see [`GateOrigin`]).
+    /// Serialized only when non-default (`User`) via `skip_serializing_if`, but
+    /// always present after deserialize (absent keys default to `User`), so the
+    /// TS type is a plain `GateOrigin`, not optional — mirroring `system_managed`.
+    /// Consumers must still tolerate a missing key on the wire (it reads as
+    /// `undefined`, which is not `"CompensationControl"`, so the default is safe).
+    #[serde(default, skip_serializing_if = "GateOrigin::is_user")]
+    pub origin: GateOrigin,
 }
 
 impl Gate {
@@ -1735,6 +1781,7 @@ impl Gate {
             system_managed: false,
             spillover_group_id: None,
             data_context_id: None,
+            origin: GateOrigin::User,
         }
     }
 
@@ -1937,6 +1984,7 @@ impl Gate {
             system_managed: self.system_managed,
             spillover_group_id: self.spillover_group_id.clone(),
             data_context_id: self.data_context_id.clone(),
+            origin: self.origin,
         }
     }
 
@@ -2379,6 +2427,7 @@ impl GateBuilder {
             system_managed: self.system_managed,
             spillover_group_id: None,
             data_context_id: self.data_context_id,
+            origin: GateOrigin::User,
         })
     }
 
@@ -2476,8 +2525,58 @@ mod arc_str_hashmap {
 
 #[cfg(test)]
 mod tests {
-    use super::{Gate, GateCoordinateSpace, GateGeometry, MaskSource};
+    use super::{Gate, GateCoordinateSpace, GateGeometry, GateOrigin, MaskSource};
     use std::sync::Arc;
+
+    #[test]
+    fn origin_defaults_to_user_and_serde_skips_default() {
+        let mut gate = Gate::new(
+            "origin-gate",
+            "Origin Gate",
+            GateGeometry::Mask {
+                source: MaskSource::Qc {
+                    file_guid: None,
+                    invert: false,
+                },
+            },
+            "FSC-A",
+            "SSC-A",
+            GateCoordinateSpace::Raw,
+        );
+        assert_eq!(gate.origin, GateOrigin::User);
+
+        // Default origin is skipped on the wire (backward-compatible).
+        let serialized = serde_json::to_value(&gate).expect("serialize user-origin gate");
+        assert!(serialized.get("origin").is_none());
+
+        // Non-default origin round-trips as its variant name.
+        gate.origin = GateOrigin::CompensationControl;
+        let serialized = serde_json::to_value(&gate).expect("serialize control gate");
+        assert_eq!(
+            serialized.get("origin").and_then(serde_json::Value::as_str),
+            Some("CompensationControl")
+        );
+        let restored: Gate = serde_json::from_value(serialized).expect("deserialize control gate");
+        assert_eq!(restored.origin, GateOrigin::CompensationControl);
+
+        // Legacy gates without the key deserialize to `User`.
+        let legacy = serde_json::to_value(Gate::new(
+            "legacy",
+            "Legacy",
+            GateGeometry::Mask {
+                source: MaskSource::Qc {
+                    file_guid: None,
+                    invert: false,
+                },
+            },
+            "FSC-A",
+            "SSC-A",
+            GateCoordinateSpace::Raw,
+        ))
+        .expect("serialize legacy");
+        let restored_legacy: Gate = serde_json::from_value(legacy).expect("deserialize legacy");
+        assert_eq!(restored_legacy.origin, GateOrigin::User);
+    }
 
     #[test]
     fn data_context_id_serde_roundtrip_and_legacy_default() {

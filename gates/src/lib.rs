@@ -150,8 +150,8 @@ pub use gatingml::{gates_to_gatingml, gatingml_to_gates};
 /// Core gate types and structures
 pub use types::{
     BooleanOperation, DerivedFrom, Gate, GateBuilder, GateCoordinateSpace, GateGeometry, GateMode,
-    GateNode, GateParameters, MaskSource, QuadrantDivider, QuadrantGate, QuadrantPosition,
-    QuadrantSub, ThresholdDirection,
+    GateNode, GateOrigin, GateParameters, MaskSource, QuadrantDivider, QuadrantGate,
+    QuadrantPosition, QuadrantSub, ThresholdDirection,
 };
 
 /// Gate geometry traits

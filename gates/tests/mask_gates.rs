@@ -124,6 +124,7 @@ fn gate_with_mask_geometry_roundtrip() {
         system_managed: true,
         spillover_group_id: None,
         data_context_id: None,
+        origin: Default::default(),
     };
     let json = serde_json::to_string(&gate).expect("serialize");
     let restored: Gate = serde_json::from_str(&json).expect("deserialize");
@@ -213,6 +214,7 @@ fn make_mask_gate(id: &str, invert: bool, parent_id: Option<&str>) -> Gate {
         system_managed: true,
         spillover_group_id: None,
         data_context_id: None,
+        origin: Default::default(),
     }
 }
 
@@ -307,6 +309,7 @@ fn mask_gate_chain_intersects_with_geometric_gate() {
         system_managed: false,
         spillover_group_id: None,
         data_context_id: None,
+        origin: Default::default(),
     };
 
     let total_events = 10;
@@ -375,6 +378,7 @@ fn missing_mask_returns_empty_set() {
         system_managed: true,
         spillover_group_id: None,
         data_context_id: None,
+        origin: Default::default(),
     };
 
     let total_events = 100;
@@ -525,6 +529,7 @@ fn mixed_qc_status_excludes_unqcd_file_from_stats() {
         system_managed: true,
         spillover_group_id: None,
         data_context_id: None,
+        origin: Default::default(),
     };
 
     let good_gate = Gate {
@@ -546,6 +551,7 @@ fn mixed_qc_status_excludes_unqcd_file_from_stats() {
         system_managed: true,
         spillover_group_id: None,
         data_context_id: None,
+        origin: Default::default(),
     };
 
     let bad_gate = Gate {
@@ -567,6 +573,7 @@ fn mixed_qc_status_excludes_unqcd_file_from_stats() {
         system_managed: true,
         spillover_group_id: None,
         data_context_id: None,
+        origin: Default::default(),
     };
 
     // Helper: simulate per-file filtering through the chain, mimicking the
