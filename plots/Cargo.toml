@@ -38,11 +38,10 @@ rayon         ={ workspace=true }
 num-traits    ="0.2"
 ndarray       ={ workspace=true }
 # Optional for raster feature (render_to_rgba, render_to_png_direct).
-# TODO: Remove this if kuva releases a new version with the arch optimizations
-# kuva={ version="0.1", features=["png"] }
-kuva={ git="https://github.com/jrmoynihan/kuva", optional=true, features=[
+# crates.io requires a version; git is used locally and stripped on publish.
+# TODO: Align with upstream kuva once arch optimizations land on crates.io.
+kuva={ version="0.1.3", git="https://github.com/jrmoynihan/kuva", optional=true, features=[
     "png",
-    "raster",
 ] }
 
 [dev-dependencies]
