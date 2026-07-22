@@ -24,7 +24,7 @@ cytometry:
 
 ```toml
 [dependencies]
-flow-pacmap = "0.1.0"
+flow-pacmap = "0.1.1"
 ```
 
 ## Features

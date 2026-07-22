@@ -5,14 +5,39 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.1.1 (2026-07-22)
+
+### Documentation
+
+ - <csr-id-2db29b5e2ba3f6483b4604c4c2d4cebe81585fca/> restore Wang et al. 2021 academic attribution
+   Crate docs, `Cargo.toml` description, and README References now cite
+   Wang, Huang, Rudin & Shaposhnik (2021), JMLR 22 (PaCMAP Algorithm 1).
+
+### Commit Statistics
+
+<csr-read-only-do-not-edit/>
+
+ - 1 commit contributed to the release.
+ - 1 commit was understood as [conventional](https://www.conventionalcommits.org).
+ - 0 issues like '(#ID)' were seen in commit messages
+
+### Commit Details
+
+<csr-read-only-do-not-edit/>
+
+<details><summary>view details</summary>
+
+ * **Uncategorized**
+    - Restore Wang et al. 2021 attribution ([`2db29b5`](https://github.com/jrmoynihan/flow/commit/2db29b5e2ba3f6483b4604c4c2d4cebe81585fca))
+</details>
+
 ## 0.1.0 (2026-07-22)
 
 ### Chore
 
  - <csr-id-c9b7448fef935e2ba6f3ea568ce092f9c777b53b/> polish pacmap/linalg/gates for crates.io release
-   Neutralize third-party publication attribution in flow-pacmap, add
-   README and publish metadata, and refresh install/API notes for the
-   upcoming flow-linalg and flow-gates releases.
+   Add README and publish metadata for flow-pacmap, and refresh install/API
+   notes for the upcoming flow-linalg and flow-gates releases.
 
 ### New Features
 
@@ -23,8 +48,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Documentation
 
  - <csr-id-c9b7448fef935e2ba6f3ea568ce092f9c777b53b/> add README and crates.io publish metadata
-   Neutral crate description, repository/readme fields, and a minimal README
-   for the first publish.
+   Crate description, repository/readme fields, and a minimal README for the
+   first publish.
  - <csr-id-1d5806048f15f590ebe7b2ba449501aa73868b95/> polish changelogs for pacmap, linalg, and gates releases
 
 ### Commit Statistics

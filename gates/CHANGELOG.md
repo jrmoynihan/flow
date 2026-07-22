@@ -38,9 +38,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Chore
 
  - <csr-id-c9b7448fef935e2ba6f3ea568ce092f9c777b53b/> polish pacmap/linalg/gates for crates.io release
-   Neutralize third-party publication attribution in flow-pacmap, add
-   README and publish metadata, and refresh install/API notes for the
-   upcoming flow-linalg and flow-gates releases.
+   Add README and publish metadata for flow-pacmap, and refresh install/API
+   notes for the upcoming flow-linalg and flow-gates releases.
  - <csr-id-74956f94c544d1fa83f6fffbb18e2d4f5e6072ff/> bump flow-fcs to 0.4.0, add publish metadata to new crates
    - flow-fcs 0.3.0 → 0.4.0 (new compensation feature + public API)
    - flow-linalg, flow-density, flow-clustering: add repository field
