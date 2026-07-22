@@ -28,6 +28,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 0.3.2 (2026-07-22)
 
+<csr-id-74956f94c544d1fa83f6fffbb18e2d4f5e6072ff/>
+<csr-id-2fb6aa22990f90582f20d4e46f6bfc0701cd41e9/>
+<csr-id-0883e2813c189a443bbe105808e302634a96abf6/>
+<csr-id-4e8f876e384c47ce9c63579811b7f384bb84f21a/>
+<csr-id-53ce755944243a1fdcef85d5f40a7fc59fd6ef1c/>
+<csr-id-32a41aa05c1db8f10bf9cf8150b4bddd1872dd1f/>
+
 ### Chore
 
  - <csr-id-74956f94c544d1fa83f6fffbb18e2d4f5e6072ff/> bump flow-fcs to 0.4.0, add publish metadata to new crates
@@ -60,9 +67,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
    control's plot folder, with:
    - y-axis in raw detector units (not normalised)
    - y-axis range set to `[0, 1.1 * max_median]` so the peak isn't pinned
-     to the frame
+   to the frame
    - the max median printed in the title so the bar heights have a clear
-     anchor
+   anchor
    
    To enable this, `render_spectral_signature` now honours
    `y_axis.range` when it differs from `AxisOptions::default()`. The
@@ -76,7 +83,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  - <csr-id-d09dc93e60217d9cd87f787d8ce63b2ec89e10d2/> expose kuva raster APIs for Tauri/zero-copy display
    - Add optional 'raster' feature with kuva fork dependency
    - New kuva module: render_to_rgba, render_to_rgba_no_text,
-     render_to_png_direct, render_to_png_direct_no_text
+   render_to_png_direct, render_to_png_direct_no_text
    - Re-export render_to_raster, render_to_raster_no_text, Layout, Plot
    - Document raster feature in README
  - <csr-id-8d79dd17b3a38a8bcdc26126333abf8d2555fcd9/> implement contour path clipping to axis range
@@ -103,7 +110,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 <csr-read-only-do-not-edit/>
 
- - 18 commits contributed to the release.
+ - 19 commits contributed to the release.
  - 11 commits were understood as [conventional](https://www.conventionalcommits.org).
  - 0 issues like '(#ID)' were seen in commit messages
 
@@ -114,6 +121,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 <details><summary>view details</summary>
 
  * **Uncategorized**
+    - Release flow-pacmap v0.1.0, flow-linalg v0.1.2, flow-fcs-compress v0.1.3, flow-plots v0.3.2, flow-gates v0.4.0 ([`e29c820`](https://github.com/jrmoynihan/flow/commit/e29c820dd65493c3a41f437b0e8f850c3cef8102))
     - Release flow-fcs v0.4.1 ([`597f21b`](https://github.com/jrmoynihan/flow/commit/597f21bef7ea787437071685fc3cce9d2269270f))
     - Simplify PlotType enum to Scatter, Density, Intensity, Contour, Histogram ([`4e8f876`](https://github.com/jrmoynihan/flow/commit/4e8f876e384c47ce9c63579811b7f384bb84f21a))
     - Release flow-linalg v0.1.1, flow-density v0.1.1, flow-clustering v0.1.1, flow-fcs-compress v0.1.1 ([`966d22a`](https://github.com/jrmoynihan/flow/commit/966d22ae4fbdd6114dc3862d45648fce7ebf53cc))
