@@ -1,0 +1,7 @@
+{
+  "database": "dolt",
+  "backend": "dolt",
+  "dolt_mode": "embedded",
+  "dolt_database": "flow_crates",
+  "project_id": "f4d3997b-aa7e-4ac6-b819-e1002bc7dc51"
+}

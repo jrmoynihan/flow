@@ -53,3 +53,9 @@ gates/bindings/
 # Ad-hoc debug scripts (if you create more)
 validate_metadata.rs
 .cursor/plans/qc_removal_reason_visualization.plan.md
+
+# Beads / Dolt files (added by bd init)
+.dolt/
+*.db
+.beads-credential-key
+.beads/proxieddb/
