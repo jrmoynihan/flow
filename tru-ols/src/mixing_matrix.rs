@@ -1,0 +1,199 @@
+//! Mixing matrix assembly from single-stain endmember spectra.
+
+use crate::TruOlsError;
+use faer::{Mat, MatRef};
+use flow_linalg::condition_number_2;
+
+/// Assembled mixing matrix plus QC metadata.
+#[derive(Debug, Clone)]
+pub struct MixingMatrix {
+    pub matrix: Mat<f64>,
+    pub detector_names: Vec<String>,
+    pub endmember_names: Vec<String>,
+    pub primary_detectors: Vec<String>,
+    pub condition_number: f64,
+    pub cosine_similarity: Mat<f64>,
+}
+
+impl MixingMatrix {
+    /// Row-major detectors × endmembers flat buffer.
+    pub fn flat_matrix(&self) -> Vec<f64> {
+        let n_det = self.matrix.nrows();
+        let n_em = self.matrix.ncols();
+        let mut flat = Vec::with_capacity(n_det * n_em);
+        for i in 0..n_det {
+            for j in 0..n_em {
+                flat.push(self.matrix[(i, j)]);
+            }
+        }
+        flat
+    }
+
+    /// Row-major endmembers × endmembers cosine similarity.
+    pub fn flat_cosine_similarity(&self) -> Vec<f64> {
+        let n = self.cosine_similarity.nrows();
+        let mut flat = Vec::with_capacity(n * n);
+        for i in 0..n {
+            for j in 0..n {
+                flat.push(self.cosine_similarity[(i, j)]);
+            }
+        }
+        flat
+    }
+
+    /// log₁₀(max(κ, 1)) when κ is finite.
+    pub fn complexity_index(&self) -> Option<f64> {
+        if self.condition_number.is_finite() {
+            Some(self.condition_number.max(1.0).log10())
+        } else {
+            None
+        }
+    }
+}
+
+/// Builder for [`MixingMatrix`] from per-endmember positive medians (± AF correction).
+#[derive(Debug, Clone)]
+pub struct MixingMatrixBuilder {
+    detector_names: Vec<String>,
+    endmembers: Vec<(String, Vec<f64>, bool)>,
+    autofluorescence: Option<Vec<f64>>,
+}
+
+impl MixingMatrixBuilder {
+    pub fn new(detector_names: Vec<String>) -> Self {
+        Self {
+            detector_names,
+            endmembers: Vec::new(),
+            autofluorescence: None,
+        }
+    }
+
+    pub fn set_autofluorescence(&mut self, af_medians: Vec<f64>) -> &mut Self {
+        self.autofluorescence = Some(af_medians);
+        self
+    }
+
+    /// `af_correction`: when true, subtract stored AF medians from this endmember column.
+    pub fn add_endmember(
+        &mut self,
+        name: impl Into<String>,
+        positive_medians: Vec<f64>,
+        af_correction: bool,
+    ) -> &mut Self {
+        self.endmembers
+            .push((name.into(), positive_medians, af_correction));
+        self
+    }
+
+    pub fn build(self) -> Result<MixingMatrix, TruOlsError> {
+        let n_det = self.detector_names.len();
+        if n_det == 0 {
+            return Err(TruOlsError::InvalidMixingMatrix("no detectors".into()));
+        }
+        if self.endmembers.is_empty() {
+            return Err(TruOlsError::InvalidMixingMatrix("no endmembers".into()));
+        }
+        let n_em = self.endmembers.len();
+        let af = self.autofluorescence.as_ref();
+        let mut matrix = Mat::<f64>::zeros(n_det, n_em);
+        let mut endmember_names = Vec::with_capacity(n_em);
+        let mut primary_detectors = Vec::with_capacity(n_em);
+
+        for (j, (name, medians, af_corr)) in self.endmembers.iter().enumerate() {
+            if medians.len() != n_det {
+                return Err(TruOlsError::InvalidMixingMatrix(format!(
+                    "endmember {name}: expected {n_det} medians, got {}",
+                    medians.len()
+                )));
+            }
+            let mut col: Vec<f64> = medians.clone();
+            if *af_corr {
+                if let Some(afv) = af {
+                    if afv.len() != n_det {
+                        return Err(TruOlsError::InvalidMixingMatrix(
+                            "AF vector length mismatch".into(),
+                        ));
+                    }
+                    for (c, a) in col.iter_mut().zip(afv.iter()) {
+                        *c -= *a;
+                    }
+                }
+            }
+            // Floor negatives, then normalize to unit max (spectral signature).
+            for c in &mut col {
+                if *c < 0.0 {
+                    *c = 0.0;
+                }
+            }
+            let max = col.iter().copied().fold(0.0_f64, f64::max);
+            if max > 0.0 {
+                for c in &mut col {
+                    *c /= max;
+                }
+            }
+            let primary_idx = col
+                .iter()
+                .enumerate()
+                .max_by(|a, b| a.1.partial_cmp(b.1).unwrap_or(std::cmp::Ordering::Equal))
+                .map(|(i, _)| i)
+                .unwrap_or(0);
+            for i in 0..n_det {
+                matrix[(i, j)] = col[i];
+            }
+            endmember_names.push(name.clone());
+            primary_detectors.push(self.detector_names[primary_idx].clone());
+        }
+
+        let cosine_similarity = cosine_similarity_matrix(matrix.as_ref());
+        let condition_number = condition_number_2(matrix.as_ref());
+
+        Ok(MixingMatrix {
+            matrix,
+            detector_names: self.detector_names,
+            endmember_names,
+            primary_detectors,
+            condition_number,
+            cosine_similarity,
+        })
+    }
+}
+
+fn cosine_similarity_matrix(m: MatRef<'_, f64>) -> Mat<f64> {
+    let n = m.ncols();
+    let mut out = Mat::<f64>::zeros(n, n);
+    for i in 0..n {
+        for j in 0..n {
+            let mut dot = 0.0;
+            let mut ni = 0.0;
+            let mut nj = 0.0;
+            for r in 0..m.nrows() {
+                let a = m[(r, i)];
+                let b = m[(r, j)];
+                dot += a * b;
+                ni += a * a;
+                nj += b * b;
+            }
+            let denom = (ni.sqrt() * nj.sqrt()).max(f64::EPSILON);
+            out[(i, j)] = dot / denom;
+        }
+    }
+    out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn builds_normalized_columns() {
+        let mut b = MixingMatrixBuilder::new(vec!["D1".into(), "D2".into()]);
+        b.add_endmember("A", vec![100.0, 20.0], false);
+        b.add_endmember("B", vec![10.0, 80.0], false);
+        let m = b.build().unwrap();
+        assert_eq!(m.endmember_names.len(), 2);
+        assert!((m.matrix[(0, 0)] - 1.0).abs() < 1e-9);
+        assert!(m.condition_number.is_finite());
+        assert!((m.cosine_similarity[(0, 0)] - 1.0).abs() < 1e-9);
+        assert_eq!(m.flat_matrix().len(), 4);
+    }
+}

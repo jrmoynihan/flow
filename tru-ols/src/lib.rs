@@ -84,6 +84,8 @@ pub mod preprocessing;
 pub(crate) mod unmix_buffer;
 #[cfg(feature = "unmix-cache")]
 pub(crate) mod unmix_cache;
+pub mod mixing_matrix;
+pub mod pipeline;
 pub mod unmixing;
 
 #[cfg(feature = "cubecl")]
@@ -100,6 +102,10 @@ pub use error::TruOlsError;
 pub use preprocessing::{CutoffCalculator, NonspecificObservation};
 #[cfg(feature = "unmix-cache")]
 pub use unmixing::{SharedMaskFactorCache, shared_mask_factor_cache_with_capacity};
+pub use mixing_matrix::{MixingMatrix, MixingMatrixBuilder};
+pub use pipeline::{
+    matrix_from_row_major_flat, resolve_or_append_af_endmember, unmixed_output_path,
+};
 pub use unmixing::{TruOls, TruncationStats, UnmixingStrategy};
 
 #[cfg(feature = "cubecl")]
@@ -117,6 +123,11 @@ pub use fcs_integration::apply_tru_ols_unmixing_from_preprocessed_with_shared_fa
 #[cfg(feature = "flow-fcs")]
 pub use fcs_integration::{
     TruOlsUnmixing, apply_tru_ols_unmixing_from_preprocessed, extract_detector_data,
+};
+#[cfg(feature = "flow-fcs")]
+pub use pipeline::{
+    FitMetricsSummary, UnmixExportRequest, UnmixExportResult, export_unmixed_fcs,
+    set_raw_datasource_guid,
 };
 
 #[cfg(all(feature = "flow-fcs", feature = "plotting"))]
