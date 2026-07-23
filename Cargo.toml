@@ -13,6 +13,8 @@ members = [
     "peacoqc-cli",
 
     "tru-ols",
+    "flow-peak-detection",
+    "flow-control-detection",
 
 ]
 resolver = "3"

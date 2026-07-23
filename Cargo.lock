@@ -3254,6 +3254,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "flow-control-detection"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "approx",
+ "regex",
+]
+
+[[package]]
 name = "flow-density"
 version = "0.1.1"
 dependencies = [
@@ -3387,6 +3396,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "flow-peak-detection"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "approx",
+]
+
+[[package]]
 name = "flow-plots"
 version = "0.3.2"
 dependencies = [
@@ -3421,6 +3438,7 @@ dependencies = [
  "faer 0.24.4",
  "faer-ext",
  "flow-fcs",
+ "flow-linalg",
  "flow-plots",
  "ndarray 0.17.2",
  "ndarray-linalg",
