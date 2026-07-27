@@ -117,9 +117,18 @@ impl MixingMatrixBuilder {
         }
         let n_em = self.endmembers.len();
         let af = self.autofluorescence.as_ref();
-        let mut matrix = Mat::<f64>::zeros(n_det, n_em);
-        let mut endmember_names = Vec::with_capacity(n_em);
-        let mut primary_detectors = Vec::with_capacity(n_em);
+        if let Some(afv) = af {
+            if afv.len() != n_det {
+                return Err(TruOlsError::InvalidMixingMatrix(
+                    "AF vector length mismatch".into(),
+                ));
+            }
+        }
+        // Include AF as its own endmember column when present (Mage / OLS+AF QC).
+        let n_cols = n_em + usize::from(af.is_some());
+        let mut matrix = Mat::<f64>::zeros(n_det, n_cols);
+        let mut endmember_names = Vec::with_capacity(n_cols);
+        let mut primary_detectors = Vec::with_capacity(n_cols);
 
         for (j, (name, medians, af_corr)) in self.endmembers.iter().enumerate() {
             if medians.len() != n_det {
@@ -131,38 +140,27 @@ impl MixingMatrixBuilder {
             let mut col: Vec<f64> = medians.clone();
             if *af_corr {
                 if let Some(afv) = af {
-                    if afv.len() != n_det {
-                        return Err(TruOlsError::InvalidMixingMatrix(
-                            "AF vector length mismatch".into(),
-                        ));
-                    }
                     for (c, a) in col.iter_mut().zip(afv.iter()) {
                         *c -= *a;
                     }
                 }
             }
-            // Floor negatives, then normalize to unit max (spectral signature).
-            for c in &mut col {
-                if *c < 0.0 {
-                    *c = 0.0;
-                }
-            }
-            let max = col.iter().copied().fold(0.0_f64, f64::max);
-            if max > 0.0 {
-                for c in &mut col {
-                    *c /= max;
-                }
-            }
-            let primary_idx = col
-                .iter()
-                .enumerate()
-                .max_by(|a, b| a.1.partial_cmp(b.1).unwrap_or(std::cmp::Ordering::Equal))
-                .map(|(i, _)| i)
-                .unwrap_or(0);
+            let primary_idx = normalize_signature_column(&mut col);
             for i in 0..n_det {
                 matrix[(i, j)] = col[i];
             }
             endmember_names.push(name.clone());
+            primary_detectors.push(self.detector_names[primary_idx].clone());
+        }
+
+        if let Some(afv) = af {
+            let j = n_em;
+            let mut col = afv.clone();
+            let primary_idx = normalize_signature_column(&mut col);
+            for i in 0..n_det {
+                matrix[(i, j)] = col[i];
+            }
+            endmember_names.push("Autofluorescence".into());
             primary_detectors.push(self.detector_names[primary_idx].clone());
         }
 
@@ -184,6 +182,26 @@ impl MixingMatrixBuilder {
             hotspot_error,
         })
     }
+}
+
+/// Floor negatives and max-normalize; returns primary (peak) detector index.
+fn normalize_signature_column(col: &mut [f64]) -> usize {
+    for c in col.iter_mut() {
+        if *c < 0.0 {
+            *c = 0.0;
+        }
+    }
+    let max = col.iter().copied().fold(0.0_f64, f64::max);
+    if max > 0.0 {
+        for c in col.iter_mut() {
+            *c /= max;
+        }
+    }
+    col.iter()
+        .enumerate()
+        .max_by(|a, b| a.1.partial_cmp(b.1).unwrap_or(std::cmp::Ordering::Equal))
+        .map(|(i, _)| i)
+        .unwrap_or(0)
 }
 
 fn cosine_similarity_matrix(m: MatRef<'_, f64>) -> Mat<f64> {
@@ -235,5 +253,20 @@ mod tests {
         assert_eq!(sifs.len(), 2);
         assert!(sifs.iter().all(|s| s.is_finite() && *s >= 1.0));
         assert!(m.hotspot_error.is_none());
+    }
+
+    #[test]
+    fn assemble_appends_af_endmember_column() {
+        let mut b = MixingMatrixBuilder::new(vec!["D1".into(), "D2".into(), "D3".into()]);
+        b.set_autofluorescence(vec![10.0, 20.0, 5.0]);
+        b.add_endmember("A", vec![100.0, 25.0, 6.0], true);
+        b.add_endmember("B", vec![12.0, 25.0, 100.0], true);
+        let m = b.build().unwrap();
+        assert_eq!(m.endmember_names.len(), 3);
+        assert_eq!(m.endmember_names[2], "Autofluorescence");
+        assert_eq!(m.matrix.ncols(), 3);
+        assert!((m.matrix[(1, 2)] - 1.0).abs() < 1e-9); // AF peak on D2
+        let sifs = m.sifs().expect("sifs");
+        assert_eq!(sifs.len(), 3);
     }
 }
