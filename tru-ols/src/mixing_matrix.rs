@@ -2,7 +2,7 @@
 
 use crate::TruOlsError;
 use faer::{Mat, MatRef};
-use flow_linalg::condition_number_2;
+use flow_linalg::{condition_number_2, hotspot_from_similarity};
 
 /// Assembled mixing matrix plus QC metadata.
 #[derive(Debug, Clone)]
@@ -13,6 +13,9 @@ pub struct MixingMatrix {
     pub primary_detectors: Vec<String>,
     pub condition_number: f64,
     pub cosine_similarity: Mat<f64>,
+    /// Mage hotspot \(H = \sqrt{|S^{-1}|}\); `None` if similarity invert failed.
+    pub hotspot: Option<Mat<f64>>,
+    pub hotspot_error: Option<String>,
 }
 
 impl MixingMatrix {
@@ -48,6 +51,25 @@ impl MixingMatrix {
         } else {
             None
         }
+    }
+
+    /// Row-major \(n \times n\) hotspot, if available.
+    pub fn flat_hotspot(&self) -> Option<Vec<f64>> {
+        let h = self.hotspot.as_ref()?;
+        let n = h.nrows();
+        let mut flat = Vec::with_capacity(n * n);
+        for i in 0..n {
+            for j in 0..n {
+                flat.push(h[(i, j)]);
+            }
+        }
+        Some(flat)
+    }
+
+    /// Diagonal SIFs, if hotspot is available.
+    pub fn sifs(&self) -> Option<Vec<f64>> {
+        let h = self.hotspot.as_ref()?;
+        Some((0..h.nrows()).map(|i| h[(i, i)]).collect())
     }
 }
 
@@ -146,6 +168,10 @@ impl MixingMatrixBuilder {
 
         let cosine_similarity = cosine_similarity_matrix(matrix.as_ref());
         let condition_number = condition_number_2(matrix.as_ref());
+        let (hotspot, hotspot_error) = match hotspot_from_similarity(cosine_similarity.as_ref()) {
+            Ok(h) => (Some(h.matrix), None),
+            Err(e) => (None, Some(e)),
+        };
 
         Ok(MixingMatrix {
             matrix,
@@ -154,6 +180,8 @@ impl MixingMatrixBuilder {
             primary_detectors,
             condition_number,
             cosine_similarity,
+            hotspot,
+            hotspot_error,
         })
     }
 }
@@ -195,5 +223,17 @@ mod tests {
         assert!(m.condition_number.is_finite());
         assert!((m.cosine_similarity[(0, 0)] - 1.0).abs() < 1e-9);
         assert_eq!(m.flat_matrix().len(), 4);
+    }
+
+    #[test]
+    fn assemble_emits_hotspot_sifs() {
+        let mut b = MixingMatrixBuilder::new(vec!["D1".into(), "D2".into(), "D3".into()]);
+        b.add_endmember("A", vec![100.0, 5.0, 1.0], false);
+        b.add_endmember("B", vec![1.0, 5.0, 100.0], false);
+        let m = b.build().unwrap();
+        let sifs = m.sifs().expect("sifs");
+        assert_eq!(sifs.len(), 2);
+        assert!(sifs.iter().all(|s| s.is_finite() && *s >= 1.0));
+        assert!(m.hotspot_error.is_none());
     }
 }
