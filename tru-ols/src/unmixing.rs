@@ -85,7 +85,8 @@ impl TruOls {
     /// * `autofluorescence_idx` - Index of the autofluorescence endmember
     ///
     /// # Returns
-    /// Configured TRU-OLS instance with default settings (99.5th percentile cutoff, Zero strategy)
+    /// Configured TRU-OLS instance with default settings (99.5th percentile cutoff,
+    /// [`UnmixingStrategy::UnstainedControlMapping`]).
     ///
     /// This runs [`CutoffCalculator::calculate`] and [`NonspecificObservation::calculate`] on every
     /// call. If you already computed cutoffs and the nonspecific observation (for example in a CLI
@@ -111,7 +112,7 @@ impl TruOls {
             nonspecific_observation: nonspecific.observation().clone(),
             unstained_control,
             autofluorescence_idx,
-            strategy: UnmixingStrategy::Zero,
+            strategy: UnmixingStrategy::UnstainedControlMapping,
             #[cfg(feature = "unmix-cache")]
             factor_cache: shared_mask_factor_cache_with_capacity(512),
         })
@@ -160,7 +161,7 @@ impl TruOls {
             nonspecific_observation,
             unstained_control,
             autofluorescence_idx,
-            strategy: UnmixingStrategy::Zero,
+            strategy: UnmixingStrategy::UnstainedControlMapping,
             #[cfg(feature = "unmix-cache")]
             factor_cache: shared_mask_factor_cache_with_capacity(512),
         })
@@ -207,7 +208,7 @@ impl TruOls {
             nonspecific_observation,
             unstained_control,
             autofluorescence_idx,
-            strategy: UnmixingStrategy::Zero,
+            strategy: UnmixingStrategy::UnstainedControlMapping,
             factor_cache,
         })
     }

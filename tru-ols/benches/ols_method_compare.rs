@@ -92,9 +92,12 @@ fn bench_grid(
 }
 
 fn bench_ols_method_matrix(c: &mut Criterion) {
-    bench_grid(c, "ols_method_matrix", &[50_000, 200_000], 15, 5);
-    if std::env::var("FLOW_TRU_OLS_BENCH_1M").ok().as_deref() == Some("1") {
-        bench_grid(c, "ols_method_matrix_1m", &[1_000_000], 10, 15);
+    let pressure = std::env::var("FLOW_TRU_OLS_BENCH_PRESSURE").ok().as_deref() == Some("1")
+        || std::env::var("FLOW_TRU_OLS_BENCH_1M").ok().as_deref() == Some("1");
+    // FCS-scale default; pressure adds 500k / 1M events.
+    bench_grid(c, "ols_method_matrix", &[50_000, 200_000], 15, 8);
+    if pressure {
+        bench_grid(c, "ols_method_matrix_pressure", &[500_000, 1_000_000], 10, 20);
     }
 }
 

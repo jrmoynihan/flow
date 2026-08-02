@@ -64,8 +64,8 @@ pub fn unmixed_output_path(src: &Path, out_dir: &Path) -> PathBuf {
 
 #[cfg(feature = "flow-fcs")]
 pub use fcs_export::{
-    UnmixExportRequest, UnmixExportResult, FitMetricsSummary, export_unmixed_fcs,
-    set_raw_datasource_guid,
+    UnmixExportRequest, UnmixExportResult, FitMetricsSummary, RAW_DATASOURCE_GUID_KEYWORD,
+    export_unmixed_fcs, set_raw_datasource_guid,
 };
 
 #[cfg(feature = "flow-fcs")]
@@ -73,7 +73,8 @@ mod fcs_export {
     use super::{matrix_from_row_major_flat, resolve_or_append_af_endmember, unmixed_output_path};
     use crate::TruOlsError;
     use crate::fcs_integration::{
-        apply_tru_ols_unmixing_from_preprocessed, extract_detector_data,
+        apply_tru_ols_unmixing_from_preprocessed, extract_detector_data, DEFAULT_AF_CHANNEL_NAME,
+        UNMIXED_METHOD_TRU_OLS,
     };
     use crate::metrics::{FitMetrics, compute_fit_metrics};
     use crate::preprocessing::{CutoffCalculator, NonspecificObservation};
@@ -123,6 +124,12 @@ mod fcs_export {
         pub raw_datasource_guid: &'a str,
         /// When true, also compute fit metrics for this stained file.
         pub compute_fit: bool,
+        /// Parallel to input `endmember_names` (before AF append): fluor → `$PnN`.
+        pub endmember_fluor_names: Vec<Option<String>>,
+        /// Parallel to input `endmember_names` (before AF append): target/marker → `$PnS`.
+        pub endmember_target_names: Vec<Option<String>>,
+        /// AF abundance `$PnN` (default `Autofluorescence`).
+        pub af_channel_name: String,
     }
 
     pub struct UnmixExportResult {
@@ -166,6 +173,12 @@ mod fcs_export {
         let em_refs: Vec<&str> = endmember_names.iter().map(|s| s.as_str()).collect();
         let primary_opts: Vec<Option<String>> = vec![None; n_em];
 
+        // Pad label arrays to final endmember count (AF may have been appended).
+        let mut fluor_names = req.endmember_fluor_names;
+        let mut target_names = req.endmember_target_names;
+        fluor_names.resize(n_em, None);
+        target_names.resize(n_em, None);
+
         let unstained_data = extract_detector_data(req.unstained, &det_refs)?;
         let cutoff = if req.cutoff_percentile.is_finite() && req.cutoff_percentile > 0.0 {
             req.cutoff_percentile
@@ -197,6 +210,15 @@ mod fcs_export {
             None
         };
 
+        let af_pn = {
+            let trimmed = req.af_channel_name.trim();
+            if trimmed.is_empty() {
+                DEFAULT_AF_CHANNEL_NAME.to_string()
+            } else {
+                trimmed.to_string()
+            }
+        };
+
         let mut unmixed = apply_tru_ols_unmixing_from_preprocessed(
             req.stained,
             req.unstained,
@@ -210,10 +232,16 @@ mod fcs_export {
             &primary_opts,
             &[],
             &[],
-            &[],
-            &[],
+            // selected_marker_names → $PnS (target)
+            &target_names,
+            // selected_fluor_names → $PnN (fluor)
+            &fluor_names,
+            &af_pn,
+            UNMIXED_METHOD_TRU_OLS,
         )?;
+        // Provenance first, then mint a distinct product GUID (do not keep the raw `$GUID`).
         set_raw_datasource_guid(&mut unmixed, req.raw_datasource_guid);
+        crate::fcs_integration::mint_unmixed_file_guid(&mut unmixed);
 
         let out_path = unmixed_output_path(&req.stained.file_access.path, req.output_dir);
         write_fcs_file(unmixed, &out_path).map_err(|e| {

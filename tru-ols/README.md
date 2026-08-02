@@ -31,7 +31,8 @@ let dataset = mat![[100.0, 50.0, 10.0], [200.0, 150.0, 20.0]];
 
 let mut tru_ols = TruOls::new(mixing_matrix, unstained_control.clone(), 1)?;
 tru_ols.set_cutoff_percentile(0.995, unstained_control.as_ref())?;
-tru_ols.set_strategy(UnmixingStrategy::Zero);
+// Default strategy is UCM; opt into Zero if desired:
+// tru_ols.set_strategy(UnmixingStrategy::Zero);
 
 let unmixed = tru_ols.unmix(dataset.as_ref())?;
 ```

@@ -13,6 +13,98 @@ use faer::{Col, Mat};
 use flow_fcs::Fcs;
 #[cfg(feature = "flow-fcs")]
 
+/// Custom TEXT keyword identifying an unmixed product and its method.
+/// Stored/looked up as `$UNMIXED` because `flow-fcs` write always `$`-prefixes keys.
+#[cfg(feature = "flow-fcs")]
+pub const UNMIXED_KEYWORD: &str = "$UNMIXED";
+/// Pre-`$`-prefix alias (in-memory inserts before a write round-trip).
+#[cfg(feature = "flow-fcs")]
+pub const UNMIXED_KEYWORD_BARE: &str = "UNMIXED";
+/// Value written by the TRU-OLS export path.
+#[cfg(feature = "flow-fcs")]
+pub const UNMIXED_METHOD_TRU_OLS: &str = "TRU-OLS";
+/// Reserved for plain OLS export.
+#[cfg(feature = "flow-fcs")]
+pub const UNMIXED_METHOD_OLS: &str = "OLS";
+/// Explicit non-unmixed marker (absence also means not unmixed).
+#[cfg(feature = "flow-fcs")]
+pub const UNMIXED_METHOD_FALSE: &str = "FALSE";
+/// Default AF abundance `$PnN`.
+#[cfg(feature = "flow-fcs")]
+pub const DEFAULT_AF_CHANNEL_NAME: &str = "Autofluorescence";
+
+/// Cast TRU-OLS abundances to FCS float32 **without** clamping.
+///
+/// UCM (and unrestricted OLS) produce signed values around zero for
+/// irrelevant / over-extracted endmembers. Clamping to ≥0 piles those events
+/// on the plot axes and undoes UCM.
+#[cfg(feature = "flow-fcs")]
+fn abundance_f64_to_f32(values: &[f64]) -> Vec<f32> {
+    values.iter().map(|&x| x as f32).collect()
+}
+
+#[cfg(feature = "flow-fcs")]
+fn identity_spillover_keyword(channel_names: &[String]) -> flow_fcs::keyword::MixedKeyword {
+    let n = channel_names.len();
+    let mut matrix_values = vec![0.0_f32; n * n];
+    for i in 0..n {
+        matrix_values[i * n + i] = 1.0;
+    }
+    flow_fcs::keyword::MixedKeyword::SPILLOVER {
+        n_parameters: n,
+        parameter_names: channel_names.to_vec(),
+        matrix_values,
+    }
+}
+
+#[cfg(feature = "flow-fcs")]
+fn strip_acquisition_spillover_keywords<S: std::hash::BuildHasher>(
+    keywords: &mut std::collections::HashMap<String, flow_fcs::keyword::Keyword, S>,
+) {
+    for key in ["$SPILLOVER", "$SPILL", "$COMP"] {
+        keywords.remove(key);
+    }
+}
+
+/// True for per-parameter TEXT keys (`$P12N`, `P10DISPLAY`, …), not `$PAR` / `$PROJ` / `$PLATENAME`.
+///
+/// Cytek often stores display keys without a `$` prefix; both forms must be stripped when
+/// rebuilding the parameter list so orphans do not round-trip onto reduced-channel exports.
+#[cfg(feature = "flow-fcs")]
+pub(crate) fn is_parameter_index_keyword(key: &str) -> bool {
+    let rest = key.strip_prefix('$').unwrap_or(key);
+    let mut chars = rest.chars();
+    if chars.next() != Some('P') {
+        return false;
+    }
+    let mut saw_digit = false;
+    for c in chars {
+        if c.is_ascii_digit() {
+            saw_digit = true;
+        } else {
+            // `$P12N`, `P10DISPLAY` — digit run then a non-digit suffix.
+            return saw_digit;
+        }
+    }
+    false
+}
+
+/// Drop `$Pn*` / `Pn*` parameter keywords while keeping sample metadata (`$PROJ`, `$PLATENAME`, …).
+#[cfg(feature = "flow-fcs")]
+fn strip_parameter_index_keywords<S: std::hash::BuildHasher>(
+    keywords: &mut std::collections::HashMap<String, flow_fcs::keyword::Keyword, S>,
+) {
+    keywords.retain(|k, _| !is_parameter_index_keyword(k));
+}
+
+/// Replace any cloned source GUID with a fresh identity for the unmixed product.
+#[cfg(feature = "flow-fcs")]
+pub(crate) fn mint_unmixed_file_guid(fcs: &mut Fcs) {
+    fcs.metadata.keywords.remove("GUID");
+    fcs.metadata.keywords.remove("$GUID");
+    fcs.metadata.validate_guid();
+}
+
 /// Extract detector data from Fcs DataFrame and convert to Mat<f64>.
 ///
 /// This function extracts detector channel data from an Fcs struct and converts
@@ -91,12 +183,14 @@ fn build_unmixed_fcs_from_unmixed_abundances(
     unmixed_abundances: &Mat<f64>,
     endmember_names: &[&str],
     autofluorescence_name: &str,
-    endmember_to_detector: &std::collections::HashMap<&str, &str>,
-    primary_detector_names: &[Option<String>],
-    primary_detector_pn_names: &[Option<String>],
-    primary_detector_pn_labels: &[Option<String>],
+    _endmember_to_detector: &std::collections::HashMap<&str, &str>,
+    _primary_detector_names: &[Option<String>],
+    _primary_detector_pn_names: &[Option<String>],
+    _primary_detector_pn_labels: &[Option<String>],
     selected_marker_names: &[Option<String>],
     selected_fluor_names: &[Option<String>],
+    af_channel_name: &str,
+    unmixed_method: &str,
 ) -> Result<Fcs, TruOlsError> {
     use flow_fcs::keyword::Keyword;
     use polars::prelude::Column;
@@ -134,11 +228,8 @@ fn build_unmixed_fcs_from_unmixed_abundances(
     // Clear parameters and rebuild with only scatter/time
     output_fcs.parameters.clear();
 
-    // Also clear old parameter keywords to rebuild them
-    output_fcs
-        .metadata
-        .keywords
-        .retain(|k, _| !k.starts_with("$P"));
+    // Drop only `$Pn*` / `Pn*` parameter keys (keep `$PROJ`, `$PLATENAME`, `$PAR`, …).
+    strip_parameter_index_keywords(&mut output_fcs.metadata.keywords);
 
     // Re-add scatter/time parameters
     let mut param_num = 1;
@@ -190,6 +281,7 @@ fn build_unmixed_fcs_from_unmixed_abundances(
 
     // Add unmixed endmember columns
     let n_events = unmixed_abundances.nrows();
+    let mut abundance_channel_names: Vec<String> = Vec::new();
 
     // Process fluorophore endmembers (skip autofluorescence)
     for (endmember_idx, &endmember_name) in endmember_names.iter().enumerate() {
@@ -198,102 +290,40 @@ fn build_unmixed_fcs_from_unmixed_abundances(
             continue;
         }
 
-        // Extract column from unmixed abundances and convert to f32
+        // Extract column from unmixed abundances and convert to f32.
+        // Preserve signed values: UCM maps irrelevant endmembers onto the unstained
+        // noise distribution (often straddling zero). Clamping to ≥0 collapses that
+        // cloud onto the axis and defeats UCM.
         let f64_values: Vec<f64> = (0..n_events)
             .map(|event_idx| unmixed_abundances[(event_idx, endmember_idx)])
             .collect();
+        let f32_values: Vec<f32> = abundance_f64_to_f32(&f64_values);
 
-        // Convert to f32 and clamp to non-negative to avoid large negative display from overextraction
-        let f32_values: Vec<f32> = f64_values.iter().map(|&x| (x as f32).max(0.0)).collect();
-
-        // Determine naming and labels for this unmixed column
-        // Look up which detector this endmember maps to in the stained file
-        let original_detector = endmember_to_detector.get(endmember_name);
-
-        // Extract fully-stained parameter metadata if available
-        let mut fs_pn: Option<String> = None;
-        let mut fs_ps: Option<String> = None;
-        if let Some(det_name) = original_detector {
-            if let Some(param) = stained_fcs.parameters.get(&Arc::from(*det_name)) {
-                if !param.channel_name.is_empty() {
-                    fs_pn = Some(param.channel_name.to_string());
-                }
-                if !param.label_name.is_empty() {
-                    fs_ps = Some(param.label_name.to_string());
-                }
-            }
-        }
-
-        let control_pn = primary_detector_pn_names
+        // Product contract (Select Controls / unmix export):
+        //   $PnN = fluor (no Unmixed_ prefix; UNMIXED keyword IDs the file)
+        //   $PnS = target / marker
+        // Never write hardware detector ids (UV1-A, B10-A, …) into either keyword.
+        let fluor = selected_fluor_names
             .get(endmember_idx)
-            .and_then(|o| o.clone());
-        let control_ps = primary_detector_pn_labels
+            .and_then(|opt| opt.as_ref())
+            .map(|s| s.trim())
+            .filter(|s| !s.is_empty())
+            .map(str::to_string)
+            .unwrap_or_else(|| short_name_from_endmember_stem(endmember_name));
+        let target = selected_marker_names
             .get(endmember_idx)
-            .and_then(|o| o.clone());
+            .and_then(|opt| opt.as_ref())
+            .map(|s| s.trim())
+            .filter(|s| !s.is_empty())
+            .map(str::to_string)
+            .unwrap_or_default();
 
-        // Get primary detector name from controls
-        let primary_detector_name = primary_detector_names
-            .get(endmember_idx)
-            .and_then(|o| o.clone());
-
-        let detector_id = original_detector
-            .map(|s| s.to_string())
-            .unwrap_or_else(|| endmember_name.to_string());
-        // Use the user-selected marker name if available, otherwise fall back to extraction
-        let endmember_short_name = selected_marker_names
-            .get(endmember_idx)
-            .and_then(|opt| opt.clone())
-            .unwrap_or_else(|| {
-                if endmember_name.contains("Autofluorescence")
-                    || endmember_name.eq("Autofluorescence")
-                {
-                    "Autofluorescence".to_string()
-                } else {
-                    short_name_from_endmember_stem(endmember_name)
-                }
-            }); // Robust precedence for unmixed column naming:
-        // 1) User-selected marker name from interactive prompt (most explicit from user)
-        // 2) Extracted endmember marker name (from filename - most robust and unique)
-        // 3) Control file's $PnS (parameter label/short label) - from FCS metadata but can have duplicates
-        // 4) Control file's $PnN (parameter name) - from FCS metadata but can have duplicates
-        // 5) Primary detector identifier (e.g., "V7-A", "R4-A")
-        // 6) Fully-stained file's $PnN (if exists)
-        // 7) Fully-stained file's $PnS (if exists)
-        // 8) Detector ID from stained file
-        // 9) Endmember name
-        //
-        // Rationale: We prioritize the user-selected marker name because:
-        // - User has explicitly confirmed it's correct
-        // - It's unique (each control file represents a different marker/fluorophore)
-        // - It's human-readable (CD4, CD19, HLA-DR_DQ, etc.)
-        // - It doesn't depend on detector mapping (multiple markers can use the same detector)
-        // FCS metadata is used as fallback when no user selection was made
-
-        let chosen_pn = Some(endmember_short_name.clone())
-            .filter(|n| n != "Autofluorescence" && !n.is_empty() && n.len() > 2)
-            .or_else(|| control_ps.clone())
-            .or_else(|| control_pn.clone())
-            .or_else(|| primary_detector_name.clone())
-            .or(fs_pn.clone())
-            .or(fs_ps.clone())
-            .unwrap_or(detector_id.clone());
-
-        // Choose $PnS (label) with same precedence
-        let chosen_ps = Some(endmember_short_name.clone())
-            .filter(|n| n != "Autofluorescence" && !n.is_empty() && n.len() > 2)
-            .or_else(|| control_ps.clone())
-            .or_else(|| control_pn.clone())
-            .or_else(|| primary_detector_name.clone())
-            .or(fs_pn.clone())
-            .or(fs_ps.clone())
-            .unwrap_or(detector_id.clone());
-
-        // Final unmixed column name keeps the Unmixed_ prefix
-        let unmixed_col_name = format!("Unmixed_{}", chosen_pn);
+        let unmixed_col_name = fluor;
         let column = Column::new(unmixed_col_name.clone().into(), f32_values.clone());
 
         // Collect column for DataFrame creation
         result_df_columns.push(column);
+        abundance_channel_names.push(unmixed_col_name.clone());
 
         // Add parameter metadata for this new column
         use flow_fcs::{Parameter, TransformType};
@@ -302,7 +332,7 @@ fn build_unmixed_fcs_from_unmixed_abundances(
         let param = Parameter::new(
             &param_num,
             &unmixed_col_name,
-            &chosen_ps,
+            &target,
             &TransformType::Linear,
         );
         output_fcs
@@ -312,53 +342,14 @@ fn build_unmixed_fcs_from_unmixed_abundances(
         // Add FCS TEXT segment keywords for this parameter
         use flow_fcs::keyword::{IntegerKeyword, MixedKeyword, StringKeyword};
 
-        // Get the original detector name and its label for this endmember
-        let original_detector = endmember_to_detector.get(endmember_name);
-
-        // Decide on the short label ($PnS) to use for this unmixed parameter:
-        // 1. Prefer user-selected fluor/dye name from interactive prompt (most explicit from user)
-        // 2. Otherwise use marker/dye label from the control file's $PnS (e.g., "RB705", "FITC")
-        // 3. Otherwise use the original stained file's parameter label
-        // 4. Otherwise fall back to the endmember name or detector ID
-        // This ensures $PnS reflects the marker/dye, not the detector hardware name.
-        let marker_label = selected_fluor_names
-            .get(endmember_idx)
-            .and_then(|opt| opt.clone())
-            .or_else(|| control_ps.clone())
-            .or_else(|| {
-                original_detector.and_then(|det_name| {
-                    stained_fcs
-                        .parameters
-                        .get(&Arc::from(*det_name))
-                        .and_then(|param| {
-                            if !param.label_name.is_empty() {
-                                Some(param.label_name.as_ref().to_string())
-                            } else {
-                                None
-                            }
-                        })
-                })
-            })
-            .unwrap_or_else(|| endmember_name.to_string());
-
-        // $P{i}N - Parameter name: use "Unmixed_" + fluorophore name, fall back to detector ID
-        // Prefer the fluorophore name extracted from endmember filename (e.g., "CD56", "TIM3")
-        // over detector name (e.g., "B10-A")
-        let pn_name = format!(
-            "Unmixed_{}",
-            Some(endmember_short_name.clone())
-                .filter(|n| n != "Autofluorescence" && !n.is_empty() && n.len() > 2)
-                .unwrap_or_else(|| detector_id.clone())
-        );
         output_fcs.metadata.keywords.insert(
             format!("$P{}N", param_num),
-            Keyword::String(StringKeyword::PnN(Arc::from(pn_name))),
+            Keyword::String(StringKeyword::PnN(Arc::from(unmixed_col_name.clone()))),
         );
 
-        // $P{i}S - Parameter short name (use marker/dye label from control file)
         output_fcs.metadata.keywords.insert(
             format!("$P{}S", param_num),
-            Keyword::String(StringKeyword::PnS(Arc::from(marker_label))),
+            Keyword::String(StringKeyword::PnS(Arc::from(target))),
         );
 
         // $P{i}B - Bits per parameter (32 for float32)
@@ -388,28 +379,36 @@ fn build_unmixed_fcs_from_unmixed_abundances(
         let f64_values: Vec<f64> = (0..n_events)
             .map(|event_idx| unmixed_abundances[(event_idx, af_idx)])
             .collect();
-        let f32_values: Vec<f32> = f64_values.iter().map(|&x| (x as f32).max(0.0)).collect();
+        let f32_values: Vec<f32> = abundance_f64_to_f32(&f64_values);
 
-        let af_column_name = "Unmixed_Autofluorescence";
-        let column = Column::new(af_column_name.into(), f32_values);
+        let af_pn = {
+            let trimmed = af_channel_name.trim();
+            if trimmed.is_empty() {
+                DEFAULT_AF_CHANNEL_NAME.to_string()
+            } else {
+                trimmed.to_string()
+            }
+        };
+        let column = Column::new(af_pn.clone().into(), f32_values);
         result_df_columns.push(column);
+        abundance_channel_names.push(af_pn.clone());
 
         // Add parameter metadata for autofluorescence
         use flow_fcs::{Parameter, TransformType};
         let param_num = starting_param_num + result_df_columns.len() - scatter_time_count - 1;
         let param = Parameter::new(
             &param_num,
-            af_column_name,
-            af_column_name,
+            &af_pn,
+            "",
             &TransformType::Linear,
         );
-        output_fcs.parameters.insert(af_column_name.into(), param);
+        output_fcs.parameters.insert(af_pn.clone().into(), param);
 
         // Add FCS keywords for autofluorescence
         use flow_fcs::keyword::{IntegerKeyword, MixedKeyword, StringKeyword};
         output_fcs.metadata.keywords.insert(
             format!("$P{}N", param_num),
-            Keyword::String(StringKeyword::PnN(Arc::from(af_column_name))),
+            Keyword::String(StringKeyword::PnN(Arc::from(af_pn))),
         );
 
         // Leave $PnS blank for autofluorescence
@@ -452,6 +451,37 @@ fn build_unmixed_fcs_from_unmixed_abundances(
         Keyword::Int(flow_fcs::keyword::IntegerKeyword::PAR(new_param_count)),
     );
 
+    // Prefer a non-space TEXT delimiter so sample keywords with spaces ($PROJ, TUBENAME, …)
+    // survive write → reopen. Keep an existing non-space delimiter from the source file.
+    if output_fcs.metadata.delimiter == ' ' || output_fcs.metadata.delimiter == '\0' {
+        output_fcs.metadata.delimiter = '\u{000c}'; // form feed — common for Cytek / FCS 3.1
+    }
+
+    // Strip acquisition spillover (detectors removed) and write identity over abundances.
+    strip_acquisition_spillover_keywords(&mut output_fcs.metadata.keywords);
+    if !abundance_channel_names.is_empty() {
+        use flow_fcs::keyword::Keyword;
+        output_fcs.metadata.keywords.insert(
+            "$SPILLOVER".to_string(),
+            Keyword::Mixed(identity_spillover_keyword(&abundance_channel_names)),
+        );
+    }
+    {
+        use flow_fcs::keyword::{Keyword, StringKeyword};
+        let method = {
+            let trimmed = unmixed_method.trim();
+            if trimmed.is_empty() {
+                UNMIXED_METHOD_TRU_OLS
+            } else {
+                trimmed
+            }
+        };
+        output_fcs.metadata.keywords.insert(
+            UNMIXED_KEYWORD.to_string(),
+            Keyword::String(StringKeyword::Other(Arc::from(method))),
+        );
+    }
+
     Ok(output_fcs)
 }
 
@@ -485,6 +515,8 @@ fn tru_ols_unmix_fcs_impl(
     primary_detector_pn_labels: &[Option<String>],
     selected_marker_names: &[Option<String>],
     selected_fluor_names: &[Option<String>],
+    af_channel_name: &str,
+    unmixed_method: &str,
     mode: UnmixMode,
 ) -> Result<Fcs, TruOlsError> {
     let endmember_to_detector: std::collections::HashMap<&str, &str> = endmember_names
@@ -587,6 +619,8 @@ fn tru_ols_unmix_fcs_impl(
         primary_detector_pn_labels,
         selected_marker_names,
         selected_fluor_names,
+        af_channel_name,
+        unmixed_method,
     )
 }
 
@@ -609,6 +643,8 @@ pub fn apply_tru_ols_unmixing_from_preprocessed(
     primary_detector_pn_labels: &[Option<String>],
     selected_marker_names: &[Option<String>],
     selected_fluor_names: &[Option<String>],
+    af_channel_name: &str,
+    unmixed_method: &str,
 ) -> Result<Fcs, TruOlsError> {
     tru_ols_unmix_fcs_impl(
         stained,
@@ -623,6 +659,8 @@ pub fn apply_tru_ols_unmixing_from_preprocessed(
         primary_detector_pn_labels,
         selected_marker_names,
         selected_fluor_names,
+        af_channel_name,
+        unmixed_method,
         UnmixMode::Preprocessed {
             cutoffs,
             nonspecific: nonspecific_observation,
@@ -649,6 +687,8 @@ pub fn apply_tru_ols_unmixing_from_preprocessed_with_shared_factor_cache(
     primary_detector_pn_labels: &[Option<String>],
     selected_marker_names: &[Option<String>],
     selected_fluor_names: &[Option<String>],
+    af_channel_name: &str,
+    unmixed_method: &str,
 ) -> Result<Fcs, TruOlsError> {
     tru_ols_unmix_fcs_impl(
         stained,
@@ -663,6 +703,8 @@ pub fn apply_tru_ols_unmixing_from_preprocessed_with_shared_factor_cache(
         primary_detector_pn_labels,
         selected_marker_names,
         selected_fluor_names,
+        af_channel_name,
+        unmixed_method,
         UnmixMode::PreprocessedShared {
             cutoffs,
             nonspecific: nonspecific_observation,
@@ -686,7 +728,8 @@ pub trait TruOlsUnmixing {
     /// * `detector_names` - Names of detector channels in the mixing matrix (filtered to stained file)
     /// * `endmember_names` - Names of endmembers (dyes) in the mixing matrix
     /// * `autofluorescence_name` - Name of the autofluorescence endmember
-    /// * `strategy` - Optional strategy for handling irrelevant abundances (default: Zero)
+    /// * `strategy` - Optional strategy for handling irrelevant abundances
+    ///   (default: [`UnmixingStrategy::UnstainedControlMapping`])
     /// * `primary_detector_names` - Primary detector names from controls (one per endmember, for naming unmixed columns)
     /// * `primary_detector_pn_names` - $PnN values extracted from primary detectors in control files
     /// * `primary_detector_pn_labels` - $PnS values extracted from primary detectors in control files
@@ -744,6 +787,8 @@ impl TruOlsUnmixing for Fcs {
             primary_detector_pn_labels,
             selected_marker_names,
             selected_fluor_names,
+            DEFAULT_AF_CHANNEL_NAME,
+            UNMIXED_METHOD_TRU_OLS,
             UnmixMode::Fresh,
         )
     }
@@ -1004,12 +1049,16 @@ mod tests {
             .map(|s: &String| s.to_string())
             .collect();
         assert!(
-            col_names.contains(&"Unmixed_Dye1".to_string()),
-            "Should have Unmixed_Dye1 column"
+            col_names.contains(&"Dye1".to_string()),
+            "Should have Dye1 abundance column"
         );
         assert!(
-            col_names.contains(&"Unmixed_Autofluorescence".to_string()),
-            "Should have Unmixed_Autofluorescence column"
+            col_names.contains(&"Autofluorescence".to_string()),
+            "Should have Autofluorescence column"
+        );
+        assert!(
+            !col_names.iter().any(|c| c.starts_with("Unmixed_")),
+            "Should not use Unmixed_ prefix"
         );
     }
 
@@ -1212,12 +1261,12 @@ mod tests {
 
         // Verify unmixed columns exist
         assert!(
-            col_names.contains(&"Unmixed_Dye1".to_string()),
-            "Output should contain Unmixed_Dye1"
+            col_names.contains(&"Dye1".to_string()),
+            "Output should contain Dye1"
         );
         assert!(
-            col_names.contains(&"Unmixed_Autofluorescence".to_string()),
-            "Output should contain Unmixed_Autofluorescence"
+            col_names.contains(&"Autofluorescence".to_string()),
+            "Output should contain Autofluorescence"
         );
 
         // Verify original fluorescent detectors are NOT in output
@@ -1235,12 +1284,281 @@ mod tests {
         );
 
         // Verify parameter count
-        // Expected: FSC-A, SSC-A, Time (3 scatter/time) + Unmixed_FL1-A + Unmixed_Autofluorescence (2 unmixed) = 5 total
+        // Expected: FSC-A, SSC-A, Time (3 scatter/time) + Dye + Autofluorescence = 5 total
         assert_eq!(
             col_names.len(),
             5,
             "Output should have 5 parameters (3 scatter/time + 2 unmixed), got: {:?}",
             col_names
         );
+    }
+
+    #[test]
+    fn test_unmixed_export_roundtrip_readable_without_acquisition_detectors() {
+        // Write → reopen → read abundance columns. Regresses the plot path that
+        // used to fetch UV1-A / FL1-A from reduced-channel files.
+        use flow_fcs::write_fcs_file;
+        use std::fs::File;
+        use std::io::Write;
+
+        let src_path = std::env::temp_dir().join("test_tru_ols_roundtrip_src.tmp");
+        {
+            let mut f = File::create(&src_path).expect("create src stub");
+            f.write_all(b"test").expect("write stub");
+        }
+
+        let mut columns = Vec::new();
+        columns.push(Column::new(
+            "FSC-A".into(),
+            vec![100.0f32, 200.0, 300.0, 400.0, 500.0],
+        ));
+        columns.push(Column::new(
+            "SSC-A".into(),
+            vec![50.0f32, 100.0, 150.0, 200.0, 250.0],
+        ));
+        columns.push(Column::new(
+            "FL1-A".into(),
+            vec![100.0f32, 200.0, 300.0, 400.0, 500.0],
+        ));
+        columns.push(Column::new(
+            "FL2-A".into(),
+            vec![50.0f32, 150.0, 250.0, 350.0, 450.0],
+        ));
+        columns.push(Column::new(
+            "FL3-A".into(),
+            vec![10.0f32, 20.0, 30.0, 40.0, 50.0],
+        ));
+        let df = DataFrame::new_infer_height(columns).expect("df");
+
+        let mut params = ParameterMap::default();
+        params.insert(
+            "FSC-A".into(),
+            Parameter::new(&1, "FSC-A", "FSC-A", &TransformType::Linear),
+        );
+        params.insert(
+            "SSC-A".into(),
+            Parameter::new(&2, "SSC-A", "SSC-A", &TransformType::Linear),
+        );
+        params.insert(
+            "FL1-A".into(),
+            Parameter::new(&3, "FL1-A", "BUV615", &TransformType::Linear),
+        );
+        params.insert(
+            "FL2-A".into(),
+            Parameter::new(&4, "FL2-A", "LD", &TransformType::Linear),
+        );
+        params.insert(
+            "FL3-A".into(),
+            Parameter::new(&5, "FL3-A", "AF", &TransformType::Linear),
+        );
+
+        let mut stained_fcs = Fcs {
+            header: Header::new(),
+            metadata: Metadata::new(),
+            parameters: params,
+            data_frame: Arc::new(df),
+            file_access: AccessWrapper::new(src_path.to_str().unwrap_or(""))
+                .expect("AccessWrapper"),
+        };
+        // Space delimiter corrupts keywords whose values contain spaces ($PROJ, …).
+        stained_fcs.metadata.delimiter = '\u{000c}';
+        // Seed sample metadata that must survive export (regression: `$P` strip dropped these).
+        {
+            use flow_fcs::keyword::{Keyword, MixedKeyword, StringKeyword};
+            stained_fcs.metadata.keywords.insert(
+                "$PROJ".into(),
+                Keyword::String(StringKeyword::Other(Arc::from("Baseline Phenotyping"))),
+            );
+            stained_fcs.metadata.keywords.insert(
+                "$PLATENAME".into(),
+                Keyword::String(StringKeyword::Other(Arc::from("Plate_001"))),
+            );
+            stained_fcs.metadata.keywords.insert(
+                "TUBENAME".into(),
+                Keyword::String(StringKeyword::Other(Arc::from("Full Stain"))),
+            );
+            // Orphan Cytek display key for a removed detector — must not round-trip.
+            stained_fcs.metadata.keywords.insert(
+                "P71DISPLAY".into(),
+                Keyword::String(StringKeyword::Other(Arc::from("LOG"))),
+            );
+            stained_fcs.metadata.keywords.insert(
+                "$GUID".into(),
+                Keyword::String(StringKeyword::Other(Arc::from(
+                    "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+                ))),
+            );
+            stained_fcs.metadata.keywords.insert(
+                "$SPILLOVER".into(),
+                Keyword::Mixed(MixedKeyword::SPILLOVER {
+                    n_parameters: 2,
+                    parameter_names: vec!["FL1-A".into(), "FL2-A".into()],
+                    matrix_values: vec![1.0, 0.1, 0.1, 1.0],
+                }),
+            );
+        }
+        let unstained_fcs = stained_fcs.clone();
+
+        let mixing_matrix = mat![[0.9, 0.1], [0.1, 0.9], [0.05, 0.05]];
+        let detector_names = &["FL1-A", "FL2-A", "FL3-A"];
+        let endmember_names = &["BUV615", "Autofluorescence"];
+        let empty_pn: Vec<Option<String>> = vec![None; endmember_names.len()];
+        let fluor_names = vec![Some("BUV615".into()), None];
+        let target_names = vec![Some("CD19".into()), None];
+
+        let mut unmixed = stained_fcs
+            .apply_tru_ols_unmixing(
+                &unstained_fcs,
+                mixing_matrix,
+                detector_names,
+                endmember_names,
+                "Autofluorescence",
+                None,
+                &empty_pn,
+                &empty_pn,
+                &empty_pn,
+                &target_names,
+                &fluor_names,
+            )
+            .expect("unmix");
+
+        crate::pipeline::set_raw_datasource_guid(
+            &mut unmixed,
+            "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+        );
+        mint_unmixed_file_guid(&mut unmixed);
+
+        assert!(
+            unmixed.metadata.keywords.contains_key(UNMIXED_KEYWORD)
+                || unmixed.metadata.keywords.contains_key(UNMIXED_KEYWORD_BARE),
+            "UNMIXED must be set before write; keys={:?}",
+            unmixed.metadata.keywords.keys().collect::<Vec<_>>()
+        );
+
+        let out_path = std::env::temp_dir().join("test_tru_ols_roundtrip_out.fcs");
+        write_fcs_file(unmixed, &out_path).expect("write unmixed FCS");
+
+        let reopened = Fcs::open(out_path.to_str().expect("utf8 path")).expect("reopen unmixed");
+
+        let method = reopened
+            .get_keyword_string_value(UNMIXED_KEYWORD)
+            .or_else(|_| reopened.get_keyword_string_value(UNMIXED_KEYWORD_BARE))
+            .unwrap_or_else(|e| {
+                panic!(
+                    "UNMIXED keyword missing after reopen ({e}); keys={:?}",
+                    reopened.metadata.keywords.keys().collect::<Vec<_>>()
+                )
+            });
+        assert_eq!(method.as_ref(), UNMIXED_METHOD_TRU_OLS);
+
+        // Sample keywords carried from raw (write always `$`-prefixes).
+        let proj = reopened
+            .get_keyword_string_value("$PROJ")
+            .expect("$PROJ carried");
+        assert_eq!(proj.as_ref(), "Baseline Phenotyping");
+        let plate = reopened
+            .get_keyword_string_value("$PLATENAME")
+            .expect("$PLATENAME carried");
+        assert_eq!(plate.as_ref(), "Plate_001");
+        let tube = reopened
+            .get_keyword_string_value("$TUBENAME")
+            .or_else(|_| reopened.get_keyword_string_value("TUBENAME"))
+            .expect("TUBENAME carried");
+        assert_eq!(tube.as_ref(), "Full Stain");
+        assert!(
+            reopened.metadata.keywords.get("$P71DISPLAY").is_none()
+                && reopened.metadata.keywords.get("P71DISPLAY").is_none(),
+            "orphaned PnDISPLAY must be stripped"
+        );
+
+        let spill = reopened
+            .get_spillover_matrix()
+            .expect("spillover parse")
+            .expect("identity $SPILLOVER present");
+        assert_eq!(spill.1.len(), 2, "abundance channels in spillover: {:?}", spill.1);
+        assert!((spill.0[(0, 0)] - 1.0).abs() < 1e-5);
+        assert!(spill.0[(0, 1)].abs() < 1e-5);
+
+        let raw_ds = reopened
+            .get_keyword_string_value(crate::pipeline::RAW_DATASOURCE_GUID_KEYWORD)
+            .or_else(|_| {
+                reopened.get_keyword_string_value(&format!(
+                    "${}",
+                    crate::pipeline::RAW_DATASOURCE_GUID_KEYWORD
+                ))
+            })
+            .expect("RAW_DATASOURCE_GUID");
+        assert_eq!(raw_ds.as_ref(), "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee");
+        let product_guid = reopened
+            .metadata
+            .keywords
+            .get("$GUID")
+            .or_else(|| reopened.metadata.keywords.get("GUID"))
+            .expect("product GUID");
+        let product_guid_str = match product_guid {
+            flow_fcs::keyword::Keyword::String(s) => {
+                use flow_fcs::keyword::StringableKeyword;
+                s.get_str().to_string()
+            }
+            _ => panic!("GUID not string"),
+        };
+        assert_ne!(
+            product_guid_str, "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+            "unmixed product must mint a new GUID"
+        );
+
+        let names: Vec<String> = reopened
+            .get_parameter_names_from_dataframe()
+            .iter()
+            .map(|s| s.to_string())
+            .collect();
+        assert!(names.contains(&"BUV615".to_string()), "abundance $PnN present");
+        assert!(
+            names.contains(&"Autofluorescence".to_string()),
+            "AF abundance present"
+        );
+        assert!(
+            !names.iter().any(|n| n == "FL1-A" || n == "FL2-A" || n == "UV1-A"),
+            "acquisition detectors must be absent: {names:?}"
+        );
+
+        // Plot path equivalent: read only selected abundance axes (no matrix expand).
+        let buv = reopened
+            .data_frame
+            .column("BUV615")
+            .expect("read BUV615 for plot");
+        assert_eq!(buv.len(), 5);
+        assert!(
+            reopened.data_frame.column("FL1-A").is_err(),
+            "FL1-A must not be fetchable on unmixed product"
+        );
+
+        let _ = std::fs::remove_file(&src_path);
+        let _ = std::fs::remove_file(&out_path);
+    }
+
+    #[test]
+    fn parameter_index_keyword_detection() {
+        assert!(is_parameter_index_keyword("$P1N"));
+        assert!(is_parameter_index_keyword("$P12S"));
+        assert!(is_parameter_index_keyword("$P10DISPLAY"));
+        assert!(is_parameter_index_keyword("P71DISPLAY"));
+        assert!(!is_parameter_index_keyword("$PAR"));
+        assert!(!is_parameter_index_keyword("$PROJ"));
+        assert!(!is_parameter_index_keyword("$PLATENAME"));
+        assert!(!is_parameter_index_keyword("$PLATECOLS"));
+        assert!(!is_parameter_index_keyword("$PK1N"));
+        assert!(!is_parameter_index_keyword("$SPILLOVER"));
+        assert!(!is_parameter_index_keyword("TUBENAME"));
+    }
+
+    #[test]
+    fn abundance_export_preserves_signed_ucm_values() {
+        // REGRESSION: clamping to ≥0 piled UCM noise on the plot axes.
+        let signed = abundance_f64_to_f32(&[-12.5, -0.001, 0.0, 3.25]);
+        assert_eq!(signed[0], -12.5);
+        assert_eq!(signed[1], -0.001);
+        assert_eq!(signed[2], 0.0);
+        assert_eq!(signed[3], 3.25);
     }
 }
