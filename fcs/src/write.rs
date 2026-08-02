@@ -75,22 +75,41 @@ pub fn write_fcs_file(fcs: Fcs, path: impl AsRef<Path>) -> Result<()> {
     // Serialize data segment first (we need its size for metadata)
     let data_segment = serialize_data(df, &fcs.metadata)?;
 
-    // Calculate offsets
+    // Primary header is always 58 bytes; TEXT starts immediately after.
     let header_size = 58;
     let text_start = header_size;
-    // Estimate text segment size (will recalculate after)
-    let estimated_text_size = estimate_text_segment_size(&fcs.metadata, n_events, n_params);
-    let estimated_text_end = text_start + estimated_text_size - 1;
-    let data_start = estimated_text_end + 1;
-    let data_end = data_start + data_segment.len() - 1;
 
-    // Serialize metadata to text segment (now we know data offsets)
-    let text_segment = serialize_metadata(&fcs.metadata, n_events, n_params, data_start, data_end)?;
-
-    // Recalculate offsets with actual text segment size
-    let text_end = text_start + text_segment.len() - 1;
-    let data_start = text_end + 1;
-    let data_end = data_start + data_segment.len() - 1;
+    // TEXT embeds $BEGINDATA/$ENDDATA; those digit lengths can change TEXT size and
+    // shift the data offsets. Iterate until header layout and TEXT keywords agree.
+    let mut data_start =
+        text_start + estimate_text_segment_size(&fcs.metadata, n_events, n_params);
+    let mut data_end = data_start + data_segment.len() - 1;
+    let (text_segment, text_end, data_start, data_end) = {
+        let mut text_segment = Vec::new();
+        let mut text_end = text_start;
+        let mut converged = false;
+        for _ in 0..8 {
+            text_segment =
+                serialize_metadata(&fcs.metadata, n_events, n_params, data_start, data_end)?;
+            text_end = text_start + text_segment.len() - 1;
+            let next_data_start = text_end + 1;
+            let next_data_end = next_data_start + data_segment.len() - 1;
+            if next_data_start == data_start && next_data_end == data_end {
+                converged = true;
+                break;
+            }
+            data_start = next_data_start;
+            data_end = next_data_end;
+        }
+        if !converged {
+            return Err(anyhow!(
+                "FCS TEXT/data offsets failed to converge (last data {}-{})",
+                data_start,
+                data_end
+            ));
+        }
+        (text_segment, text_end, data_start, data_end)
+    };
 
     // Build header
     let header = build_header(
@@ -697,4 +716,149 @@ pub(crate) fn build_header(
     header[50..58].copy_from_slice(b"       0");
 
     Ok(header)
+}
+
+#[cfg(test)]
+mod offset_convergence_tests {
+    use super::*;
+    use crate::{
+        Header, Parameter, TransformType,
+        file::AccessWrapper,
+        keyword::{IntegerKeyword, Keyword, MixedKeyword},
+        parameter::ParameterMap,
+    };
+    use polars::prelude::Column;
+    use std::sync::Arc;
+
+    #[test]
+    fn write_fcs_header_and_text_data_offsets_agree() {
+        // Many keywords make the TEXT size estimate wrong so the old one-shot
+        // write left stale $BEGINDATA/$ENDDATA in TEXT while the primary header
+        // had the corrected offsets.
+        let tmp = std::env::temp_dir().join("flow_fcs_offset_agree.fcs");
+        let stub = std::env::temp_dir().join("flow_fcs_offset_agree_src.tmp");
+        {
+            use std::io::Write;
+            let mut f = std::fs::File::create(&stub).expect("stub");
+            f.write_all(b"x").expect("write stub");
+        }
+
+        let n_events = 1_000usize;
+        let mut columns = Vec::new();
+        columns.push(Column::new(
+            "FSC-A".into(),
+            vec![1.0f32; n_events],
+        ));
+        columns.push(Column::new(
+            "FL1-A".into(),
+            vec![2.0f32; n_events],
+        ));
+        let df = DataFrame::new_infer_height(columns).expect("df");
+
+        let mut params = ParameterMap::default();
+        params.insert(
+            "FSC-A".into(),
+            Parameter::new(&1, "FSC-A", "FSC-A", &TransformType::Linear),
+        );
+        params.insert(
+            "FL1-A".into(),
+            Parameter::new(&2, "FL1-A", "FITC", &TransformType::Linear),
+        );
+
+        let mut metadata = Metadata::new();
+        metadata.delimiter = '\u{000c}';
+        // Inflate TEXT so estimate_text_segment_size undershoots/overshoots.
+        for i in 0..80 {
+            metadata.insert_string_keyword(
+                format!("CUSTOM{i}"),
+                format!("value-with-padding-{i:04}-xxxxxxxx"),
+            );
+        }
+        metadata.insert_string_keyword("$BYTEORD".into(), "1,2,3,4".into());
+        metadata.insert_string_keyword("$DATATYPE".into(), "F".into());
+        metadata.insert_string_keyword("$MODE".into(), "L".into());
+        metadata.insert_string_keyword("$NEXTDATA".into(), "0".into());
+        metadata.insert_string_keyword("$P1N".into(), "FSC-A".into());
+        metadata.insert_string_keyword("$P2N".into(), "FL1-A".into());
+        metadata.insert_string_keyword("$P1S".into(), "".into());
+        metadata.insert_string_keyword("$P2S".into(), "FITC".into());
+        for n in 1..=2 {
+            metadata.keywords.insert(
+                format!("$P{n}B"),
+                Keyword::Int(IntegerKeyword::PnB(32)),
+            );
+            metadata.keywords.insert(
+                format!("$P{n}R"),
+                Keyword::Int(IntegerKeyword::PnR(262144)),
+            );
+            metadata.keywords.insert(
+                format!("$P{n}E"),
+                Keyword::Mixed(MixedKeyword::PnE(0.0, 0.0)),
+            );
+        }
+
+        let fcs = Fcs {
+            header: Header::new(),
+            metadata,
+            parameters: params,
+            data_frame: Arc::new(df),
+            file_access: AccessWrapper::new(stub.to_str().unwrap()).expect("access"),
+        };
+
+        write_fcs_file(fcs, &tmp).expect("write");
+
+        let bytes = std::fs::read(&tmp).expect("read back");
+        let text_start = std::str::from_utf8(&bytes[10..18])
+            .ok()
+            .and_then(|s| s.trim().parse::<usize>().ok())
+            .expect("text_start");
+        let text_end = std::str::from_utf8(&bytes[18..26])
+            .ok()
+            .and_then(|s| s.trim().parse::<usize>().ok())
+            .expect("text_end");
+        let data_start = std::str::from_utf8(&bytes[26..34])
+            .ok()
+            .and_then(|s| s.trim().parse::<usize>().ok())
+            .expect("data_start");
+        let data_end = std::str::from_utf8(&bytes[34..42])
+            .ok()
+            .and_then(|s| s.trim().parse::<usize>().ok())
+            .expect("data_end");
+
+        assert_eq!(text_start, 58);
+        assert_eq!(text_end + 1, data_start);
+        assert_eq!(data_end + 1, bytes.len());
+        assert_eq!(data_end - data_start + 1, n_events * 2 * 4);
+
+        let text = &bytes[text_start..=text_end];
+        let delim = text[0];
+        let parts: Vec<&[u8]> = text.split(|&b| b == delim).collect();
+        let mut kw = std::collections::HashMap::new();
+        let mut i = 1;
+        while i + 1 < parts.len() {
+            let k = std::str::from_utf8(parts[i]).unwrap_or("");
+            let v = std::str::from_utf8(parts[i + 1]).unwrap_or("");
+            kw.insert(k.to_string(), v.to_string());
+            i += 2;
+        }
+        let begin = data_start.to_string();
+        let end = data_end.to_string();
+        assert_eq!(
+            kw.get("$BEGINDATA").map(String::as_str),
+            Some(begin.as_str()),
+            "TEXT $BEGINDATA must match primary header"
+        );
+        assert_eq!(
+            kw.get("$ENDDATA").map(String::as_str),
+            Some(end.as_str()),
+            "TEXT $ENDDATA must match primary header"
+        );
+
+        let reopened = Fcs::open(tmp.to_str().unwrap()).expect("reopen");
+        assert_eq!(reopened.get_event_count_from_dataframe(), n_events);
+        assert_eq!(reopened.get_parameter_count_from_dataframe(), 2);
+
+        let _ = std::fs::remove_file(&tmp);
+        let _ = std::fs::remove_file(&stub);
+    }
 }
