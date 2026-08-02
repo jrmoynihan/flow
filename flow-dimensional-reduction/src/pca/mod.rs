@@ -108,13 +108,17 @@ impl Pca {
 
         let k = self.n_components.min(d);
 
-        let sigma: Vec<f64> = cov
-            .as_ref()
-            .singular_values()
-            .map_err(|e| PcaError::SvdFailed(format!("{e:?}")))?;
+        // One decomposition: U and S come from the same Svd object, so they
+        // are guaranteed to correspond (sigma[i] <-> column i of U) — unlike
+        // pairing a standalone `singular_values()` call with a separate
+        // `Svd::new` call, which relies on an unstated ordering invariant
+        // between two independent decompositions.
         let svd = Svd::<f64>::new(cov.as_ref())
             .map_err(|e| PcaError::SvdFailed(format!("{e:?}")))?;
         let u = svd.U();
+        // `S()` returns a `DiagRef`, not a slice/Vec; go through its column
+        // vector view to iterate the singular values in decomposition order.
+        let sigma: Vec<f64> = svd.S().column_vector().iter().copied().collect();
 
         // Row i of `components` is the i-th principal axis (column i of U).
         let mut components = Mat::<f32>::zeros(k, d);
@@ -216,7 +220,7 @@ mod tests {
         let (data, n, d) = fixture();
         let pca = Pca::new(1).fit(&data, n, d).expect("fit");
         let out = pca.transform(&data, n, d).expect("transform");
-        assert_eq!(out.len(), n * 1, "output must be n x n_components row-major");
+        assert_eq!(out.len(), n, "output must be n x n_components row-major");
     }
 
     #[test]
