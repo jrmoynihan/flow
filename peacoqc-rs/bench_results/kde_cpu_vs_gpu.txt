@@ -1,0 +1,698 @@
+   Compiling either v1.16.0
+   Compiling futures-core v0.3.33
+   Compiling simd-adler32 v0.3.10
+   Compiling syn v2.0.119
+   Compiling syn v3.0.3
+   Compiling indexmap v2.14.0
+   Compiling foldhash v0.2.0
+   Compiling regex-syntax v0.8.11
+   Compiling stable_deref_trait v1.2.1
+   Compiling objc2-core-foundation v0.3.2
+   Compiling hashbrown v0.15.5
+   Compiling arrayvec v0.7.8
+   Compiling core-foundation-sys v0.8.7
+   Compiling xxhash-rust v0.8.18
+   Compiling futures-sink v0.3.33
+   Compiling fastrand v2.5.0
+   Compiling slab v0.4.12
+   Compiling mio v1.2.2
+   Compiling socket2 v0.6.5
+   Compiling rayon v1.12.0
+   Compiling miniz_oxide v0.8.9
+   Compiling futures-channel v0.3.33
+   Compiling zlib-rs v0.6.6
+   Compiling litemap v0.8.2
+   Compiling writeable v0.6.3
+   Compiling futures-task v0.3.33
+   Compiling ring v0.17.14
+   Compiling utf8_iter v1.0.4
+   Compiling icu_normalizer_data v2.2.0
+   Compiling icu_properties_data v2.2.0
+   Compiling nom v8.0.0
+   Compiling zeroize v1.9.0
+   Compiling percent-encoding v2.3.2
+   Compiling getrandom v0.2.17
+   Compiling tracing-core v0.1.36
+   Compiling rustls-pki-types v1.15.0
+   Compiling untrusted v0.9.0
+   Compiling object v0.37.3
+   Compiling httparse v1.10.1
+   Compiling iana-time-zone v0.1.65
+   Compiling num-integer v0.1.46
+   Compiling atomic-waker v1.1.2
+   Compiling tower-service v0.3.3
+   Compiling try-lock v0.2.5
+   Compiling objc2-foundation v0.3.2
+   Compiling want v0.3.1
+   Compiling async-channel v2.5.0
+   Compiling regex-automata v0.4.16
+   Compiling form_urlencoded v1.2.2
+   Compiling core-foundation v0.10.1
+   Compiling security-framework-sys v2.17.0
+   Compiling errno v0.3.14
+   Compiling subtle v2.6.1
+   Compiling itertools v0.14.0
+   Compiling sync_wrapper v1.0.2
+   Compiling security-framework v3.7.0
+   Compiling tower-layer v0.3.3
+   Compiling ryu v1.0.23
+   Compiling hashbrown v0.16.1
+   Compiling base64 v0.22.1
+   Compiling virtue v0.0.18
+   Compiling synstructure v0.13.2
+   Compiling flate2 v1.1.9
+   Compiling serde_derive v1.0.229
+   Compiling thiserror-impl v2.0.19
+   Compiling darling_core v0.23.0
+   Compiling darling_core v0.21.3
+   Compiling objc2-metal v0.3.2
+   Compiling ipnet v2.12.0
+   Compiling tynm v0.2.0
+   Compiling bytemuck_derive v1.11.0
+   Compiling zerocopy-derive v0.8.55
+   Compiling thiserror v2.0.19
+   Compiling regex v1.13.1
+   Compiling zerofrom-derive v0.1.7
+   Compiling yoke-derive v0.8.2
+   Compiling bytemuck v1.25.2
+   Compiling zerovec-derive v0.11.3
+   Compiling displaydoc v0.2.6
+   Compiling serde v1.0.229
+   Compiling tokio-macros v2.7.1
+   Compiling zerocopy v0.8.55
+   Compiling futures-macro v0.3.33
+   Compiling zerofrom v0.1.8
+   Compiling tracing-attributes v0.1.31
+   Compiling derive_more-impl v2.1.1
+   Compiling derive-new v0.7.0
+   Compiling profiling-procmacros v1.0.18
+   Compiling darling_macro v0.21.3
+   Compiling darling_macro v0.23.0
+   Compiling futures-util v0.3.33
+   Compiling profiling v1.0.18
+   Compiling objc2-quartz-core v0.3.2
+   Compiling darling v0.21.3
+   Compiling darling v0.23.0
+   Compiling num-complex v0.4.6
+   Compiling tracing v0.1.44
+   Compiling wgpu-types v29.0.4
+   Compiling smallvec v1.15.2
+   Compiling bytes v1.12.1
+   Compiling yoke v0.8.3
+   Compiling chrono v0.4.45
+   Compiling portable-atomic v1.14.0
+   Compiling parking_lot_core v0.9.12
+   Compiling sanitize-filename v0.6.0
+   Compiling rustls-native-certs v0.8.4
+   Compiling bincode_derive v2.0.1
+   Compiling parking_lot v0.12.5
+   Compiling tokio v1.53.1
+   Compiling http v1.4.2
+   Compiling enumset_derive v0.15.0
+   Compiling spin v0.10.1
+   Compiling zerovec v0.11.6
+   Compiling zerotrie v0.2.4
+   Compiling ar_archive_writer v0.5.2
+   Compiling http-body v1.1.0
+   Compiling backtrace v0.3.76
+   Compiling futures-lite v2.6.1
+   Compiling derive_more v2.1.1
+   Compiling gpu-allocator v0.28.0
+   Compiling http-body-util v0.1.4
+   Compiling half v2.7.1
+   Compiling enumset v1.1.14
+   Compiling bincode v2.0.1
+   Compiling rmp-serde v1.3.1
+   Compiling tinystr v0.8.3
+   Compiling potential_utf v0.1.5
+   Compiling psm v0.1.31
+   Compiling gpu-descriptor v0.3.2
+   Compiling icu_locale_core v2.2.0
+   Compiling icu_collections v2.2.0
+   Compiling ahash v0.8.12
+   Compiling ppv-lite86 v0.2.21
+   Compiling cubecl-macros-internal v0.10.0
+   Compiling serde_urlencoded v0.7.1
+   Compiling raw-window-metal v1.1.0
+   Compiling variadics_please v1.1.0
+   Compiling async-trait v0.1.91
+   Compiling naga v29.0.4
+   Compiling float8 v0.7.0
+   Compiling uuid v1.24.0
+   Compiling stacker v0.1.24
+   Compiling array-init-cursor v0.2.1
+   Compiling cubecl-common v0.10.0
+   Compiling signal-hook v0.4.4
+   Compiling planus v1.1.1
+   Compiling icu_provider v2.2.0
+   Compiling rand_chacha v0.9.0
+   Compiling cubecl-zspace v0.10.0
+   Compiling quick-xml v0.39.4
+   Compiling icu_normalizer v2.2.0
+   Compiling icu_properties v2.2.0
+   Compiling num-derive v0.4.2
+   Compiling prettyplease v0.2.37
+   Compiling signal-hook-registry v1.4.8
+   Compiling humantime v2.4.0
+   Compiling polars-arrow-format v0.2.1
+   Compiling rand v0.9.5
+   Compiling futures-executor v0.3.33
+   Compiling slotmap v1.1.1
+   Compiling idna_adapter v1.2.2
+   Compiling cubecl-ir v0.10.0
+   Compiling cubecl-macros v0.10.0
+   Compiling tokio-util v0.7.19
+   Compiling tower v0.5.3
+   Compiling idna v1.1.0
+   Compiling simdutf8 v0.1.5
+   Compiling zstd-sys v2.0.16+zstd.1.5.7
+   Compiling futures v0.3.33
+   Compiling castaway v0.2.4
+   Compiling objc2-io-kit v0.3.2
+   Compiling memmap2 v0.9.11
+   Compiling url v2.5.8
+   Compiling polars-utils v0.54.4
+   Compiling h2 v0.4.15
+   Compiling sysinfo v0.37.2
+   Compiling compact_str v0.9.1
+   Compiling tower-http v0.6.11
+   Compiling serde_stacker v0.1.14
+   Compiling argminmax v0.6.3
+   Compiling lz4-sys v1.11.1+lz4-1.10.0
+   Compiling zstd-safe v7.2.4
+   Compiling siphasher v1.0.3
+   Compiling polars-buffer v0.54.4
+   Compiling phf_shared v0.12.1
+   Compiling polars-schema v0.54.4
+   Compiling chrono-tz v0.10.4
+   Compiling dyn-stack v0.13.2
+   Compiling phf v0.12.1
+   Compiling polars-arrow v0.54.4
+   Compiling strength_reduce v0.2.4
+   Compiling debug_unsafe v0.1.4
+   Compiling strum_macros v0.27.2
+   Compiling ethnum v1.5.3
+   Compiling atoi_simd v0.17.0
+   Compiling dyn-clone v1.0.20
+   Compiling streaming-iterator v0.1.9
+   Compiling crossbeam-channel v0.5.16
+   Compiling hyper v1.11.0
+   Compiling polars-compute v0.54.4
+   Compiling rustls v0.23.42
+   Compiling fast-float2 v0.2.3
+   Compiling pulp v0.22.3
+   Compiling boxcar v0.2.14
+   Compiling rand_distr v0.5.1
+   Compiling equator-macro v0.4.2
+   Compiling polars-core v0.54.4
+   Compiling rustix v1.1.4
+   Compiling pulp-wasm-simd-flag v0.1.1
+   Compiling cubecl-runtime v0.10.0
+   Compiling alloc-no-stdlib v2.0.4
+   Compiling alloc-stdlib v0.2.4
+   Compiling hyper-util v0.1.20
+   Compiling ndarray v0.17.2
+   Compiling polars-ops v0.54.4
+   Compiling equator v0.4.2
+   Compiling snap v1.1.2
+   Compiling brotli-decompressor v5.0.3
+   Compiling rustls-webpki v0.103.13
+   Compiling wgpu-naga-bridge v29.0.4
+   Compiling wgpu-hal v29.0.4
+   Compiling cubecl-core v0.10.0
+   Compiling pulp v0.21.5
+   Compiling async-stream-impl v0.3.6
+   Compiling blake3 v1.8.5
+   Compiling fallible-streaming-iterator v0.1.9
+   Compiling streaming-decompression v0.1.2
+   Compiling brotli v8.0.4
+   Compiling async-stream v0.3.6
+   Compiling polars-parquet-format v0.1.0
+   Compiling now v0.1.3
+   Compiling thiserror-impl v1.0.69
+   Compiling lz4 v1.28.1
+   Compiling num-bigint v0.4.8
+   Compiling arrayref v0.3.9
+   Compiling constant_time_eq v0.4.2
+   Compiling fs4 v0.13.1
+   Compiling enum-as-inner v0.6.1
+   Compiling bitflags v1.3.2
+   Compiling glob v0.3.4
+   Compiling home v0.5.12
+   Compiling polars-plan v0.54.4
+   Compiling recursive-proc-macro-impl v0.1.1
+   Compiling semver v1.0.28
+   Compiling equator-macro v0.2.1
+   Compiling fdeflate v0.3.7
+   Compiling thiserror v1.0.69
+   Compiling wgpu-core-deps-apple v29.0.4
+   Compiling tokio-rustls v0.26.4
+   Compiling recursive v0.1.1
+   Compiling wgpu-core v29.0.4
+   Compiling gemm-common v0.18.2
+   Compiling rustc_version v0.4.1
+   Compiling sysctl v0.6.0
+   Compiling crossbeam-queue v0.3.13
+   Compiling hyper-rustls v0.27.9
+   Compiling cubecl-std v0.10.0
+   Compiling polars-expr v0.54.4
+   Compiling weezl v0.1.12
+   Compiling color_quant v1.1.0
+   Compiling pathfinder_simd v0.5.6
+   Compiling equator v0.2.2
+   Compiling reqwest v0.12.28
+   Compiling aligned-vec v0.6.4
+   Compiling gemm-common v0.19.0
+   Compiling foreign-types-macros v0.2.4
+   Compiling darling_core v0.20.11
+   Compiling core-foundation v0.9.4
+   Compiling foreign-types-shared v0.3.1
+   Compiling v_frame v0.3.9
+   Compiling pest_generator v2.8.8
+   Compiling core-graphics-types v0.1.3
+   Compiling foreign-types v0.5.0
+   Compiling num-rational v0.4.2
+   Compiling as-slice v0.2.1
+   Compiling polars-stream v0.54.4
+   Compiling built v0.8.1
+   Compiling av-scenechange v0.14.1
+   Compiling aligned v0.4.3
+   Compiling pest_derive v2.8.8
+   Compiling object_store v0.13.2
+   Compiling core-graphics v0.23.2
+   Compiling rav1e v0.8.1
+   Compiling nano-gemm-c32 v0.1.0
+   Compiling nano-gemm-c64 v0.1.0
+   Compiling gemm-c32 v0.18.2
+   Compiling gemm-f32 v0.18.2
+   Compiling gemm-c64 v0.18.2
+   Compiling gemm-f64 v0.18.2
+   Compiling qd v0.7.7
+   Compiling darling_macro v0.20.11
+   Compiling png v0.17.16
+   Compiling darling v0.20.11
+   Compiling hashbrown v0.13.2
+   Compiling burn-derive v0.21.0
+   Compiling arg_enum_proc_macro v0.3.4
+   Compiling wgpu v29.0.4
+   Compiling faer-macros v0.22.1
+   Compiling polars-lazy v0.54.4
+   Compiling no_std_io2 v0.9.4
+   Compiling quick-error v2.0.1
+   Compiling font-kit v0.14.3
+   Compiling jpeg-decoder v0.3.2
+   Compiling y4m v0.8.0
+   Compiling pastey v0.1.1 (/Users/kfls271/Rust/flow-crates/third_party/pastey)
+   Compiling polars-error v0.54.4
+   Compiling faer-traits v0.23.2
+   Compiling polars-config v0.54.4
+   Compiling image v0.24.9
+   Compiling nano-gemm v0.1.3
+   Compiling bitstream-io v4.10.0
+   Compiling text_placeholder v0.5.1
+   Compiling derive_builder_core v0.20.2
+   Compiling gemm v0.18.2
+   Compiling cubecl-wgpu v0.10.0
+   Compiling py_literal v0.4.0
+   Compiling core-text v20.1.0
+   Compiling nano-gemm-c32 v0.2.1
+   Compiling nano-gemm-c64 v0.2.1
+   Compiling pathfinder_geometry v0.5.1
+   Compiling av1-grain v0.2.5
+   Compiling cubecl v0.10.0
+   Compiling polars-async v0.54.4
+   Compiling gemm-f64 v0.19.0
+   Compiling burn-std v0.21.0
+   Compiling cubek-std v0.2.0
+   Compiling cubek-fft v0.2.0
+   Compiling burn-backend v0.21.0
+   Compiling cubek-random v0.2.0
+   Compiling cubek-quant v0.2.0
+   Compiling gemm-c32 v0.19.0
+   Compiling gemm-f32 v0.19.0
+   Compiling gemm-c64 v0.19.0
+   Compiling cubek-matmul v0.2.0
+   Compiling cubek-reduce v0.2.0
+   Compiling burn-tensor v0.21.0
+   Compiling burn-ir v0.21.0
+   Compiling gif v0.12.0
+   Compiling crossbeam v0.8.4
+   Compiling qd v0.8.0
+   Compiling maybe-rayon v0.1.1
+   Compiling simd_helpers v0.1.0
+   Compiling polars v0.54.4
+   Compiling imgref v1.12.2
+   Compiling noop_proc_macro v0.3.0
+   Compiling new_debug_unreachable v1.0.6
+   Compiling zune-core v0.5.1
+   Compiling loop9 v0.1.5
+   Compiling burn-core v0.21.0
+   Compiling spindle v0.2.6
+   Compiling zune-jpeg v0.5.15
+   Compiling faer-traits v0.24.0
+   Compiling plotters-bitmap v0.3.7
+   Compiling gemm v0.19.0
+   Compiling nano-gemm v0.2.2
+   Compiling npyz v0.8.4
+   Compiling derive_builder_macro v0.20.2
+   Compiling faer v0.23.2
+   Compiling ndarray v0.16.1
+   Compiling transpose v0.2.3
+   Compiling memmap3-macros v0.1.0
+   Compiling primal-check v0.3.4
+   Compiling avif-serialize v0.8.9
+   Compiling zune-inflate v0.2.54
+   Compiling cubek-convolution v0.2.0
+   Compiling cubek-attention v0.2.0
+   Compiling byteorder-lite v0.1.0
+   Compiling bit_field v0.10.3
+   Compiling rgb v0.8.53
+   Compiling pxfm v0.1.30
+   Compiling fax v0.2.7
+   Compiling ttf-parser v0.20.0
+   Compiling lebe v0.5.3
+   Compiling ciborium-ll v0.2.2
+   Compiling exr v1.74.2
+   Compiling tiff v0.11.3
+   Compiling image-webp v0.2.4
+   Compiling zstd v0.13.3
+   Compiling ravif v0.13.0
+   Compiling cubek v0.2.0
+   Compiling plotters v0.3.7
+   Compiling moxcms v0.8.1
+   Compiling memmap3 v0.1.0
+   Compiling rustfft v6.4.1
+   Compiling burn-nn v0.21.0
+   Compiling burn-cubecl v0.21.0
+   Compiling burn-optim v0.21.0
+   Compiling derive_builder v0.20.2
+   Compiling faer v0.24.4
+   Compiling gif v0.14.2
+   Compiling png v0.18.1
+   Compiling qoi v0.4.1
+   Compiling strum_macros v0.28.0
+   Compiling itertools v0.15.0
+   Compiling itertools v0.13.0
+   Compiling bytecount v0.6.9
+   Compiling strum v0.28.0
+   Compiling image v0.25.10
+   Compiling criterion-plot v0.8.2
+   Compiling realfft v3.5.0
+   Compiling ciborium v0.2.2
+   Compiling tinytemplate v1.2.1
+   Compiling tempfile v3.27.0
+   Compiling criterion v0.8.2
+   Compiling polars-dtype v0.54.4
+   Compiling burn-wgpu v0.21.0
+   Compiling burn v0.21.0
+   Compiling polars-row v0.54.4
+   Compiling polars-parquet v0.54.4
+   Compiling faer-ext v0.7.1
+   Compiling polars-time v0.54.4
+   Compiling polars-io v0.54.4
+   Compiling polars-ooc v0.54.4
+   Compiling polars-mem-engine v0.54.4
+   Compiling flow-fcs v0.4.1 (/Users/kfls271/Rust/flow-crates/fcs)
+   Compiling peacoqc-rs v0.3.1 (/Users/kfls271/Rust/flow-crates/peacoqc-rs)
+warning: unused import: `Rng`
+ --> peacoqc-rs/benches/gpu_bench.rs:7:12
+  |
+7 | use rand::{Rng, RngExt};
+  |            ^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: `peacoqc-rs` (bench "gpu_bench") generated 1 warning (run `cargo fix --bench "gpu_bench" -p peacoqc-rs` to apply 1 suggestion)
+    Finished `bench` profile [optimized] target(s) in 2m 18s
+     Running benches/gpu_bench.rs (/var/folders/44/mj5sgh7n5h146_61ng7w39q00000gp/T/cursor-sandbox-cache/d60646c2271ca88daee427ff0e77718c/cargo-target/release/deps/gpu_bench-56e567b54f79b3c8)
+Gnuplot not found, using plotters backend
+Benchmarking KDE CPU vs GPU (Threshold Analysis)/CPU/50000
+Benchmarking KDE CPU vs GPU (Threshold Analysis)/CPU/50000: Warming up for 1.0000 s
+Benchmarking KDE CPU vs GPU (Threshold Analysis)/CPU/50000: Collecting 10 samples in estimated 12.201 s (3025 iterations)
+Benchmarking KDE CPU vs GPU (Threshold Analysis)/CPU/50000: Analyzing
+KDE CPU vs GPU (Threshold Analysis)/CPU/50000
+                        time:   [3.5099 ms 3.5243 ms 3.5398 ms]
+Benchmarking KDE CPU vs GPU (Threshold Analysis)/GPU/50000
+Benchmarking KDE CPU vs GPU (Threshold Analysis)/GPU/50000: Warming up for 1.0000 s
+Benchmarking KDE CPU vs GPU (Threshold Analysis)/GPU/50000: Collecting 10 samples in estimated 12.151 s (3465 iterations)
+Benchmarking KDE CPU vs GPU (Threshold Analysis)/GPU/50000: Analyzing
+KDE CPU vs GPU (Threshold Analysis)/GPU/50000
+                        time:   [3.5134 ms 3.5189 ms 3.5268 ms]
+Found 1 outliers among 10 measurements (10.00%)
+  1 (10.00%) high mild
+Benchmarking KDE CPU vs GPU (Threshold Analysis)/CPU/100000
+Benchmarking KDE CPU vs GPU (Threshold Analysis)/CPU/100000: Warming up for 1.0000 s
+Benchmarking KDE CPU vs GPU (Threshold Analysis)/CPU/100000: Collecting 10 samples in estimated 12.159 s (2860 iterations)
+Benchmarking KDE CPU vs GPU (Threshold Analysis)/CPU/100000: Analyzing
+KDE CPU vs GPU (Threshold Analysis)/CPU/100000
+                        time:   [4.2217 ms 4.2492 ms 4.2853 ms]
+Found 1 outliers among 10 measurements (10.00%)
+  1 (10.00%) high mild
+Benchmarking KDE CPU vs GPU (Threshold Analysis)/GPU/100000
+Benchmarking KDE CPU vs GPU (Threshold Analysis)/GPU/100000: Warming up for 1.0000 s
+Benchmarking KDE CPU vs GPU (Threshold Analysis)/GPU/100000: Collecting 10 samples in estimated 12.030 s (2805 iterations)
+Benchmarking KDE CPU vs GPU (Threshold Analysis)/GPU/100000: Analyzing
+KDE CPU vs GPU (Threshold Analysis)/GPU/100000
+                        time:   [4.2139 ms 4.2388 ms 4.2802 ms]
+Benchmarking KDE CPU vs GPU (Threshold Analysis)/CPU/500000
+Benchmarking KDE CPU vs GPU (Threshold Analysis)/CPU/500000: Warming up for 1.0000 s
+Benchmarking KDE CPU vs GPU (Threshold Analysis)/CPU/500000: Collecting 10 samples in estimated 12.523 s (1210 iterations)
+Benchmarking KDE CPU vs GPU (Threshold Analysis)/CPU/500000: Analyzing
+KDE CPU vs GPU (Threshold Analysis)/CPU/500000
+                        time:   [10.118 ms 10.142 ms 10.171 ms]
+Benchmarking KDE CPU vs GPU (Threshold Analysis)/GPU/500000
+Benchmarking KDE CPU vs GPU (Threshold Analysis)/GPU/500000: Warming up for 1.0000 s
+Benchmarking KDE CPU vs GPU (Threshold Analysis)/GPU/500000: Collecting 10 samples in estimated 12.339 s (1210 iterations)
+Benchmarking KDE CPU vs GPU (Threshold Analysis)/GPU/500000: Analyzing
+KDE CPU vs GPU (Threshold Analysis)/GPU/500000
+                        time:   [10.123 ms 10.165 ms 10.217 ms]
+Found 2 outliers among 10 measurements (20.00%)
+  2 (20.00%) high severe
+Benchmarking KDE CPU vs GPU (Threshold Analysis)/CPU/1000000
+Benchmarking KDE CPU vs GPU (Threshold Analysis)/CPU/1000000: Warming up for 1.0000 s
+Benchmarking KDE CPU vs GPU (Threshold Analysis)/CPU/1000000: Collecting 10 samples in estimated 12.440 s (660 iterations)
+Benchmarking KDE CPU vs GPU (Threshold Analysis)/CPU/1000000: Analyzing
+KDE CPU vs GPU (Threshold Analysis)/CPU/1000000
+                        time:   [18.872 ms 19.057 ms 19.161 ms]
+Benchmarking KDE CPU vs GPU (Threshold Analysis)/GPU/1000000
+Benchmarking KDE CPU vs GPU (Threshold Analysis)/GPU/1000000: Warming up for 1.0000 s
+Benchmarking KDE CPU vs GPU (Threshold Analysis)/GPU/1000000: Collecting 10 samples in estimated 12.410 s (660 iterations)
+Benchmarking KDE CPU vs GPU (Threshold Analysis)/GPU/1000000: Analyzing
+KDE CPU vs GPU (Threshold Analysis)/GPU/1000000
+                        time:   [18.607 ms 18.727 ms 18.910 ms]
+Found 1 outliers among 10 measurements (10.00%)
+  1 (10.00%) high mild
+Benchmarking KDE CPU vs GPU (Threshold Analysis)/CPU/2000000
+Benchmarking KDE CPU vs GPU (Threshold Analysis)/CPU/2000000: Warming up for 1.0000 s
+Benchmarking KDE CPU vs GPU (Threshold Analysis)/CPU/2000000: Collecting 10 samples in estimated 12.139 s (275 iterations)
+Benchmarking KDE CPU vs GPU (Threshold Analysis)/CPU/2000000: Analyzing
+KDE CPU vs GPU (Threshold Analysis)/CPU/2000000
+                        time:   [42.566 ms 45.000 ms 50.322 ms]
+Found 1 outliers among 10 measurements (10.00%)
+  1 (10.00%) high severe
+Benchmarking KDE CPU vs GPU (Threshold Analysis)/GPU/2000000
+Benchmarking KDE CPU vs GPU (Threshold Analysis)/GPU/2000000: Warming up for 1.0000 s
+Benchmarking KDE CPU vs GPU (Threshold Analysis)/GPU/2000000: Collecting 10 samples in estimated 14.287 s (330 iterations)
+Benchmarking KDE CPU vs GPU (Threshold Analysis)/GPU/2000000: Analyzing
+KDE CPU vs GPU (Threshold Analysis)/GPU/2000000
+                        time:   [42.750 ms 43.046 ms 43.358 ms]
+
+Benchmarking KDE Batched GPU (Multiple Channels)/Batched GPU/5ch_50000events
+Benchmarking KDE Batched GPU (Multiple Channels)/Batched GPU/5ch_50000events: Warming up for 1.0000 s
+Benchmarking KDE Batched GPU (Multiple Channels)/Batched GPU/5ch_50000events: Collecting 10 samples in estimated 12.210 s (825 iterations)
+Benchmarking KDE Batched GPU (Multiple Channels)/Batched GPU/5ch_50000events: Analyzing
+KDE Batched GPU (Multiple Channels)/Batched GPU/5ch_50000events
+                        time:   [14.803 ms 14.966 ms 15.101 ms]
+Benchmarking KDE Batched GPU (Multiple Channels)/Sequential CPU/5ch_50000events
+Benchmarking KDE Batched GPU (Multiple Channels)/Sequential CPU/5ch_50000events: Warming up for 1.0000 s
+Benchmarking KDE Batched GPU (Multiple Channels)/Sequential CPU/5ch_50000events: Collecting 10 samples in estimated 12.369 s (660 iterations)
+Benchmarking KDE Batched GPU (Multiple Channels)/Sequential CPU/5ch_50000events: Analyzing
+KDE Batched GPU (Multiple Channels)/Sequential CPU/5ch_50000events
+                        time:   [17.825 ms 18.171 ms 18.599 ms]
+Benchmarking KDE Batched GPU (Multiple Channels)/Batched GPU/5ch_100000events
+Benchmarking KDE Batched GPU (Multiple Channels)/Batched GPU/5ch_100000events: Warming up for 1.0000 s
+Benchmarking KDE Batched GPU (Multiple Channels)/Batched GPU/5ch_100000events: Collecting 10 samples in estimated 12.099 s (825 iterations)
+Benchmarking KDE Batched GPU (Multiple Channels)/Batched GPU/5ch_100000events: Analyzing
+KDE Batched GPU (Multiple Channels)/Batched GPU/5ch_100000events
+                        time:   [14.688 ms 14.796 ms 14.881 ms]
+Benchmarking KDE Batched GPU (Multiple Channels)/Sequential CPU/5ch_100000events
+Benchmarking KDE Batched GPU (Multiple Channels)/Sequential CPU/5ch_100000events: Warming up for 1.0000 s
+Benchmarking KDE Batched GPU (Multiple Channels)/Sequential CPU/5ch_100000events: Collecting 10 samples in estimated 13.080 s (605 iterations)
+Benchmarking KDE Batched GPU (Multiple Channels)/Sequential CPU/5ch_100000events: Analyzing
+KDE Batched GPU (Multiple Channels)/Sequential CPU/5ch_100000events
+                        time:   [21.605 ms 21.670 ms 21.738 ms]
+Found 1 outliers among 10 measurements (10.00%)
+  1 (10.00%) low mild
+Benchmarking KDE Batched GPU (Multiple Channels)/Batched GPU/5ch_500000events
+Benchmarking KDE Batched GPU (Multiple Channels)/Batched GPU/5ch_500000events: Warming up for 1.0000 s
+Benchmarking KDE Batched GPU (Multiple Channels)/Batched GPU/5ch_500000events: Collecting 10 samples in estimated 12.166 s (770 iterations)
+Benchmarking KDE Batched GPU (Multiple Channels)/Batched GPU/5ch_500000events: Analyzing
+KDE Batched GPU (Multiple Channels)/Batched GPU/5ch_500000events
+                        time:   [15.878 ms 15.951 ms 16.020 ms]
+Benchmarking KDE Batched GPU (Multiple Channels)/Sequential CPU/5ch_500000events
+Benchmarking KDE Batched GPU (Multiple Channels)/Sequential CPU/5ch_500000events: Warming up for 1.0000 s
+Benchmarking KDE Batched GPU (Multiple Channels)/Sequential CPU/5ch_500000events: Collecting 10 samples in estimated 14.051 s (275 iterations)
+Benchmarking KDE Batched GPU (Multiple Channels)/Sequential CPU/5ch_500000events: Analyzing
+KDE Batched GPU (Multiple Channels)/Sequential CPU/5ch_500000events
+                        time:   [50.647 ms 50.953 ms 51.169 ms]
+Benchmarking KDE Batched GPU (Multiple Channels)/Batched GPU/5ch_1000000events
+Benchmarking KDE Batched GPU (Multiple Channels)/Batched GPU/5ch_1000000events: Warming up for 1.0000 s
+Benchmarking KDE Batched GPU (Multiple Channels)/Batched GPU/5ch_1000000events: Collecting 10 samples in estimated 12.076 s (715 iterations)
+Benchmarking KDE Batched GPU (Multiple Channels)/Batched GPU/5ch_1000000events: Analyzing
+KDE Batched GPU (Multiple Channels)/Batched GPU/5ch_1000000events
+                        time:   [16.652 ms 16.700 ms 16.787 ms]
+Found 1 outliers among 10 measurements (10.00%)
+  1 (10.00%) high mild
+Benchmarking KDE Batched GPU (Multiple Channels)/Sequential CPU/5ch_1000000events
+Benchmarking KDE Batched GPU (Multiple Channels)/Sequential CPU/5ch_1000000events: Warming up for 1.0000 s
+Benchmarking KDE Batched GPU (Multiple Channels)/Sequential CPU/5ch_1000000events: Collecting 10 samples in estimated 15.003 s (165 iterations)
+Benchmarking KDE Batched GPU (Multiple Channels)/Sequential CPU/5ch_1000000events: Analyzing
+KDE Batched GPU (Multiple Channels)/Sequential CPU/5ch_1000000events
+                        time:   [91.244 ms 91.424 ms 91.789 ms]
+Found 1 outliers among 10 measurements (10.00%)
+  1 (10.00%) high severe
+Benchmarking KDE Batched GPU (Multiple Channels)/Batched GPU/10ch_50000events
+Benchmarking KDE Batched GPU (Multiple Channels)/Batched GPU/10ch_50000events: Warming up for 1.0000 s
+Benchmarking KDE Batched GPU (Multiple Channels)/Batched GPU/10ch_50000events: Collecting 10 samples in estimated 13.103 s (440 iterations)
+Benchmarking KDE Batched GPU (Multiple Channels)/Batched GPU/10ch_50000events: Analyzing
+KDE Batched GPU (Multiple Channels)/Batched GPU/10ch_50000events
+                        time:   [29.739 ms 30.395 ms 31.415 ms]
+Found 1 outliers among 10 measurements (10.00%)
+  1 (10.00%) high mild
+Benchmarking KDE Batched GPU (Multiple Channels)/Sequential CPU/10ch_50000events
+Benchmarking KDE Batched GPU (Multiple Channels)/Sequential CPU/10ch_50000events: Warming up for 1.0000 s
+Benchmarking KDE Batched GPU (Multiple Channels)/Sequential CPU/10ch_50000events: Collecting 10 samples in estimated 13.793 s (385 iterations)
+Benchmarking KDE Batched GPU (Multiple Channels)/Sequential CPU/10ch_50000events: Analyzing
+KDE Batched GPU (Multiple Channels)/Sequential CPU/10ch_50000events
+                        time:   [35.822 ms 36.139 ms 36.342 ms]
+Benchmarking KDE Batched GPU (Multiple Channels)/Batched GPU/10ch_100000events
+Benchmarking KDE Batched GPU (Multiple Channels)/Batched GPU/10ch_100000events: Warming up for 1.0000 s
+Benchmarking KDE Batched GPU (Multiple Channels)/Batched GPU/10ch_100000events: Collecting 10 samples in estimated 12.779 s (385 iterations)
+Benchmarking KDE Batched GPU (Multiple Channels)/Batched GPU/10ch_100000events: Analyzing
+KDE Batched GPU (Multiple Channels)/Batched GPU/10ch_100000events
+                        time:   [30.339 ms 30.728 ms 31.560 ms]
+Found 2 outliers among 10 measurements (20.00%)
+  1 (10.00%) high mild
+  1 (10.00%) high severe
+Benchmarking KDE Batched GPU (Multiple Channels)/Sequential CPU/10ch_100000events
+Benchmarking KDE Batched GPU (Multiple Channels)/Sequential CPU/10ch_100000events: Warming up for 1.0000 s
+Benchmarking KDE Batched GPU (Multiple Channels)/Sequential CPU/10ch_100000events: Collecting 10 samples in estimated 12.599 s (275 iterations)
+Benchmarking KDE Batched GPU (Multiple Channels)/Sequential CPU/10ch_100000events: Analyzing
+KDE Batched GPU (Multiple Channels)/Sequential CPU/10ch_100000events
+                        time:   [43.466 ms 43.799 ms 44.200 ms]
+Found 1 outliers among 10 measurements (10.00%)
+  1 (10.00%) high mild
+Benchmarking KDE Batched GPU (Multiple Channels)/Batched GPU/10ch_500000events
+Benchmarking KDE Batched GPU (Multiple Channels)/Batched GPU/10ch_500000events: Warming up for 1.0000 s
+Benchmarking KDE Batched GPU (Multiple Channels)/Batched GPU/10ch_500000events: Collecting 10 samples in estimated 12.518 s (385 iterations)
+Benchmarking KDE Batched GPU (Multiple Channels)/Batched GPU/10ch_500000events: Analyzing
+KDE Batched GPU (Multiple Channels)/Batched GPU/10ch_500000events
+                        time:   [32.101 ms 32.971 ms 33.721 ms]
+Benchmarking KDE Batched GPU (Multiple Channels)/Sequential CPU/10ch_500000events
+Benchmarking KDE Batched GPU (Multiple Channels)/Sequential CPU/10ch_500000events: Warming up for 1.0000 s
+Benchmarking KDE Batched GPU (Multiple Channels)/Sequential CPU/10ch_500000events: Collecting 10 samples in estimated 17.125 s (165 iterations)
+Benchmarking KDE Batched GPU (Multiple Channels)/Sequential CPU/10ch_500000events: Analyzing
+KDE Batched GPU (Multiple Channels)/Sequential CPU/10ch_500000events
+                        time:   [102.88 ms 103.96 ms 106.25 ms]
+Benchmarking KDE Batched GPU (Multiple Channels)/Batched GPU/10ch_1000000events
+Benchmarking KDE Batched GPU (Multiple Channels)/Batched GPU/10ch_1000000events: Warming up for 1.0000 s
+Benchmarking KDE Batched GPU (Multiple Channels)/Batched GPU/10ch_1000000events: Collecting 10 samples in estimated 13.006 s (385 iterations)
+Benchmarking KDE Batched GPU (Multiple Channels)/Batched GPU/10ch_1000000events: Analyzing
+KDE Batched GPU (Multiple Channels)/Batched GPU/10ch_1000000events
+                        time:   [34.656 ms 35.363 ms 36.114 ms]
+Benchmarking KDE Batched GPU (Multiple Channels)/Sequential CPU/10ch_1000000events
+Benchmarking KDE Batched GPU (Multiple Channels)/Sequential CPU/10ch_1000000events: Warming up for 1.0000 s
+Benchmarking KDE Batched GPU (Multiple Channels)/Sequential CPU/10ch_1000000events: Collecting 10 samples in estimated 21.763 s (110 iterations)
+Benchmarking KDE Batched GPU (Multiple Channels)/Sequential CPU/10ch_1000000events: Analyzing
+KDE Batched GPU (Multiple Channels)/Sequential CPU/10ch_1000000events
+                        time:   [186.23 ms 188.86 ms 195.45 ms]
+
+Benchmarking Feature Matrix CPU vs GPU/CPU/1000bins_5ch
+Benchmarking Feature Matrix CPU vs GPU/CPU/1000bins_5ch: Warming up for 1.0000 s
+Benchmarking Feature Matrix CPU vs GPU/CPU/1000bins_5ch: Collecting 10 samples in estimated 12.002 s (260k iterations)
+Benchmarking Feature Matrix CPU vs GPU/CPU/1000bins_5ch: Analyzing
+Feature Matrix CPU vs GPU/CPU/1000bins_5ch
+                        time:   [44.816 µs 45.057 µs 45.289 µs]
+Found 1 outliers among 10 measurements (10.00%)
+  1 (10.00%) high severe
+Benchmarking Feature Matrix CPU vs GPU/GPU/1000bins_5ch
+Benchmarking Feature Matrix CPU vs GPU/GPU/1000bins_5ch: Warming up for 1.0000 s
+Benchmarking Feature Matrix CPU vs GPU/GPU/1000bins_5ch: Collecting 10 samples in estimated 12.002 s (216k iterations)
+Benchmarking Feature Matrix CPU vs GPU/GPU/1000bins_5ch: Analyzing
+Feature Matrix CPU vs GPU/GPU/1000bins_5ch
+                        time:   [48.376 µs 50.878 µs 54.211 µs]
+Found 1 outliers among 10 measurements (10.00%)
+  1 (10.00%) high severe
+Benchmarking Feature Matrix CPU vs GPU/CPU/5000bins_5ch
+Benchmarking Feature Matrix CPU vs GPU/CPU/5000bins_5ch: Warming up for 1.0000 s
+Benchmarking Feature Matrix CPU vs GPU/CPU/5000bins_5ch: Collecting 10 samples in estimated 12.006 s (41k iterations)
+Benchmarking Feature Matrix CPU vs GPU/CPU/5000bins_5ch: Analyzing
+Feature Matrix CPU vs GPU/CPU/5000bins_5ch
+                        time:   [242.23 µs 244.27 µs 247.75 µs]
+Found 1 outliers among 10 measurements (10.00%)
+  1 (10.00%) high mild
+Benchmarking Feature Matrix CPU vs GPU/GPU/5000bins_5ch
+Benchmarking Feature Matrix CPU vs GPU/GPU/5000bins_5ch: Warming up for 1.0000 s
+Benchmarking Feature Matrix CPU vs GPU/GPU/5000bins_5ch: Collecting 10 samples in estimated 12.013 s (44k iterations)
+Benchmarking Feature Matrix CPU vs GPU/GPU/5000bins_5ch: Analyzing
+Feature Matrix CPU vs GPU/GPU/5000bins_5ch
+                        time:   [267.58 µs 269.33 µs 271.08 µs]
+Benchmarking Feature Matrix CPU vs GPU/CPU/10000bins_5ch
+Benchmarking Feature Matrix CPU vs GPU/CPU/10000bins_5ch: Warming up for 1.0000 s
+Benchmarking Feature Matrix CPU vs GPU/CPU/10000bins_5ch: Collecting 10 samples in estimated 12.006 s (22k iterations)
+Benchmarking Feature Matrix CPU vs GPU/CPU/10000bins_5ch: Analyzing
+Feature Matrix CPU vs GPU/CPU/10000bins_5ch
+                        time:   [534.67 µs 544.37 µs 560.63 µs]
+Found 1 outliers among 10 measurements (10.00%)
+  1 (10.00%) high severe
+Benchmarking Feature Matrix CPU vs GPU/GPU/10000bins_5ch
+Benchmarking Feature Matrix CPU vs GPU/GPU/10000bins_5ch: Warming up for 1.0000 s
+Benchmarking Feature Matrix CPU vs GPU/GPU/10000bins_5ch: Collecting 10 samples in estimated 12.009 s (22k iterations)
+Benchmarking Feature Matrix CPU vs GPU/GPU/10000bins_5ch: Analyzing
+Feature Matrix CPU vs GPU/GPU/10000bins_5ch
+                        time:   [544.86 µs 567.76 µs 594.30 µs]
+Found 2 outliers among 10 measurements (20.00%)
+  2 (20.00%) high mild
+Benchmarking Feature Matrix CPU vs GPU/CPU/50000bins_5ch
+Benchmarking Feature Matrix CPU vs GPU/CPU/50000bins_5ch: Warming up for 1.0000 s
+Benchmarking Feature Matrix CPU vs GPU/CPU/50000bins_5ch: Collecting 10 samples in estimated 12.100 s (3795 iterations)
+Benchmarking Feature Matrix CPU vs GPU/CPU/50000bins_5ch: Analyzing
+Feature Matrix CPU vs GPU/CPU/50000bins_5ch
+                        time:   [3.3650 ms 3.5231 ms 3.7531 ms]
+Benchmarking Feature Matrix CPU vs GPU/GPU/50000bins_5ch
+Benchmarking Feature Matrix CPU vs GPU/GPU/50000bins_5ch: Warming up for 1.0000 s
+Benchmarking Feature Matrix CPU vs GPU/GPU/50000bins_5ch: Collecting 10 samples in estimated 12.098 s (3905 iterations)
+Benchmarking Feature Matrix CPU vs GPU/GPU/50000bins_5ch: Analyzing
+Feature Matrix CPU vs GPU/GPU/50000bins_5ch
+                        time:   [3.0576 ms 3.0912 ms 3.1273 ms]
+Benchmarking Feature Matrix CPU vs GPU/CPU/1000bins_10ch
+Benchmarking Feature Matrix CPU vs GPU/CPU/1000bins_10ch: Warming up for 1.0000 s
+Benchmarking Feature Matrix CPU vs GPU/CPU/1000bins_10ch: Collecting 10 samples in estimated 12.000 s (125k iterations)
+Benchmarking Feature Matrix CPU vs GPU/CPU/1000bins_10ch: Analyzing
+Feature Matrix CPU vs GPU/CPU/1000bins_10ch
+                        time:   [96.548 µs 98.484 µs 100.83 µs]
+Benchmarking Feature Matrix CPU vs GPU/GPU/1000bins_10ch
+Benchmarking Feature Matrix CPU vs GPU/GPU/1000bins_10ch: Warming up for 1.0000 s
+Benchmarking Feature Matrix CPU vs GPU/GPU/1000bins_10ch: Collecting 10 samples in estimated 12.003 s (136k iterations)
+Benchmarking Feature Matrix CPU vs GPU/GPU/1000bins_10ch: Analyzing
+Feature Matrix CPU vs GPU/GPU/1000bins_10ch
+                        time:   [78.020 µs 78.414 µs 79.375 µs]
+Found 2 outliers among 10 measurements (20.00%)
+  2 (20.00%) high severe
+Benchmarking Feature Matrix CPU vs GPU/CPU/5000bins_10ch
+Benchmarking Feature Matrix CPU vs GPU/CPU/5000bins_10ch: Warming up for 1.0000 s
+Benchmarking Feature Matrix CPU vs GPU/CPU/5000bins_10ch: Collecting 10 samples in estimated 12.000 s (21k iterations)
+Benchmarking Feature Matrix CPU vs GPU/CPU/5000bins_10ch: Analyzing
+Feature Matrix CPU vs GPU/CPU/5000bins_10ch
+                        time:   [559.25 µs 563.87 µs 573.07 µs]
+Found 2 outliers among 10 measurements (20.00%)
+  1 (10.00%) high mild
+  1 (10.00%) high severe
+Benchmarking Feature Matrix CPU vs GPU/GPU/5000bins_10ch
+Benchmarking Feature Matrix CPU vs GPU/GPU/5000bins_10ch: Warming up for 1.0000 s
+Benchmarking Feature Matrix CPU vs GPU/GPU/5000bins_10ch: Collecting 10 samples in estimated 12.005 s (29k iterations)
+Benchmarking Feature Matrix CPU vs GPU/GPU/5000bins_10ch: Analyzing
+Feature Matrix CPU vs GPU/GPU/5000bins_10ch
+                        time:   [414.58 µs 415.68 µs 416.66 µs]
+
+PEACOQC_EXIT:0

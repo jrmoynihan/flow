@@ -1,0 +1,220 @@
+   Compiling proc-macro2 v1.0.107
+   Compiling foldhash v0.2.0
+   Compiling pulp v0.21.5
+   Compiling cubecl-common v0.10.0
+   Compiling matrixmultiply v0.3.11
+   Compiling rawpointer v0.2.1
+   Compiling anyhow v1.0.104
+   Compiling cubecl v0.10.0
+   Compiling clap_builder v4.6.2
+   Compiling hashbrown v0.16.1
+   Compiling clap v4.6.4
+   Compiling quote v1.0.47
+   Compiling syn v2.0.119
+   Compiling syn v3.0.3
+   Compiling serde_derive v1.0.229
+   Compiling thiserror-impl v2.0.19
+   Compiling thiserror v2.0.19
+   Compiling darling_core v0.23.0
+   Compiling darling_core v0.21.3
+   Compiling pest_generator v2.8.8
+   Compiling prettyplease v0.2.37
+   Compiling gpu-allocator v0.28.0
+   Compiling bytemuck_derive v1.11.0
+   Compiling zerocopy-derive v0.8.55
+   Compiling derive_more-impl v2.1.1
+   Compiling thiserror-impl v1.0.69
+   Compiling enum-as-inner v0.6.1
+   Compiling derive-new v0.7.0
+   Compiling equator-macro v0.2.1
+   Compiling equator-macro v0.4.2
+   Compiling variadics_please v1.1.0
+   Compiling faer-macros v0.22.1
+   Compiling pest_derive v2.8.8
+   Compiling serde v1.0.229
+   Compiling equator v0.4.2
+   Compiling equator v0.2.2
+   Compiling bytemuck v1.25.2
+   Compiling darling_macro v0.21.3
+   Compiling darling_macro v0.23.0
+   Compiling thiserror v1.0.69
+   Compiling zerocopy v0.8.55
+   Compiling darling v0.21.3
+   Compiling darling v0.23.0
+   Compiling smallvec v1.15.2
+   Compiling portable-atomic v1.14.0
+   Compiling tinytemplate v1.2.1
+   Compiling parking_lot_core v0.9.12
+   Compiling cubecl-zspace v0.10.0
+   Compiling parking_lot v0.12.5
+   Compiling spindle v0.2.6
+   Compiling derive_more v2.1.1
+   Compiling num-complex v0.4.6
+   Compiling dyn-stack v0.13.2
+   Compiling wgpu-types v29.0.4
+   Compiling sysctl v0.6.0
+   Compiling pulp v0.22.3
+   Compiling nano-gemm-c64 v0.1.0
+   Compiling py_literal v0.4.0
+   Compiling nano-gemm-c32 v0.1.0
+   Compiling nano-gemm-c32 v0.2.1
+   Compiling nano-gemm-c64 v0.2.1
+   Compiling ndarray v0.16.1
+   Compiling enumset_derive v0.15.0
+   Compiling cubecl-macros-internal v0.10.0
+   Compiling half v2.7.1
+   Compiling npyz v0.8.4
+   Compiling ppv-lite86 v0.2.21
+   Compiling ahash v0.8.12
+   Compiling gemm-common v0.18.2
+   Compiling qd v0.7.7
+   Compiling enumset v1.1.14
+   Compiling nano-gemm v0.2.2
+   Compiling nano-gemm v0.1.3
+   Compiling gemm-common v0.19.0
+   Compiling rand_chacha v0.9.0
+   Compiling qd v0.8.0
+   Compiling faer-traits v0.23.2
+   Compiling naga v29.0.4
+   Compiling float8 v0.7.0
+   Compiling gemm-f32 v0.18.2
+   Compiling gemm-f64 v0.18.2
+   Compiling gemm-c32 v0.19.0
+   Compiling gemm-f64 v0.19.0
+   Compiling gemm-c64 v0.19.0
+   Compiling gemm-f32 v0.19.0
+   Compiling rand v0.9.5
+   Compiling gemm-c64 v0.18.2
+   Compiling gemm-c32 v0.18.2
+   Compiling faer-traits v0.24.0
+   Compiling cubecl-macros v0.10.0
+   Compiling gemm v0.19.0
+   Compiling rand_distr v0.5.1
+   Compiling ciborium-ll v0.2.2
+   Compiling gemm v0.18.2
+   Compiling ciborium v0.2.2
+   Compiling faer v0.24.4
+   Compiling faer v0.23.2
+   Compiling cubecl-ir v0.10.0
+   Compiling criterion v0.8.2
+   Compiling cubecl-runtime v0.10.0
+   Compiling wgpu-naga-bridge v29.0.4
+   Compiling wgpu-hal v29.0.4
+   Compiling cubecl-core v0.10.0
+   Compiling wgpu-core-deps-apple v29.0.4
+   Compiling wgpu-core v29.0.4
+   Compiling wgpu v29.0.4
+   Compiling cubecl-wgpu v0.10.0
+   Compiling faer-ext v0.7.1
+   Compiling flow-linalg v0.1.2 (/Users/kfls271/Rust/flow-crates/flow-linalg)
+   Compiling flow-tru-ols v0.1.0 (/Users/kfls271/Rust/flow-crates/tru-ols)
+    Finished `bench` profile [optimized] target(s) in 1m 07s
+     Running benches/ols_method_compare.rs (/var/folders/44/mj5sgh7n5h146_61ng7w39q00000gp/T/cursor-sandbox-cache/d60646c2271ca88daee427ff0e77718c/cargo-target/release/deps/ols_method_compare-cedca7afc9667aea)
+Gnuplot not found, using plotters backend
+Benchmarking ols_method_matrix/run_ols_qr_parallel/50000
+Benchmarking ols_method_matrix/run_ols_qr_parallel/50000: Warming up for 1.0000 s
+Benchmarking ols_method_matrix/run_ols_qr_parallel/50000: Collecting 15 samples in estimated 8.9013 s (720 iterations)
+Benchmarking ols_method_matrix/run_ols_qr_parallel/50000: Analyzing
+ols_method_matrix/run_ols_qr_parallel/50000
+                        time:   [11.571 ms 11.750 ms 12.018 ms]
+                        thrpt:  [4.1605 Melem/s 4.2554 Melem/s 4.3211 Melem/s]
+Found 2 outliers among 15 measurements (13.33%)
+  2 (13.33%) high mild
+Benchmarking ols_method_matrix/normal_equations_cpu_f64/50000
+Benchmarking ols_method_matrix/normal_equations_cpu_f64/50000: Warming up for 1.0000 s
+Benchmarking ols_method_matrix/normal_equations_cpu_f64/50000: Collecting 15 samples in estimated 8.4924 s (1920 iterations)
+Benchmarking ols_method_matrix/normal_equations_cpu_f64/50000: Analyzing
+ols_method_matrix/normal_equations_cpu_f64/50000
+                        time:   [4.4201 ms 4.8598 ms 5.7304 ms]
+                        thrpt:  [8.7253 Melem/s 10.289 Melem/s 11.312 Melem/s]
+Found 2 outliers among 15 measurements (13.33%)
+  1 (6.67%) high mild
+  1 (6.67%) high severe
+Benchmarking ols_method_matrix/normal_equations_gpu_rhs_f32/50000
+Benchmarking ols_method_matrix/normal_equations_gpu_rhs_f32/50000: Warming up for 1.0000 s
+Benchmarking ols_method_matrix/normal_equations_gpu_rhs_f32/50000: Collecting 15 samples in estimated 8.3211 s (1080 iterations)
+Benchmarking ols_method_matrix/normal_equations_gpu_rhs_f32/50000: Analyzing
+ols_method_matrix/normal_equations_gpu_rhs_f32/50000
+                        time:   [7.8173 ms 7.9109 ms 8.0825 ms]
+                        thrpt:  [6.1862 Melem/s 6.3204 Melem/s 6.3961 Melem/s]
+Found 2 outliers among 15 measurements (13.33%)
+  1 (6.67%) high mild
+  1 (6.67%) high severe
+Benchmarking ols_method_matrix/run_ols_qr_parallel/200000
+Benchmarking ols_method_matrix/run_ols_qr_parallel/200000: Warming up for 1.0000 s
+Benchmarking ols_method_matrix/run_ols_qr_parallel/200000: Collecting 15 samples in estimated 9.6106 s (240 iterations)
+Benchmarking ols_method_matrix/run_ols_qr_parallel/200000: Analyzing
+ols_method_matrix/run_ols_qr_parallel/200000
+                        time:   [40.899 ms 41.712 ms 42.434 ms]
+                        thrpt:  [4.7132 Melem/s 4.7948 Melem/s 4.8901 Melem/s]
+Found 1 outliers among 15 measurements (6.67%)
+  1 (6.67%) high mild
+Benchmarking ols_method_matrix/normal_equations_cpu_f64/200000
+Benchmarking ols_method_matrix/normal_equations_cpu_f64/200000: Warming up for 1.0000 s
+Benchmarking ols_method_matrix/normal_equations_cpu_f64/200000: Collecting 15 samples in estimated 8.3546 s (600 iterations)
+Benchmarking ols_method_matrix/normal_equations_cpu_f64/200000: Analyzing
+ols_method_matrix/normal_equations_cpu_f64/200000
+                        time:   [13.815 ms 14.117 ms 14.505 ms]
+                        thrpt:  [13.789 Melem/s 14.167 Melem/s 14.477 Melem/s]
+Benchmarking ols_method_matrix/normal_equations_gpu_rhs_f32/200000
+Benchmarking ols_method_matrix/normal_equations_gpu_rhs_f32/200000: Warming up for 1.0000 s
+Benchmarking ols_method_matrix/normal_equations_gpu_rhs_f32/200000: Collecting 15 samples in estimated 8.1816 s (360 iterations)
+Benchmarking ols_method_matrix/normal_equations_gpu_rhs_f32/200000: Analyzing
+ols_method_matrix/normal_equations_gpu_rhs_f32/200000
+                        time:   [22.867 ms 23.210 ms 23.501 ms]
+                        thrpt:  [8.5101 Melem/s 8.6171 Melem/s 8.7463 Melem/s]
+
+Benchmarking ols_method_matrix_pressure/run_ols_qr_parallel/500000
+Benchmarking ols_method_matrix_pressure/run_ols_qr_parallel/500000: Warming up for 1.0000 s
+Benchmarking ols_method_matrix_pressure/run_ols_qr_parallel/500000: Collecting 10 samples in estimated 21.295 s (220 iterations)
+Benchmarking ols_method_matrix_pressure/run_ols_qr_parallel/500000: Analyzing
+ols_method_matrix_pressure/run_ols_qr_parallel/500000
+                        time:   [97.929 ms 98.864 ms 99.992 ms]
+                        thrpt:  [5.0004 Melem/s 5.0574 Melem/s 5.1058 Melem/s]
+Found 1 outliers among 10 measurements (10.00%)
+  1 (10.00%) high severe
+Benchmarking ols_method_matrix_pressure/normal_equations_cpu_f64/500000
+Benchmarking ols_method_matrix_pressure/normal_equations_cpu_f64/500000: Warming up for 1.0000 s
+Benchmarking ols_method_matrix_pressure/normal_equations_cpu_f64/500000: Collecting 10 samples in estimated 20.901 s (660 iterations)
+Benchmarking ols_method_matrix_pressure/normal_equations_cpu_f64/500000: Analyzing
+ols_method_matrix_pressure/normal_equations_cpu_f64/500000
+                        time:   [30.667 ms 31.121 ms 31.874 ms]
+                        thrpt:  [15.687 Melem/s 16.066 Melem/s 16.304 Melem/s]
+Found 1 outliers among 10 measurements (10.00%)
+  1 (10.00%) high mild
+Benchmarking ols_method_matrix_pressure/normal_equations_gpu_rhs_f32/500000
+Benchmarking ols_method_matrix_pressure/normal_equations_gpu_rhs_f32/500000: Warming up for 1.0000 s
+Benchmarking ols_method_matrix_pressure/normal_equations_gpu_rhs_f32/500000: Collecting 10 samples in estimated 20.218 s (385 iterations)
+Benchmarking ols_method_matrix_pressure/normal_equations_gpu_rhs_f32/500000: Analyzing
+ols_method_matrix_pressure/normal_equations_gpu_rhs_f32/500000
+                        time:   [56.819 ms 174.72 ms 246.06 ms]
+                        thrpt:  [2.0320 Melem/s 2.8617 Melem/s 8.7998 Melem/s]
+Found 1 outliers among 10 measurements (10.00%)
+  1 (10.00%) high mild
+Benchmarking ols_method_matrix_pressure/run_ols_qr_parallel/1000000
+Benchmarking ols_method_matrix_pressure/run_ols_qr_parallel/1000000: Warming up for 1.0000 s
+
+Warning: Unable to complete 10 samples in 20.0s. You may wish to increase target time to 29.3s or enable flat sampling.
+Benchmarking ols_method_matrix_pressure/run_ols_qr_parallel/1000000: Collecting 10 samples in estimated 29.251 s (55 iterations)
+Benchmarking ols_method_matrix_pressure/run_ols_qr_parallel/1000000: Analyzing
+ols_method_matrix_pressure/run_ols_qr_parallel/1000000
+                        time:   [384.60 ms 676.09 ms 1.3172 s]
+                        thrpt:  [759.19 Kelem/s 1.4791 Melem/s 2.6001 Melem/s]
+Benchmarking ols_method_matrix_pressure/normal_equations_cpu_f64/1000000
+Benchmarking ols_method_matrix_pressure/normal_equations_cpu_f64/1000000: Warming up for 1.0000 s
+Benchmarking ols_method_matrix_pressure/normal_equations_cpu_f64/1000000: Collecting 10 samples in estimated 20.860 s (220 iterations)
+Benchmarking ols_method_matrix_pressure/normal_equations_cpu_f64/1000000: Analyzing
+ols_method_matrix_pressure/normal_equations_cpu_f64/1000000
+                        time:   [47.742 ms 127.49 ms 265.89 ms]
+                        thrpt:  [3.7610 Melem/s 7.8435 Melem/s 20.946 Melem/s]
+Found 2 outliers among 10 measurements (20.00%)
+  2 (20.00%) high severe
+Benchmarking ols_method_matrix_pressure/normal_equations_gpu_rhs_f32/1000000
+Benchmarking ols_method_matrix_pressure/normal_equations_gpu_rhs_f32/1000000: Warming up for 1.0000 s
+Benchmarking ols_method_matrix_pressure/normal_equations_gpu_rhs_f32/1000000: Collecting 10 samples in estimated 20.380 s (110 iterations)
+Benchmarking ols_method_matrix_pressure/normal_equations_gpu_rhs_f32/1000000: Analyzing
+ols_method_matrix_pressure/normal_equations_gpu_rhs_f32/1000000
+                        time:   [69.352 ms 75.344 ms 82.389 ms]
+                        thrpt:  [12.138 Melem/s 13.272 Melem/s 14.419 Melem/s]
+
+TRUOLS_EXIT:0
