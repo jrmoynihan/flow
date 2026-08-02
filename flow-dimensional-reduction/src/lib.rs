@@ -13,4 +13,4 @@
 
 pub mod pca;
 
-pub use pca::{Pca, PcaError, PcaResult};
+pub use pca::{FittedPcaResult, Pca, PcaComponent, PcaError, PcaResult, UnfittedPcaResult};

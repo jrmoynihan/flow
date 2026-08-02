@@ -20,36 +20,77 @@ pub enum PcaError {
 
 pub type PcaResult<T> = Result<T, PcaError>;
 
-/// Principal Component Analysis.
-///
-/// Fit with [`Pca::fit`], then project new data with [`Pca::transform`].
-#[derive(Debug, Clone)]
-pub struct Pca {
-    /// Requested count before fitting; actual (clamped) count after.
+mod sealed {
+    pub trait Sealed {}
+    impl Sealed for super::UnfittedPcaResult {}
+    impl Sealed for super::FittedPcaResult {}
+}
+
+/// State of a [`Pca`]. Sealed: downstream crates cannot add states, so the set
+/// of valid transitions stays a fact local to this module.
+pub trait PcaComponent: sealed::Sealed + Sized + std::fmt::Debug {
+    /// Requested component count on [`UnfittedPcaResult`]; actual (clamped)
+    /// count on [`FittedPcaResult`].
+    fn n_components(&self) -> usize;
+}
+
+/// Unfitted state: holds only the requested component count.
+#[derive(Debug, Clone, Copy)]
+pub struct UnfittedPcaResult {
     n_components: usize,
-    /// `n_components × d`, row `i` is the i-th principal axis. Empty until fitted.
+}
+
+impl PcaComponent for UnfittedPcaResult {
+    fn n_components(&self) -> usize {
+        self.n_components
+    }
+}
+
+/// Fitted state: holds the basis produced by [`Pca::fit`].
+#[derive(Debug, Clone)]
+pub struct FittedPcaResult {
+    n_components: usize,
     components: Mat<f32>,
-    /// Fraction of total variance per retained component, descending.
     explained_variance_ratio: Vec<f32>,
-    /// Column means of the training data, length `d`. Empty until fitted.
     mean: Vec<f32>,
 }
 
-impl Pca {
+impl PcaComponent for FittedPcaResult {
+    fn n_components(&self) -> usize {
+        self.n_components
+    }
+}
+
+/// Principal Component Analysis, state-aware via type parameter.
+///
+/// Fit with [`Pca::fit`], then project new data with [`Pca::transform`].
+///
+/// `transform` and the basis accessors exist only on `Pca<FittedPcaResult>`,
+/// so projecting before fitting is a compile error rather than a runtime one:
+///
+/// ```compile_fail
+/// use flow_dimensional_reduction::Pca;
+/// let data = vec![1.0_f32, 2.0, 3.0, 4.0];
+/// // `transform` does not exist on an unfitted model.
+/// let _ = Pca::new(1).transform(&data, 2, 2);
+/// ```
+///
+/// The default type parameter keeps `Pca::new(k)` working without a turbofish.
+#[derive(Debug, Clone)]
+pub struct Pca<C: PcaComponent = UnfittedPcaResult> {
+    state: C,
+}
+
+impl Pca<UnfittedPcaResult> {
     /// Create an unfitted PCA requesting `n_components` components.
     ///
     /// The actual count is clamped to the feature count `d` during [`Pca::fit`].
     #[must_use]
     pub fn new(n_components: usize) -> Self {
-        Self {
-            n_components,
-            components: Mat::zeros(0, 0),
-            explained_variance_ratio: Vec::new(),
-            mean: Vec::new(),
-        }
+        Pca { state: UnfittedPcaResult { n_components } }
     }
 
-    /// Fit to `n × d` row-major data.
+    /// Fit to `n × d` row-major data, consuming the unfitted model.
     ///
     /// Means and the covariance matrix are accumulated in `f64` regardless of
     /// the `f32` input, then downcast — `n` can be large enough that `f32`
@@ -60,7 +101,7 @@ impl Pca {
     /// [`PcaError::InsufficientData`] if `n < 2`;
     /// [`PcaError::DimensionMismatch`] if `data.len() != n * d`;
     /// [`PcaError::SvdFailed`] if the decomposition fails.
-    pub fn fit(mut self, data: &[f32], n: usize, d: usize) -> PcaResult<Self> {
+    pub fn fit(self, data: &[f32], n: usize, d: usize) -> PcaResult<Pca<FittedPcaResult>> {
         if n == 0 || d == 0 {
             return Err(PcaError::EmptyData);
         }
@@ -106,7 +147,7 @@ impl Pca {
             }
         }
 
-        let k = self.n_components.min(d);
+        let k = self.state.n_components.min(d);
 
         // One decomposition: U and S come from the same Svd object, so they
         // are guaranteed to correspond (sigma[i] <-> column i of U) — unlike
@@ -136,14 +177,13 @@ impl Pca {
             vec![0.0; k]
         };
 
-        self.n_components = k;
-        self.components = components;
-        self.explained_variance_ratio = explained_variance_ratio;
-        self.mean = mean64.into_iter().map(|m| m as f32).collect();
+        let mean = mean64.into_iter().map(|m| m as f32).collect();
 
-        Ok(self)
+        Ok(Pca { state: FittedPcaResult { n_components: k, components, explained_variance_ratio, mean } })
     }
+}
 
+impl Pca<FittedPcaResult> {
     /// Project `n × d` row-major data onto the fitted axes.
     ///
     /// Returns `n × n_components` row-major.
@@ -155,17 +195,17 @@ impl Pca {
         if data.len() != n * d {
             return Err(PcaError::DimensionMismatch { len: data.len(), n, d });
         }
-        if d != self.mean.len() {
-            return Err(PcaError::FeatureMismatch { fitted: self.mean.len(), actual: d });
+        if d != self.state.mean.len() {
+            return Err(PcaError::FeatureMismatch { fitted: self.state.mean.len(), actual: d });
         }
 
-        let k = self.n_components;
+        let k = self.state.n_components;
         let mut out = Vec::with_capacity(n * k);
         for row in data.chunks_exact(d) {
             for i in 0..k {
                 let mut acc = 0.0_f32;
-                for (j, (&x, &m)) in row.iter().zip(self.mean.iter()).enumerate() {
-                    acc += (x - m) * self.components[(i, j)];
+                for (j, (&x, &m)) in row.iter().zip(self.state.mean.iter()).enumerate() {
+                    acc += (x - m) * self.state.components[(i, j)];
                 }
                 out.push(acc);
             }
@@ -176,25 +216,29 @@ impl Pca {
     /// Principal axes, `n_components × d`.
     #[must_use]
     pub fn components(&self) -> &Mat<f32> {
-        &self.components
+        &self.state.components
     }
 
     /// Fraction of total variance per component, descending.
     #[must_use]
     pub fn explained_variance_ratio(&self) -> &[f32] {
-        &self.explained_variance_ratio
+        &self.state.explained_variance_ratio
     }
 
     /// Column means of the training data.
     #[must_use]
     pub fn mean(&self) -> &[f32] {
-        &self.mean
+        &self.state.mean
     }
+}
 
+/// Available in every state — delegates to the trait method, since a generic
+/// `C` cannot be pattern-matched.
+impl<C: PcaComponent> Pca<C> {
     /// Component count: requested before fitting, actual (clamped) after.
     #[must_use]
     pub fn n_components(&self) -> usize {
-        self.n_components
+        self.state.n_components()
     }
 }
 
