@@ -11,19 +11,73 @@
 //! - Bigger encode dependency surface.
 //!
 //! Behind the `pco-backend` feature.
+//!
+//! # Configuration
+//!
+//! Encoding uses pco's full [`ChunkConfig`]. Defaults match pco's own defaults
+//! (compression level 8, auto mode/delta detection, equal pages up to
+//! [`pco::DEFAULT_MAX_PAGE_N`]). Callers can override any field; see the
+//! re-exported [`ModeSpec`], [`DeltaSpec`], and [`PagingSpec`] types.
+//!
+//! `enable_8_bit` is irrelevant for this f32 codec and should be left at the
+//! default (`false`).
 
 use crate::codec::{ChannelParams, CodecId, ColumnCodec, EncodeStats};
 use crate::error::{Error, Result};
 
-#[derive(Debug, Clone, Copy)]
+pub use pco::{ChunkConfig, DeltaSpec, ModeSpec, PagingSpec};
+
+/// Mode A alternate codec: lossless f32 via pco.
+///
+/// Holds a full [`ChunkConfig`] so every pco encode knob is available. Prefer
+/// [`LosslessF32Pco::default`] or [`LosslessF32Pco::with_compression_level`]
+/// unless you need a specific [`ModeSpec`] / [`DeltaSpec`] / [`PagingSpec`].
+#[derive(Debug, Clone)]
 pub struct LosslessF32Pco {
-    /// pco "compression level" — 0..=12. 8 is the library default.
-    pub level: usize,
+    pub config: ChunkConfig,
 }
 
 impl Default for LosslessF32Pco {
     fn default() -> Self {
-        Self { level: 8 }
+        Self {
+            config: ChunkConfig::default(),
+        }
+    }
+}
+
+impl LosslessF32Pco {
+    /// Build from an explicit pco [`ChunkConfig`].
+    pub fn new(config: ChunkConfig) -> Self {
+        Self { config }
+    }
+
+    /// Convenience: pco defaults with only `compression_level` overridden
+    /// (valid range 0..=12; library default is 8).
+    pub fn with_compression_level(level: usize) -> Self {
+        Self {
+            config: ChunkConfig::default().with_compression_level(level),
+        }
+    }
+
+    /// Convenience: pco defaults with only `mode_spec` overridden.
+    pub fn with_mode_spec(mode_spec: ModeSpec) -> Self {
+        Self {
+            config: ChunkConfig::default().with_mode_spec(mode_spec),
+        }
+    }
+
+    /// Convenience: pco defaults with only `delta_spec` overridden.
+    pub fn with_delta_spec(delta_spec: DeltaSpec) -> Self {
+        Self {
+            config: ChunkConfig::default().with_delta_spec(delta_spec),
+        }
+    }
+
+    /// Convenience: pco defaults with only `paging_spec` overridden.
+    pub fn with_paging_spec(paging_spec: PagingSpec) -> Self {
+        Self {
+            config: ChunkConfig::default().with_paging_spec(paging_spec),
+        }
     }
 }
 
@@ -41,7 +95,7 @@ impl ColumnCodec for LosslessF32Pco {
         if input.is_empty() {
             return Err(Error::InvalidParams("LosslessF32Pco: empty chunk"));
         }
-        let bytes = pco::standalone::simpler_compress(input, self.level)
+        let bytes = pco::standalone::simple_compress(input, &self.config)
             .map_err(|e| Error::InvalidParams(pco_err_static(&e)))?;
         let written = bytes.len();
         out.extend_from_slice(&bytes);
@@ -52,12 +106,7 @@ impl ColumnCodec for LosslessF32Pco {
         })
     }
 
-    fn decode_chunk(
-        &self,
-        payload: &[u8],
-        _params: &ChannelParams,
-        out: &mut [f32],
-    ) -> Result<()> {
+    fn decode_chunk(&self, payload: &[u8], _params: &ChannelParams, out: &mut [f32]) -> Result<()> {
         let progress = pco::standalone::simple_decompress_into::<f32>(payload, out)
             .map_err(|e| Error::InvalidParams(pco_err_static(&e)))?;
         if progress.n_processed != out.len() {
@@ -75,10 +124,9 @@ fn pco_err_static(e: &pco::errors::PcoError) -> &'static str {
     use pco::errors::ErrorKind;
     match e.kind {
         ErrorKind::InvalidArgument => "pco: invalid argument",
-        ErrorKind::Compatibility => "pco: compatibility / version mismatch",
         ErrorKind::Corruption => "pco: corruption",
         ErrorKind::InsufficientData => "pco: insufficient data",
-        ErrorKind::Io(_) => "pco: io",
+        ErrorKind::Io(_) => "pco: IO error",
         _ => "pco: unknown",
     }
 }
@@ -109,17 +157,30 @@ mod tests {
         ChannelParams::linear_unsigned("ch", 262_144)
     }
 
-    #[test]
-    fn round_trips_log_channel_lossless() {
-        let codec = LosslessF32Pco::default();
-        let input = log_channel(8192, 42);
+    fn assert_bit_exact_round_trip(codec: &LosslessF32Pco, input: &[f32]) {
         let mut payload = Vec::new();
-        codec.encode_chunk(&input, &p(), &mut payload).unwrap();
+        codec.encode_chunk(input, &p(), &mut payload).unwrap();
         let mut out = vec![0.0f32; input.len()];
         codec.decode_chunk(&payload, &p(), &mut out).unwrap();
         for (a, b) in input.iter().zip(out.iter()) {
             assert_eq!(a.to_bits(), b.to_bits(), "pco lossless violated");
         }
+    }
+
+    #[test]
+    fn round_trips_log_channel_lossless() {
+        assert_bit_exact_round_trip(&LosslessF32Pco::default(), &log_channel(8192, 42));
+    }
+
+    #[test]
+    fn round_trips_with_custom_chunk_config() {
+        let codec = LosslessF32Pco::new(
+            ChunkConfig::default()
+                .with_compression_level(4)
+                .with_mode_spec(ModeSpec::Classic)
+                .with_delta_spec(DeltaSpec::NoOp),
+        );
+        assert_bit_exact_round_trip(&codec, &log_channel(4096, 7));
     }
 
     #[test]

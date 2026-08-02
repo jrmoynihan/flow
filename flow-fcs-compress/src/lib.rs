@@ -19,4 +19,9 @@ pub mod transform;
 
 pub use chunk::{ChunkHeader, ChunkStats, CHUNK_HEADER_BYTES, DEFAULT_CHUNK_EVENTS};
 pub use codec::{ChannelParams, CodecId, ColumnCodec};
+#[cfg(feature = "pco-backend")]
+pub use codec::lossless_f32_pco::{
+    ChunkConfig as PcoChunkConfig, DeltaSpec as PcoDeltaSpec, LosslessF32Pco,
+    ModeSpec as PcoModeSpec, PagingSpec as PcoPagingSpec,
+};
 pub use error::{Error, Result};
