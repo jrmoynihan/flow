@@ -86,7 +86,7 @@ pub fn validate_coordinate_transformation(
 
         let normalized = (pixel_value - pixel_range.start as f32) / pixel_span;
 
-        if normalized < -0.5 || normalized > 1.5 {
+        if !(-0.5..=1.5).contains(&normalized) {
             return Err(format!(
                 "{:?} coordinate {} far out of bounds: normalized={}",
                 axis, i, normalized
@@ -191,12 +191,21 @@ pub fn pixel_to_raw_y(
     pixel_range: &Range<u32>,
     transform: &TransformType,
 ) -> f32 {
-    debug_assert!(pixel.is_finite(), "Pixel coordinate must be finite: {}", pixel);
+    debug_assert!(
+        pixel.is_finite(),
+        "Pixel coordinate must be finite: {}",
+        pixel
+    );
     debug_assert!(
         data_range.start().is_finite() && data_range.end().is_finite(),
-        "Data range must be finite: {:?}", data_range
+        "Data range must be finite: {:?}",
+        data_range
     );
-    debug_assert!(pixel_range.start < pixel_range.end, "Pixel range must be valid: {:?}", pixel_range);
+    debug_assert!(
+        pixel_range.start < pixel_range.end,
+        "Pixel range must be valid: {:?}",
+        pixel_range
+    );
 
     let pixel_span = (pixel_range.end - pixel_range.start) as f32;
     let normalized = (pixel - pixel_range.start as f32) / pixel_span;
@@ -228,12 +237,21 @@ pub fn pixel_to_raw(
     pixel_range: &Range<u32>,
     transform: &TransformType,
 ) -> f32 {
-    debug_assert!(pixel.is_finite(), "Pixel coordinate must be finite: {}", pixel);
+    debug_assert!(
+        pixel.is_finite(),
+        "Pixel coordinate must be finite: {}",
+        pixel
+    );
     debug_assert!(
         data_range.start().is_finite() && data_range.end().is_finite(),
-        "Data range must be finite: {:?}", data_range
+        "Data range must be finite: {:?}",
+        data_range
     );
-    debug_assert!(pixel_range.start < pixel_range.end, "Pixel range must be valid: {:?}", pixel_range);
+    debug_assert!(
+        pixel_range.start < pixel_range.end,
+        "Pixel range must be valid: {:?}",
+        pixel_range
+    );
 
     let pixel_span = (pixel_range.end - pixel_range.start) as f32;
     let normalized = (pixel - pixel_range.start as f32) / pixel_span;
@@ -298,8 +316,13 @@ pub fn raw_coords_to_pixels_with_layout<I>(
 where
     I: IntoIterator<Item = (f32, f32)>,
 {
-    let (x_pixel_range, y_pixel_range) =
-        get_plotting_area_with_layout(width, height, plot_margin, x_label_area_size, y_label_area_size);
+    let (x_pixel_range, y_pixel_range) = get_plotting_area_with_layout(
+        width,
+        height,
+        plot_margin,
+        x_label_area_size,
+        y_label_area_size,
+    );
 
     raw_coords
         .into_iter()
@@ -335,14 +358,21 @@ where
 {
     let pixel_coords_vec: Vec<(f32, f32)> = pixel_coords.into_iter().collect();
 
-    debug_assert!(width > 0 && height > 0, "Plot dimensions must be positive: {}x{}", width, height);
+    debug_assert!(
+        width > 0 && height > 0,
+        "Plot dimensions must be positive: {}x{}",
+        width,
+        height
+    );
     debug_assert!(
         x_data_range.start().is_finite() && x_data_range.end().is_finite(),
-        "X data range must be finite: {:?}", x_data_range
+        "X data range must be finite: {:?}",
+        x_data_range
     );
     debug_assert!(
         y_data_range.start().is_finite() && y_data_range.end().is_finite(),
-        "Y data range must be finite: {:?}", y_data_range
+        "Y data range must be finite: {:?}",
+        y_data_range
     );
 
     let (x_pixel_range, y_pixel_range) = get_plotting_area(width, height);
@@ -375,18 +405,30 @@ where
 {
     let pixel_coords_vec: Vec<(f32, f32)> = pixel_coords.into_iter().collect();
 
-    debug_assert!(width > 0 && height > 0, "Plot dimensions must be positive: {}x{}", width, height);
+    debug_assert!(
+        width > 0 && height > 0,
+        "Plot dimensions must be positive: {}x{}",
+        width,
+        height
+    );
     debug_assert!(
         x_data_range.start().is_finite() && x_data_range.end().is_finite(),
-        "X data range must be finite: {:?}", x_data_range
+        "X data range must be finite: {:?}",
+        x_data_range
     );
     debug_assert!(
         y_data_range.start().is_finite() && y_data_range.end().is_finite(),
-        "Y data range must be finite: {:?}", y_data_range
+        "Y data range must be finite: {:?}",
+        y_data_range
     );
 
-    let (x_pixel_range, y_pixel_range) =
-        get_plotting_area_with_layout(width, height, plot_margin, x_label_area_size, y_label_area_size);
+    let (x_pixel_range, y_pixel_range) = get_plotting_area_with_layout(
+        width,
+        height,
+        plot_margin,
+        x_label_area_size,
+        y_label_area_size,
+    );
 
     pixel_coords_vec
         .into_iter()
@@ -628,23 +670,43 @@ mod tests {
         let x_label = 20;
         let y_label = 48;
 
-        let raw_coords = vec![(1000000.0, 500000.0), (2000000.0, 1000000.0), (3500000.0, 1800000.0)];
+        let raw_coords = vec![
+            (1000000.0, 500000.0),
+            (2000000.0, 1000000.0),
+            (3500000.0, 1800000.0),
+        ];
 
         let pixels = raw_coords_to_pixels_with_layout(
-            raw_coords.clone(), &x_range, &y_range, width, height,
-            &transform, &transform, margin, x_label, y_label,
+            raw_coords.clone(),
+            &x_range,
+            &y_range,
+            width,
+            height,
+            &transform,
+            &transform,
+            margin,
+            x_label,
+            y_label,
         );
 
         let recovered = pixels_to_raw_coords_with_layout(
-            pixels, &x_range, &y_range, width, height,
-            &transform, &transform, margin, x_label, y_label,
+            pixels, &x_range, &y_range, width, height, &transform, &transform, margin, x_label,
+            y_label,
         );
 
         for ((orig_x, orig_y), (rec_x, rec_y)) in raw_coords.iter().zip(recovered.iter()) {
-            assert!((orig_x - rec_x).abs() < 100.0,
-                "X roundtrip failed: {} vs {}", orig_x, rec_x);
-            assert!((orig_y - rec_y).abs() < 100.0,
-                "Y roundtrip failed: {} vs {}", orig_y, rec_y);
+            assert!(
+                (orig_x - rec_x).abs() < 100.0,
+                "X roundtrip failed: {} vs {}",
+                orig_x,
+                rec_x
+            );
+            assert!(
+                (orig_y - rec_y).abs() < 100.0,
+                "Y roundtrip failed: {} vs {}",
+                orig_y,
+                rec_y
+            );
         }
     }
 
@@ -662,22 +724,40 @@ mod tests {
         let raw_coords = vec![(500.0, 200.0), (50000.0, 10000.0), (-1000.0, -500.0)];
 
         let pixels = raw_coords_to_pixels_with_layout(
-            raw_coords.clone(), &x_range, &y_range, width, height,
-            &transform, &transform, margin, x_label, y_label,
+            raw_coords.clone(),
+            &x_range,
+            &y_range,
+            width,
+            height,
+            &transform,
+            &transform,
+            margin,
+            x_label,
+            y_label,
         );
 
         let recovered = pixels_to_raw_coords_with_layout(
-            pixels, &x_range, &y_range, width, height,
-            &transform, &transform, margin, x_label, y_label,
+            pixels, &x_range, &y_range, width, height, &transform, &transform, margin, x_label,
+            y_label,
         );
 
         for ((orig_x, orig_y), (rec_x, rec_y)) in raw_coords.iter().zip(recovered.iter()) {
             let tol_x = orig_x.abs() * 0.01 + 1.0;
             let tol_y = orig_y.abs() * 0.01 + 1.0;
-            assert!((orig_x - rec_x).abs() < tol_x,
-                "X arcsinh roundtrip failed: {} vs {} (tol {})", orig_x, rec_x, tol_x);
-            assert!((orig_y - rec_y).abs() < tol_y,
-                "Y arcsinh roundtrip failed: {} vs {} (tol {})", orig_y, rec_y, tol_y);
+            assert!(
+                (orig_x - rec_x).abs() < tol_x,
+                "X arcsinh roundtrip failed: {} vs {} (tol {})",
+                orig_x,
+                rec_x,
+                tol_x
+            );
+            assert!(
+                (orig_y - rec_y).abs() < tol_y,
+                "Y arcsinh roundtrip failed: {} vs {} (tol {})",
+                orig_y,
+                rec_y,
+                tol_y
+            );
         }
     }
 
@@ -692,15 +772,38 @@ mod tests {
 
         let pixels = raw_coords_to_pixels_with_layout(
             vec![(0.0, 0.0), (1000.0, 1000.0)],
-            &x_range, &y_range, width, height,
-            &transform, &transform, 0, 0, 0,
+            &x_range,
+            &y_range,
+            width,
+            height,
+            &transform,
+            &transform,
+            0,
+            0,
+            0,
         );
 
         // With zero margins: pixel 0 = data min, pixel 400 = data max
-        assert!((pixels[0].0 - 0.0).abs() < 1.0, "Bottom-left x: {}", pixels[0].0);
-        assert!((pixels[0].1 - 400.0).abs() < 1.0, "Bottom-left y (inverted): {}", pixels[0].1);
-        assert!((pixels[1].0 - 400.0).abs() < 1.0, "Top-right x: {}", pixels[1].0);
-        assert!((pixels[1].1 - 0.0).abs() < 1.0, "Top-right y (inverted): {}", pixels[1].1);
+        assert!(
+            (pixels[0].0 - 0.0).abs() < 1.0,
+            "Bottom-left x: {}",
+            pixels[0].0
+        );
+        assert!(
+            (pixels[0].1 - 400.0).abs() < 1.0,
+            "Bottom-left y (inverted): {}",
+            pixels[0].1
+        );
+        assert!(
+            (pixels[1].0 - 400.0).abs() < 1.0,
+            "Top-right x: {}",
+            pixels[1].0
+        );
+        assert!(
+            (pixels[1].1 - 0.0).abs() < 1.0,
+            "Top-right y (inverted): {}",
+            pixels[1].1
+        );
     }
 
     #[test]
@@ -718,26 +821,42 @@ mod tests {
         for &(margin, x_label, y_label) in &[(0, 0, 0), (10, 50, 50), (6, 40, 40)] {
             let pixels = raw_coords_to_pixels_with_layout(
                 test_coords.clone(),
-                &x_range, &y_range, 800, 600,
-                &transform, &transform,
-                margin, x_label, y_label,
+                &x_range,
+                &y_range,
+                800,
+                600,
+                &transform,
+                &transform,
+                margin,
+                x_label,
+                y_label,
             );
             let recovered = pixels_to_raw_coords_with_layout(
-                pixels,
-                &x_range, &y_range, 800, 600,
-                &transform, &transform,
-                margin, x_label, y_label,
+                pixels, &x_range, &y_range, 800, 600, &transform, &transform, margin, x_label,
+                y_label,
             );
-            for (i, ((orig_x, orig_y), (rec_x, rec_y))) in test_coords.iter().zip(recovered.iter()).enumerate() {
+            for (i, ((orig_x, orig_y), (rec_x, rec_y))) in
+                test_coords.iter().zip(recovered.iter()).enumerate()
+            {
                 assert!(
                     (rec_x - orig_x).abs() < 1.0,
                     "layout({},{},{}) coord {} x: expected {}, got {}",
-                    margin, x_label, y_label, i, orig_x, rec_x
+                    margin,
+                    x_label,
+                    y_label,
+                    i,
+                    orig_x,
+                    rec_x
                 );
                 assert!(
                     (rec_y - orig_y).abs() < 100.0,
                     "layout({},{},{}) coord {} y: expected {}, got {}",
-                    margin, x_label, y_label, i, orig_y, rec_y
+                    margin,
+                    x_label,
+                    y_label,
+                    i,
+                    orig_y,
+                    rec_y
                 );
             }
         }
@@ -752,36 +871,51 @@ mod tests {
         let y_range = (-1.0f32)..=8.0;
 
         // Raw values that fall within transformed range
-        let test_coords = vec![
-            (1000.0, 2000.0),
-            (10000.0, 50000.0),
-        ];
+        let test_coords = vec![(1000.0, 2000.0), (10000.0, 50000.0)];
 
         for &(margin, x_label, y_label) in &[(0, 0, 0), (10, 50, 50)] {
             let pixels = raw_coords_to_pixels_with_layout(
                 test_coords.clone(),
-                &x_range, &y_range, 800, 600,
-                &transform, &transform,
-                margin, x_label, y_label,
+                &x_range,
+                &y_range,
+                800,
+                600,
+                &transform,
+                &transform,
+                margin,
+                x_label,
+                y_label,
             );
             let recovered = pixels_to_raw_coords_with_layout(
-                pixels,
-                &x_range, &y_range, 800, 600,
-                &transform, &transform,
-                margin, x_label, y_label,
+                pixels, &x_range, &y_range, 800, 600, &transform, &transform, margin, x_label,
+                y_label,
             );
-            for (i, ((orig_x, orig_y), (rec_x, rec_y))) in test_coords.iter().zip(recovered.iter()).enumerate() {
+            for (i, ((orig_x, orig_y), (rec_x, rec_y))) in
+                test_coords.iter().zip(recovered.iter()).enumerate()
+            {
                 let x_err = (rec_x - orig_x).abs() / orig_x.abs().max(1.0);
                 let y_err = (rec_y - orig_y).abs() / orig_y.abs().max(1.0);
                 assert!(
                     x_err < 0.01,
                     "arcsinh layout({},{},{}) coord {} x: expected {}, got {} (err={})",
-                    margin, x_label, y_label, i, orig_x, rec_x, x_err
+                    margin,
+                    x_label,
+                    y_label,
+                    i,
+                    orig_x,
+                    rec_x,
+                    x_err
                 );
                 assert!(
                     y_err < 0.01,
                     "arcsinh layout({},{},{}) coord {} y: expected {}, got {} (err={})",
-                    margin, x_label, y_label, i, orig_y, rec_y, y_err
+                    margin,
+                    x_label,
+                    y_label,
+                    i,
+                    orig_y,
+                    rec_y,
+                    y_err
                 );
             }
         }
@@ -795,12 +929,19 @@ mod tests {
         let coords = vec![(131072.0, 131072.0)];
 
         let pixels = raw_coords_to_pixels_with_layout(
-            coords.clone(), &x_range, &y_range, 800, 600,
-            &transform, &transform, 0, 0, 0,
+            coords.clone(),
+            &x_range,
+            &y_range,
+            800,
+            600,
+            &transform,
+            &transform,
+            0,
+            0,
+            0,
         );
         let recovered = pixels_to_raw_coords_with_layout(
-            pixels, &x_range, &y_range, 800, 600,
-            &transform, &transform, 10, 50, 50,
+            pixels, &x_range, &y_range, 800, 600, &transform, &transform, 10, 50, 50,
         );
 
         let (orig_x, orig_y) = coords[0];
@@ -808,7 +949,10 @@ mod tests {
         assert!(
             (rec_x - orig_x).abs() > 1000.0 || (rec_y - orig_y).abs() > 1000.0,
             "Mismatched layout should produce significant error, but got ({}, {}) vs ({}, {})",
-            rec_x, rec_y, orig_x, orig_y,
+            rec_x,
+            rec_y,
+            orig_x,
+            orig_y,
         );
     }
 }

@@ -4,8 +4,8 @@
 //! including the original peacoqc-rs method and improved density-based approaches.
 
 use crate::{Gate, GateError, GateResult};
-use flow_fcs::Fcs;
 use flow_density::kde::KernelDensity;
+use flow_fcs::Fcs;
 
 /// Configuration for doublet detection
 #[derive(Debug, Clone)]
@@ -238,7 +238,7 @@ fn detect_ratio_mad(
     let mut sorted_ratios = ratios.clone();
     sorted_ratios.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
 
-    let median = if sorted_ratios.len() % 2 == 0 {
+    let median = if sorted_ratios.len().is_multiple_of(2) {
         (sorted_ratios[sorted_ratios.len() / 2 - 1] + sorted_ratios[sorted_ratios.len() / 2]) / 2.0
     } else {
         sorted_ratios[sorted_ratios.len() / 2]
@@ -249,7 +249,7 @@ fn detect_ratio_mad(
     let mut sorted_deviations = deviations.clone();
     sorted_deviations.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
 
-    let mad = if sorted_deviations.len() % 2 == 0 {
+    let mad = if sorted_deviations.len().is_multiple_of(2) {
         (sorted_deviations[sorted_deviations.len() / 2 - 1]
             + sorted_deviations[sorted_deviations.len() / 2])
             / 2.0

@@ -48,8 +48,7 @@ impl<'a> GateQuery<'a> {
     /// * `x` - X-axis parameter name
     /// * `y` - Y-axis parameter name
     pub fn by_parameters(mut self, x: &str, y: &str) -> Self {
-        self.gates
-            .retain(|gate| gate.matches_plot_parameters(x, y));
+        self.gates.retain(|gate| gate.matches_plot_parameters(x, y));
         self
     }
 
@@ -277,10 +276,10 @@ pub fn filter_hierarchy_by_parameters(
         for gate_id in sorted_gates {
             if matching_gates.contains(&gate_id) {
                 // Check if this gate has a parent that also matches
-                if let Some(parent_id) = hierarchy.get_parent(gate_id.as_ref()) {
-                    if matching_gates.contains(parent_id) {
-                        let _ = new_hierarchy.add_child(parent_id.clone(), gate_id.clone());
-                    }
+                if let Some(parent_id) = hierarchy.get_parent(gate_id.as_ref())
+                    && matching_gates.contains(parent_id)
+                {
+                    let _ = new_hierarchy.add_child(parent_id.clone(), gate_id.clone());
                 }
             }
         }

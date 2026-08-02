@@ -41,7 +41,7 @@ impl RangeGateGeometry {
             return Ok((RangeAxis::Y, lo, hi));
         }
         Err(GateError::missing_parameter(
-            &format!("{x_param} or {y_param}"),
+            format!("{x_param} or {y_param}"),
             "range",
         ))
     }
@@ -107,7 +107,11 @@ mod tests {
     #[test]
     fn containment_inside() {
         let range = make_range(100.0, 500.0);
-        assert!(range.contains_point(300.0, 999.0, "FL1-A", "SSC-A").unwrap());
+        assert!(
+            range
+                .contains_point(300.0, 999.0, "FL1-A", "SSC-A")
+                .unwrap()
+        );
     }
 
     #[test]
@@ -119,7 +123,11 @@ mod tests {
     #[test]
     fn containment_outside_above() {
         let range = make_range(100.0, 500.0);
-        assert!(!range.contains_point(600.0, 200.0, "FL1-A", "SSC-A").unwrap());
+        assert!(
+            !range
+                .contains_point(600.0, 200.0, "FL1-A", "SSC-A")
+                .unwrap()
+        );
     }
 
     #[test]
@@ -132,8 +140,16 @@ mod tests {
     #[test]
     fn containment_y_ignored() {
         let range = make_range(100.0, 500.0);
-        assert!(range.contains_point(300.0, f32::NEG_INFINITY, "FL1-A", "SSC-A").unwrap());
-        assert!(range.contains_point(300.0, f32::INFINITY, "FL1-A", "SSC-A").unwrap());
+        assert!(
+            range
+                .contains_point(300.0, f32::NEG_INFINITY, "FL1-A", "SSC-A")
+                .unwrap()
+        );
+        assert!(
+            range
+                .contains_point(300.0, f32::INFINITY, "FL1-A", "SSC-A")
+                .unwrap()
+        );
     }
 
     #[test]
@@ -187,7 +203,11 @@ mod tests {
     #[test]
     fn y_axis_containment_inside() {
         let range = make_y_range(100.0, 500.0);
-        assert!(range.contains_point(999.0, 300.0, "FL1-A", "SSC-A").unwrap());
+        assert!(
+            range
+                .contains_point(999.0, 300.0, "FL1-A", "SSC-A")
+                .unwrap()
+        );
     }
 
     #[test]

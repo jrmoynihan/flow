@@ -23,7 +23,7 @@ impl ThresholdGateGeometry {
             return Ok((ThresholdAxis::Y, v));
         }
         Err(GateError::missing_parameter(
-            &format!("{x_param} or {y_param}"),
+            format!("{x_param} or {y_param}"),
             "threshold",
         ))
     }
@@ -60,15 +60,21 @@ impl GateBounds for ThresholdGateGeometry {
             (ThresholdAxis::X, ThresholdDirection::Above) => {
                 Ok((threshold, f32::NEG_INFINITY, f32::INFINITY, f32::INFINITY))
             }
-            (ThresholdAxis::X, ThresholdDirection::Below) => {
-                Ok((f32::NEG_INFINITY, f32::NEG_INFINITY, threshold, f32::INFINITY))
-            }
+            (ThresholdAxis::X, ThresholdDirection::Below) => Ok((
+                f32::NEG_INFINITY,
+                f32::NEG_INFINITY,
+                threshold,
+                f32::INFINITY,
+            )),
             (ThresholdAxis::Y, ThresholdDirection::Above) => {
                 Ok((f32::NEG_INFINITY, threshold, f32::INFINITY, f32::INFINITY))
             }
-            (ThresholdAxis::Y, ThresholdDirection::Below) => {
-                Ok((f32::NEG_INFINITY, f32::NEG_INFINITY, f32::INFINITY, threshold))
-            }
+            (ThresholdAxis::Y, ThresholdDirection::Below) => Ok((
+                f32::NEG_INFINITY,
+                f32::NEG_INFINITY,
+                f32::INFINITY,
+                threshold,
+            )),
         }
     }
 }
@@ -92,7 +98,11 @@ impl GateGeometryOps for ThresholdGateGeometry {
 mod tests {
     use super::*;
 
-    fn make_threshold(channel: &str, value: f32, direction: ThresholdDirection) -> ThresholdGateGeometry {
+    fn make_threshold(
+        channel: &str,
+        value: f32,
+        direction: ThresholdDirection,
+    ) -> ThresholdGateGeometry {
         ThresholdGateGeometry {
             value_node: GateNode::new("threshold_value").with_coordinate(channel, value),
             direction,

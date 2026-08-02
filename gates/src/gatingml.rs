@@ -109,7 +109,10 @@ fn write_gate_to_xml(writer: &mut Writer<Cursor<Vec<u8>>>, gate: &Gate) -> Resul
         GateGeometry::Range { min, max } => {
             write_range_gate(writer, min, max)?;
         }
-        GateGeometry::Threshold { value_node, direction } => {
+        GateGeometry::Threshold {
+            value_node,
+            direction,
+        } => {
             write_threshold_gate(writer, value_node, *direction)?;
         }
         GateGeometry::QuadrantGate(q) => {
@@ -410,32 +413,29 @@ pub fn gatingml_to_gates(xml: &str) -> Result<Vec<Gate>> {
                     if let Some(gate) = parse_rectangle_gate_v1_5(&mut reader, e, &mut depth)? {
                         gates.push(gate);
                     }
-                } else if name.as_ref() == b"gating:PolygonGate" || name.as_ref() == b"PolygonGate"
+                } else if (name.as_ref() == b"gating:PolygonGate"
+                    || name.as_ref() == b"PolygonGate")
+                    && let Some(gate) = parse_polygon_gate_v1_5(&mut reader, e, &mut depth)?
                 {
-                    if let Some(gate) = parse_polygon_gate_v1_5(&mut reader, e, &mut depth)? {
-                        gates.push(gate);
-                    }
-                } else if name.as_ref() == b"gating:EllipseGate" || name.as_ref() == b"EllipseGate"
+                    gates.push(gate);
+                } else if (name.as_ref() == b"gating:EllipseGate"
+                    || name.as_ref() == b"EllipseGate")
+                    && let Some(gate) = parse_ellipse_gate_v1_5(&mut reader, e, &mut depth)?
                 {
-                    if let Some(gate) = parse_ellipse_gate_v1_5(&mut reader, e, &mut depth)? {
-                        gates.push(gate);
-                    }
-                } else if name.as_ref() == b"gating:RangeGate" || name.as_ref() == b"RangeGate"
+                    gates.push(gate);
+                } else if (name.as_ref() == b"gating:RangeGate" || name.as_ref() == b"RangeGate")
+                    && let Some(gate) = parse_range_gate_v1_5(&mut reader, e, &mut depth)?
                 {
-                    if let Some(gate) = parse_range_gate_v1_5(&mut reader, e, &mut depth)? {
-                        gates.push(gate);
-                    }
-                } else if name.as_ref() == b"gating:BooleanGate" || name.as_ref() == b"BooleanGate"
+                    gates.push(gate);
+                } else if (name.as_ref() == b"gating:BooleanGate"
+                    || name.as_ref() == b"BooleanGate")
+                    && let Some(gate) = parse_boolean_gate_v1_5(&mut reader, e, &mut depth)?
                 {
-                    if let Some(gate) = parse_boolean_gate_v1_5(&mut reader, e, &mut depth)? {
-                        gates.push(gate);
-                    }
+                    gates.push(gate);
                 }
             }
-            Ok(Event::End(_)) => {
-                if depth > 0 {
-                    depth -= 1;
-                }
+            Ok(Event::End(_)) if depth > 0 => {
+                depth = depth.saturating_sub(1);
             }
             Ok(Event::Eof) => break,
             Err(e) => return Err(e.into()),
@@ -517,8 +517,7 @@ fn parse_gate_geometry_v2(
                 } else if name.as_ref() == b"gating:EllipseGate" || name.as_ref() == b"EllipseGate"
                 {
                     return Ok(Some(parse_ellipse_geometry_v2(reader, e, depth)?));
-                } else if name.as_ref() == b"gating:RangeGate" || name.as_ref() == b"RangeGate"
-                {
+                } else if name.as_ref() == b"gating:RangeGate" || name.as_ref() == b"RangeGate" {
                     return Ok(Some(parse_range_geometry_v2(reader, e, depth)?));
                 } else if name.as_ref() == b"gating:BooleanGate" || name.as_ref() == b"BooleanGate"
                 {
@@ -549,10 +548,7 @@ fn parse_gate_geometry_v2(
 /// fcs-dimension, value children) and `gating:Quadrant` children (id, name,
 /// `gating:position` children carrying divider_ref + location + direction).
 /// The inverse of [`write_quadrant_gate`].
-fn parse_quadrant_geometry_v2(
-    reader: &mut Reader<&[u8]>,
-    depth: &mut u32,
-) -> Result<GateGeometry> {
+fn parse_quadrant_geometry_v2(reader: &mut Reader<&[u8]>, depth: &mut u32) -> Result<GateGeometry> {
     use crate::types::{QuadrantDivider, QuadrantGate, QuadrantPosition, QuadrantSub};
     use std::sync::Arc;
 
@@ -583,10 +579,18 @@ fn parse_quadrant_geometry_v2(
                     let id = attr_str(e, &[b"gating:id", b"id"]).unwrap_or_default();
                     let channel = attr_str(
                         e,
-                        &[b"data-type:fcs-dimension", b"fcs-dimension", b"gating:fcs-dimension"],
+                        &[
+                            b"data-type:fcs-dimension",
+                            b"fcs-dimension",
+                            b"gating:fcs-dimension",
+                        ],
                     )
                     .unwrap_or_default();
-                    cur_divider = Some((Arc::from(id.as_str()), Arc::from(channel.as_str()), Vec::new()));
+                    cur_divider = Some((
+                        Arc::from(id.as_str()),
+                        Arc::from(channel.as_str()),
+                        Vec::new(),
+                    ));
                 } else if name.as_ref() == b"gating:Quadrant" || name.as_ref() == b"Quadrant" {
                     let id = attr_str(e, &[b"gating:id", b"id"]).unwrap_or_default();
                     let label = attr_str(e, &[b"gating:name", b"name"]).unwrap_or_default();
@@ -595,51 +599,52 @@ fn parse_quadrant_geometry_v2(
             }
             Ok(Event::Empty(ref e)) => {
                 let name = e.name();
-                if name.as_ref() == b"gating:value" || name.as_ref() == b"value" {
-                    if let Some((_, _, values)) = cur_divider.as_mut() {
-                        if let Some(v) = attr_str(e, &[b"gating:value", b"value"])
-                            .and_then(|s| s.parse::<f32>().ok())
-                        {
-                            values.push(v);
-                        }
-                    }
-                } else if name.as_ref() == b"gating:position" || name.as_ref() == b"position" {
-                    if let Some((_, _, positions)) = cur_quadrant.as_mut() {
-                        let divider_ref =
-                            attr_str(e, &[b"gating:divider_ref", b"divider_ref"]).unwrap_or_default();
-                        let location = attr_str(e, &[b"gating:location", b"location"])
-                            .and_then(|s| s.parse::<f32>().ok())
-                            .unwrap_or(0.0);
-                        let direction = match attr_str(e, &[b"gating:direction", b"direction"])
-                            .as_deref()
-                        {
+                if (name.as_ref() == b"gating:value" || name.as_ref() == b"value")
+                    && let Some((_, _, values)) = cur_divider.as_mut()
+                    && let Some(v) = attr_str(e, &[b"gating:value", b"value"])
+                        .and_then(|s| s.parse::<f32>().ok())
+                {
+                    values.push(v);
+                } else if (name.as_ref() == b"gating:position" || name.as_ref() == b"position")
+                    && let Some((_, _, positions)) = cur_quadrant.as_mut()
+                {
+                    let divider_ref =
+                        attr_str(e, &[b"gating:divider_ref", b"divider_ref"]).unwrap_or_default();
+                    let location = attr_str(e, &[b"gating:location", b"location"])
+                        .and_then(|s| s.parse::<f32>().ok())
+                        .unwrap_or(0.0);
+                    let direction =
+                        match attr_str(e, &[b"gating:direction", b"direction"]).as_deref() {
                             Some("below") => crate::types::ThresholdDirection::Below,
                             _ => crate::types::ThresholdDirection::Above,
                         };
-                        positions.push(QuadrantPosition {
-                            divider_ref: Arc::from(divider_ref.as_str()),
-                            location,
-                            direction,
-                        });
-                    }
+                    positions.push(QuadrantPosition {
+                        divider_ref: Arc::from(divider_ref.as_str()),
+                        location,
+                        direction,
+                    });
                 }
             }
             Ok(Event::End(ref e)) => {
                 let name = e.name();
-                if name.as_ref() == b"gating:divider" || name.as_ref() == b"divider" {
-                    if let Some((id, channel, values)) = cur_divider.take() {
-                        dividers.push(QuadrantDivider { id, channel, values });
-                    }
-                } else if name.as_ref() == b"gating:Quadrant" || name.as_ref() == b"Quadrant" {
-                    if let Some((id, label, positions)) = cur_quadrant.take() {
-                        quadrants.push(QuadrantSub {
-                            id,
-                            label,
-                            positions,
-                            // GatingML has no on-plot label-offset concept; default placement.
-                            label_position: None,
-                        });
-                    }
+                if (name.as_ref() == b"gating:divider" || name.as_ref() == b"divider")
+                    && let Some((id, channel, values)) = cur_divider.take()
+                {
+                    dividers.push(QuadrantDivider {
+                        id,
+                        channel,
+                        values,
+                    });
+                } else if (name.as_ref() == b"gating:Quadrant" || name.as_ref() == b"Quadrant")
+                    && let Some((id, label, positions)) = cur_quadrant.take()
+                {
+                    quadrants.push(QuadrantSub {
+                        id,
+                        label,
+                        positions,
+                        // GatingML has no on-plot label-offset concept; default placement.
+                        label_position: None,
+                    });
                 }
                 if *depth <= start_depth {
                     break;
@@ -1053,10 +1058,10 @@ fn parse_polygon_gate_v1_5(
                 if name.as_ref() == b"gating:dimension" || name.as_ref() == b"dimension" {
                     let (param, _, _) = parse_dimension_v1_5(reader, e, depth)?;
                     dimensions.push(param);
-                } else if name.as_ref() == b"gating:vertex" || name.as_ref() == b"vertex" {
-                    if let Some(vertex) = parse_vertex_v1_5(reader, e, depth, &dimensions)? {
-                        vertices.push(vertex);
-                    }
+                } else if (name.as_ref() == b"gating:vertex" || name.as_ref() == b"vertex")
+                    && let Some(vertex) = parse_vertex_v1_5(reader, e, depth, &dimensions)?
+                {
+                    vertices.push(vertex);
                 }
             }
             Ok(Event::End(_)) => {
@@ -1562,10 +1567,8 @@ mod tests {
 
     #[test]
     fn test_range_gate_to_gatingml() {
-        let min_node = GateNode::new("range_min")
-            .with_coordinate("FSC-A", 500.0);
-        let max_node = GateNode::new("range_max")
-            .with_coordinate("FSC-A", 2000.0);
+        let min_node = GateNode::new("range_min").with_coordinate("FSC-A", 500.0);
+        let max_node = GateNode::new("range_max").with_coordinate("FSC-A", 2000.0);
 
         let gate = Gate::new(
             "range-gate",
@@ -1591,10 +1594,8 @@ mod tests {
 
     #[test]
     fn test_range_gate_gatingml_roundtrip() {
-        let min_node = GateNode::new("range_min")
-            .with_coordinate("FSC-A", 500.0);
-        let max_node = GateNode::new("range_max")
-            .with_coordinate("FSC-A", 2000.0);
+        let min_node = GateNode::new("range_min").with_coordinate("FSC-A", 500.0);
+        let max_node = GateNode::new("range_max").with_coordinate("FSC-A", 2000.0);
 
         let gate = Gate::new(
             "range-rt",

@@ -440,7 +440,7 @@ impl EventIndex {
         // Map results back to indices
         candidates
             .into_iter()
-            .zip(results.into_iter())
+            .zip(results)
             .filter_map(|(geom, inside)| if inside { Some(geom.data) } else { None })
             .collect()
     }
@@ -489,7 +489,7 @@ impl EventIndex {
             // Map results back to indices
             candidates
                 .into_iter()
-                .zip(results.into_iter())
+                .zip(results)
                 .filter_map(|(geom, inside)| if inside { Some(geom.data) } else { None })
                 .collect()
         } else {
@@ -550,7 +550,7 @@ impl EventIndex {
             // Map results back to indices
             candidates
                 .into_iter()
-                .zip(results.into_iter())
+                .zip(results)
                 .filter_map(|(geom, inside)| if inside { Some(geom.data) } else { None })
                 .collect()
         } else {
@@ -590,20 +590,18 @@ impl EventIndex {
                 .collect();
 
             let results = match axis {
-                crate::range::RangeAxis::X => crate::batch_filtering::filter_by_range_batch(
-                    &candidate_points,
-                    (lo, hi),
-                ),
-                crate::range::RangeAxis::Y => crate::batch_filtering::filter_by_range_y_batch(
-                    &candidate_points,
-                    (lo, hi),
-                ),
+                crate::range::RangeAxis::X => {
+                    crate::batch_filtering::filter_by_range_batch(&candidate_points, (lo, hi))
+                }
+                crate::range::RangeAxis::Y => {
+                    crate::batch_filtering::filter_by_range_y_batch(&candidate_points, (lo, hi))
+                }
             }
             .unwrap_or_default();
 
             candidates
                 .into_iter()
-                .zip(results.into_iter())
+                .zip(results)
                 .filter_map(|(geom, inside)| if inside { Some(geom.data) } else { None })
                 .collect()
         } else {
@@ -612,16 +610,19 @@ impl EventIndex {
     }
 
     fn filter_by_threshold(&self, gate: &Gate) -> Vec<usize> {
-        if let GateGeometry::Threshold { value_node, direction } = &gate.geometry {
+        if let GateGeometry::Threshold {
+            value_node,
+            direction,
+        } = &gate.geometry
+        {
             let t = crate::threshold::ThresholdGateGeometry {
                 value_node: value_node.clone(),
                 direction: *direction,
             };
-            let (axis, val) =
-                match t.resolve_value(self.x_param.as_ref(), self.y_param.as_ref()) {
-                    Ok(v) => v,
-                    Err(_) => return Vec::new(),
-                };
+            let (axis, val) = match t.resolve_value(self.x_param.as_ref(), self.y_param.as_ref()) {
+                Ok(v) => v,
+                Err(_) => return Vec::new(),
+            };
             let above = matches!(direction, crate::types::ThresholdDirection::Above);
 
             let aabb = match (axis, above) {
@@ -641,15 +642,26 @@ impl EventIndex {
             let candidates: Vec<_> = self.rtree.locate_in_envelope(&aabb).collect();
             let candidate_points: Vec<(f32, f32)> = candidates
                 .iter()
-                .map(|geom| { let p = geom.geom(); (p.x(), p.y()) })
+                .map(|geom| {
+                    let p = geom.geom();
+                    (p.x(), p.y())
+                })
                 .collect();
 
             let results = match axis {
                 crate::threshold::ThresholdAxis::X => {
-                    crate::batch_filtering::filter_by_threshold_x_batch(&candidate_points, val, above)
+                    crate::batch_filtering::filter_by_threshold_x_batch(
+                        &candidate_points,
+                        val,
+                        above,
+                    )
                 }
                 crate::threshold::ThresholdAxis::Y => {
-                    crate::batch_filtering::filter_by_threshold_y_batch(&candidate_points, val, above)
+                    crate::batch_filtering::filter_by_threshold_y_batch(
+                        &candidate_points,
+                        val,
+                        above,
+                    )
                 }
             }
             .unwrap_or_default();
@@ -672,10 +684,9 @@ impl EventIndex {
     /// A whole quadrant gate is not one population, so there is no
     /// `filter_by_quadrant(gate)` — callers must say which corner they want.
     pub fn filter_by_quadrant_corner(&self, gate: &Gate, sub_id: &str) -> Result<Vec<usize>> {
-        let corner = gate
-            .geometry
-            .quadrant_corner_index(sub_id)
-            .ok_or_else(|| GateError::filtering_error("unknown sub-quadrant id or not a quadrant gate"))?;
+        let corner = gate.geometry.quadrant_corner_index(sub_id).ok_or_else(|| {
+            GateError::filtering_error("unknown sub-quadrant id or not a quadrant gate")
+        })?;
         // The corner-selective geometry view gives us the per-corner box.
         let view = match &gate.geometry {
             GateGeometry::QuadrantGate(q) => crate::quadrant::QuadrantGateGeometry {
@@ -1163,23 +1174,23 @@ where
     }
 
     // Try cache.
-    if let (Some(cache), Some(guid)) = (filter_cache, file_guid) {
-        if let Some(last_step) = gate_chain.last() {
-            let parent_chain: Vec<Arc<str>> = gate_chain[..gate_chain.len() - 1]
-                .iter()
-                .map(effective_id)
-                .collect();
-            let last_id = effective_id(last_step);
+    if let (Some(cache), Some(guid)) = (filter_cache, file_guid)
+        && let Some(last_step) = gate_chain.last()
+    {
+        let parent_chain: Vec<Arc<str>> = gate_chain[..gate_chain.len() - 1]
+            .iter()
+            .map(effective_id)
+            .collect();
+        let last_id = effective_id(last_step);
 
-            let cache_key = if parent_chain.is_empty() {
-                FilterCacheKey::simple(guid, last_id.as_ref())
-            } else {
-                FilterCacheKey::new(guid, last_id.as_ref(), parent_chain)
-            };
+        let cache_key = if parent_chain.is_empty() {
+            FilterCacheKey::simple(guid, last_id.as_ref())
+        } else {
+            FilterCacheKey::new(guid, last_id.as_ref(), parent_chain)
+        };
 
-            if let Some(cached_indices) = cache.get(&cache_key) {
-                return Ok((*cached_indices).clone());
-            }
+        if let Some(cached_indices) = cache.get(&cache_key) {
+            return Ok((*cached_indices).clone());
         }
     }
 
@@ -1211,22 +1222,22 @@ where
 
     let result = current_indices.unwrap_or_default();
 
-    if let (Some(cache), Some(guid)) = (filter_cache, file_guid) {
-        if let Some(last_step) = gate_chain.last() {
-            let parent_chain: Vec<Arc<str>> = gate_chain[..gate_chain.len() - 1]
-                .iter()
-                .map(effective_id)
-                .collect();
-            let last_id = effective_id(last_step);
+    if let (Some(cache), Some(guid)) = (filter_cache, file_guid)
+        && let Some(last_step) = gate_chain.last()
+    {
+        let parent_chain: Vec<Arc<str>> = gate_chain[..gate_chain.len() - 1]
+            .iter()
+            .map(effective_id)
+            .collect();
+        let last_id = effective_id(last_step);
 
-            let cache_key = if parent_chain.is_empty() {
-                FilterCacheKey::simple(guid, last_id.as_ref())
-            } else {
-                FilterCacheKey::new(guid, last_id.as_ref(), parent_chain)
-            };
+        let cache_key = if parent_chain.is_empty() {
+            FilterCacheKey::simple(guid, last_id.as_ref())
+        } else {
+            FilterCacheKey::new(guid, last_id.as_ref(), parent_chain)
+        };
 
-            cache.insert(cache_key, Arc::new(result.clone()));
-        }
+        cache.insert(cache_key, Arc::new(result.clone()));
     }
 
     Ok(result)
@@ -1413,21 +1424,21 @@ pub fn filter_events_by_hierarchy_with_resolvers<R: GateResolver, M: MaskResolve
     let result = current_indices.unwrap_or_default();
 
     // Store in cache if cache is provided
-    if let (Some(cache), Some(guid)) = (filter_cache, file_guid) {
-        if let Some(last_gate) = gate_chain.last() {
-            let parent_chain: Vec<Arc<str>> = gate_chain[..gate_chain.len() - 1]
-                .iter()
-                .map(|g| g.id.clone())
-                .collect();
+    if let (Some(cache), Some(guid)) = (filter_cache, file_guid)
+        && let Some(last_gate) = gate_chain.last()
+    {
+        let parent_chain: Vec<Arc<str>> = gate_chain[..gate_chain.len() - 1]
+            .iter()
+            .map(|g| g.id.clone())
+            .collect();
 
-            let cache_key = if parent_chain.is_empty() {
-                FilterCacheKey::simple(guid, last_gate.id.as_ref())
-            } else {
-                FilterCacheKey::new(guid, last_gate.id.as_ref(), parent_chain)
-            };
+        let cache_key = if parent_chain.is_empty() {
+            FilterCacheKey::simple(guid, last_gate.id.as_ref())
+        } else {
+            FilterCacheKey::new(guid, last_gate.id.as_ref(), parent_chain)
+        };
 
-            cache.insert(cache_key, Arc::new(result.clone()));
-        }
+        cache.insert(cache_key, Arc::new(result.clone()));
     }
 
     Ok(result)

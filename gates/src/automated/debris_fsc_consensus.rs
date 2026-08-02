@@ -5,8 +5,8 @@
 
 use crate::GateError;
 use crate::GateResult;
-use flow_fcs::Fcs;
 use flow_density::kde::KernelDensity;
+use flow_fcs::Fcs;
 
 /// Parameters for consensus FSC debris gating.
 #[derive(Debug, Clone)]
@@ -160,7 +160,7 @@ pub fn consensus_fsc_threshold(
         let mut vals: Vec<f64> = per_channel.iter().map(|(_, t)| *t).collect();
         vals.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
         let mid = vals.len() / 2;
-        if vals.len() % 2 == 0 {
+        if vals.len().is_multiple_of(2) {
             (vals[mid - 1] + vals[mid]) / 2.0
         } else {
             vals[mid]
