@@ -255,12 +255,11 @@ fn collect_input_files(inputs: &[PathBuf]) -> Result<Vec<PathBuf>> {
             for entry in walkdir::WalkDir::new(input).into_iter() {
                 let entry = entry?;
                 let path = entry.path();
-                if path.is_file() {
-                    if let Some(ext) = path.extension().and_then(|s| s.to_str()) {
-                        if ext.eq_ignore_ascii_case(&"fcs") {
-                            files.push(path.to_path_buf());
-                        }
-                    }
+                if path.is_file()
+                    && let Some(ext) = path.extension().and_then(|s| s.to_str())
+                    && ext.eq_ignore_ascii_case("fcs")
+                {
+                    files.push(path.to_path_buf());
                 }
             }
         } else {
@@ -969,13 +968,13 @@ fn main() -> Result<()> {
         (args.export_csv_numeric.as_ref(), "export CSV numeric"),
         (args.export_json.as_ref(), "export JSON"),
     ] {
-        if let Some(ref p) = path {
+        if let Some(p) = path {
             if p.is_dir() || p.extension().is_none() {
                 ensure_output_directory(p, purpose)?;
-            } else if let Some(parent) = p.parent() {
-                if !parent.as_os_str().is_empty() {
-                    ensure_output_directory(parent, purpose)?;
-                }
+            } else if let Some(parent) = p.parent()
+                && !parent.as_os_str().is_empty()
+            {
+                ensure_output_directory(parent, purpose)?;
             }
         }
     }
@@ -1067,9 +1066,7 @@ fn main() -> Result<()> {
             pb
         };
         let pb = Arc::new(pb);
-        *progress_log_slot
-            .lock()
-            .unwrap_or_else(|e| e.into_inner()) = Some(pb.clone());
+        *progress_log_slot.lock().unwrap_or_else(|e| e.into_inner()) = Some(pb.clone());
         Some(pb)
     } else {
         None
@@ -1090,7 +1087,7 @@ fn main() -> Result<()> {
 
         let processing_config = ProcessingConfig {
             channels: args.channels.clone(),
-            qc_mode: qc_mode,
+            qc_mode,
             mad: args.mad,
             it_limit: args.it_limit,
             consecutive_bins: args.consecutive_bins,
@@ -1127,10 +1124,10 @@ fn main() -> Result<()> {
                 }
                 let file_result =
                     process_single_file(input_path, args.output.as_deref(), &processing_config);
-                if let Some(pb) = progress_for_tasks.as_ref() {
-                    if total_jobs > 1 {
-                        pb.inc(1);
-                    }
+                if let Some(pb) = progress_for_tasks.as_ref()
+                    && total_jobs > 1
+                {
+                    pb.inc(1);
                 }
                 file_result
             })
@@ -1140,9 +1137,7 @@ fn main() -> Result<()> {
     }
 
     if let Some(pb) = run_progress {
-        *progress_log_slot
-            .lock()
-            .unwrap_or_else(|e| e.into_inner()) = None;
+        *progress_log_slot.lock().unwrap_or_else(|e| e.into_inner()) = None;
         pb.finish_and_clear();
     }
 
