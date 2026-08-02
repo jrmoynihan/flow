@@ -40,8 +40,8 @@ anyhow   ={ workspace=true }
 rayon={ workspace=true }
 
 # GPU support (optional)
-burn    ={ version="0.20", optional=true, features=["wgpu"] }
-cubecl  ={ version="0.9", optional=true }
+burn    ={ workspace=true, optional=true }
+cubecl  ={ workspace=true, optional=true }
 bytemuck={ workspace=true, optional=true }
 
 [dev-dependencies]

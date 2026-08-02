@@ -59,3 +59,11 @@ validate_metadata.rs
 *.db
 .beads-credential-key
 .beads/proxieddb/
+
+# Local GPU dependency caches (Burn/cubeCL trees; crates.io is canonical)
+.vendor/
+.cargo-home/
+.tmp-burn-probe/
+third_party/burn/
+third_party/cubecl/
+

@@ -60,22 +60,26 @@ pub fn multiply_spectra_cubecl(
             &client,
             CubeCount::Static(1, 1, 1),
             CubeDim::new_1d(n as u32),
-            ArrayArg::from_raw_parts::<f32>(&a_re_handle, n, 1),
-            ArrayArg::from_raw_parts::<f32>(&a_im_handle, n, 1),
-            ArrayArg::from_raw_parts::<f32>(&b_re_handle, n, 1),
-            ArrayArg::from_raw_parts::<f32>(&b_im_handle, n, 1),
-            ArrayArg::from_raw_parts::<f32>(&result_re_handle, n, 1),
-            ArrayArg::from_raw_parts::<f32>(&result_im_handle, n, 1),
+            ArrayArg::from_raw_parts(a_re_handle.clone(), n),
+            ArrayArg::from_raw_parts(a_im_handle.clone(), n),
+            ArrayArg::from_raw_parts(b_re_handle.clone(), n),
+            ArrayArg::from_raw_parts(b_im_handle.clone(), n),
+            ArrayArg::from_raw_parts(result_re_handle.clone(), n),
+            ArrayArg::from_raw_parts(result_im_handle.clone(), n),
         );
     }
 
     // Read results back from GPU
-    let result_re_bytes = client.read_one(result_re_handle);
-    let result_im_bytes = client.read_one(result_im_handle);
+    let result_re_bytes = client
+        .read_one(result_re_handle)
+        .map_err(|e| crate::error::PeacoQCError::StatsError(format!("cubeCL read: {e}")))?;
+    let result_im_bytes = client
+        .read_one(result_im_handle)
+        .map_err(|e| crate::error::PeacoQCError::StatsError(format!("cubeCL read: {e}")))?;
 
     // Convert bytes back to f32 using bytemuck
-    let result_re_f32: &[f32] = bytemuck::cast_slice(&result_re_bytes);
-    let result_im_f32: &[f32] = bytemuck::cast_slice(&result_im_bytes);
+    let result_re_f32: &[f32] = bytemuck::cast_slice(&*result_re_bytes);
+    let result_im_f32: &[f32] = bytemuck::cast_slice(&*result_im_bytes);
 
     // Convert back to f64 and Complex
     let mut result = Vec::with_capacity(n);

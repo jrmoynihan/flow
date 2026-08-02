@@ -86,7 +86,7 @@ impl KernelDensity {
         // Use FFT-based KDE for better performance
         // Use GPU if available (batched operations provide speedup even for smaller datasets)
         #[cfg(feature = "gpu")]
-        let y = if crate::gpu::is_gpu_available() {
+        let y = if gpu::is_gpu_available() {
             kde_fft_gpu(&clean_data, &x, bandwidth, n)?
         } else {
             kde_fft(&clean_data, &x, bandwidth, n)?

@@ -1,6 +1,6 @@
 use criterion::{BenchmarkId, Criterion, criterion_group, criterion_main};
 use peacoqc_rs::stats::density::KernelDensity;
-use rand::Rng;
+use rand::{Rng, RngExt};
 use std::hint::black_box;
 
 /// Generate synthetic flow cytometry data with multiple peaks

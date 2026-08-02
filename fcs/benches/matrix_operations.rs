@@ -7,6 +7,7 @@
 use criterion::{BenchmarkId, Criterion, Throughput, criterion_group, criterion_main};
 use faer::Mat;
 use flow_fcs::MatrixOps;
+use rand::RngExt;
 use std::hint::black_box;
 
 /// Generate a random compensation matrix for testing
@@ -23,10 +24,10 @@ fn generate_compensation_matrix(n: usize) -> Mat<f32> {
         for j in 0..n {
             if i == j {
                 // Diagonal: make it dominant
-                matrix[(i, j)] = 1.0 + rng.gen_range(0.0..0.1);
+                matrix[(i, j)] = 1.0 + rng.random_range(0.0..0.1);
             } else {
                 // Off-diagonal: small values
-                matrix[(i, j)] = rng.gen_range(-0.1..0.1);
+                matrix[(i, j)] = rng.random_range(-0.1..0.1);
             }
         }
     }
@@ -44,7 +45,9 @@ fn generate_channel_data(n_channels: usize, n_events: usize) -> Vec<Vec<f32>> {
     let mut data = Vec::with_capacity(n_channels);
 
     for _ in 0..n_channels {
-        let channel: Vec<f32> = (0..n_events).map(|_| rng.gen_range(0.0..1000.0)).collect();
+        let channel: Vec<f32> = (0..n_events)
+            .map(|_| rng.random_range(0.0..1000.0))
+            .collect();
         data.push(channel);
     }
 

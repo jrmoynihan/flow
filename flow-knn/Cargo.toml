@@ -1,0 +1,64 @@
+[package]
+name = "flow-knn"
+version = "0.1.1"
+edition.workspace = true
+authors.workspace = true
+license = "MIT"
+repository = "https://github.com/jrmoynihan/flow/flow-knn"
+readme = "README.md"
+description = "Algorithm-agnostic k-NN graphs for flow cytometry — exact, usearch HNSW, optional ann-search-rs"
+keywords = ["knn", "hnsw", "nearest-neighbor", "flow-cytometry", "ann"]
+categories = ["science", "algorithms", "mathematics"]
+
+[features]
+default = ["hnsw"]
+# HNSW via usearch (C++ FFI + simsimd)
+hnsw = ["dep:usearch"]
+# HNSW via ann-search-rs (same stack as manifolds-rs)
+ann-search = ["dep:ann-search-rs", "dep:faer"]
+# GPU exact / IVF / NN-Descent via ann-search-rs + cubeCL 0.10 (wgpu)
+gpu = ["ann-search", "ann-search-rs/gpu", "dep:cubecl"]
+# k-d tree stub (currently falls back to exact)
+kdtree = ["dep:kiddo"]
+
+[dependencies]
+rayon = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+cubecl = { workspace = true, optional = true }
+
+[dependencies.usearch]
+version = "2.25"
+features = ["simsimd"]
+default-features = false
+optional = true
+
+[dependencies.kiddo]
+version = "5"
+optional = true
+
+[dependencies.ann-search-rs]
+version = "0.4.4"
+optional = true
+default-features = false
+
+# ann-search-rs 0.4.x requires faer 0.23 (workspace is 0.24).
+[dependencies.faer]
+version = "=0.23.2"
+optional = true
+
+[dev-dependencies]
+approx = { workspace = true }
+criterion = { workspace = true }
+rand = { workspace = true }
+
+[[bench]]
+name = "knn_cpu_vs_gpu"
+harness = false
+required-features = ["hnsw", "ann-search", "gpu"]
+
+[package.metadata.scripts]
+dry-release = "cargo smart-release flow-knn --update-crates-index"
+publish = "cargo smart-release flow-knn --update-crates-index --execute"
+changelog = "cargo changelog flow-knn --write"

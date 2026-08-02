@@ -53,18 +53,19 @@ pub fn launch_obs_times_mixing_f32(
             client,
             cube_count,
             cube_dim,
-            ArrayArg::from_raw_parts::<f32>(&obs_handle, expected_obs, 1),
-            ArrayArg::from_raw_parts::<f32>(&mix_handle, expected_mix, 1),
-            ArrayArg::from_raw_parts::<f32>(&out_handle, expected_out, 1),
-            ScalarArg::new(n_row),
-            ScalarArg::new(k),
-            ScalarArg::new(n_col),
-        )
-        .map_err(|e| TruOlsError::LinearAlgebra(format!("cubeCL launch failed: {e}")))?;
+            ArrayArg::from_raw_parts(obs_handle.clone(), expected_obs),
+            ArrayArg::from_raw_parts(mix_handle.clone(), expected_mix),
+            ArrayArg::from_raw_parts(out_handle.clone(), expected_out),
+            n_row,
+            k,
+            n_col,
+        );
     }
 
-    let out_bytes = client.read_one(out_handle);
-    let slice: &[f32] = bytemuck::cast_slice(&out_bytes);
+    let out_bytes = client
+        .read_one(out_handle)
+        .map_err(|e| TruOlsError::LinearAlgebra(format!("cubeCL read failed: {e}")))?;
+    let slice: &[f32] = bytemuck::cast_slice(&*out_bytes);
     out.copy_from_slice(slice);
     Ok(())
 }

@@ -49,10 +49,7 @@ thiserror={ workspace=true }
 serde={ workspace=true, features=["derive"] }
 serde_json={ workspace=true }
 rand={ workspace=true }
-cubecl={ version="0.9", optional=true, default-features=false, features=[
-    "std",
-    "wgpu",
-] }
+cubecl={ workspace=true, optional=true }
 bytemuck={ workspace=true, optional=true }
 quick_cache={ version="0.6", optional=true, features=["stats"] }
 

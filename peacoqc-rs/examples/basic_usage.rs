@@ -100,7 +100,7 @@ fn main() -> Result<()> {
 
 /// Create synthetic FCS data for demonstration
 fn create_synthetic_data() -> Result<SimpleFcs> {
-    use rand::Rng;
+    use rand::{Rng, RngExt};
     let mut rng = rand::rng();
 
     let n_events = 10000;
@@ -140,13 +140,16 @@ fn create_synthetic_data() -> Result<SimpleFcs> {
         .collect();
 
     // Create DataFrame
-    let df = DataFrame::new(vec![
-        Column::new("FSC-A".into(), fsc_a),
-        Column::new("FSC-H".into(), fsc_h),
-        Column::new("SSC-A".into(), ssc_a),
-        Column::new("FL1-A".into(), fl1_a),
-        Column::new("FL2-A".into(), fl2_a),
-    ])?;
+    let df = DataFrame::new(
+        n_events,
+        vec![
+            Column::new("FSC-A".into(), fsc_a),
+            Column::new("FSC-H".into(), fsc_h),
+            Column::new("SSC-A".into(), ssc_a),
+            Column::new("FL1-A".into(), fl1_a),
+            Column::new("FL2-A".into(), fl2_a),
+        ],
+    )?;
 
     // Create parameter metadata
     let mut metadata = HashMap::new();

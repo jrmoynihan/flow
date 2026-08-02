@@ -1,0 +1,601 @@
+   Compiling proc-macro2 v1.0.107
+   Compiling unicode-ident v1.0.24
+   Compiling quote v1.0.47
+   Compiling libc v0.2.189
+   Compiling serde_core v1.0.229
+   Compiling autocfg v1.5.1
+   Compiling libm v0.2.16
+   Compiling shlex v2.0.1
+   Compiling find-msvc-tools v0.1.9
+   Compiling memchr v2.8.3
+   Compiling cfg-if v1.0.4
+   Compiling version_check v0.9.5
+   Compiling equivalent v1.0.2
+   Compiling fnv v1.0.7
+   Compiling zmij v1.0.23
+   Compiling zerocopy v0.8.55
+   Compiling cfg_aliases v0.2.2
+   Compiling stable_deref_trait v1.2.1
+   Compiling bytes v1.12.1
+   Compiling pin-project-lite v0.2.17
+   Compiling crossbeam-utils v0.8.22
+   Compiling hashbrown v0.17.1
+   Compiling futures-core v0.3.33
+   Compiling serde v1.0.229
+   Compiling itoa v1.0.18
+   Compiling futures-sink v0.3.33
+   Compiling num-traits v0.2.19
+   Compiling once_cell v1.21.4
+   Compiling writeable v0.6.3
+   Compiling litemap v0.8.2
+   Compiling smallvec v1.15.2
+   Compiling indexmap v2.14.0
+   Compiling http v1.4.2
+   Compiling utf8_iter v1.0.4
+   Compiling log v0.4.33
+   Compiling slab v0.4.12
+   Compiling icu_normalizer_data v2.2.0
+   Compiling icu_properties_data v2.2.0
+   Compiling zeroize v1.9.0
+   Compiling percent-encoding v2.3.2
+   Compiling tracing-core v0.1.36
+   Compiling rustls-pki-types v1.15.0
+   Compiling generic-array v0.14.7
+   Compiling untrusted v0.9.0
+   Compiling futures-io v0.3.33
+   Compiling futures-task v0.3.33
+   Compiling http-body v1.1.0
+   Compiling bitflags v2.13.1
+   Compiling httparse v1.10.1
+   Compiling futures-util v0.3.33
+   Compiling tracing v0.1.44
+   Compiling typenum v1.20.1
+   Compiling syn v2.0.119
+   Compiling syn v3.0.3
+   Compiling tower-service v0.3.3
+   Compiling atomic-waker v1.1.2
+   Compiling try-lock v0.2.5
+   Compiling rustls v0.23.42
+   Compiling want v0.3.1
+   Compiling jobserver v0.1.35
+   Compiling mio v1.2.2
+   Compiling socket2 v0.6.5
+   Compiling getrandom v0.2.17
+   Compiling cc v1.3.0
+   Compiling form_urlencoded v1.2.2
+   Compiling tokio v1.53.1
+   Compiling futures-channel v0.3.33
+   Compiling subtle v2.6.1
+   Compiling rustix v1.1.4
+   Compiling pkg-config v0.3.33
+   Compiling thiserror v2.0.19
+   Compiling errno v0.3.14
+   Compiling sync_wrapper v1.0.2
+   Compiling base64 v0.22.1
+   Compiling tower-layer v0.3.3
+   Compiling ipnet v2.12.0
+   Compiling rand_core v0.6.4
+   Compiling webpki-roots v1.0.9
+   Compiling rand v0.8.7
+   Compiling ryu v1.0.23
+   Compiling serde_json v1.0.151
+   Compiling anyhow v1.0.104
+   Compiling ring v0.17.14
+   Compiling liblzma-sys v0.4.7
+   Compiling option-ext v0.2.0
+   Compiling cpufeatures v0.2.17
+   Compiling dirs-sys v0.5.0
+   Compiling filetime v0.2.29
+   Compiling num_cpus v1.17.0
+   Compiling synstructure v0.13.2
+   Compiling http-body-util v0.1.4
+   Compiling aho-corasick v1.1.4
+   Compiling unicode-segmentation v1.13.3
+   Compiling regex-syntax v0.8.11
+   Compiling same-file v1.0.6
+   Compiling crypto-common v0.1.7
+   Compiling block-buffer v0.10.4
+   Compiling paste v1.0.15
+   Compiling serde_derive v1.0.229
+   Compiling thiserror-impl v2.0.19
+   Compiling digest v0.10.7
+   Compiling foldhash v0.2.0
+   Compiling walkdir v2.5.0
+   Compiling dirs v6.0.0
+   Compiling sha2 v0.10.9
+   Compiling constcat v0.6.1
+   Compiling ident_case v1.0.1
+   Compiling prettyplease v0.2.37
+   Compiling objc2 v0.6.4
+   Compiling allocator-api2 v0.2.21
+   Compiling parking_lot_core v0.9.12
+   Compiling objc2-encode v4.1.0
+   Compiling tokio-util v0.7.19
+   Compiling tower v0.5.3
+   Compiling bytemuck_derive v1.11.0
+   Compiling zerofrom-derive v0.1.7
+   Compiling yoke-derive v0.8.2
+   Compiling zerocopy-derive v0.8.55
+   Compiling zerovec-derive v0.11.3
+   Compiling displaydoc v0.2.6
+   Compiling xattr v1.6.1
+   Compiling regex-automata v0.4.16
+   Compiling hashbrown v0.16.1
+   Compiling crossbeam-epoch v0.9.20
+   Compiling h2 v0.4.15
+   Compiling tar v0.4.46
+   Compiling scopeguard v1.2.0
+   Compiling lock_api v0.4.14
+   Compiling crossbeam-deque v0.8.7
+   Compiling convert_case v0.10.0
+   Compiling bytemuck v1.25.2
+   Compiling nano-gemm-codegen v0.1.0
+   Compiling unicode-xid v0.2.6
+   Compiling zerofrom v0.1.8
+   Compiling strsim v0.11.1
+   Compiling derive_more-impl v2.1.1
+   Compiling either v1.16.0
+   Compiling rayon-core v1.13.0
+   Compiling glob v0.3.4
+   Compiling regex v1.13.1
+   Compiling objc2-core-foundation v0.3.2
+   Compiling parking v2.2.1
+   Compiling hyper v1.11.0
+   Compiling clang-sys v1.8.1
+   Compiling darling_core v0.23.0
+   Compiling hyper-util v0.1.20
+   Compiling derive-new v0.7.0
+   Compiling darling_core v0.21.3
+   Compiling object v0.37.3
+   Compiling num-complex v0.4.6
+   Compiling getrandom v0.4.3
+   Compiling yoke v0.8.3
+   Compiling serde_urlencoded v0.7.1
+   Compiling heck v0.5.0
+   Compiling rand_core v0.10.1
+   Compiling darling_macro v0.23.0
+   Compiling parking_lot v0.12.5
+   Compiling pulp v0.21.5
+   Compiling rustls-webpki v0.103.13
+   Compiling zerovec v0.11.6
+   Compiling zerotrie v0.2.4
+   Compiling gimli v0.32.3
+   Compiling darling_macro v0.21.3
+   Compiling winnow v1.0.4
+   Compiling foldhash v0.1.5
+   Compiling minimal-lexical v0.2.1
+   Compiling adler2 v2.0.1
+   Compiling nom v7.1.3
+   Compiling miniz_oxide v0.8.9
+   Compiling toml_parser v1.1.2+spec-1.1.0
+   Compiling hashbrown v0.15.5
+   Compiling tinystr v0.8.3
+   Compiling potential_utf v0.1.5
+   Compiling half v2.7.1
+   Compiling darling v0.21.3
+   Compiling rayon v1.12.0
+   Compiling icu_collections v2.2.0
+   Compiling darling v0.23.0
+   Compiling icu_locale_core v2.2.0
+   Compiling chacha20 v0.10.1
+   Compiling num-integer v0.1.46
+   Compiling nom v8.0.0
+   Compiling toml_datetime v1.1.1+spec-1.1.0
+   Compiling addr2line v0.25.1
+   Compiling serde_spanned v1.1.1
+   Compiling concurrent-queue v2.5.0
+   Compiling cubecl-common v0.10.0
+   Compiling libloading v0.8.9
+   Compiling toml_writer v1.1.2+spec-1.1.0
+   Compiling rustc-demangle v0.1.28
+   Compiling thiserror v1.0.69
+   Compiling fastrand v2.5.0
+   Compiling bindgen v0.71.1
+   Compiling icu_provider v2.2.0
+   Compiling portable-atomic v1.14.0
+   Compiling reborrow v0.5.5
+   Compiling itertools v0.13.0
+   Compiling futures-lite v2.6.1
+   Compiling toml v1.1.3+spec-1.1.0
+   Compiling icu_properties v2.2.0
+   Compiling icu_normalizer v2.2.0
+   Compiling tokio-rustls v0.26.4
+   Compiling event-listener v5.4.1
+   Compiling cexpr v0.6.0
+   Compiling backtrace v0.3.76
+   Compiling enumset_derive v0.15.0
+   Compiling rand v0.10.2
+   Compiling hyper-rustls v0.27.9
+   Compiling float8 v0.7.0
+   Compiling tynm v0.2.0
+   Compiling sanitize-filename v0.6.0
+   Compiling derive_more v2.1.1
+   Compiling objc2-foundation v0.3.2
+   Compiling block2 v0.6.2
+   Compiling spin v0.10.1
+   Compiling idna_adapter v1.2.2
+   Compiling thiserror-impl v1.0.69
+   Compiling serde_bytes v0.11.19
+   Compiling ahash v0.8.12
+   Compiling naga v29.0.4
+   Compiling idna v1.1.0
+   Compiling unicode-width v0.2.0
+   Compiling web-time v1.1.0
+   Compiling xxhash-rust v0.8.18
+   Compiling rustc-hash v2.1.3
+   Compiling shlex v1.3.0
+   Compiling ash v0.38.0+1.3.281
+   Compiling embassy-futures v0.1.2
+   Compiling tinyvec_macros v0.1.1
+   Compiling oneshot v0.2.1
+   Compiling bit-vec v0.9.1 (/Users/kfls271/Rust/flow-crates/third_party/bit-vec)
+   Compiling url v2.5.8
+   Compiling byteorder v1.5.0
+   Compiling dyn-stack-macros v0.1.3
+   Compiling float4 v0.2.0
+   Compiling bit-set v0.9.1
+   Compiling tinyvec v1.12.0
+   Compiling objc2-metal v0.3.2
+   Compiling codespan-reporting v0.13.1
+   Compiling tower-http v0.6.11
+   Compiling dyn-stack v0.13.2
+   Compiling enumset v1.1.14
+   Compiling event-listener-strategy v0.5.4
+   Compiling reqwest v0.12.28
+   Compiling cubecl-macros-internal v0.10.0
+   Compiling num-bigint v0.4.8
+   Compiling enum-as-inner v0.6.1
+   Compiling variadics_please v1.1.0
+   Compiling spirv v0.4.0+sdk-1.4.341.0
+   Compiling cubecl-runtime v0.10.0
+   Compiling arrayvec v0.7.8
+   Compiling raw-window-handle v0.6.2
+   Compiling float-ord v0.3.2
+   Compiling cubecl-macros v0.10.0
+   Compiling rustc-hash v1.1.0
+   Compiling hexf-parse v0.2.1
+   Compiling wgpu-types v29.0.4
+   Compiling sysctl v0.6.0
+   Compiling async-channel v2.5.0
+   Compiling unicode-normalization v0.1.25
+   Compiling cubecl-zspace v0.10.0
+   Compiling raw-cpuid v11.6.0
+   Compiling gpu-descriptor-types v0.2.0
+   Compiling cubecl-ir v0.10.0
+   Compiling objc2-quartz-core v0.3.2
+   Compiling wgpu-hal v29.0.4
+   Compiling deunicode v1.6.2
+   Compiling inflections v1.1.1
+   Compiling presser v0.3.1
+   Compiling seq-macro v0.3.6
+   Compiling md5 v0.8.1
+   Compiling getrandom v0.3.4
+   Compiling ucd-trie v0.1.7
+   Compiling slug v0.1.6
+   Compiling raw-window-metal v1.1.0
+   Compiling pest v2.8.8
+   Compiling gpu-descriptor v0.3.2
+   Compiling caseless v0.2.2
+   Compiling ordered-float v5.3.0
+   Compiling gemm-common v0.18.2
+   Compiling entities v1.0.1
+   Compiling renderdoc-sys v1.1.0
+   Compiling nano-gemm-core v0.1.0
+   Compiling unicode_categories v0.1.1
+   Compiling typed-arena v2.0.2
+   Compiling profiling v1.0.18
+   Compiling convert_case v0.8.0
+   Compiling link-cplusplus v1.0.12
+   Compiling wgpu-core v29.0.4
+   Compiling litrs v1.0.0
+   Compiling comrak v0.39.1
+   Compiling scratch v1.0.9
+   Compiling unindent v0.2.4
+   Compiling utf8parse v0.2.2
+   Compiling num-rational v0.4.2
+   Compiling rand_core v0.9.5
+   Compiling pest_meta v2.8.8
+   Compiling anstyle-parse v1.0.0
+   Compiling num-iter v0.1.46
+   Compiling ppv-lite86 v0.2.21
+   Compiling nano-gemm-c64 v0.1.0
+   Compiling document-features v0.2.12
+   Compiling nano-gemm-f64 v0.1.0
+   Compiling nano-gemm-c32 v0.1.0
+   Compiling nano-gemm-f32 v0.1.0
+   Compiling wgpu v29.0.4
+   Compiling fixedbitset v0.5.7
+   Compiling pest_generator v2.8.8
+   Compiling is_terminal_polyfill v1.70.2
+   Compiling termcolor v1.4.1
+   Compiling cxxbridge-flags v1.0.198
+   Compiling anstyle-query v1.1.5
+   Compiling anstyle v1.0.14
+   Compiling colorchoice v1.0.5
+   Compiling cxx v1.0.198
+   Compiling type-map v0.5.1
+   Compiling anstream v1.0.0
+   Compiling petgraph v0.8.3
+   Compiling rand_chacha v0.9.0
+   Compiling pest_derive v2.8.8
+   Compiling num v0.4.3
+   Compiling objc2-io-kit v0.3.2
+   Compiling equator-macro v0.4.2
+   Compiling equator-macro v0.2.1
+   Compiling numkong v7.7.1
+   Compiling crossbeam-channel v0.5.16
+   Compiling crossbeam-queue v0.3.13
+   Compiling cubecl-wgpu v0.10.0
+   Compiling static_assertions v1.1.0
+   Compiling stable-vec v0.4.2
+   Compiling clap_lex v1.1.0
+   Compiling equator v0.2.2
+   Compiling equator v0.4.2
+   Compiling crossbeam v0.8.4
+   Compiling py_literal v0.4.0
+   Compiling clap_builder v4.6.2
+   Compiling sysinfo v0.38.4
+   Compiling rand v0.9.5
+   Compiling wgpu-naga-bridge v29.0.4
+   Compiling cxx-build v1.0.198
+   Compiling gemm-f32 v0.18.2
+   Compiling gpu-allocator v0.28.0
+   Compiling gemm-f64 v0.18.2
+   Compiling cubecl-core v0.10.0
+   Compiling gemm-c32 v0.18.2
+   Compiling gemm-c64 v0.18.2
+   Compiling qd v0.7.7
+   Compiling clap_derive v4.6.4
+   Compiling faer-macros v0.22.1
+   Compiling generativity v1.2.1
+   Compiling cubecl v0.10.0
+   Compiling liblzma v0.4.7
+   Compiling atomic-wait v1.1.0
+   Compiling gemm v0.18.2
+   Compiling usearch v2.26.0
+   Compiling spindle v0.2.6
+   Compiling nano-gemm v0.1.3
+   Compiling tracel-llvm-bundler v20.1.4-7
+   Compiling faer-traits v0.23.2
+   Compiling npyz v0.8.4
+   Compiling rand_distr v0.5.1
+   Compiling cxxbridge-macro v1.0.198
+   Compiling alloca v0.4.0
+   Compiling clap v4.6.4
+   Compiling plotters-backend v0.3.7
+   Compiling arbitrary-chunks v0.4.1
+   Compiling wgpu-core-deps-apple v29.0.4
+   Compiling partition v0.1.2
+   Compiling ciborium-io v0.2.2
+   Compiling faer v0.23.2
+   Compiling plotters-svg v0.3.7
+   Compiling wide v1.5.0
+   Compiling ciborium-ll v0.2.2
+   Compiling rdst v0.20.14
+   Compiling cubecl-std v0.10.0
+   Compiling cubecl-opt v0.10.0
+   Compiling approx v0.5.1
+   Compiling cast v0.3.0
+   Compiling thousands v0.2.0
+   Compiling ciborium v0.2.2
+   Compiling plotters v0.3.7
+   Compiling tinytemplate v1.2.1
+   Compiling criterion-plot v0.8.2
+   Compiling page_size v0.6.0
+   Compiling tracel-tblgen-rs v20.1.4-7
+   Compiling tracel-mlir-sys v20.1.4-7
+   Compiling tracel-mlir-rs-macros v20.1.4-7
+   Compiling cubecl-cpu v0.10.0
+   Compiling anes v0.1.6
+   Compiling oorandom v11.1.5
+   Compiling criterion v0.8.2
+   Compiling tracel-mlir-rs v20.1.4-7
+   Compiling tracel-llvm v20.1.4-7
+   Compiling ann-search-rs v0.4.4
+   Compiling flow-knn v0.1.0 (/Users/kfls271/Rust/flow-crates/flow-knn)
+    Finished `bench` profile [optimized] target(s) in 1m 37s
+     Running benches/knn_cpu_vs_gpu.rs (/var/folders/44/mj5sgh7n5h146_61ng7w39q00000gp/T/cursor-sandbox-cache/d60646c2271ca88daee427ff0e77718c/cargo-target/release/deps/knn_cpu_vs_gpu-ecc8803c16dba2e0)
+Gnuplot not found, using plotters backend
+Benchmarking knn_cpu_vs_gpu/exact_cpu/n10000_d10
+Benchmarking knn_cpu_vs_gpu/exact_cpu/n10000_d10: Warming up for 1.0000 s
+Benchmarking knn_cpu_vs_gpu/exact_cpu/n10000_d10: Collecting 10 samples in estimated 31.758 s (165 iterations)
+Benchmarking knn_cpu_vs_gpu/exact_cpu/n10000_d10: Analyzing
+knn_cpu_vs_gpu/exact_cpu/n10000_d10
+                        time:   [193.09 ms 194.11 ms 195.49 ms]
+                        thrpt:  [51.153 Kelem/s 51.518 Kelem/s 51.789 Kelem/s]
+Benchmarking knn_cpu_vs_gpu/hnsw_ann_cpu/n10000_d10
+Benchmarking knn_cpu_vs_gpu/hnsw_ann_cpu/n10000_d10: Warming up for 1.0000 s
+Benchmarking knn_cpu_vs_gpu/hnsw_ann_cpu/n10000_d10: Collecting 10 samples in estimated 31.478 s (220 iterations)
+Benchmarking knn_cpu_vs_gpu/hnsw_ann_cpu/n10000_d10: Analyzing
+knn_cpu_vs_gpu/hnsw_ann_cpu/n10000_d10
+                        time:   [134.84 ms 141.68 ms 150.46 ms]
+                        thrpt:  [66.463 Kelem/s 70.581 Kelem/s 74.164 Kelem/s]
+Found 2 outliers among 10 measurements (20.00%)
+  2 (20.00%) high mild
+Benchmarking knn_cpu_vs_gpu/exact_gpu/n10000_d10
+Benchmarking knn_cpu_vs_gpu/exact_gpu/n10000_d10: Warming up for 1.0000 s
+Benchmarking knn_cpu_vs_gpu/exact_gpu/n10000_d10: Collecting 10 samples in estimated 27.090 s (330 iterations)
+Benchmarking knn_cpu_vs_gpu/exact_gpu/n10000_d10: Analyzing
+knn_cpu_vs_gpu/exact_gpu/n10000_d10
+                        time:   [75.485 ms 76.514 ms 78.466 ms]
+                        thrpt:  [127.44 Kelem/s 130.69 Kelem/s 132.48 Kelem/s]
+Benchmarking knn_cpu_vs_gpu/ivf_gpu/n10000_d10
+Benchmarking knn_cpu_vs_gpu/ivf_gpu/n10000_d10: Warming up for 1.0000 s
+Benchmarking knn_cpu_vs_gpu/ivf_gpu/n10000_d10: Collecting 10 samples in estimated 26.083 s (165 iterations)
+Benchmarking knn_cpu_vs_gpu/ivf_gpu/n10000_d10: Analyzing
+knn_cpu_vs_gpu/ivf_gpu/n10000_d10
+                        time:   [153.67 ms 155.34 ms 158.26 ms]
+                        thrpt:  [63.188 Kelem/s 64.375 Kelem/s 65.074 Kelem/s]
+Benchmarking knn_cpu_vs_gpu/exact_cpu/n50000_d10
+Benchmarking knn_cpu_vs_gpu/exact_cpu/n50000_d10: Warming up for 1.0000 s
+Benchmarking knn_cpu_vs_gpu/exact_cpu/n50000_d10: Collecting 10 samples in estimated 45.185 s (20 iterations)
+Benchmarking knn_cpu_vs_gpu/exact_cpu/n50000_d10: Analyzing
+knn_cpu_vs_gpu/exact_cpu/n50000_d10
+                        time:   [2.1926 s 2.2000 s 2.2073 s]
+                        thrpt:  [22.652 Kelem/s 22.727 Kelem/s 22.804 Kelem/s]
+Benchmarking knn_cpu_vs_gpu/hnsw_ann_cpu/n50000_d10
+Benchmarking knn_cpu_vs_gpu/hnsw_ann_cpu/n50000_d10: Warming up for 1.0000 s
+Benchmarking knn_cpu_vs_gpu/hnsw_ann_cpu/n50000_d10: Collecting 10 samples in estimated 31.477 s (30 iterations)
+Benchmarking knn_cpu_vs_gpu/hnsw_ann_cpu/n50000_d10: Analyzing
+knn_cpu_vs_gpu/hnsw_ann_cpu/n50000_d10
+                        time:   [905.00 ms 927.32 ms 952.28 ms]
+                        thrpt:  [52.505 Kelem/s 53.919 Kelem/s 55.248 Kelem/s]
+Found 2 outliers among 10 measurements (20.00%)
+  1 (10.00%) high mild
+  1 (10.00%) high severe
+Benchmarking knn_cpu_vs_gpu/exact_gpu/n50000_d10
+Benchmarking knn_cpu_vs_gpu/exact_gpu/n50000_d10: Warming up for 1.0000 s
+
+Warning: Unable to complete 10 samples in 25.0s. You may wish to increase target time to 35.8s or enable flat sampling.
+Benchmarking knn_cpu_vs_gpu/exact_gpu/n50000_d10: Collecting 10 samples in estimated 35.843 s (55 iterations)
+Benchmarking knn_cpu_vs_gpu/exact_gpu/n50000_d10: Analyzing
+knn_cpu_vs_gpu/exact_gpu/n50000_d10
+                        time:   [558.17 ms 573.06 ms 605.88 ms]
+                        thrpt:  [82.525 Kelem/s 87.251 Kelem/s 89.579 Kelem/s]
+Benchmarking knn_cpu_vs_gpu/ivf_gpu/n50000_d10
+Benchmarking knn_cpu_vs_gpu/ivf_gpu/n50000_d10: Warming up for 1.0000 s
+
+Warning: Unable to complete 10 samples in 25.0s. You may wish to increase target time to 42.0s or enable flat sampling.
+Benchmarking knn_cpu_vs_gpu/ivf_gpu/n50000_d10: Collecting 10 samples in estimated 42.040 s (55 iterations)
+Benchmarking knn_cpu_vs_gpu/ivf_gpu/n50000_d10: Analyzing
+knn_cpu_vs_gpu/ivf_gpu/n50000_d10
+                        time:   [810.65 ms 820.54 ms 828.61 ms]
+                        thrpt:  [60.342 Kelem/s 60.935 Kelem/s 61.679 Kelem/s]
+Benchmarking knn_cpu_vs_gpu/nndescent_gpu/n50000_d10
+Benchmarking knn_cpu_vs_gpu/nndescent_gpu/n50000_d10: Warming up for 1.0000 s
+Benchmarking knn_cpu_vs_gpu/nndescent_gpu/n50000_d10: Collecting 10 samples in estimated 40.508 s (20 iterations)
+Benchmarking knn_cpu_vs_gpu/nndescent_gpu/n50000_d10: Analyzing
+knn_cpu_vs_gpu/nndescent_gpu/n50000_d10
+                        time:   [1.6626 s 1.6787 s 1.6959 s]
+                        thrpt:  [29.483 Kelem/s 29.786 Kelem/s 30.073 Kelem/s]
+Found 2 outliers among 10 measurements (20.00%)
+  1 (10.00%) low severe
+  1 (10.00%) high severe
+Benchmarking knn_cpu_vs_gpu/exact_cpu/n50000_d20
+Benchmarking knn_cpu_vs_gpu/exact_cpu/n50000_d20: Warming up for 1.0000 s
+
+Warning: Unable to complete 10 samples in 25.0s. You may wish to increase target time to 27.5s.
+Benchmarking knn_cpu_vs_gpu/exact_cpu/n50000_d20: Collecting 10 samples in estimated 27.480 s (10 iterations)
+Benchmarking knn_cpu_vs_gpu/exact_cpu/n50000_d20: Analyzing
+knn_cpu_vs_gpu/exact_cpu/n50000_d20
+                        time:   [2.8349 s 2.9463 s 3.1067 s]
+                        thrpt:  [16.094 Kelem/s 16.970 Kelem/s 17.638 Kelem/s]
+Found 2 outliers among 10 measurements (20.00%)
+  1 (10.00%) low severe
+  1 (10.00%) high severe
+Benchmarking knn_cpu_vs_gpu/hnsw_ann_cpu/n50000_d20
+Benchmarking knn_cpu_vs_gpu/hnsw_ann_cpu/n50000_d20: Warming up for 1.0000 s
+Benchmarking knn_cpu_vs_gpu/hnsw_ann_cpu/n50000_d20: Collecting 10 samples in estimated 27.470 s (20 iterations)
+Benchmarking knn_cpu_vs_gpu/hnsw_ann_cpu/n50000_d20: Analyzing
+knn_cpu_vs_gpu/hnsw_ann_cpu/n50000_d20
+                        time:   [1.2714 s 1.2794 s 1.2881 s]
+                        thrpt:  [38.817 Kelem/s 39.080 Kelem/s 39.325 Kelem/s]
+Benchmarking knn_cpu_vs_gpu/exact_gpu/n50000_d20
+Benchmarking knn_cpu_vs_gpu/exact_gpu/n50000_d20: Warming up for 1.0000 s
+
+Warning: Unable to complete 10 samples in 25.0s. You may wish to increase target time to 38.7s or enable flat sampling.
+Benchmarking knn_cpu_vs_gpu/exact_gpu/n50000_d20: Collecting 10 samples in estimated 38.652 s (55 iterations)
+Benchmarking knn_cpu_vs_gpu/exact_gpu/n50000_d20: Analyzing
+knn_cpu_vs_gpu/exact_gpu/n50000_d20
+                        time:   [584.15 ms 601.12 ms 639.63 ms]
+                        thrpt:  [78.171 Kelem/s 83.179 Kelem/s 85.595 Kelem/s]
+Benchmarking knn_cpu_vs_gpu/ivf_gpu/n50000_d20
+Benchmarking knn_cpu_vs_gpu/ivf_gpu/n50000_d20: Warming up for 1.0000 s
+
+Warning: Unable to complete 10 samples in 25.0s. You may wish to increase target time to 42.1s or enable flat sampling.
+Benchmarking knn_cpu_vs_gpu/ivf_gpu/n50000_d20: Collecting 10 samples in estimated 42.111 s (55 iterations)
+Benchmarking knn_cpu_vs_gpu/ivf_gpu/n50000_d20: Analyzing
+knn_cpu_vs_gpu/ivf_gpu/n50000_d20
+                        time:   [795.84 ms 804.17 ms 812.59 ms]
+                        thrpt:  [61.532 Kelem/s 62.176 Kelem/s 62.827 Kelem/s]
+Found 1 outliers among 10 measurements (10.00%)
+  1 (10.00%) low mild
+Benchmarking knn_cpu_vs_gpu/nndescent_gpu/n50000_d20
+Benchmarking knn_cpu_vs_gpu/nndescent_gpu/n50000_d20: Warming up for 1.0000 s
+
+Warning: Unable to complete 10 samples in 25.0s. You may wish to increase target time to 37.9s.
+Benchmarking knn_cpu_vs_gpu/nndescent_gpu/n50000_d20: Collecting 10 samples in estimated 37.928 s (10 iterations)
+Benchmarking knn_cpu_vs_gpu/nndescent_gpu/n50000_d20: Analyzing
+knn_cpu_vs_gpu/nndescent_gpu/n50000_d20
+                        time:   [3.2586 s 3.2922 s 3.3315 s]
+                        thrpt:  [15.008 Kelem/s 15.188 Kelem/s 15.344 Kelem/s]
+Found 2 outliers among 10 measurements (20.00%)
+  2 (20.00%) high mild
+Benchmarking knn_cpu_vs_gpu/exact_cpu/n100000_d10
+Benchmarking knn_cpu_vs_gpu/exact_cpu/n100000_d10: Warming up for 1.0000 s
+
+Warning: Unable to complete 10 samples in 25.0s. You may wish to increase target time to 67.5s.
+Benchmarking knn_cpu_vs_gpu/exact_cpu/n100000_d10: Collecting 10 samples in estimated 67.489 s (10 iterations)
+Benchmarking knn_cpu_vs_gpu/exact_cpu/n100000_d10: Analyzing
+knn_cpu_vs_gpu/exact_cpu/n100000_d10
+                        time:   [7.1218 s 7.1861 s 7.2355 s]
+                        thrpt:  [13.821 Kelem/s 13.916 Kelem/s 14.041 Kelem/s]
+Found 2 outliers among 10 measurements (20.00%)
+  1 (10.00%) low severe
+  1 (10.00%) high severe
+Benchmarking knn_cpu_vs_gpu/hnsw_ann_cpu/n100000_d10
+Benchmarking knn_cpu_vs_gpu/hnsw_ann_cpu/n100000_d10: Warming up for 1.0000 s
+Benchmarking knn_cpu_vs_gpu/hnsw_ann_cpu/n100000_d10: Collecting 10 samples in estimated 49.569 s (20 iterations)
+Benchmarking knn_cpu_vs_gpu/hnsw_ann_cpu/n100000_d10: Analyzing
+knn_cpu_vs_gpu/hnsw_ann_cpu/n100000_d10
+                        time:   [2.3914 s 2.4044 s 2.4173 s]
+                        thrpt:  [41.369 Kelem/s 41.590 Kelem/s 41.817 Kelem/s]
+Benchmarking knn_cpu_vs_gpu/ivf_gpu/n100000_d10
+Benchmarking knn_cpu_vs_gpu/ivf_gpu/n100000_d10: Warming up for 1.0000 s
+Benchmarking knn_cpu_vs_gpu/ivf_gpu/n100000_d10: Collecting 10 samples in estimated 34.311 s (20 iterations)
+Benchmarking knn_cpu_vs_gpu/ivf_gpu/n100000_d10: Analyzing
+knn_cpu_vs_gpu/ivf_gpu/n100000_d10
+                        time:   [1.6516 s 1.6703 s 1.6908 s]
+                        thrpt:  [59.144 Kelem/s 59.869 Kelem/s 60.548 Kelem/s]
+Found 1 outliers among 10 measurements (10.00%)
+  1 (10.00%) high mild
+Benchmarking knn_cpu_vs_gpu/nndescent_gpu/n100000_d10
+Benchmarking knn_cpu_vs_gpu/nndescent_gpu/n100000_d10: Warming up for 1.0000 s
+
+Warning: Unable to complete 10 samples in 25.0s. You may wish to increase target time to 44.0s.
+Benchmarking knn_cpu_vs_gpu/nndescent_gpu/n100000_d10: Collecting 10 samples in estimated 44.023 s (10 iterations)
+Benchmarking knn_cpu_vs_gpu/nndescent_gpu/n100000_d10: Analyzing
+knn_cpu_vs_gpu/nndescent_gpu/n100000_d10
+                        time:   [3.9189 s 3.9710 s 4.0392 s]
+                        thrpt:  [24.757 Kelem/s 25.182 Kelem/s 25.517 Kelem/s]
+Found 1 outliers among 10 measurements (10.00%)
+  1 (10.00%) high mild
+Benchmarking knn_cpu_vs_gpu/exact_cpu/n100000_d20
+Benchmarking knn_cpu_vs_gpu/exact_cpu/n100000_d20: Warming up for 1.0000 s
+
+Warning: Unable to complete 10 samples in 25.0s. You may wish to increase target time to 95.5s.
+Benchmarking knn_cpu_vs_gpu/exact_cpu/n100000_d20: Collecting 10 samples in estimated 95.547 s (10 iterations)
+Benchmarking knn_cpu_vs_gpu/exact_cpu/n100000_d20: Analyzing
+knn_cpu_vs_gpu/exact_cpu/n100000_d20
+                        time:   [10.071 s 10.141 s 10.211 s]
+                        thrpt:  [9.7932 Kelem/s 9.8612 Kelem/s 9.9294 Kelem/s]
+Found 2 outliers among 10 measurements (20.00%)
+  1 (10.00%) low mild
+  1 (10.00%) high mild
+Benchmarking knn_cpu_vs_gpu/hnsw_ann_cpu/n100000_d20
+Benchmarking knn_cpu_vs_gpu/hnsw_ann_cpu/n100000_d20: Warming up for 1.0000 s
+
+Warning: Unable to complete 10 samples in 25.0s. You may wish to increase target time to 37.5s.
+Benchmarking knn_cpu_vs_gpu/hnsw_ann_cpu/n100000_d20: Collecting 10 samples in estimated 37.468 s (10 iterations)
+Benchmarking knn_cpu_vs_gpu/hnsw_ann_cpu/n100000_d20: Analyzing
+knn_cpu_vs_gpu/hnsw_ann_cpu/n100000_d20
+                        time:   [3.7969 s 3.8991 s 4.0018 s]
+                        thrpt:  [24.989 Kelem/s 25.647 Kelem/s 26.337 Kelem/s]
+Benchmarking knn_cpu_vs_gpu/ivf_gpu/n100000_d20
+Benchmarking knn_cpu_vs_gpu/ivf_gpu/n100000_d20: Warming up for 1.0000 s
+Benchmarking knn_cpu_vs_gpu/ivf_gpu/n100000_d20: Collecting 10 samples in estimated 38.357 s (20 iterations)
+Benchmarking knn_cpu_vs_gpu/ivf_gpu/n100000_d20: Analyzing
+knn_cpu_vs_gpu/ivf_gpu/n100000_d20
+                        time:   [1.7194 s 1.7503 s 1.7784 s]
+                        thrpt:  [56.231 Kelem/s 57.134 Kelem/s 58.159 Kelem/s]
+Benchmarking knn_cpu_vs_gpu/nndescent_gpu/n100000_d20
+Benchmarking knn_cpu_vs_gpu/nndescent_gpu/n100000_d20: Warming up for 1.0000 s
+
+Warning: Unable to complete 10 samples in 25.0s. You may wish to increase target time to 79.9s.
+Benchmarking knn_cpu_vs_gpu/nndescent_gpu/n100000_d20: Collecting 10 samples in estimated 79.859 s (10 iterations)
+Benchmarking knn_cpu_vs_gpu/nndescent_gpu/n100000_d20: Analyzing
+knn_cpu_vs_gpu/nndescent_gpu/n100000_d20
+                        time:   [6.8387 s 6.9291 s 7.0322 s]
+                        thrpt:  [14.220 Kelem/s 14.432 Kelem/s 14.623 Kelem/s]
+
+KNN_EXIT:0

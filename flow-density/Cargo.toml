@@ -23,13 +23,12 @@ ndarray   = { workspace = true }
 realfft   = "3.5.0"
 
 [dependencies.burn]
-version  = "0.20"
-optional = true
-features = ["wgpu"]
+workspace = true
+optional  = true
 
 [dependencies.cubecl]
-version  = "0.9"
-optional = true
+workspace = true
+optional  = true
 
 [dependencies.bytemuck]
 workspace = true

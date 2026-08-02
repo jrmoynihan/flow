@@ -6,6 +6,7 @@ members = [
     "flow-linalg",
     "flow-density",
     "flow-clustering",
+    "flow-knn",
     "flow-pacmap",
     "plots",
     "gates",
@@ -60,7 +61,7 @@ faer-ext = { version = "0.7", features = ["ndarray"] }
 rayon = "1.11"
 
 # Error Handling
-thiserror = "2.0.18"
+thiserror = "2.0.19"
 anyhow = "1.0.102"
 
 # Serialization
@@ -74,7 +75,7 @@ rustc-hash = "2.1" # A speedy, non-cryptographic hashing algorithm used by rustc
 memmap3 = "0.1"  # For memory-mapping large files (safe, zero-unsafe replacement for memmap2) 
 
 # DX improvement
-itertools = "0.14" # For iterating over collections
+itertools = "0.15" # For iterating over collections
 derive_builder = "0.20" # For building structs with builder pattern
 byteorder = "1.5" # For dealing with endianness of data
 bytecount = "0.6.4" # For counting bytes in a slice of bytes
@@ -82,7 +83,7 @@ strum = "0.28.0" # For enum-like types
 strum_macros = "0.28.0" # For enum-like types
 regex = "1.11.3" # For regular expressions
 bytemuck = { version = "1.24", features = ["derive"] } # Bytemuck for zero-copy bit-cast conversions between types
-rand = "0.10.0"
+rand = "0.10.2"
 rand_distr = "0.6.0"
 ts-rs = "12.0.1"
 specta = { version = "=2.0.0-rc.25", features = ["derive"] }
@@ -97,7 +98,7 @@ tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
 
 # Visualization (plotters, image used in plots, peacoqc-rs, tru-ols-cli)
 plotters = "0.3.7"
-image = "0.25.9"
+image = "0.25.10"
 
 # CSV (tru-ols-cli)
 csv = "1.3"
@@ -109,8 +110,18 @@ tempfile = "3.26"
 loom = "12.0.1" # For multithreaded testing
 
 # Compression (flow-fcs-compress)
-fastlanes = "0.5"
+fastlanes = "0.6"
 zstd = "0.13"
 xxhash-rust = { version = "0.8", features = ["xxh3"] }
-pco = "0.4"
+pco = "1.0.2"
 lz4_flex = { version = "0.13", default-features = false, features = ["frame"] }
+
+# GPU (Burn 0.21 ↔ cubeCL 0.10; keep in lockstep across peacoqc / pacmap / tru-ols / density)
+burn = { version = "0.21", default-features = false, features = ["std", "wgpu"] }
+cubecl = { version = "0.10", default-features = false, features = ["std", "wgpu"] }
+
+# Some crates.io packages ship a `.vscode/` tree; creating that directory is blocked in
+# Cursor agent sandboxes. Path-patch those packages so `cargo` never unpacks them.
+[patch.crates-io]
+pastey = { path = "third_party/pastey" }
+bit-vec = { path = "third_party/bit-vec" }

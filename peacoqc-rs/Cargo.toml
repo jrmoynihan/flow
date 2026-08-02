@@ -35,8 +35,8 @@ tracing.workspace   =true
 derive_builder      ={ workspace = true } # Builder pattern for config structs
 realfft             ="3.5.0" # FFT-based KDE for performance
 faer                ={ workspace = true } # Cholesky for R-compatible smooth.spline
-burn                ={ version = "0.20", optional = true, features = ["wgpu"] }
-cubecl              ={ version = "0.9", optional = true }
+burn                ={ workspace = true, optional = true }
+cubecl              ={ workspace = true, optional = true }
 bytemuck            ={ workspace = true, optional = true }
 
 [dev-dependencies]

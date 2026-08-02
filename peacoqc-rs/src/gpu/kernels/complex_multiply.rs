@@ -10,12 +10,12 @@ use cubecl::prelude::*;
 /// Each GPU thread processes one complex multiplication
 #[cube(launch)]
 pub fn complex_multiply_kernel<F: Float>(
-    a_re: &Array<Line<F>>,          // Real part of first complex array
-    a_im: &Array<Line<F>>,          // Imaginary part of first complex array
-    b_re: &Array<Line<F>>,          // Real part of second complex array
-    b_im: &Array<Line<F>>,          // Imaginary part of second complex array
-    result_re: &mut Array<Line<F>>, // Output: real part
-    result_im: &mut Array<Line<F>>, // Output: imaginary part
+    a_re: &Array<F>,          // Real part of first complex array
+    a_im: &Array<F>,          // Imaginary part of first complex array
+    b_re: &Array<F>,          // Real part of second complex array
+    b_im: &Array<F>,          // Imaginary part of second complex array
+    result_re: &mut Array<F>, // Output: real part
+    result_im: &mut Array<F>, // Output: imaginary part
 ) {
     let idx = ABSOLUTE_POS;
 

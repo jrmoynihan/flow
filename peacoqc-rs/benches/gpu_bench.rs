@@ -4,7 +4,7 @@ use criterion::{BenchmarkId, Criterion, criterion_group, criterion_main};
 use peacoqc_rs::qc::isolation_tree::build_feature_matrix;
 use peacoqc_rs::qc::peaks::{ChannelPeakFrame, PeakInfo};
 use peacoqc_rs::stats::density::KernelDensity;
-use rand::Rng;
+use rand::{Rng, RngExt};
 use std::collections::HashMap;
 use std::hint::black_box;
 

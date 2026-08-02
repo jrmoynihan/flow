@@ -38,6 +38,7 @@
 //! use peacoqc_rs::{PeacoQCConfig, PeacoQCData, QCMode, peacoqc, remove_margins, remove_doublets};
 //! use flow_fcs::Fcs; // If using flow-fcs crate
 //! use std::time::Instant;
+//! use crate::peacoqc_rs::FcsFilter; // Allows Fcs events to be iterated over
 //!
 //! // Load FCS file (example using flow-fcs)
 //! let mut fcs = Fcs::open("data.fcs")?;
@@ -100,12 +101,12 @@ pub mod fcs;
 
 pub use error::{PeacoQCError, Result};
 pub use qc::{
-    DoubletConfig, DoubletResult, MarginConfig, MarginResult, PeacoQCConfig, PeacoQCResult,
-    QCExportFormat, QCExportOptions, QCMode, QCPlotConfig, RemovalReason, build_channel_trend_series,
-    build_time_overview_series, create_qc_plots, export_csv_boolean, export_csv_boolean_from_mask,
-    export_csv_numeric, export_csv_numeric_from_mask, export_json_metadata, peacoqc,
-    peacoqc_with_progress, regions_by_reason, remove_doublets, remove_margins, ChannelTrendSeries,
-    PeacoQCProgressCallback, PeacoQCProgressEvent,
+    ChannelTrendSeries, DoubletConfig, DoubletResult, MarginConfig, MarginResult, PeacoQCConfig,
+    PeacoQCProgressCallback, PeacoQCProgressEvent, PeacoQCResult, QCExportFormat, QCExportOptions,
+    QCMode, QCPlotConfig, RemovalReason, build_channel_trend_series, build_time_overview_series,
+    create_qc_plots, export_csv_boolean, export_csv_boolean_from_mask, export_csv_numeric,
+    export_csv_numeric_from_mask, export_json_metadata, peacoqc, peacoqc_with_progress,
+    regions_by_reason, remove_doublets, remove_margins,
 };
 
 #[cfg(feature = "flow-fcs")]
@@ -121,6 +122,7 @@ pub use crate::flow_fcs_impl::preprocess_fcs;
 ///
 /// ```rust
 /// use peacoqc_rs::{PeacoQCData, Result};
+/// use std::collections::HashMap;
 ///
 /// struct MyFcs {
 ///     data: Vec<HashMap<String, Vec<f64>>>,
