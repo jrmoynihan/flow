@@ -61,12 +61,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     fs::write(out_dir.join("density.png"), &bytes)?;
     println!("  density.png");
 
-    // 2. ScatterSolid – small dots
+    // 2. Scatter – small dots
     let opts = DensityPlotOptions::new()
         .base(base.clone())
         .x_axis(x_axis.clone())
         .y_axis(y_axis.clone())
-        .plot_type(PlotType::ScatterSolid)
+        .plot_type(PlotType::Scatter)
         .point_size(1.0)
         .build()?;
     let bytes = plot.render(points.clone().into(), &opts, &mut render_config)?;
@@ -76,7 +76,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 3. Contour – lines (known plotters overflow with some grid configs; skip for this example)
     println!("  contour.png (skipped - use FCS-based data for full validation)");
 
-    // 4. ScatterOverlay – needs gate_ids
+    // 4. Scatter (Overlay) – needs gate_ids
     let gate_ids: Vec<u32> = points
         .iter()
         .map(|(x, _)| if *x < 256.0 { 0 } else { 1 })
@@ -87,7 +87,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .base(base.clone())
         .x_axis(x_axis.clone())
         .y_axis(y_axis.clone())
-        .plot_type(PlotType::ScatterOverlay)
+        .plot_type(PlotType::Scatter)
         .gate_colors(default_gate_colors())
         .point_size(1.2)
         .build()?;
@@ -95,7 +95,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     fs::write(out_dir.join("scatter_overlay.png"), &bytes)?;
     println!("  scatter_overlay.png");
 
-    // 5. ScatterColoredContinuous – needs z_values
+    // 5. Intensity – needs z_values
     let z_values: Vec<f32> = points.iter().map(|(x, y)| (x + y) / 2.0).collect();
     let colored_data =
         ScatterPlotData::with_z(points.clone(), z_values).map_err(|e| e.to_string())?;
@@ -103,7 +103,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .base(base.clone())
         .x_axis(x_axis.clone())
         .y_axis(y_axis.clone())
-        .plot_type(PlotType::ScatterColoredContinuous)
+        .plot_type(PlotType::Intensity)
         .colormap(ColorMaps::Viridis)
         .point_size(1.2)
         .build()?;
