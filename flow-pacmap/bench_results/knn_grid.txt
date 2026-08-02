@@ -1,0 +1,289 @@
+   Compiling flow-pacmap v0.1.1 (/Users/kfls271/Rust/flow-crates/flow-pacmap)
+    Finished `bench` profile [optimized] target(s) in 5.64s
+     Running benches/pacmap_compare.rs (/var/folders/44/mj5sgh7n5h146_61ng7w39q00000gp/T/cursor-sandbox-cache/d60646c2271ca88daee427ff0e77718c/cargo-target/release/deps/pacmap_compare-be0d9711194dd4a5)
+Gnuplot not found, using plotters backend
+Benchmarking pacmap_knn/flow_hnsw/n50000_d10
+Benchmarking pacmap_knn/flow_hnsw/n50000_d10: Warming up for 1.0000 s
+Benchmarking pacmap_knn/flow_hnsw/n50000_d10: Collecting 10 samples in estimated 15.075 s (20 iterations)
+Benchmarking pacmap_knn/flow_hnsw/n50000_d10: Analyzing
+pacmap_knn/flow_hnsw/n50000_d10
+                        time:   [753.43 ms 803.19 ms 856.34 ms]
+                        thrpt:  [58.388 Kelem/s 62.252 Kelem/s 66.363 Kelem/s]
+                 change:
+                        time:   [−0.4029% +12.594% +26.644%] (p = 0.07 > 0.05)
+                        thrpt:  [−21.039% −11.185% +0.4046%]
+                        No change in performance detected.
+Benchmarking pacmap_knn/manifolds_hnsw/n50000_d10
+Benchmarking pacmap_knn/manifolds_hnsw/n50000_d10: Warming up for 1.0000 s
+Benchmarking pacmap_knn/manifolds_hnsw/n50000_d10: Collecting 10 samples in estimated 11.318 s (20 iterations)
+Benchmarking pacmap_knn/manifolds_hnsw/n50000_d10: Analyzing
+pacmap_knn/manifolds_hnsw/n50000_d10
+                        time:   [523.90 ms 529.32 ms 535.91 ms]
+                        thrpt:  [93.300 Kelem/s 94.462 Kelem/s 95.437 Kelem/s]
+                 change:
+                        time:   [−12.897% −9.4599% −6.2209%] (p = 0.00 < 0.05)
+                        thrpt:  [+6.6335% +10.448% +14.807%]
+                        Performance has improved.
+Found 1 outliers among 10 measurements (10.00%)
+  1 (10.00%) high mild
+Benchmarking pacmap_knn/flow_ann_hnsw/n50000_d10
+Benchmarking pacmap_knn/flow_ann_hnsw/n50000_d10: Warming up for 1.0000 s
+Benchmarking pacmap_knn/flow_ann_hnsw/n50000_d10: Collecting 10 samples in estimated 10.694 s (20 iterations)
+Benchmarking pacmap_knn/flow_ann_hnsw/n50000_d10: Analyzing
+pacmap_knn/flow_ann_hnsw/n50000_d10
+                        time:   [525.66 ms 528.94 ms 532.31 ms]
+                        thrpt:  [93.931 Kelem/s 94.528 Kelem/s 95.118 Kelem/s]
+Found 2 outliers among 10 measurements (20.00%)
+  1 (10.00%) low mild
+  1 (10.00%) high mild
+Benchmarking pacmap_knn/oxicuda_hnsw/n50000_d10
+Benchmarking pacmap_knn/oxicuda_hnsw/n50000_d10: Warming up for 1.0000 s
+
+Warning: Unable to complete 10 samples in 8.0s. You may wish to increase target time to 41.4s.
+Benchmarking pacmap_knn/oxicuda_hnsw/n50000_d10: Collecting 10 samples in estimated 41.355 s (10 iterations)
+Benchmarking pacmap_knn/oxicuda_hnsw/n50000_d10: Analyzing
+pacmap_knn/oxicuda_hnsw/n50000_d10
+                        time:   [4.0671 s 4.1725 s 4.3261 s]
+                        thrpt:  [11.558 Kelem/s 11.983 Kelem/s 12.294 Kelem/s]
+                 change:
+                        time:   [−15.831% −9.6063% −2.5930%] (p = 0.03 < 0.05)
+                        thrpt:  [+2.6620% +10.627% +18.809%]
+                        Performance has improved.
+Found 1 outliers among 10 measurements (10.00%)
+  1 (10.00%) high mild
+Benchmarking pacmap_knn/flow_exact/n50000_d10
+Benchmarking pacmap_knn/flow_exact/n50000_d10: Warming up for 1.0000 s
+
+Warning: Unable to complete 10 samples in 8.0s. You may wish to increase target time to 11.4s.
+Benchmarking pacmap_knn/flow_exact/n50000_d10: Collecting 10 samples in estimated 11.416 s (10 iterations)
+Benchmarking pacmap_knn/flow_exact/n50000_d10: Analyzing
+pacmap_knn/flow_exact/n50000_d10
+                        time:   [1.2511 s 1.2654 s 1.2779 s]
+                        thrpt:  [39.127 Kelem/s 39.514 Kelem/s 39.965 Kelem/s]
+                 change:
+                        time:   [−5.9818% −4.3023% −2.8749%] (p = 0.00 < 0.05)
+                        thrpt:  [+2.9600% +4.4957% +6.3624%]
+                        Performance has improved.
+Found 1 outliers among 10 measurements (10.00%)
+  1 (10.00%) low mild
+Benchmarking pacmap_knn/manifolds_exhaustive/n50000_d10
+Benchmarking pacmap_knn/manifolds_exhaustive/n50000_d10: Warming up for 1.0000 s
+
+Warning: Unable to complete 10 samples in 8.0s. You may wish to increase target time to 9.2s.
+Benchmarking pacmap_knn/manifolds_exhaustive/n50000_d10: Collecting 10 samples in estimated 9.1781 s (10 iterations)
+Benchmarking pacmap_knn/manifolds_exhaustive/n50000_d10: Analyzing
+pacmap_knn/manifolds_exhaustive/n50000_d10
+                        time:   [912.11 ms 916.24 ms 921.17 ms]
+                        thrpt:  [54.279 Kelem/s 54.571 Kelem/s 54.818 Kelem/s]
+                 change:
+                        time:   [−4.2302% −3.3669% −2.5678%] (p = 0.00 < 0.05)
+                        thrpt:  [+2.6355% +3.4842% +4.4170%]
+                        Performance has improved.
+Found 1 outliers among 10 measurements (10.00%)
+  1 (10.00%) high mild
+Benchmarking pacmap_knn/flow_hnsw/n100000_d15
+Benchmarking pacmap_knn/flow_hnsw/n100000_d15: Warming up for 1.0000 s
+
+Warning: Unable to complete 10 samples in 8.0s. You may wish to increase target time to 18.5s.
+Benchmarking pacmap_knn/flow_hnsw/n100000_d15: Collecting 10 samples in estimated 18.533 s (10 iterations)
+Benchmarking pacmap_knn/flow_hnsw/n100000_d15: Analyzing
+pacmap_knn/flow_hnsw/n100000_d15
+                        time:   [1.7949 s 1.8168 s 1.8393 s]
+                        thrpt:  [54.368 Kelem/s 55.043 Kelem/s 55.712 Kelem/s]
+Found 1 outliers among 10 measurements (10.00%)
+  1 (10.00%) high mild
+Benchmarking pacmap_knn/manifolds_hnsw/n100000_d15
+Benchmarking pacmap_knn/manifolds_hnsw/n100000_d15: Warming up for 1.0000 s
+
+Warning: Unable to complete 10 samples in 8.0s. You may wish to increase target time to 15.7s.
+Benchmarking pacmap_knn/manifolds_hnsw/n100000_d15: Collecting 10 samples in estimated 15.677 s (10 iterations)
+Benchmarking pacmap_knn/manifolds_hnsw/n100000_d15: Analyzing
+pacmap_knn/manifolds_hnsw/n100000_d15
+                        time:   [1.5607 s 1.5697 s 1.5788 s]
+                        thrpt:  [63.340 Kelem/s 63.708 Kelem/s 64.074 Kelem/s]
+Benchmarking pacmap_knn/flow_ann_hnsw/n100000_d15
+Benchmarking pacmap_knn/flow_ann_hnsw/n100000_d15: Warming up for 1.0000 s
+
+Warning: Unable to complete 10 samples in 8.0s. You may wish to increase target time to 15.7s.
+Benchmarking pacmap_knn/flow_ann_hnsw/n100000_d15: Collecting 10 samples in estimated 15.681 s (10 iterations)
+Benchmarking pacmap_knn/flow_ann_hnsw/n100000_d15: Analyzing
+pacmap_knn/flow_ann_hnsw/n100000_d15
+                        time:   [1.6105 s 1.6263 s 1.6500 s]
+                        thrpt:  [60.607 Kelem/s 61.490 Kelem/s 62.094 Kelem/s]
+Found 1 outliers among 10 measurements (10.00%)
+  1 (10.00%) high severe
+Benchmarking pacmap_knn/flow_hnsw/n250000_d20
+Benchmarking pacmap_knn/flow_hnsw/n250000_d20: Warming up for 1.0000 s
+
+Warning: Unable to complete 10 samples in 8.0s. You may wish to increase target time to 93.7s.
+Benchmarking pacmap_knn/flow_hnsw/n250000_d20: Collecting 10 samples in estimated 93.711 s (10 iterations)
+Benchmarking pacmap_knn/flow_hnsw/n250000_d20: Analyzing
+pacmap_knn/flow_hnsw/n250000_d20
+                        time:   [8.8993 s 9.2538 s 9.6355 s]
+                        thrpt:  [25.946 Kelem/s 27.016 Kelem/s 28.092 Kelem/s]
+Benchmarking pacmap_knn/manifolds_hnsw/n250000_d20
+Benchmarking pacmap_knn/manifolds_hnsw/n250000_d20: Warming up for 1.0000 s
+
+Warning: Unable to complete 10 samples in 8.0s. You may wish to increase target time to 58.5s.
+Benchmarking pacmap_knn/manifolds_hnsw/n250000_d20: Collecting 10 samples in estimated 58.547 s (10 iterations)
+Benchmarking pacmap_knn/manifolds_hnsw/n250000_d20: Analyzing
+pacmap_knn/manifolds_hnsw/n250000_d20
+                        time:   [5.7878 s 5.8274 s 5.8655 s]
+                        thrpt:  [42.622 Kelem/s 42.901 Kelem/s 43.195 Kelem/s]
+Benchmarking pacmap_knn/flow_ann_hnsw/n250000_d20
+Benchmarking pacmap_knn/flow_ann_hnsw/n250000_d20: Warming up for 1.0000 s
+
+Warning: Unable to complete 10 samples in 8.0s. You may wish to increase target time to 58.7s.
+Benchmarking pacmap_knn/flow_ann_hnsw/n250000_d20: Collecting 10 samples in estimated 58.746 s (10 iterations)
+Benchmarking pacmap_knn/flow_ann_hnsw/n250000_d20: Analyzing
+pacmap_knn/flow_ann_hnsw/n250000_d20
+                        time:   [5.7252 s 5.7567 s 5.7907 s]
+                        thrpt:  [43.173 Kelem/s 43.428 Kelem/s 43.667 Kelem/s]
+Benchmarking pacmap_knn/flow_hnsw/n500000_d20
+Benchmarking pacmap_knn/flow_hnsw/n500000_d20: Warming up for 1.0000 s
+
+Warning: Unable to complete 10 samples in 8.0s. You may wish to increase target time to 212.1s.
+Benchmarking pacmap_knn/flow_hnsw/n500000_d20: Collecting 10 samples in estimated 212.12 s (10 iterations)
+Benchmarking pacmap_knn/flow_hnsw/n500000_d20: Analyzing
+pacmap_knn/flow_hnsw/n500000_d20
+                        time:   [20.635 s 20.967 s 21.240 s]
+                        thrpt:  [23.541 Kelem/s 23.847 Kelem/s 24.230 Kelem/s]
+Found 1 outliers among 10 measurements (10.00%)
+  1 (10.00%) low mild
+Benchmarking pacmap_knn/manifolds_hnsw/n500000_d20
+Benchmarking pacmap_knn/manifolds_hnsw/n500000_d20: Warming up for 1.0000 s
+
+Warning: Unable to complete 10 samples in 8.0s. You may wish to increase target time to 137.7s.
+Benchmarking pacmap_knn/manifolds_hnsw/n500000_d20: Collecting 10 samples in estimated 137.75 s (10 iterations)
+Benchmarking pacmap_knn/manifolds_hnsw/n500000_d20: Analyzing
+pacmap_knn/manifolds_hnsw/n500000_d20
+                        time:   [14.785 s 16.260 s 17.772 s]
+                        thrpt:  [28.134 Kelem/s 30.750 Kelem/s 33.819 Kelem/s]
+Benchmarking pacmap_knn/flow_ann_hnsw/n500000_d20
+Benchmarking pacmap_knn/flow_ann_hnsw/n500000_d20: Warming up for 1.0000 s
+
+Warning: Unable to complete 10 samples in 8.0s. You may wish to increase target time to 137.4s.
+Benchmarking pacmap_knn/flow_ann_hnsw/n500000_d20: Collecting 10 samples in estimated 137.38 s (10 iterations)
+Benchmarking pacmap_knn/flow_ann_hnsw/n500000_d20: Analyzing
+pacmap_knn/flow_ann_hnsw/n500000_d20
+                        time:   [13.397 s 13.467 s 13.532 s]
+                        thrpt:  [36.950 Kelem/s 37.129 Kelem/s 37.323 Kelem/s]
+
+
+thread 'main' (141563522) panicked at /Users/kfls271/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/criterion-0.8.2/src/benchmark_group.rs:97:9:
+assertion failed: n >= 10
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+error: bench failed, to rerun pass `-p flow-pacmap --bench pacmap_compare`
+acmap_knn/flow_hnsw/n100000_d15: Warming up for 2.0000 s
+
+Warning: Unable to complete 15 samples in 8.0s. You may wish to increase target time to 101.8s, or reduce sample count to 10.
+Benchmarking pacmap_knn/flow_hnsw/n100000_d15: Collecting 15 samples in estimated 101.76 s (15 iterations)
+Benchmarking pacmap_knn/flow_hnsw/n100000_d15: Analyzing
+pacmap_knn/flow_hnsw/n100000_d15
+                        time:   [2.3591 s 3.2241 s 4.1803 s]
+                        thrpt:  [23.921 Kelem/s 31.017 Kelem/s 42.388 Kelem/s]
+                 change:
+                        time:   [+31.239% +77.461% +127.17%] (p = 0.01 < 0.05)
+                        thrpt:  [−55.979% −43.650% −23.803%]
+                        Performance has regressed.
+Benchmarking pacmap_knn/manifolds_hnsw/n100000_d15
+Benchmarking pacmap_knn/manifolds_hnsw/n100000_d15: Warming up for 2.0000 s
+
+Warning: Unable to complete 15 samples in 8.0s. You may wish to increase target time to 45.4s, or reduce sample count to 10.
+Benchmarking pacmap_knn/manifolds_hnsw/n100000_d15: Collecting 15 samples in estimated 45.350 s (15 iterations)
+Benchmarking pacmap_knn/manifolds_hnsw/n100000_d15: Analyzing
+pacmap_knn/manifolds_hnsw/n100000_d15
+                        time:   [1.9583 s 2.2789 s 2.6021 s]
+                        thrpt:  [38.430 Kelem/s 43.881 Kelem/s 51.064 Kelem/s]
+                 change:
+                        time:   [+25.268% +45.183% +67.694%] (p = 0.00 < 0.05)
+                        thrpt:  [−40.367% −31.121% −20.171%]
+                        Performance has regressed.
+Benchmarking pacmap_knn/oxicuda_hnsw/n100000_d15
+Benchmarking pacmap_knn/oxicuda_hnsw/n100000_d15: Warming up for 2.0000 s
+
+Warning: Unable to complete 15 samples in 8.0s. You may wish to increase target time to 307.6s, or reduce sample count to 10.
+Benchmarking pacmap_knn/oxicuda_hnsw/n100000_d15: Collecting 15 samples in estimated 307.64 s (15 iterations)
+Benchmarking pacmap_knn/oxicuda_hnsw/n100000_d15: Analyzing
+pacmap_knn/oxicuda_hnsw/n100000_d15
+                        time:   [14.803 s 16.894 s 18.872 s]
+                        thrpt:  [5.2988 Kelem/s 5.9192 Kelem/s 6.7552 Kelem/s]
+Benchmarking pacmap_knn/flow_hnsw/n250000_d20
+Benchmarking pacmap_knn/flow_hnsw/n250000_d20: Warming up for 2.0000 s
+
+Warning: Unable to complete 15 samples in 8.0s. You may wish to increase target time to 104.3s, or reduce sample count to 10.
+Benchmarking pacmap_knn/flow_hnsw/n250000_d20: Collecting 15 samples in estimated 104.32 s (15 iterations)
+Benchmarking pacmap_knn/flow_hnsw/n250000_d20: Analyzing
+pacmap_knn/flow_hnsw/n250000_d20
+                        time:   [13.625 s 17.006 s 20.439 s]
+                        thrpt:  [12.232 Kelem/s 14.700 Kelem/s 18.349 Kelem/s]
+                 change:
+                        time:   [+51.589% +83.776% +118.53%] (p = 0.00 < 0.05)
+                        thrpt:  [−54.239% −45.586% −34.032%]
+                        Performance has regressed.
+Benchmarking pacmap_knn/manifolds_hnsw/n250000_d20
+Benchmarking pacmap_knn/manifolds_hnsw/n250000_d20: Warming up for 2.0000 s
+
+Warning: Unable to complete 15 samples in 8.0s. You may wish to increase target time to 202.1s, or reduce sample count to 10.
+Benchmarking pacmap_knn/manifolds_hnsw/n250000_d20: Collecting 15 samples in estimated 202.08 s (15 iterations)
+Benchmarking pacmap_knn/manifolds_hnsw/n250000_d20: Analyzing
+pacmap_knn/manifolds_hnsw/n250000_d20
+                        time:   [10.733 s 11.535 s 12.288 s]
+                        thrpt:  [20.345 Kelem/s 21.672 Kelem/s 23.293 Kelem/s]
+                 change:
+                        time:   [+84.724% +97.952% +110.83%] (p = 0.00 < 0.05)
+                        thrpt:  [−52.567% −49.483% −45.865%]
+                        Performance has regressed.
+Benchmarking pacmap_knn/oxicuda_hnsw/n250000_d20
+Benchmarking pacmap_knn/oxicuda_hnsw/n250000_d20: Warming up for 2.0000 s
+
+Warning: Unable to complete 15 samples in 8.0s. You may wish to increase target time to 897.6s, or reduce sample count to 10.
+Benchmarking pacmap_knn/oxicuda_hnsw/n250000_d20: Collecting 15 samples in estimated 897.61 s (15 iterations)
+Benchmarking pacmap_knn/oxicuda_hnsw/n250000_d20: Analyzing
+pacmap_knn/oxicuda_hnsw/n250000_d20
+                        time:   [57.625 s 58.276 s 58.885 s]
+                        thrpt:  [4.2456 Kelem/s 4.2899 Kelem/s 4.3384 Kelem/s]
+Benchmarking pacmap_knn/flow_hnsw/n500000_d20
+Benchmarking pacmap_knn/flow_hnsw/n500000_d20: Warming up for 2.0000 s
+
+Warning: Unable to complete 15 samples in 8.0s. You may wish to increase target time to 471.5s, or reduce sample count to 10.
+Benchmarking pacmap_knn/flow_hnsw/n500000_d20: Collecting 15 samples in estimated 471.46 s (15 iterations)
+Benchmarking pacmap_knn/flow_hnsw/n500000_d20: Analyzing
+pacmap_knn/flow_hnsw/n500000_d20
+                        time:   [32.168 s 33.090 s 34.250 s]
+                        thrpt:  [14.598 Kelem/s 15.110 Kelem/s 15.543 Kelem/s]
+                 change:
+                        time:   [+53.103% +57.822% +62.985%] (p = 0.00 < 0.05)
+                        thrpt:  [−38.645% −36.638% −34.684%]
+                        Performance has regressed.
+Found 2 outliers among 15 measurements (13.33%)
+  1 (6.67%) high mild
+  1 (6.67%) high severe
+Benchmarking pacmap_knn/manifolds_hnsw/n500000_d20
+Benchmarking pacmap_knn/manifolds_hnsw/n500000_d20: Warming up for 2.0000 s
+
+Warning: Unable to complete 15 samples in 8.0s. You may wish to increase target time to 336.1s, or reduce sample count to 10.
+Benchmarking pacmap_knn/manifolds_hnsw/n500000_d20: Collecting 15 samples in estimated 336.09 s (15 iterations)
+Benchmarking pacmap_knn/manifolds_hnsw/n500000_d20: Analyzing
+pacmap_knn/manifolds_hnsw/n500000_d20
+                        time:   [23.016 s 23.350 s 23.678 s]
+                        thrpt:  [21.117 Kelem/s 21.413 Kelem/s 21.724 Kelem/s]
+                 change:
+                        time:   [+31.232% +43.607% +58.203%] (p = 0.00 < 0.05)
+                        thrpt:  [−36.790% −30.366% −23.799%]
+                        Performance has regressed.
+Benchmarking pacmap_knn/oxicuda_hnsw/n500000_d20
+Benchmarking pacmap_knn/oxicuda_hnsw/n500000_d20: Warming up for 2.0000 s
+
+Warning: Unable to complete 15 samples in 8.0s. You may wish to increase target time to 2163.9s, or reduce sample count to 10.
+Benchmarking pacmap_knn/oxicuda_hnsw/n500000_d20: Collecting 15 samples in estimated 2163.9 s (15 iterations)
+Benchmarking pacmap_knn/oxicuda_hnsw/n500000_d20: Analyzing
+pacmap_knn/oxicuda_hnsw/n500000_d20
+                        time:   [158.46 s 161.59 s 164.63 s]
+                        thrpt:  [3.0371 Kelem/s 3.0942 Kelem/s 3.1553 Kelem/s]
+
+
+thread 'main' (141514480) panicked at /Users/kfls271/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/criterion-0.8.2/src/benchmark_group.rs:97:9:
+assertion failed: n >= 10
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+error: bench failed, to rerun pass `-p flow-pacmap --bench pacmap_compare`

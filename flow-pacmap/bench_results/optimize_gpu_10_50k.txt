@@ -1,0 +1,26 @@
+    Finished `bench` profile [optimized] target(s) in 1.24s
+     Running benches/pacmap_optimize_gpu.rs (/var/folders/44/mj5sgh7n5h146_61ng7w39q00000gp/T/cursor-sandbox-cache/d60646c2271ca88daee427ff0e77718c/cargo-target/release/deps/pacmap_optimize_gpu-972c7580c53313fd)
+Gnuplot not found, using plotters backend
+Benchmarking pacmap_optimize_cpu_vs_gpu/cpu/n10000_d10
+Benchmarking pacmap_optimize_cpu_vs_gpu/cpu/n10000_d10: Warming up for 1.0000 s
+
+Warning: Unable to complete 10 samples in 25.0s. You may wish to increase target time to 30.6s or enable flat sampling.
+Benchmarking pacmap_optimize_cpu_vs_gpu/cpu/n10000_d10: Collecting 10 samples in estimated 30.650 s (55 iterations)
+Benchmarking pacmap_optimize_cpu_vs_gpu/cpu/n10000_d10: Analyzing
+pacmap_optimize_cpu_vs_gpu/cpu/n10000_d10
+                        time:   [471.66 ms 493.54 ms 522.75 ms]
+                        thrpt:  [19.130 Kelem/s 20.262 Kelem/s 21.202 Kelem/s]
+
+thread 'main' (143051563) panicked at /Users/kfls271/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/cubecl-wgpu-0.9.0/src/runtime.rs:395:14:
+No possible adapter available for backend. Falling back to first available.: NotFound { active_backends: Backends(METAL), requested_backends: Backends(METAL), supported_backends: Backends(VULKAN | METAL), no_fallback_backends: Backends(0x0), no_adapter_backends: Backends(METAL), incompatible_surface_backends: Backends(0x0) }
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+skipping GPU arm for n=10000: WGPU adapter init panicked: No possible adapter available for backend. Falling back to first available.: NotFound { active_backends: Backends(METAL), requested_backends: Backends(METAL), supported_backends: Backends(VULKAN | METAL), no_fallback_backends: Backends(0x0), no_adapter_backends: Backends(METAL), incompatible_surface_backends: Backends(0x0) }
+Benchmarking pacmap_optimize_cpu_vs_gpu/cpu/n50000_d10
+Benchmarking pacmap_optimize_cpu_vs_gpu/cpu/n50000_d10: Warming up for 1.0000 s
+Benchmarking pacmap_optimize_cpu_vs_gpu/cpu/n50000_d10: Collecting 10 samples in estimated 30.259 s (30 iterations)
+Benchmarking pacmap_optimize_cpu_vs_gpu/cpu/n50000_d10: Analyzing
+pacmap_optimize_cpu_vs_gpu/cpu/n50000_d10
+                        time:   [984.42 ms 1.0956 s 1.2187 s]
+                        thrpt:  [41.027 Kelem/s 45.638 Kelem/s 50.791 Kelem/s]
+skipping GPU arm for n=50000: WGPU adapter init panicked: No possible adapter available for backend. Falling back to first available.: NotFound { active_backends: Backends(METAL), requested_backends: Backends(METAL), supported_backends: Backends(VULKAN | METAL), no_fallback_backends: Backends(0x0), no_adapter_backends: Backends(METAL), incompatible_surface_backends: Backends(0x0) }
+

@@ -1,0 +1,35 @@
+    Blocking waiting for file lock on artifact directory
+   Compiling serde_core v1.0.229
+   Compiling serde v1.0.229
+   Compiling serde_json v1.0.151
+   Compiling ciborium v0.2.2
+   Compiling tinytemplate v1.2.1
+   Compiling flow-knn v0.1.0 (/Users/kfls271/Rust/flow-crates/flow-knn)
+   Compiling criterion v0.8.2
+   Compiling flow-pacmap v0.1.1 (/Users/kfls271/Rust/flow-crates/flow-pacmap)
+    Finished `bench` profile [optimized] target(s) in 14.84s
+     Running benches/pacmap_compare.rs (/var/folders/44/mj5sgh7n5h146_61ng7w39q00000gp/T/cursor-sandbox-cache/d60646c2271ca88daee427ff0e77718c/cargo-target/release/deps/pacmap_compare-30b5a542a9d6c1e2)
+Gnuplot not found, using plotters backend
+Benchmarking pacmap_fit_transform/flow_ann_fit_transform/n50000_d10
+Benchmarking pacmap_fit_transform/flow_ann_fit_transform/n50000_d10: Warming up for 1.0000 s
+Benchmarking pacmap_fit_transform/flow_ann_fit_transform/n50000_d10: Collecting 10 samples in estimated 73.581 s (20 iterations)
+Benchmarking pacmap_fit_transform/flow_ann_fit_transform/n50000_d10: Analyzing
+pacmap_fit_transform/flow_ann_fit_transform/n50000_d10
+                        time:   [2.8149 s 3.3994 s 4.0679 s]
+                        thrpt:  [12.291 Kelem/s 14.708 Kelem/s 17.763 Kelem/s]
+                 change:
+                        time:   [−67.210% −60.145% −51.612%] (p = 0.00 < 0.05)
+                        thrpt:  [+106.66% +150.91% +204.97%]
+                        Performance has improved.
+Found 1 outliers among 10 measurements (10.00%)
+  1 (10.00%) high mild
+Benchmarking pacmap_fit_transform/flow_ann_fit_transform/n50000_d20
+Benchmarking pacmap_fit_transform/flow_ann_fit_transform/n50000_d20: Warming up for 1.0000 s
+
+Warning: Unable to complete 10 samples in 45.0s. You may wish to increase target time to 51.6s.
+Benchmarking pacmap_fit_transform/flow_ann_fit_transform/n50000_d20: Collecting 10 samples in estimated 51.610 s (10 iterations)
+Benchmarking pacmap_fit_transform/flow_ann_fit_transform/n50000_d20: Analyzing
+pacmap_fit_transform/flow_ann_fit_transform/n50000_d20
+                        time:   [2.1750 s 2.7706 s 3.4094 s]
+                        thrpt:  [14.665 Kelem/s 18.047 Kelem/s 22.988 Kelem/s]
+

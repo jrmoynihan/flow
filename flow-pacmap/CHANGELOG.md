@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+### New Features
+
+ - Staged KNN API: public `KnnGraph`, `compute_knn` → `KnnGraph`, and
+   optional `knn: Option<&KnnGraph>` on `fit_transform` so callers can build
+   the neighbour graph once and reuse it across configs.
+ - Depend on workspace crate `flow-knn` for algorithm-agnostic KNN (usearch
+   HNSW by default; optional `ann-search` feature for the ann-search-rs stack).
+
+### Breaking Changes
+
+ - `fit_transform` gains a `knn: Option<&KnnGraph>` argument after `config`
+   (pass `None` for previous one-shot behaviour).
+ - `compute_knn` now returns `Result<KnnGraph, PaCMAPError>` instead of
+   `Result<Vec<NeighborList>, PaCMAPError>`.
+ - Cargo features `hnsw` / `kdtree` now forward to `flow-knn`; add
+   `ann-search` to enable the ann-search-rs HNSW backend.
+
 ## 0.1.1 (2026-07-22)
 
 ### New Features

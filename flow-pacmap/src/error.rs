@@ -31,8 +31,33 @@ pub enum PaCMAPError {
     #[error("KNN index error: {0}")]
     KnnIndex(String),
 
+    #[error(
+        "KNN graph size mismatch: graph has n={graph_n} (neighbors len {neighbors_len}), \
+         data has n={data_n}"
+    )]
+    KnnGraphSizeMismatch {
+        graph_n: usize,
+        neighbors_len: usize,
+        data_n: usize,
+    },
+
+    #[error(
+        "KNN graph k={graph_k} is too small for PaCMAP; need at least {required_k} \
+         (n_neighbors + 50, capped by n − 1)"
+    )]
+    KnnGraphInsufficientK { graph_k: usize, required_k: usize },
+
+    #[error("KNN graph metric {graph:?} does not match config metric {config:?}")]
+    KnnGraphMetricMismatch {
+        graph: crate::config::DistanceMetric,
+        config: crate::config::DistanceMetric,
+    },
+
     #[error("PCA failed: {0}")]
     Pca(String),
+
+    #[error("GPU optimize error: {0}")]
+    Gpu(String),
 
     #[error("Run cancelled by caller")]
     Cancelled,

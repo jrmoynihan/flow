@@ -1,96 +1,25 @@
 //! Configuration types for a PaCMAP embedding run.
 
+pub use flow_knn::{DistanceMetric, HnswParams, KnnMethod, Quantization};
+
 /// Initialisation strategy for the 2-D embedding.
 #[derive(Debug, Clone)]
 pub enum Init {
     /// PCA projection onto the top-2 principal components (default).
-    /// Faster convergence; more stable global structure.
     Pca,
     /// Draw from N(0, 10⁻⁴ · I) with an optional seed.
     Random(Option<u64>),
 }
 
-/// Approximate nearest-neighbour method used during graph construction.
-#[derive(Debug, Clone)]
-pub enum KnnMethod {
-    /// HNSW via usearch v2.25 (C++ FFI, hardware SIMD) — **default**.
-    /// Sub-linear query time; ~40–80 bytes/node overhead; optional f16 quantization.
-    #[cfg(feature = "hnsw")]
-    Hnsw(HnswParams),
-
-    /// Exact brute-force O(n·(n+50)·d).
-    /// Correctness baseline; practical only for n < ~50 K.
-    Exact,
-
-    /// k-d tree via `kiddo` v5 (pure Rust, exact).
-    /// Best for d < 10, n < 1M; degrades for high-dimensional flow data.
-    #[cfg(feature = "kdtree")]
-    KdTree,
-
-    /// Annoy — reserved placeholder; returns `PaCMAPError::MethodNotImplemented`.
-    Annoy,
-}
-
-impl Default for KnnMethod {
-    fn default() -> Self {
-        #[cfg(feature = "hnsw")]
-        return Self::Hnsw(HnswParams::default());
-        #[cfg(not(feature = "hnsw"))]
-        return Self::Exact;
-    }
-}
-
-/// Quality/memory trade-off parameters for the HNSW index.
-#[derive(Debug, Clone)]
-pub struct HnswParams {
-    /// Graph connectivity (M). Higher = better recall, more memory.
-    /// Default 16; range 8–64.
-    pub m: usize,
-    /// Build-time candidate set size. Higher = better index quality, slower build.
-    /// Default 200.
-    pub ef_construction: usize,
-    /// Query-time candidate set size. Higher = better recall, slower query.
-    /// Default 50.
-    pub ef_search: usize,
-    /// Index vector quantization. `F16` halves memory at ~1% recall cost.
-    pub quantization: Quantization,
-}
-
-impl Default for HnswParams {
-    fn default() -> Self {
-        Self {
-            m: 16,
-            ef_construction: 200,
-            ef_search: 50,
-            quantization: Quantization::F32,
-        }
-    }
-}
-
-/// Vector quantization for the HNSW index storage.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum Quantization {
-    /// 32-bit float — lossless, full precision (default).
+/// Backend for the Adam + pair-gradient optimize loop.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum OptimizeBackend {
+    /// Rayon CPU path (default).
     #[default]
-    F32,
-    /// 16-bit float — ~50% memory reduction, ~1% recall loss.
-    F16,
-    /// 8-bit integer — ~75% memory reduction, ~3–5% recall loss.
-    I8,
-}
-
-/// Distance metric for the KNN graph and sigma normalisation.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum DistanceMetric {
-    /// Euclidean (L2) — default; sigma normalisation is in L2 space.
-    #[default]
-    Euclidean,
-    /// Squared Euclidean (L2²) — avoids sqrt; identical ranking to L2.
-    EuclideanSq,
-    /// Cosine similarity distance — for normalised or spectral data.
-    Cosine,
-    /// Manhattan (L1).
-    Manhattan,
+    Cpu,
+    /// cubeCL CSR gradients + Burn Adam via wgpu (requires the `cubecl` feature and a WGPU adapter).
+    #[cfg(feature = "cubecl")]
+    Gpu,
 }
 
 /// Full configuration for a `fit_transform` call.
@@ -108,12 +37,14 @@ pub struct PaCMAPConfig {
     pub learning_rate: f32,
     /// Embedding initialisation. Default `Init::Pca`.
     pub init: Init,
-    /// Random seed for reproducible runs. Applies to Init::Random, mid-near/further sampling.
+    /// Random seed for reproducible runs.
     pub seed: Option<u64>,
-    /// KNN method. Default `KnnMethod::Hnsw(HnswParams::default())`.
+    /// KNN method. Default HNSW when the `hnsw` feature is enabled.
     pub knn_method: KnnMethod,
-    /// Distance metric. Default `DistanceMetric::Euclidean`.
+    /// Distance metric. Default Euclidean.
     pub distance_metric: DistanceMetric,
+    /// Optimize backend. Default [`OptimizeBackend::Cpu`].
+    pub optimize_backend: OptimizeBackend,
 }
 
 impl Default for PaCMAPConfig {
@@ -128,6 +59,7 @@ impl Default for PaCMAPConfig {
             seed: None,
             knn_method: KnnMethod::default(),
             distance_metric: DistanceMetric::default(),
+            optimize_backend: OptimizeBackend::default(),
         }
     }
 }

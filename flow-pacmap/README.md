@@ -44,10 +44,33 @@ let embedding = fit_transform(
     n,
     d,
     PaCMAPConfig::default(),
+    None, // precomputed KnnGraph (None = compute internally)
     None, // progress channel
     None, // cancel token
 )?;
 ```
+
+## Staged KNN (reuse across runs)
+
+Compute the neighbour graph once, then pass it into one or more embeddings:
+
+```rust
+use flow_pacmap::{
+    compute_knn, fit_transform, DistanceMetric, KnnGraph, KnnMethod, PaCMAPConfig,
+};
+
+let config = PaCMAPConfig {
+    knn_method: KnnMethod::Exact,
+    ..PaCMAPConfig::default()
+};
+let k = KnnGraph::required_k_for_pacmap(n, config.n_neighbors);
+let knn = compute_knn(&data, n, d, k, &config.knn_method, DistanceMetric::Euclidean)?;
+
+let emb_a = fit_transform(&data, n, d, config.clone(), Some(&knn), None, None)?;
+let emb_b = fit_transform(&data, n, d, config, Some(&knn), None, None)?;
+```
+
+`KnnGraph` stores indices and distances only; pair construction stays inside PaCMAP.
 
 ## References
 

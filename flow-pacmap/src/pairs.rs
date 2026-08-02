@@ -135,7 +135,7 @@ pub fn build_pairs(
     // For each i: sample n_fp random non-neighbour points.
     // Build a set of near-neighbour indices per point for rejection sampling.
     let mut further: Vec<[u32; 2]> = Vec::with_capacity(cap_fp);
-    for i in 0..n {
+    for (i, _) in knn.iter().enumerate().take(n) {
         let mut rng = SmallRng::seed_from_u64(
             base_seed
                 .wrapping_add(i as u64)
@@ -164,7 +164,11 @@ pub fn build_pairs(
         }
     }
 
-    Ok(Pairs { near, mid_near, further })
+    Ok(Pairs {
+        near,
+        mid_near,
+        further,
+    })
 }
 
 /// Sample 6 distinct random indices in [0, max) excluding `exclude`.
@@ -189,9 +193,7 @@ mod tests {
     fn make_knn(n: usize, k: usize) -> Vec<NeighborList> {
         (0..n)
             .map(|i| NeighborList {
-                indices: (0..k)
-                    .map(|t| ((i + t + 1) % n) as u32)
-                    .collect(),
+                indices: (0..k).map(|t| ((i + t + 1) % n) as u32).collect(),
                 distances: vec![1.0; k],
             })
             .collect()

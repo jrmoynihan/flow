@@ -1,0 +1,10 @@
+   Compiling flow-knn v0.1.0 (/Users/kfls271/Rust/flow-crates/flow-knn)
+   Compiling flow-pacmap v0.1.1 (/Users/kfls271/Rust/flow-crates/flow-pacmap)
+    Finished `bench` profile [optimized] target(s) in 4.91s
+     Running benches/pacmap_compare.rs (/var/folders/44/mj5sgh7n5h146_61ng7w39q00000gp/T/cursor-sandbox-cache/d60646c2271ca88daee427ff0e77718c/cargo-target/release/deps/pacmap_compare-be0d9711194dd4a5)
+Gnuplot not found, using plotters backend
+
+thread 'main' (141635331) panicked at /Users/kfls271/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/criterion-0.8.2/src/benchmark_group.rs:97:9:
+assertion failed: n >= 10
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+error: bench failed, to rerun pass `-p flow-pacmap --bench pacmap_compare`

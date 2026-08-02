@@ -1,0 +1,23 @@
+   Compiling flow-pacmap v0.1.1 (/Users/kfls271/Rust/flow-crates/flow-pacmap)
+    Finished `bench` profile [optimized] target(s) in 3.60s
+     Running benches/pacmap_optimize_gpu.rs (/var/folders/44/mj5sgh7n5h146_61ng7w39q00000gp/T/cursor-sandbox-cache/d60646c2271ca88daee427ff0e77718c/cargo-target/release/deps/pacmap_optimize_gpu-972c7580c53313fd)
+Gnuplot not found, using plotters backend
+Benchmarking pacmap_optimize_cpu_vs_gpu/cpu/n2000_d10
+Benchmarking pacmap_optimize_cpu_vs_gpu/cpu/n2000_d10: Warming up for 1.0000 s
+Benchmarking pacmap_optimize_cpu_vs_gpu/cpu/n2000_d10: Collecting 10 samples in estimated 3.0666 s (330 iterations)
+Benchmarking pacmap_optimize_cpu_vs_gpu/cpu/n2000_d10: Analyzing
+pacmap_optimize_cpu_vs_gpu/cpu/n2000_d10
+                        time:   [9.3869 ms 9.5619 ms 9.8241 ms]
+                        thrpt:  [203.58 Kelem/s 209.16 Kelem/s 213.06 Kelem/s]
+                 change:
+                        time:   [−6.0582% −1.6724% +3.6866%] (p = 0.54 > 0.05)
+                        thrpt:  [−3.5555% +1.7009% +6.4489%]
+                        No change in performance detected.
+Found 1 outliers among 10 measurements (10.00%)
+  1 (10.00%) high mild
+
+thread 'main' (143049954) panicked at /Users/kfls271/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/cubecl-wgpu-0.9.0/src/runtime.rs:395:14:
+No possible adapter available for backend. Falling back to first available.: NotFound { active_backends: Backends(METAL), requested_backends: Backends(METAL), supported_backends: Backends(VULKAN | METAL), no_fallback_backends: Backends(0x0), no_adapter_backends: Backends(METAL), incompatible_surface_backends: Backends(0x0) }
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+skipping GPU arm for n=2000: WGPU adapter init panicked: No possible adapter available for backend. Falling back to first available.: NotFound { active_backends: Backends(METAL), requested_backends: Backends(METAL), supported_backends: Backends(VULKAN | METAL), no_fallback_backends: Backends(0x0), no_adapter_backends: Backends(METAL), incompatible_surface_backends: Backends(0x0) }
+

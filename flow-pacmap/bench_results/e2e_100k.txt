@@ -1,0 +1,31 @@
+   Compiling flow-knn v0.1.0 (/Users/kfls271/Rust/flow-crates/flow-knn)
+   Compiling flow-pacmap v0.1.1 (/Users/kfls271/Rust/flow-crates/flow-pacmap)
+    Finished `bench` profile [optimized] target(s) in 6.26s
+     Running benches/pacmap_compare.rs (/var/folders/44/mj5sgh7n5h146_61ng7w39q00000gp/T/cursor-sandbox-cache/d60646c2271ca88daee427ff0e77718c/cargo-target/release/deps/pacmap_compare-30b5a542a9d6c1e2)
+Gnuplot not found, using plotters backend
+Benchmarking pacmap_fit_transform/flow_fit_transform/n100000_d15
+Benchmarking pacmap_fit_transform/flow_fit_transform/n100000_d15: Warming up for 1.0000 s
+Benchmarking pacmap_fit_transform/flow_fit_transform/n100000_d15: Collecting 10 samples in estimated 57.996 s (20 iterations)
+Benchmarking pacmap_fit_transform/flow_fit_transform/n100000_d15: Analyzing
+pacmap_fit_transform/flow_fit_transform/n100000_d15
+                        time:   [2.8674 s 2.9724 s 3.0957 s]
+                        thrpt:  [32.303 Kelem/s 33.643 Kelem/s 34.874 Kelem/s]
+Benchmarking pacmap_fit_transform/flow_ann_fit_transform/n100000_d15
+Benchmarking pacmap_fit_transform/flow_ann_fit_transform/n100000_d15: Warming up for 1.0000 s
+Benchmarking pacmap_fit_transform/flow_ann_fit_transform/n100000_d15: Collecting 10 samples in estimated 70.874 s (20 iterations)
+Benchmarking pacmap_fit_transform/flow_ann_fit_transform/n100000_d15: Analyzing
+pacmap_fit_transform/flow_ann_fit_transform/n100000_d15
+                        time:   [3.6059 s 3.7316 s 3.8697 s]
+                        thrpt:  [25.842 Kelem/s 26.799 Kelem/s 27.732 Kelem/s]
+Benchmarking pacmap_fit_transform/manifolds_pacmap/n100000_d15
+Benchmarking pacmap_fit_transform/manifolds_pacmap/n100000_d15: Warming up for 1.0000 s
+
+Warning: Unable to complete 10 samples in 45.0s. You may wish to increase target time to 77.7s.
+Benchmarking pacmap_fit_transform/manifolds_pacmap/n100000_d15: Collecting 10 samples in estimated 77.654 s (10 iterations)
+Benchmarking pacmap_fit_transform/manifolds_pacmap/n100000_d15: Analyzing
+pacmap_fit_transform/manifolds_pacmap/n100000_d15
+                        time:   [7.2235 s 8.6264 s 10.816 s]
+                        thrpt:  [9.2451 Kelem/s 11.592 Kelem/s 13.844 Kelem/s]
+Found 1 outliers among 10 measurements (10.00%)
+  1 (10.00%) high severe
+

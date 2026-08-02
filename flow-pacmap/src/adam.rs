@@ -24,7 +24,7 @@ impl AdamState {
 ///
 /// `t` is the 1-indexed iteration number (used for bias correction).
 pub fn adam_step(
-    embedding: &mut Vec<[f32; 2]>,
+    embedding: &mut [[f32; 2]],
     grad: &[[f32; 2]],
     state: &mut AdamState,
     t: usize,

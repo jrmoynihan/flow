@@ -1,0 +1,65 @@
+   Compiling flow-pacmap v0.1.1 (/Users/kfls271/Rust/flow-crates/flow-pacmap)
+    Finished `bench` profile [optimized] target(s) in 2.31s
+     Running benches/pacmap_optimize_gpu.rs (/var/folders/44/mj5sgh7n5h146_61ng7w39q00000gp/T/cursor-sandbox-cache/d60646c2271ca88daee427ff0e77718c/cargo-target/release/deps/pacmap_optimize_gpu-e5de30282fbf1812)
+Gnuplot not found, using plotters backend
+Benchmarking pacmap_optimize_cpu_vs_gpu/cpu/n10000_d10
+Benchmarking pacmap_optimize_cpu_vs_gpu/cpu/n10000_d10: Warming up for 1.0000 s
+
+Warning: Unable to complete 10 samples in 30.0s. You may wish to increase target time to 35.1s or enable flat sampling.
+Benchmarking pacmap_optimize_cpu_vs_gpu/cpu/n10000_d10: Collecting 10 samples in estimated 35.100 s (55 iterations)
+Benchmarking pacmap_optimize_cpu_vs_gpu/cpu/n10000_d10: Analyzing
+pacmap_optimize_cpu_vs_gpu/cpu/n10000_d10
+                        time:   [633.06 ms 637.42 ms 645.48 ms]
+                        thrpt:  [15.492 Kelem/s 15.688 Kelem/s 15.796 Kelem/s]
+                 change:
+                        time:   [+23.091% +27.223% +31.448%] (p = 0.00 < 0.05)
+                        thrpt:  [−23.925% −21.398% −18.759%]
+                        Performance has regressed.
+Found 1 outliers among 10 measurements (10.00%)
+  1 (10.00%) high severe
+Benchmarking pacmap_optimize_cpu_vs_gpu/gpu/n10000_d10
+Benchmarking pacmap_optimize_cpu_vs_gpu/gpu/n10000_d10: Warming up for 1.0000 s
+Benchmarking pacmap_optimize_cpu_vs_gpu/gpu/n10000_d10: Collecting 10 samples in estimated 35.190 s (20 iterations)
+Benchmarking pacmap_optimize_cpu_vs_gpu/gpu/n10000_d10: Analyzing
+pacmap_optimize_cpu_vs_gpu/gpu/n10000_d10
+                        time:   [1.6349 s 1.6400 s 1.6449 s]
+                        thrpt:  [6.0795 Kelem/s 6.0976 Kelem/s 6.1166 Kelem/s]
+Benchmarking pacmap_optimize_cpu_vs_gpu/cpu/n50000_d10
+Benchmarking pacmap_optimize_cpu_vs_gpu/cpu/n50000_d10: Warming up for 1.0000 s
+Benchmarking pacmap_optimize_cpu_vs_gpu/cpu/n50000_d10: Collecting 10 samples in estimated 30.178 s (20 iterations)
+Benchmarking pacmap_optimize_cpu_vs_gpu/cpu/n50000_d10: Analyzing
+pacmap_optimize_cpu_vs_gpu/cpu/n50000_d10
+                        time:   [1.4422 s 1.4579 s 1.4755 s]
+                        thrpt:  [33.887 Kelem/s 34.296 Kelem/s 34.670 Kelem/s]
+                 change:
+                        time:   [+19.563% +33.071% +48.339%] (p = 0.00 < 0.05)
+                        thrpt:  [−32.587% −24.852% −16.362%]
+                        Performance has regressed.
+Found 1 outliers among 10 measurements (10.00%)
+  1 (10.00%) high mild
+Benchmarking pacmap_optimize_cpu_vs_gpu/gpu/n50000_d10
+Benchmarking pacmap_optimize_cpu_vs_gpu/gpu/n50000_d10: Warming up for 1.0000 s
+Benchmarking pacmap_optimize_cpu_vs_gpu/gpu/n50000_d10: Collecting 10 samples in estimated 36.813 s (20 iterations)
+Benchmarking pacmap_optimize_cpu_vs_gpu/gpu/n50000_d10: Analyzing
+pacmap_optimize_cpu_vs_gpu/gpu/n50000_d10
+                        time:   [1.8035 s 1.8146 s 1.8281 s]
+                        thrpt:  [27.351 Kelem/s 27.554 Kelem/s 27.723 Kelem/s]
+Found 2 outliers among 10 measurements (20.00%)
+  1 (10.00%) high mild
+  1 (10.00%) high severe
+Benchmarking pacmap_optimize_cpu_vs_gpu/cpu/n100000_d15
+Benchmarking pacmap_optimize_cpu_vs_gpu/cpu/n100000_d15: Warming up for 1.0000 s
+Benchmarking pacmap_optimize_cpu_vs_gpu/cpu/n100000_d15: Collecting 10 samples in estimated 45.276 s (20 iterations)
+Benchmarking pacmap_optimize_cpu_vs_gpu/cpu/n100000_d15: Analyzing
+pacmap_optimize_cpu_vs_gpu/cpu/n100000_d15
+                        time:   [2.1835 s 2.2098 s 2.2405 s]
+                        thrpt:  [44.633 Kelem/s 45.253 Kelem/s 45.798 Kelem/s]
+Benchmarking pacmap_optimize_cpu_vs_gpu/gpu/n100000_d15
+Benchmarking pacmap_optimize_cpu_vs_gpu/gpu/n100000_d15: Warming up for 1.0000 s
+Benchmarking pacmap_optimize_cpu_vs_gpu/gpu/n100000_d15: Collecting 10 samples in estimated 42.863 s (20 iterations)
+Benchmarking pacmap_optimize_cpu_vs_gpu/gpu/n100000_d15: Analyzing
+pacmap_optimize_cpu_vs_gpu/gpu/n100000_d15
+                        time:   [2.1784 s 2.2357 s 2.2998 s]
+                        thrpt:  [43.481 Kelem/s 44.728 Kelem/s 45.905 Kelem/s]
+
+PACMAP_EXIT:0

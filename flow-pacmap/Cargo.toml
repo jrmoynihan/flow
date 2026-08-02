@@ -12,29 +12,43 @@ categories = ["science", "algorithms", "mathematics"]
 
 [features]
 default = ["hnsw", "kdtree"]
-# HNSW approximate nearest-neighbor via usearch (C++ FFI, hardware SIMD)
-hnsw   = ["dep:usearch"]
-# k-d tree exact search via kiddo (pure Rust, good for d < 10, n < 1M)
-kdtree = ["dep:kiddo"]
+hnsw = ["flow-knn/hnsw"]
+kdtree = ["flow-knn/kdtree"]
+# Match manifolds-rs HNSW stack (ann-search-rs) for A/B and production use
+ann-search = ["flow-knn/ann-search"]
+# Burn (device + Adam) + raw cubeCL CSR pair-gradient kernel via wgpu
+cubecl = ["dep:cubecl", "dep:burn", "dep:bytemuck"]
+# GPU kNN via flow-knn (ann-search-rs + cubeCL); pairs with `cubecl` for optimize
+gpu-knn = ["flow-knn/gpu", "ann-search"]
 
 [dependencies]
-faer      = { workspace = true }
-rayon     = { workspace = true }
+faer = { workspace = true }
+rayon = { workspace = true }
 thiserror = { workspace = true }
-rand      = { workspace = true }
-
-[dependencies.usearch]
-version          = "2.25"
-features         = ["simsimd"]  # enables SIMD-accelerated distance computations
-default-features = false
-optional         = true
-
-[dependencies.kiddo]
-version  = "5"
-optional = true
+rand = { workspace = true }
+flow-knn = { path = "../flow-knn", default-features = false }
+cubecl = { workspace = true, optional = true }
+burn = { workspace = true, optional = true }
+bytemuck = { workspace = true, optional = true }
 
 [dev-dependencies]
 approx = { workspace = true }
+criterion = { workspace = true }
+manifolds-rs = "0.3.9"
+oxicuda-manifold = "0.5.1"
+rand = { workspace = true }
+# manifolds-rs pins faer 0.23; workspace uses 0.24 — isolate Mat construction for peer benches.
+faer23 = { package = "faer", version = "=0.23.2" }
+
+[[bench]]
+name = "pacmap_compare"
+harness = false
+required-features = ["ann-search"]
+
+[[bench]]
+name = "pacmap_optimize_gpu"
+harness = false
+required-features = ["cubecl", "ann-search"]
 
 [package.metadata.scripts]
 dry-release = "cargo smart-release flow-pacmap --update-crates-index"

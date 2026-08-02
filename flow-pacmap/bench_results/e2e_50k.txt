@@ -1,0 +1,45 @@
+   Compiling flow-pacmap v0.1.1 (/Users/kfls271/Rust/flow-crates/flow-pacmap)
+    Finished `bench` profile [optimized] target(s) in 5.21s
+     Running benches/pacmap_compare.rs (/var/folders/44/mj5sgh7n5h146_61ng7w39q00000gp/T/cursor-sandbox-cache/d60646c2271ca88daee427ff0e77718c/cargo-target/release/deps/pacmap_compare-be0d9711194dd4a5)
+Gnuplot not found, using plotters backend
+Benchmarking pacmap_fit_transform/flow_fit_transform/n50000_d10
+Benchmarking pacmap_fit_transform/flow_fit_transform/n50000_d10: Warming up for 1.0000 s
+
+Warning: Unable to complete 10 samples in 45.0s. You may wish to increase target time to 56.3s.
+Benchmarking pacmap_fit_tranBenchmarking pacmap_fit_transform/flow_fit_transform/n50000_d10: Analyzing
+pacmap_fit_transform/flow_fit_transform/n50000_d10
+                        time:   [6.0001 s 7.8014 s 9.6804 s]
+                        thrpt:  [5.1651 Kelem/s 6.4091 Kelem/s 8.3332 Kelem/s]
+                 change:
+                        time:   [−25.495% +12.775% +70.794%] (p = 0.58 > 0.05)
+                        thrpt:  [−41.450% −11.328% +34.220%]
+                        No change in performance detected.
+Benchmarking pacmap_fit_transform/manifolds_pacmap/n50000_d10
+Benchmarking pacmap_fit_transform/manifolds_pacmap/n50000_d10: Warming up for 1.0000 s
+
+Warning: Unable to complete 10 samples in 45.0s. You may wish to increase target time to 202.6s.
+Benchmarking pacmap_fit_transform/manifolds_pacmap/n50000_d10: Collecting 10 sBenchmarking pacmap_fit_transform/flow_ann_fiBenchmarking pacmap_fit_transform/manifolds_pacmap/n50000_d10: Analyzing
+pacmap_fit_transform/manifolds_pacmap/n50000_d10
+                        time:   [13.185 s 15.373 s 18.312 s]
+                        thrpt:  [2.7304 Kelem/s 3.2524 Kelem/s 3.7922 Kelem/s]
+Found 2 outliers among 10 measurements (20.00%)
+  2 (20.00%) high severe
+Benchmarking pacmap_fit_transform/oxicuda_pacmap/n50000_d10
+Benchmarking pacmap_fit_transform/oxicuda_pacmap/n50000_d10: Warming up for 1.0000 s
+
+Warning: Unable to complete 10 samples in 45.0s. You may wish to increase target time to 1095.2s.
+Benchmarking pacmap_fit_transform/oxicuda_pacmap/n50000_d10: Collecting 10 samples in estimated 1095.2 s (10 iterations)
+Benchmarking pacmap_fit_transform/oxicuda_pacmap/n50000_d10: Analyzing
+pacmap_fit_transform/oxicuda_pacmap/n50000_d10
+                        time:   [66.704 s 66.964 s 67.205 s]
+                        thrpt:  [743.99  elem/s 746.67  elem/s 749.58  elem/s]
+Found 1 outliers among 10 measurements (10.00%)
+  1 (10.00%) low mild
+
+%]
+                        No change in performance detected.
+Found 3 outliers among 10 measurements (30.00%)
+  1 (10.00%) low mild
+  1 (10.00%) high mild
+  1 (10.00%) high severe
+
