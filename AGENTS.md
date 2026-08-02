@@ -79,26 +79,32 @@ After completing the code, ask the user if they want a playground link. Only cal
 
 ## Learned User Preferences
 
-- When writing or editing this codebase, do not describe implementations as derived from or inspired by a named third-party tool or publication in code comments, API documentation, commit messages, or user-facing copy; use neutral technical descriptions of behavior instead.
+- Avoid marketing-style “inspired by / derived from Tool X” wording in comments, docs, commits, and user-facing copy; describe behavior in neutral technical terms. Do credit academic papers and authors properly for algorithm reimplementations (citations in crate docs and READMEs)—do not strip scholarly attribution.
+- When exposing library configuration to callers, prefer making all underlying options available, with sensible defaults, rather than a minimal subset.
 - For TRU-OLS performance and benchmarking, prioritize large event counts (on the order of tens of thousands to roughly one million events per file); very small event sizes are not the main optimization target.
 - When comparing TRU-OLS to ordinary least squares, treat quality metrics (for example rSD, coefficient of variation, RMSE) as the primary comparison; speed or throughput is secondary.
 - For TRU-OLS performance work (profiling, throughput, GPU experiments), prioritize before-and-after comparisons on TRU-OLS itself; head-to-head unmix speed versus plain OLS is useful but secondary.
+- Prefer cross-platform GPU stacks (cubeCL/wgpu, and Burn where it fits) over CUDA-only paths; compile-time and dependency weight are acceptable when they improve multi-platform support. Use Burn for device/Adam-style plumbing and raw cubeCL where custom kernels win; keep Burn and cubeCL versions unified across crates.
+- Shared cross-algorithm primitives (KNN/HNSW/ANN and similar) should live in dedicated crates, not only inside one algorithm crate such as `flow-pacmap`.
+- Keep filling realistic n×d performance matrices so callers can eventually auto-select the best method for a workload; scale CPU vs GPU benches enough to show behavior under pressure.
+- Prefer composable typestate or capability markers over `Option`/`bool`-encoded invariants for verified pipeline states (version-aware FCS metadata, spillover-ready compensation, validated KNN graphs for PaCMAP, and similar).
 
 ---
 
 ## Learned Workspace Facts
 
 - Older guidance to exclude the TRU-OLS CLI from workspace builds is obsolete; `tru-ols-cli` is a normal workspace member and the Cargo package name is `tru-ols`.
+- `flow-knn` is the shared KNN/ANN crate; `flow-pacmap` stages embedding with `compute_knn` → reusable `KnnGraph` and `fit_transform(Option<&KnnGraph>)` so callers can share one graph across embeddings or later algorithms.
+- The primary consumer app `fast-flow` (`~/Rust/fast-flow`) depends on these crates via path deps in `src-tauri/Cargo.toml`; updating `flow-crates/Cargo.lock` alone does not change what `fast-flow` builds (it has its own lockfile).
 - `FLOW_TRU_OLS_FORCE_SEQUENTIAL=1` disables Rayon for independent-event loops and for `TruOls::unmix` (useful for A/B profiling vs parallel builds). Independent-event paths use Rayon when there are more than 256 events; `unmix` uses Rayon above 10_000 events. When benchmarking outer Rayon together with a multithreaded BLAS backend, set `OMP_NUM_THREADS=1` (and vendor-specific BLAS thread limits) unless nested parallelism is intentional, to reduce oversubscription.
 - For `tru-ols unmix` when `--stained` is a directory, `TRU_OLS_BATCH_SHARED_FACTOR_CACHE` selects a shared mask-factor cache across stained files (default) or a fresh cache per file (`0`/`false`/`no`) for A/B timing; pair with `OMP_NUM_THREADS=1` when benchmarking alongside multithreaded BLAS.
 - TRU-OLS **vs** plain OLS **quality** (spread, fit, USE, dimensionality) is evaluated with `run_comparison` / `ComparisonReport`, `comparison_report_markdown`, or `cargo run -p flow-tru-ols --no-default-features --example quality_comparison_report`; Criterion benches measure **throughput**, not that quality comparison.
 - TRU-OLS **profiling** and A/B notes live in `tru-ols/docs/PROFILING.md`; end-to-end hot-path sampling uses the `profile_hot_path` example mode `tru_ols_unmix`. On macOS, **samply** is documented when `cargo flamegraph` trace collapse fails.
-- Optional GPU paths in `flow-tru-ols` are behind the `cubecl` Cargo feature (WGPU). GPU-related benches and `profile_hot_path` modes such as `normal_equations_gpu` need `--no-default-features --features cubecl` and may fail without a suitable GPU adapter (similar to other WGPU usage).
-- `tru-ols/docs/comparison-with-julia.md` and `tru-ols-cli/examples/compare_with_julia.rs` validate numerical agreement (CSVs) and can emit wall-clock throughput sidecars (`throughput_rust.json`, `throughput_julia.json`, `throughput_report.md`, `julia_blas_info.txt`) for same-input runs; there is no fixed CI regression for Rust-vs-Julia timing—document machine, BLAS, and thread-related env when publishing numbers. For Rust wall times comparable to typical optimized Julia runs, use `cargo run --release --example compare_with_julia`; dev/debug builds are not representative of hot-path performance.
-- `tru-ols/docs/julia-and-blas-on-macos.md` supplements the comparison doc with Julia REPL basics (e.g. `using LinearAlgebra` before `BLAS.get_config()`), BLAS/JLL inspection, and native/LLVM inspection notes useful when comparing Julia and Rust builds on Apple Silicon.
+- Optional GPU paths use cubeCL/WGPU (`flow-tru-ols` behind the `cubecl` feature). Workspace direction is Burn + cubeCL 0.10-class stacks (Burn for Adam/device plumbing; raw cubeCL for custom sparse kernels such as PaCMAP pair gradients). GPU benches and modes like `normal_equations_gpu` need suitable adapters and may fail without one.
+- `tru-ols/docs/comparison-with-julia.md`, `tru-ols-cli/examples/compare_with_julia.rs`, and `tru-ols/docs/julia-and-blas-on-macos.md` cover Rust–Julia numerical agreement, optional throughput sidecars, and macOS BLAS/REPL inspection; no fixed CI timing regression—document machine, BLAS, and threads when publishing. Use `cargo run --release --example compare_with_julia` for representative wall times; the example takes four positional paths only (stained FCS, unstained FCS, controls directory, output directory)—flag-style tokens are treated as literal paths.
 - `TruOls::unmix` runs a variable inner loop (repeated least-squares solves on shrinking column subsets until cutoffs stabilize), not a fixed two-pass workflow; comparing throughput to single-factorization OLS paths only makes sense when solver paths and per-event iteration counts are aligned.
-- The `compare_with_julia` example takes four positional paths only (stained FCS, unstained FCS, reference controls directory, output directory); it does not parse `--controls_dir` or `--output_dir`, and passing those tokens as arguments is treated as literal paths and produces confusing errors.
 - In `flow-tru-ols`, the optional Cargo `blas` feature pins `ndarray` to 0.17.x in `tru-ols/Cargo.toml` so it matches `ndarray-linalg`; other workspace crates may use `ndarray` 0.16—do not assume one shared version when fixing trait or dependency errors for `--features flow-fcs,blas`.
+- FCS `$TOT` is not required on FCS 2.0; version-specific required keywords apply when modeling metadata completeness (see `fcs/src/version.rs`).
 
 <!-- BEGIN BEADS INTEGRATION v:1 profile:minimal hash:970c3bf2 -->
 ## Beads Issue Tracker
