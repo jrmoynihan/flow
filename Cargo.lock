@@ -3211,6 +3211,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "flow-dimensional-reduction"
+version = "0.1.0"
+dependencies = [
+ "approx",
+ "faer 0.24.4",
+ "thiserror 2.0.19",
+]
+
+[[package]]
 name = "flow-fcs"
 version = "0.4.1"
 dependencies = [

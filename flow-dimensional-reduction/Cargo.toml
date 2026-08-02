@@ -1,0 +1,16 @@
+[package]
+name = "flow-dimensional-reduction"
+version = "0.1.0"
+edition.workspace = true
+authors.workspace = true
+license = "MIT"
+description = "Dimensionality reduction primitives for flow cytometry: faer-based PCA"
+keywords = ["flow-cytometry", "pca", "dimensionality-reduction", "faer"]
+categories = ["science"]
+
+[dependencies]
+faer = { workspace = true }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+approx = { workspace = true }
