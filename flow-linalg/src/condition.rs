@@ -10,11 +10,15 @@ pub struct ConditionMetrics {
     pub singular: bool,
 }
 
-/// Compute κ₂ and complexity for a square `f64` matrix via SVD.
+/// Compute κ₂ and complexity for a (possibly rectangular) `f64` matrix via SVD.
+///
+/// For an m×n mixing matrix, κ₂ = σ_max / σ_min over the nonzero singular values
+/// (same 2-norm condition used for square spillover matrices).
 pub fn condition_metrics(matrix: MatRef<'_, f64>) -> Result<ConditionMetrics, String> {
-    let n = matrix.nrows();
-    if n == 0 || matrix.ncols() != n {
-        return Err("condition metrics require a non-empty square matrix".into());
+    let m = matrix.nrows();
+    let n = matrix.ncols();
+    if m == 0 || n == 0 {
+        return Err("condition metrics require a non-empty matrix".into());
     }
     let sigma = matrix
         .singular_values()
@@ -42,13 +46,14 @@ pub fn condition_metrics(matrix: MatRef<'_, f64>) -> Result<ConditionMetrics, St
     })
 }
 
-/// Compute κ₂ and complexity for a square `f32` matrix (promotes to f64 for SVD).
+/// Compute κ₂ and complexity for a (possibly rectangular) `f32` matrix (promotes to f64 for SVD).
 pub fn condition_metrics_f32(matrix: MatRef<'_, f32>) -> Result<ConditionMetrics, String> {
-    let n = matrix.nrows();
-    if n == 0 || matrix.ncols() != n {
-        return Err("condition metrics require a non-empty square matrix".into());
+    let m = matrix.nrows();
+    let n = matrix.ncols();
+    if m == 0 || n == 0 {
+        return Err("condition metrics require a non-empty matrix".into());
     }
-    let owned = faer::Mat::<f64>::from_fn(n, n, |i, j| f64::from(matrix[(i, j)]));
+    let owned = faer::Mat::<f64>::from_fn(m, n, |i, j| f64::from(matrix[(i, j)]));
     condition_metrics(owned.as_ref())
 }
 
@@ -78,5 +83,15 @@ mod tests {
         let m = Mat::<f32>::from_fn(2, 2, |i, j| if i == j { 1.0 } else { 0.0 });
         let metrics = condition_metrics_f32(m.as_ref()).expect("metrics");
         assert!((metrics.condition_number - 1.0).abs() < 1e-5);
+    }
+
+    #[test]
+    fn tall_rectangular_is_finite() {
+        // 3 detectors × 2 endmembers (normalized-ish columns).
+        let m = Mat::<f64>::from_fn(3, 2, |i, j| if i == j { 1.0 } else { 0.1 });
+        let metrics = condition_metrics(m.as_ref()).expect("metrics");
+        assert!(!metrics.singular);
+        assert!(metrics.condition_number.is_finite());
+        assert!(metrics.condition_number >= 1.0);
     }
 }
