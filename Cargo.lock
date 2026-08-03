@@ -3312,6 +3312,7 @@ version = "0.1.1"
 dependencies = [
  "ann-search-rs",
  "approx",
+ "bytemuck",
  "criterion 0.8.2",
  "cubecl",
  "faer 0.23.2",

@@ -50,3 +50,7 @@ lz4-baseline = ["dep:lz4_flex"]
 [[bench]]
 name = "codec_bench"
 harness = false
+
+[[bench]]
+name = "byte_stream_split"
+harness = false

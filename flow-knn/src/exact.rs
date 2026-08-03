@@ -26,6 +26,9 @@ pub(crate) fn dist(a: &[f32], b: &[f32], metric: DistanceMetric) -> f32 {
 }
 
 /// Exact k-NN for all `n` points in row-major `data`.
+///
+/// Note: `get_unchecked` row slices were A/B'd (see `docs/PERF_MATRIX.md`) and
+/// did not meet the ≥5% keep rule at 10k×20; safe indexing kept.
 pub fn exact_knn(
     data: &[f32],
     n: usize,

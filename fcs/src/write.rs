@@ -629,16 +629,7 @@ pub(crate) fn serialize_metadata(
 }
 
 fn serialize_data(df: &DataFrame, metadata: &Metadata) -> Result<Vec<u8>> {
-    let n_events = df.height();
     let n_params = df.width();
-
-    // Get bytes per parameter from metadata
-    let bytes_per_param = metadata
-        .calculate_bytes_per_event()
-        .map(|bytes_per_event| bytes_per_event / n_params)
-        .unwrap_or(4); // Default to 4 bytes (float32)
-
-    let mut data = Vec::with_capacity(n_events * n_params * bytes_per_param);
 
     // Get byte order
     let byte_order = metadata
@@ -662,12 +653,35 @@ fn serialize_data(df: &DataFrame, metadata: &Metadata) -> Result<Vec<u8>> {
         column_data.push(slice);
     }
 
-    // Write row by row
-    for row_idx in 0..n_events {
-        for col_data in &column_data {
-            let value = col_data[row_idx];
+    serialize_f32_columns(&column_data, is_little_endian)
+}
 
-            // Write as float32 (4 bytes)
+/// Row-major float32 DATA segment bytes from contiguous column slices.
+///
+/// Note: LE bytemuck single-buffer variants were A/B'd (see `fcs/docs/PERF_AB.md`)
+/// and did not meet the ≥5% keep rule at 1M×20; keep the endian writer path.
+#[doc(hidden)]
+pub fn serialize_f32_columns(column_data: &[&[f32]], is_little_endian: bool) -> Result<Vec<u8>> {
+    let n_params = column_data.len();
+    if n_params == 0 {
+        return Ok(Vec::new());
+    }
+    let n_events = column_data[0].len();
+    for (i, col) in column_data.iter().enumerate() {
+        if col.len() != n_events {
+            return Err(anyhow!(
+                "Column {} length {} != n_events {}",
+                i,
+                col.len(),
+                n_events
+            ));
+        }
+    }
+
+    let mut data = Vec::with_capacity(n_events * n_params * 4);
+    for row_idx in 0..n_events {
+        for col_data in column_data {
+            let value = col_data[row_idx];
             if is_little_endian {
                 data.write_f32::<LittleEndian>(value)?;
             } else {

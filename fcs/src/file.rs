@@ -108,6 +108,41 @@ pub struct Fcs {
     pub file_access: AccessWrapper,
 }
 
+/// Extract one parameter column from row-major flat `f32` event data.
+///
+/// FCS DATA is stored as `event0_p0, event0_p1, …, event1_p0, …`.
+///
+/// Note: a strided `get_unchecked` + `set_len` variant was A/B'd and regressed
+/// vs this iterator path (see `fcs/docs/PERF_AB.md`); keep the collect form.
+#[doc(hidden)]
+#[inline]
+pub fn extract_param_column(
+    f32_values: &[f32],
+    _n_events: usize,
+    n_params: usize,
+    param_idx: usize,
+) -> Vec<f32> {
+    f32_values
+        .iter()
+        .skip(param_idx)
+        .step_by(n_params)
+        .copied()
+        .collect()
+}
+
+/// De-interleave all parameter columns from row-major flat `f32` event data.
+#[doc(hidden)]
+#[inline]
+pub fn extract_all_param_columns(
+    f32_values: &[f32],
+    n_events: usize,
+    n_params: usize,
+) -> Vec<Vec<f32>> {
+    (0..n_params)
+        .map(|param_idx| extract_param_column(f32_values, n_events, n_params, param_idx))
+        .collect()
+}
+
 impl Fcs {
     /// Creates a new Fcs file struct
     /// # Errors
@@ -495,14 +530,12 @@ impl Fcs {
         let mut columns: Vec<Column> = Vec::with_capacity(*number_of_parameters);
 
         for param_idx in 0..*number_of_parameters {
-            // Extract this parameter's values across all events
-            // Use iterator with step_by for efficient stride access
-            let param_values: Vec<f32> = f32_values
-                .iter()
-                .skip(param_idx)
-                .step_by(*number_of_parameters)
-                .copied()
-                .collect();
+            let param_values = extract_param_column(
+                &f32_values,
+                *number_of_events,
+                *number_of_parameters,
+                param_idx,
+            );
 
             // Verify we got the right number of events
             assert_eq!(

@@ -504,6 +504,8 @@ impl TruOls {
         if crate::use_parallel_unmix(n_events) {
             use rayon::prelude::*;
 
+            // Note: SyncPtr direct scatter into `result` was A/B'd (see PROFILING.md)
+            // and did not meet the ≥5% wall-time keep rule at 100k events; gather path kept.
             let results: Result<Vec<_>, _> = (0..n_events)
                 .into_par_iter()
                 .map_init(

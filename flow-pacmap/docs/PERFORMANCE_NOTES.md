@@ -188,3 +188,12 @@ cargo bench -p flow-pacmap --features ann-search --bench pacmap_compare -- \
 FLOW_PACMAP_BENCH_MAX_N=100000 cargo bench -p flow-pacmap --features ann-search \
   --bench pacmap_compare -- pacmap_fit_transform
 ```
+
+## Unsafe A/B: gradient `get_unchecked`
+
+Protocol: [`docs/dev/UNSAFE_MICROOPT_AB.md`](../../docs/dev/UNSAFE_MICROOPT_AB.md).
+Bench: `cargo bench -p flow-pacmap --bench gradient_micro`.
+
+| Item | Status | Pre median | Post median | Delta | Primary size | Machine | rustc | Date | Notes |
+|------|--------|------------|-------------|-------|--------------|---------|-------|------|-------|
+| gradient_micro | reverted | 1.3294 ms | 1.4080 ms | +5.9% (regressed) | 50k points | arm64 Apple | 59807616e | 2026-08-02 | unchecked embedding + raw ptr grad writes slower; safe indexing kept |

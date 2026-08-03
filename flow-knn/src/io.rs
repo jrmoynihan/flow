@@ -154,15 +154,34 @@ pub fn read_knn_graph(path: &Path) -> Result<KnnGraph, KnnError> {
     let total = n
         .checked_mul(k)
         .ok_or_else(|| KnnError::Io("n*k overflow".to_string()))?;
-    let mut indices = vec![0u32; total];
-    for slot in &mut indices {
-        *slot = read_u32(&mut file)?;
-    }
-    let mut distances = vec![0f32; total];
-    for slot in &mut distances {
-        let bytes = read_exact_arr::<_, 4>(&mut file)?;
-        *slot = f32::from_le_bytes(bytes);
-    }
+    let byte_len = total
+        .checked_mul(4)
+        .ok_or_else(|| KnnError::Io("n*k*4 overflow".to_string()))?;
+
+    // Bulk-read packed LE payloads (one syscall each) then decode.
+    let mut idx_bytes = vec![0u8; byte_len];
+    file.read_exact(&mut idx_bytes)
+        .map_err(|e| KnnError::Io(e.to_string()))?;
+    let mut dist_bytes = vec![0u8; byte_len];
+    file.read_exact(&mut dist_bytes)
+        .map_err(|e| KnnError::Io(e.to_string()))?;
+
+    let (indices, distances) = if cfg!(target_endian = "little") {
+        // Native LE: reinterpret bytes as typed slices, then own the Vecs.
+        let indices = bytemuck::cast_slice::<u8, u32>(&idx_bytes).to_vec();
+        let distances = bytemuck::cast_slice::<u8, f32>(&dist_bytes).to_vec();
+        (indices, distances)
+    } else {
+        let indices: Vec<u32> = idx_bytes
+            .chunks_exact(4)
+            .map(|c| u32::from_le_bytes(c.try_into().unwrap()))
+            .collect();
+        let distances: Vec<f32> = dist_bytes
+            .chunks_exact(4)
+            .map(|c| f32::from_le_bytes(c.try_into().unwrap()))
+            .collect();
+        (indices, distances)
+    };
 
     let mut neighbors = Vec::with_capacity(n);
     for i in 0..n {

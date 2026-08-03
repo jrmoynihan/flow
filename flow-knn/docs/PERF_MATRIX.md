@@ -91,3 +91,24 @@ avoid faer). `exact_ok_factor` keeps exact when it is within that factor of the
 best ANN estimate (default `1.25`, and only for `n ≤ 80_000`).
 
 Also re-exported from `flow_pacmap::knn`.
+
+## Unsafe A/B: graph IO
+
+Protocol: [`docs/dev/UNSAFE_MICROOPT_AB.md`](../../docs/dev/UNSAFE_MICROOPT_AB.md).
+Bench: `cargo bench -p flow-knn --bench knn_graph_io`.
+
+| Item | Status | Pre median | Post median | Delta | Primary size | Machine | rustc | Date | Notes |
+|------|--------|------------|-------------|-------|--------------|---------|-------|------|-------|
+| knn_graph_io_load | kept | 3.5105 s | 8.0616 ms | −99.8% | 100k×k=60 | arm64 Apple | 59807616e | 2026-08-02 | bulk `read_exact` + LE bytemuck cast; per-row `to_vec` unchanged |
+
+Secondary: 50k×60 1.806 s → 3.608 ms (−99.8%).
+
+## Unsafe A/B: exact KNN `get_unchecked`
+
+Bench: `cargo bench -p flow-knn --bench exact_knn_micro`.
+
+| Item | Status | Pre median | Post median | Delta | Primary size | Machine | rustc | Date | Notes |
+|------|--------|------------|-------------|-------|--------------|---------|-------|------|-------|
+| exact_knn_micro | reverted | 50.570 ms | 48.512 ms | −4.1% (noise) | 10k×20 k=30 | arm64 Apple | 59807616e | 2026-08-02 | Criterion: no significant change; &lt;5% keep rule |
+
+Secondary: 5k×20 −3.5% (noise).

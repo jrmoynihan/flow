@@ -95,6 +95,14 @@ harness=false
 name   ="matrix_operations"
 harness=false
 
+[[bench]]
+name   ="column_extract"
+harness=false
+
+[[bench]]
+name   ="serialize_data"
+harness=false
+
 [[bin]]
 name="analyze_benchmarks"
 path="src/bin/analyze_benchmarks.rs"

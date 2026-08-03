@@ -234,3 +234,14 @@ Flags: `--n-events`, `--n-det`, `--n-em`, `--iter`.
 ## Reproducibility
 
 Record `rustc -Vv`, CPU/GPU, and dependency versions. Criterion stores history under `target/criterion/`; use `--save-baseline` / `--baseline` for named comparisons.
+
+## Unsafe A/B: parallel unmix scatter (SyncPtr)
+
+Protocol: [`docs/dev/UNSAFE_MICROOPT_AB.md`](../../docs/dev/UNSAFE_MICROOPT_AB.md).
+Bench: `OMP_NUM_THREADS=1 cargo bench -p flow-tru-ols --no-default-features --bench unmixing_benchmark -- unmixing/`.
+
+| Item | Status | Pre median | Post median | Delta | Primary size | Machine | rustc | Date | Notes |
+|------|--------|------------|-------------|-------|--------------|---------|-------|------|-------|
+| unmixing SyncPtr scatter | reverted | 30.438 ms | 30.754 ms | +1.0% (noise) | 100k events | arm64 Apple | 59807616e | 2026-08-02 | Direct disjoint writes into faer `Mat`; solver dominates; gather path kept |
+
+Secondary: 50k +3.2% (noise); 2k regressed (below parallel threshold / noise).
