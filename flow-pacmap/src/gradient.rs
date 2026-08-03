@@ -98,6 +98,8 @@ pub fn compute_gradient(
 
     // Process each pair type in parallel chunks, accumulate per-chunk gradients,
     // then sum. Each chunk has its own grad buffer to avoid races.
+    // Note: Rayon `fold` buffer reuse was A/B'd (see PERFORMANCE_NOTES) and
+    // regressed wall time @ 50k; keep per-chunk map + reduce.
     let process_pairs = |pairs: &[[u32; 2]],
                          w: f32,
                          denom: f32,

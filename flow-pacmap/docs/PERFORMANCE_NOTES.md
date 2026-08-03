@@ -197,3 +197,12 @@ Bench: `cargo bench -p flow-pacmap --bench gradient_micro`.
 | Item | Status | Pre median | Post median | Delta | Primary size | Machine | rustc | Date | Notes |
 |------|--------|------------|-------------|-------|--------------|---------|-------|------|-------|
 | gradient_micro | reverted | 1.3294 ms | 1.4080 ms | +5.9% (regressed) | 50k points | arm64 Apple | 59807616e | 2026-08-02 | unchecked embedding + raw ptr grad writes slower; safe indexing kept |
+
+## Alloc A/B: gradient buffer reuse
+
+Protocol: [`docs/dev/UNSAFE_MICROOPT_AB.md`](../../docs/dev/UNSAFE_MICROOPT_AB.md) Campaign 2.
+Bench: `cargo bench -p flow-pacmap --bench gradient_micro`.
+
+| Item | Status | Pre median | Post median | Delta | Primary size | Machine | rustc | Date | Notes |
+|------|--------|------------|-------------|-------|--------------|---------|-------|------|-------|
+| grad_fold_reuse | reverted | 1.1866 ms | 1.2976 ms | +12.3% (regressed) | 50k | arm64 Apple | 59807616e | 2026-08-02 | Rayon `fold` per-worker buffer; per-chunk `map` kept |

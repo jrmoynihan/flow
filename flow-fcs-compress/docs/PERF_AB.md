@@ -13,3 +13,11 @@ Bench: `cargo bench -p flow-fcs-compress --bench byte_stream_split`.
 Secondary sizes (post vs pre, change within noise): split 64k ≈ −2%, 256k ≈ −0.4%; unsplit 64k ≈ +2%, 256k ≈ +2%.
 
 **Decision:** keep safe indexed implementation; retain Criterion bench for future regressions.
+
+## Alloc A/B: chunk payload scratch
+
+Bench: `cargo bench -p flow-fcs-compress --bench chunk_encode_scratch`.
+
+| Item | Status | Pre median | Post median | Delta | Primary size | Machine | rustc | Date | Notes |
+|------|--------|------------|-------------|-------|--------------|---------|-------|------|-------|
+| chunk_encode_scratch | reverted | 1.5652 ms | 1.6425 ms | +8.1% (regressed) | 16×64k BSS+zstd | arm64 Apple | 59807616e | 2026-08-02 | reused `payload` Vec across chunks; zstd dominates; fresh `Vec` kept |

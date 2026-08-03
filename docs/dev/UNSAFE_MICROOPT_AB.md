@@ -56,3 +56,31 @@ Run items **1 → 6** one at a time. Do not batch multiple `unsafe` changes befo
 | 5 TRU-OLS SyncPtr scatter | reverted | solver-bound; +1% noise @ 100k |
 | 6a exact KNN unchecked | reverted | −4% noise @ 10k×20 |
 | 6b PaCMAP gradient unchecked | reverted | **regressed** +6% @ 50k |
+
+---
+
+## Campaign 2: syscall / alloc
+
+Same keep/revert rule (≥5% median wall on primary size). Baselines use
+`--save-baseline alloc-ab-<item>-pre`. Prefer safe bulk IO and buffer reuse
+(not `unsafe` indexing). Run items **1 → 5** one at a time.
+
+### Index
+
+| Item | Crate | Bench | Primary size | Results |
+|------|-------|-------|--------------|---------|
+| 1 Bulk `write_knn_graph` | `flow-knn` | `knn_graph_io` write group | 100k×k=60 | [PERF_MATRIX.md](../../flow-knn/docs/PERF_MATRIX.md) |
+| 2 KNN read typed buffers | `flow-knn` | `knn_graph_io` load group | 100k×k=60 | [PERF_MATRIX.md](../../flow-knn/docs/PERF_MATRIX.md) |
+| 3 PaCMAP grad buffer reuse | `flow-pacmap` | `gradient_micro` | 50k | [PERFORMANCE_NOTES.md](../../flow-pacmap/docs/PERFORMANCE_NOTES.md) |
+| 4 Compress chunk scratch | `flow-fcs-compress` | `chunk_encode_scratch` | 16×64k | [PERF_AB.md](../../flow-fcs-compress/docs/PERF_AB.md) |
+| 5 peacoqc peaks bin slices | `peacoqc-rs` | `peaks_alloc_micro` | 100k events | [PERF_AB.md](../../peacoqc-rs/docs/PERF_AB.md) |
+
+### Campaign 2 results (2026-08-02, arm64 Apple, rustc 59807616e)
+
+| Item | Status | Headline |
+|------|--------|----------|
+| 1 knn write bulk | **kept** | −99.9% @ 100k×60 (13.9s → 17.6ms) |
+| 2 knn read typed | **kept** | −6.7% @ 100k×60 (7.87ms → 7.18ms) |
+| 3 pacmap grad reuse | reverted | +12% @ 50k (fold reuse regressed) |
+| 4 compress scratch | reverted | +8% @ 16×64k (zstd-bound) |
+| 5 peacoqc peaks | reverted | noise @ 100k (KDE-bound) |

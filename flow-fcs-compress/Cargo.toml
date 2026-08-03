@@ -54,3 +54,7 @@ harness = false
 [[bench]]
 name = "byte_stream_split"
 harness = false
+
+[[bench]]
+name = "chunk_encode_scratch"
+harness = false

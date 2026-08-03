@@ -92,7 +92,7 @@ best ANN estimate (default `1.25`, and only for `n ≤ 80_000`).
 
 Also re-exported from `flow_pacmap::knn`.
 
-## Unsafe A/B: graph IO
+## Graph IO A/B (load + write)
 
 Protocol: [`docs/dev/UNSAFE_MICROOPT_AB.md`](../../docs/dev/UNSAFE_MICROOPT_AB.md).
 Bench: `cargo bench -p flow-knn --bench knn_graph_io`.
@@ -100,8 +100,10 @@ Bench: `cargo bench -p flow-knn --bench knn_graph_io`.
 | Item | Status | Pre median | Post median | Delta | Primary size | Machine | rustc | Date | Notes |
 |------|--------|------------|-------------|-------|--------------|---------|-------|------|-------|
 | knn_graph_io_load | kept | 3.5105 s | 8.0616 ms | −99.8% | 100k×k=60 | arm64 Apple | 59807616e | 2026-08-02 | bulk `read_exact` + LE bytemuck cast; per-row `to_vec` unchanged |
+| knn_graph_io_write | kept | 13.858 s | 17.631 ms | −99.9% | 100k×k=60 | arm64 Apple | 59807616e | 2026-08-02 | staged LE payloads + two `write_all`; `sync_all` kept |
+| knn_graph_io_load_typed | kept | 7.8650 ms | 7.1814 ms | −6.7% | 100k×k=60 | arm64 Apple | 59807616e | 2026-08-02 | `read_exact` into `Vec<u32>`/`Vec<f32>` on LE; per-row `to_vec` unchanged |
 
-Secondary: 50k×60 1.806 s → 3.608 ms (−99.8%).
+Secondary write: 50k×60 6.919 s → 12.699 ms (−99.8%). Load secondary: 50k×60 1.806 s → 3.608 ms (−99.8%).
 
 ## Unsafe A/B: exact KNN `get_unchecked`
 

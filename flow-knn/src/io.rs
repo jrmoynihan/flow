@@ -106,17 +106,42 @@ pub fn write_knn_graph(path: &Path, graph: &KnnGraph) -> Result<(), KnnError> {
     file.write_all(prov_bytes)
         .map_err(|e| KnnError::Io(e.to_string()))?;
 
-    for nbr in &graph.neighbors {
-        for &idx in &nbr.indices {
-            write_u32(&mut file, idx)?;
+    let total = graph
+        .n
+        .checked_mul(graph.k)
+        .ok_or_else(|| KnnError::Io("n*k overflow".to_string()))?;
+    let byte_len = total
+        .checked_mul(4)
+        .ok_or_else(|| KnnError::Io("n*k*4 overflow".to_string()))?;
+
+    // Stage packed LE payloads, then two bulk write_all calls (mirrors read path).
+    let mut idx_bytes = Vec::with_capacity(byte_len);
+    let mut dist_bytes = Vec::with_capacity(byte_len);
+    if cfg!(target_endian = "little") {
+        let mut indices = Vec::with_capacity(total);
+        let mut distances = Vec::with_capacity(total);
+        for nbr in &graph.neighbors {
+            indices.extend_from_slice(&nbr.indices);
+            distances.extend_from_slice(&nbr.distances);
+        }
+        idx_bytes.extend_from_slice(bytemuck::cast_slice::<u32, u8>(&indices));
+        dist_bytes.extend_from_slice(bytemuck::cast_slice::<f32, u8>(&distances));
+    } else {
+        for nbr in &graph.neighbors {
+            for &idx in &nbr.indices {
+                idx_bytes.extend_from_slice(&idx.to_le_bytes());
+            }
+        }
+        for nbr in &graph.neighbors {
+            for &dist in &nbr.distances {
+                dist_bytes.extend_from_slice(&dist.to_le_bytes());
+            }
         }
     }
-    for nbr in &graph.neighbors {
-        for &dist in &nbr.distances {
-            file.write_all(&dist.to_le_bytes())
-                .map_err(|e| KnnError::Io(e.to_string()))?;
-        }
-    }
+    file.write_all(&idx_bytes)
+        .map_err(|e| KnnError::Io(e.to_string()))?;
+    file.write_all(&dist_bytes)
+        .map_err(|e| KnnError::Io(e.to_string()))?;
     file.sync_all().map_err(|e| KnnError::Io(e.to_string()))?;
     Ok(())
 }
@@ -158,20 +183,22 @@ pub fn read_knn_graph(path: &Path) -> Result<KnnGraph, KnnError> {
         .checked_mul(4)
         .ok_or_else(|| KnnError::Io("n*k*4 overflow".to_string()))?;
 
-    // Bulk-read packed LE payloads (one syscall each) then decode.
-    let mut idx_bytes = vec![0u8; byte_len];
-    file.read_exact(&mut idx_bytes)
-        .map_err(|e| KnnError::Io(e.to_string()))?;
-    let mut dist_bytes = vec![0u8; byte_len];
-    file.read_exact(&mut dist_bytes)
-        .map_err(|e| KnnError::Io(e.to_string()))?;
-
+    // Bulk-read directly into typed buffers (avoids u8 staging + second copy on LE).
     let (indices, distances) = if cfg!(target_endian = "little") {
-        // Native LE: reinterpret bytes as typed slices, then own the Vecs.
-        let indices = bytemuck::cast_slice::<u8, u32>(&idx_bytes).to_vec();
-        let distances = bytemuck::cast_slice::<u8, f32>(&dist_bytes).to_vec();
+        let mut indices = vec![0u32; total];
+        file.read_exact(bytemuck::cast_slice_mut(&mut indices))
+            .map_err(|e| KnnError::Io(e.to_string()))?;
+        let mut distances = vec![0f32; total];
+        file.read_exact(bytemuck::cast_slice_mut(&mut distances))
+            .map_err(|e| KnnError::Io(e.to_string()))?;
         (indices, distances)
     } else {
+        let mut idx_bytes = vec![0u8; byte_len];
+        file.read_exact(&mut idx_bytes)
+            .map_err(|e| KnnError::Io(e.to_string()))?;
+        let mut dist_bytes = vec![0u8; byte_len];
+        file.read_exact(&mut dist_bytes)
+            .map_err(|e| KnnError::Io(e.to_string()))?;
         let indices: Vec<u32> = idx_bytes
             .chunks_exact(4)
             .map(|c| u32::from_le_bytes(c.try_into().unwrap()))

@@ -181,6 +181,8 @@ fn determine_channel_peaks_from_data(
     config: &PeakDetectionConfig,
 ) -> Option<ChannelPeakFrame> {
     // Process bins in parallel
+    // Note: passing bin slices without `to_vec` was A/B'd (see peacoqc-rs/docs/PERF_AB.md)
+    // and did not meet the ≥5% keep rule @ 100k (KDE dominates); keep the copy path.
     let bin_peaks: Vec<Vec<f64>> = breaks
         .par_iter()
         .map(|(start, end)| {
@@ -244,6 +246,17 @@ fn determine_channel_peaks_from_data(
     }
 
     Some(ChannelPeakFrame { peaks: all_peaks })
+}
+
+/// Benchmark seam for Campaign 2 peaks alloc A/B (single-channel peak detection).
+#[doc(hidden)]
+pub fn determine_channel_peaks_bench(
+    data: &[f64],
+    events_per_bin: usize,
+    config: &PeakDetectionConfig,
+) -> Option<ChannelPeakFrame> {
+    let breaks = create_breaks(data.len(), events_per_bin);
+    determine_channel_peaks_from_data(data, &breaks, config)
 }
 
 /// Cluster peaks across bins using median clustering

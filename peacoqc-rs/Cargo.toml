@@ -60,6 +60,10 @@ harness=false
 name   ="gpu_bench"
 harness=false
 
+[[bench]]
+name   ="peaks_alloc_micro"
+harness=false
+
 [package.metadata.scripts]
 test       ="cargo test"
 dry-release="cargo smart-release peacoqc-rs --update-crates-index"

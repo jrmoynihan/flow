@@ -26,5 +26,8 @@ pub use peacoqc::{
     QCMode, RemovalReason,
 };
 pub use progress::PeacoQCProgressEvent;
-pub use peaks::{ChannelPeakFrame, PeakDetectionConfig, PeakInfo, determine_peaks_all_channels};
+pub use peaks::{
+    ChannelPeakFrame, PeakDetectionConfig, PeakInfo, determine_channel_peaks_bench,
+    determine_peaks_all_channels,
+};
 pub use plots::{QCPlotConfig, create_qc_plots, build_channel_trend_series, build_time_overview_series, regions_by_reason, ChannelTrendSeries};
