@@ -7,9 +7,6 @@
 //!
 //! Data is `f32` on the boundary; means and covariance are accumulated in `f64`
 //! and downcast only when the final basis is stored.
-//!
-//! Note: `flow-pacmap` previously carried its own `pca_init`. It is now a
-//! two-component specialization of this crate's [`Pca`].
 
 pub mod pca;
 

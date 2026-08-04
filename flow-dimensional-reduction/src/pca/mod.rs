@@ -68,7 +68,7 @@ impl PcaComponent for FittedPcaResult {
 /// `transform` and the basis accessors exist only on `Pca<FittedPcaResult>`,
 /// so projecting before fitting is a compile error rather than a runtime one:
 ///
-/// ```compile_fail
+/// ```compile_fail,E0599
 /// use flow_dimensional_reduction::Pca;
 /// let data = vec![1.0_f32, 2.0, 3.0, 4.0];
 /// // `transform` does not exist on an unfitted model.
@@ -105,7 +105,10 @@ impl Pca<UnfittedPcaResult> {
         if n == 0 || d == 0 {
             return Err(PcaError::EmptyData);
         }
-        if data.len() != n * d {
+        let expected_len = n
+            .checked_mul(d)
+            .ok_or(PcaError::DimensionMismatch { len: data.len(), n, d })?;
+        if data.len() != expected_len {
             return Err(PcaError::DimensionMismatch { len: data.len(), n, d });
         }
         if n < 2 {
@@ -192,7 +195,10 @@ impl Pca<FittedPcaResult> {
     /// [`PcaError::DimensionMismatch`] if `data.len() != n * d`;
     /// [`PcaError::FeatureMismatch`] if `d` differs from the fitted feature count.
     pub fn transform(&self, data: &[f32], n: usize, d: usize) -> PcaResult<Vec<f32>> {
-        if data.len() != n * d {
+        let expected_len = n
+            .checked_mul(d)
+            .ok_or(PcaError::DimensionMismatch { len: data.len(), n, d })?;
+        if data.len() != expected_len {
             return Err(PcaError::DimensionMismatch { len: data.len(), n, d });
         }
         if d != self.state.mean.len() {
@@ -200,7 +206,10 @@ impl Pca<FittedPcaResult> {
         }
 
         let k = self.state.n_components;
-        let mut out = Vec::with_capacity(n * k);
+        let out_len = n
+            .checked_mul(k)
+            .ok_or(PcaError::DimensionMismatch { len: data.len(), n, d })?;
+        let mut out = Vec::with_capacity(out_len);
         for row in data.chunks_exact(d) {
             for i in 0..k {
                 let mut acc = 0.0_f32;
@@ -319,6 +328,78 @@ mod tests {
         let left: f32 = out.chunks_exact(2).take(50).map(|c| c[0]).sum::<f32>() / 50.0;
         let right: f32 = out.chunks_exact(2).skip(50).map(|c| c[0]).sum::<f32>() / 50.0;
         assert!((left - right).abs() > 1.0, "PC1 must separate the clusters");
+    }
+
+    /// Non-degenerate 3-D data: points scaled along the direction `(1, 2, 3)`.
+    /// The covariance has a single nonzero eigenvalue, so PC1 is pinned up to
+    /// sign to `(1, 2, 3) / sqrt(14)` — no SVD sign-convention ambiguity
+    /// beyond an overall flip, and no degenerate subspace to hide a bug in.
+    ///
+    /// A 2-D fixture cannot do this job: for *any* 2x2 orthogonal matrix,
+    /// `|U(0,1)| == |U(1,0)|` is a structural identity (both rows and
+    /// columns of an orthogonal matrix are orthonormal), so comparing
+    /// `.abs()` values is blind to swapping `u.get(j, i)` for `u.get(i, j)`.
+    fn diagonal_fixture() -> (Vec<f32>, usize, usize) {
+        let dir = [1.0_f32, 2.0, 3.0];
+        let mut data = Vec::new();
+        for t in [-2.0_f32, -1.0, 0.0, 1.0, 2.0] {
+            for &c in &dir {
+                data.push(t * c);
+            }
+        }
+        (data, 5, 3)
+    }
+
+    #[test]
+    fn u_column_maps_to_matching_principal_axis() {
+        // Pins `components[(i, j)] = u.get(j, i)`. Transposing to
+        // `u.get(i, j)` pulls components 1 and 2 from the *degenerate*
+        // zero-eigenvalue subspace of U's first row, which will not equal
+        // these values, so the mutation is caught.
+        let (data, n, d) = diagonal_fixture();
+        let pca = Pca::new(1).fit(&data, n, d).expect("fit");
+        let norm = 14.0_f32.sqrt();
+        let c = pca.components();
+        approx::assert_abs_diff_eq!(c[(0, 0)].abs(), 1.0 / norm, epsilon = 1e-4);
+        approx::assert_abs_diff_eq!(c[(0, 1)].abs(), 2.0 / norm, epsilon = 1e-4);
+        approx::assert_abs_diff_eq!(c[(0, 2)].abs(), 3.0 / norm, epsilon = 1e-4);
+    }
+
+    #[test]
+    fn transform_centers_training_mean_to_zero() {
+        // Pins the `- mean[j]` term in `transform`: projecting the training
+        // centroid itself must land at the origin on every axis. Dropping
+        // the subtraction shifts every projection by the same constant,
+        // which the cluster-separation test cannot see (it only compares
+        // `left - right`), but this test does.
+        let (data, n, d) = fixture();
+        let pca = Pca::new(2).fit(&data, n, d).expect("fit");
+        let mean_row = pca.mean().to_vec();
+        let out = pca.transform(&mean_row, 1, d).expect("transform");
+        for v in out {
+            approx::assert_abs_diff_eq!(v, 0.0_f32, epsilon = 1e-4);
+        }
+    }
+
+    #[test]
+    fn fit_rejects_length_that_would_overflow_n_times_d() {
+        // n * d wraps to 0 in release mode; checked_mul must reject this
+        // instead of accepting an empty slice as a valid `usize::MAX x 2`
+        // input.
+        assert!(matches!(
+            Pca::new(1).fit(&[], usize::MAX, 2),
+            Err(PcaError::DimensionMismatch { .. })
+        ));
+    }
+
+    #[test]
+    fn transform_rejects_length_that_would_overflow_n_times_d() {
+        let (data, n, d) = fixture();
+        let pca = Pca::new(1).fit(&data, n, d).expect("fit");
+        assert!(matches!(
+            pca.transform(&[], usize::MAX, 2),
+            Err(PcaError::DimensionMismatch { .. })
+        ));
     }
 
     #[test]
