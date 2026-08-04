@@ -62,3 +62,9 @@ pub enum PaCMAPError {
     #[error("Run cancelled by caller")]
     Cancelled,
 }
+
+impl From<flow_dimensional_reduction::PcaError> for PaCMAPError {
+    fn from(e: flow_dimensional_reduction::PcaError) -> Self {
+        PaCMAPError::Pca(e.to_string())
+    }
+}

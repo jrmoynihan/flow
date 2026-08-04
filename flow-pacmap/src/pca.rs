@@ -1,75 +1,32 @@
-//! PCA initialisation via faer SVD on the d×d covariance matrix.
+//! PCA initialisation for PaCMAP.
 //!
-//! This approach costs O(n·d²) rather than O(n²) — at n=10M and d=46,
-//! the covariance matrix is 46×46 = 2116 f32 elements, trivially small.
+//! A two-component specialization of [`flow_dimensional_reduction::Pca`], which
+//! uses the covariance method: O(n·d²) to build a d×d matrix plus O(d³) to
+//! decompose it, rather than an O(n²)-scale decomposition of the data matrix.
 
 use crate::error::PaCMAPError;
-use faer::{Mat, linalg::solvers::Svd};
+use flow_dimensional_reduction::Pca;
 
 /// Project `n × d` row-major data onto its top 2 principal components.
 ///
-/// Returns `n` (x, y) pairs where x and y are the PC1 and PC2 scores,
-/// normalised to the range used by the paper's initialisation.
+/// Returns `n` (PC1, PC2) score pairs.
+///
+/// # Errors
+/// Returns [`PaCMAPError::Pca`] if the decomposition fails or the inputs are
+/// inconsistent.
 pub fn pca_init(data: &[f32], n: usize, d: usize) -> Result<Vec<[f32; 2]>, PaCMAPError> {
     debug_assert_eq!(data.len(), n * d);
 
-    // Step 1: compute column means
-    let mut mean = vec![0.0_f32; d];
-    for row in data.chunks_exact(d) {
-        for (j, &v) in row.iter().enumerate() {
-            mean[j] += v;
-        }
-    }
-    for m in &mut mean {
-        *m /= n as f32;
-    }
+    let pca = Pca::new(2).fit(data, n, d)?;
+    let flat = pca.transform(data, n, d)?;
+    let k = pca.n_components();
 
-    // Step 2: build d×d covariance C = (X - mean)^T (X - mean) / n
-    // C is symmetric; only compute upper triangle then mirror
-    let mut cov = Mat::<f32>::zeros(d, d);
-    for row in data.chunks_exact(d) {
-        for i in 0..d {
-            let xi = row[i] - mean[i];
-            for j in i..d {
-                let xj = row[j] - mean[j];
-                cov[(i, j)] += xi * xj;
-            }
-        }
-    }
-    let inv_n = 1.0 / n as f32;
-    for i in 0..d {
-        for j in i..d {
-            cov[(i, j)] *= inv_n;
-            if i != j {
-                cov[(j, i)] = cov[(i, j)];
-            }
-        }
-    }
-
-    // Step 3: thin SVD of symmetric covariance C = U S V^T
-    // For a symmetric PSD matrix U ≈ V; top-2 columns of U are the principal components.
-    let svd = Svd::<f32>::new(cov.as_ref())
-        .map_err(|e| PaCMAPError::Pca(format!("{e:?}")))?;
-
-    let u = svd.U();
-    // Top-2 eigenvectors: columns 0 and 1 of U (sorted by descending singular value)
-    let pc1: Vec<f32> = (0..d).map(|r| *u.get(r, 0)).collect();
-    let pc2: Vec<f32> = if d >= 2 { (0..d).map(|r| *u.get(r, 1)).collect() } else { vec![0.0; d] };
-
-    // Step 4: project each row onto PC1, PC2
-    let mut embedding = Vec::with_capacity(n);
-    for row in data.chunks_exact(d) {
-        let mut s1 = 0.0_f32;
-        let mut s2 = 0.0_f32;
-        for j in 0..d {
-            let v = row[j] - mean[j];
-            s1 += v * pc1[j];
-            s2 += v * pc2[j];
-        }
-        embedding.push([s1, s2]);
-    }
-
-    Ok(embedding)
+    // `k` is 1 when d == 1; pad the second axis with zeros to keep the
+    // [f32; 2] contract that callers rely on.
+    Ok(flat
+        .chunks(k)
+        .map(|c| [c[0], if k >= 2 { c[1] } else { 0.0 }])
+        .collect())
 }
 
 #[cfg(test)]
