@@ -114,7 +114,7 @@ jobs:
     needs: [linux, macos, windows, sdist]
     environment:
       name: pypi
-      url: https://pypi.org/project/peacoqc/
+      url: https://pypi.org/project/peacoqc-rs/
     permissions:
       id-token: write
     steps:

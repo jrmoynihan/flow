@@ -3,7 +3,7 @@ requires = ["maturin>=1.0,<2.0"]
 build-backend = "maturin"
 
 [project]
-name = "peacoqc"
+name = "peacoqc-rs"
 version = "0.1.0"
 description = "Python bindings for peacoqc-rs flow cytometry quality control"
 readme = "README.md"
@@ -26,4 +26,7 @@ Homepage = "https://github.com/jrmoynihan/flow/tree/main/peacoqc-py"
 [tool.maturin]
 manifest-path = "Cargo.toml"
 python-source = "python"
+# PyPI project name is "peacoqc-rs" (see [project] name above), but the
+# importable module stays "peacoqc" -- must be explicit once the two diverge.
+module-name = "peacoqc"
 features = ["pyo3/extension-module"]
