@@ -6,8 +6,10 @@ build-backend = "maturin"
 name = "peacoqc"
 version = "0.1.0"
 description = "Python bindings for peacoqc-rs flow cytometry quality control"
+readme = "README.md"
 requires-python = ">=3.9"
 license = "MIT"
+authors = [{ name = "James Moynihan" }]
 keywords = ["flow-cytometry", "quality-control", "bioinformatics", "peacoqc"]
 classifiers = [
     "Programming Language :: Rust",
@@ -16,6 +18,10 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Bio-Informatics",
 ]
 dependencies = ["polars>=1.0"]
+
+[project.urls]
+Repository = "https://github.com/jrmoynihan/flow"
+Homepage = "https://github.com/jrmoynihan/flow/tree/main/peacoqc-py"
 
 [tool.maturin]
 manifest-path = "Cargo.toml"

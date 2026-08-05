@@ -1,11 +1,12 @@
 [package]
 name = "peacoqc-py"
 version = "0.1.0"
-edition.workspace = true
-authors.workspace = true
-license.workspace = true
+edition = "2024"
+authors = ["James Moynihan"]
+license = "MIT"
 description = "Python bindings for peacoqc-rs flow cytometry QC"
 repository = "https://github.com/jrmoynihan/flow/peacoqc-py"
+readme = "README.md"
 keywords = [
     "flow-cytometry",
     "quality-control",
@@ -19,11 +20,25 @@ categories = ["science", "algorithms"]
 name = "peacoqc"
 crate-type = ["cdylib"]
 
+# peacoqc-py is deliberately excluded from the root Cargo workspace: pyo3-polars 0.26
+# pins polars-arrow ~0.53, which conflicts with the workspace's polars 0.54.4. This
+# empty table makes it its own workspace root with an independent Cargo.lock.
+[workspace]
+
 [dependencies]
 peacoqc-rs = { path = "../peacoqc-rs", default-features = false, features = ["flow-fcs"] }
 flow-fcs = { path = "../fcs", version = "^0.4.0" }
-polars = { workspace = true }
-pyo3 = { version = "0.27", features = ["extension-module"] }
-pyo3-polars = { version = "0.26", features = ["dtype-full"] }
-thiserror.workspace = true
-anyhow.workspace = true
+polars = { version = "^0.54.4", default-features = false, features = [
+    "lazy",
+    "ndarray",
+    "dtype-full",
+    "ipc",
+    "ipc_streaming",
+    "parquet",
+    "strings",
+    "temporal",
+] }
+pyo3 = { version = "0.28", features = ["extension-module"] }
+pyo3-polars = { version = "0.27", features = ["dtype-full"] }
+thiserror = "2.0.19"
+anyhow = "1.0.102"

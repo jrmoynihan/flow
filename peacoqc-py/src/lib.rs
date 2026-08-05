@@ -42,9 +42,9 @@ impl PeacoQCData for DataFrameQCData {
             .map_err(|_| peacoqc_rs::PeacoQCError::ChannelNotFound(channel.to_string()))?;
 
         if let Ok(f64_vals) = series.f64() {
-            Ok(f64_vals.into_iter().flatten().collect())
+            Ok(f64_vals.iter().flatten().collect())
         } else if let Ok(f32_vals) = series.f32() {
-            Ok(f32_vals.into_iter().flatten().map(|v| v as f64).collect())
+            Ok(f32_vals.iter().flatten().map(|v| v as f64).collect())
         } else {
             Err(peacoqc_rs::PeacoQCError::InvalidChannel(format!(
                 "Channel {channel} is not numeric (dtype: {:?})",
