@@ -7,6 +7,7 @@ members = [
     "flow-density",
     "flow-clustering",
     "flow-knn",
+    "flow-dimensional-reduction",
     "flow-pacmap",
     "plots",
     "gates",

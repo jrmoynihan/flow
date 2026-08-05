@@ -1,0 +1,23 @@
+[package]
+name = "flow-dimensional-reduction"
+version = "0.1.0"
+edition.workspace = true
+authors.workspace = true
+license = "MIT"
+repository = "https://github.com/jrmoynihan/flow/flow-dimensional-reduction"
+readme = "README.md"
+description = "Dimensionality reduction primitives for flow cytometry: faer-based PCA"
+keywords = ["flow-cytometry", "pca", "dimensionality-reduction", "faer"]
+categories = ["science"]
+
+[dependencies]
+faer = { workspace = true }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+approx = { workspace = true }
+
+[package.metadata.scripts]
+dry-release = "cargo smart-release flow-dimensional-reduction --update-crates-index"
+publish     = "cargo smart-release flow-dimensional-reduction --update-crates-index --execute"
+changelog   = "cargo changelog flow-dimensional-reduction --write"

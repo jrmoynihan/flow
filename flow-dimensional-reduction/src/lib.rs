@@ -1,0 +1,13 @@
+//! Dimensionality reduction primitives for flow cytometry.
+//!
+//! Currently provides [`Pca`], a faer-based principal component analysis using
+//! the covariance method: it decomposes the `d × d` covariance matrix rather
+//! than the `n × d` data matrix. For flow cytometry workloads (n ≈ 10⁶–10⁷,
+//! d ≈ 10–50) this is dramatically cheaper.
+//!
+//! Data is `f32` on the boundary; means and covariance are accumulated in `f64`
+//! and downcast only when the final basis is stored.
+
+pub mod pca;
+
+pub use pca::{Pca, PcaComponent, PcaError, PcaResult};
