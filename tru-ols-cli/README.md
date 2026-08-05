@@ -2,6 +2,29 @@
 
 Command-line tool for TRU-OLS (Truncated ReUnmixing OLS) spectral flow cytometry unmixing.
 
+Cargo package name: **`tru-ols`** (directory `tru-ols-cli/`). Library crate for the algorithm is [`flow-tru-ols`](../tru-ols/).
+
+## What this crate is for
+
+Use this CLI when you need batch or single-file unmixing with control auto-detection, optional QC preprocessing (`run_qc_pipeline`), and plot/debug output.
+
+Use a sibling instead when you need:
+
+- **Embed unmixing in another Rust app** → [`flow-tru-ols`](../tru-ols/)
+- **PeacoQC alone on prepared files** → [`peacoqc-cli`](../peacoqc-cli/)
+- **Shared peak / control helpers** → [`flow-peak-detection`](../flow-peak-detection/), [`flow-control-detection`](../flow-control-detection/) (adoption into this CLI is planned)
+
+## How it works
+
+Loads FCS via `flow-fcs`, builds mixing matrices from single-stain controls (filename heuristics + peak medians), runs [`flow-tru-ols`](../tru-ols/) unmix, and optionally gates/QC via `flow-gates` + `peacoqc-rs` through `run_qc_pipeline`.
+
+## Related crates
+
+- [`flow-tru-ols`](../tru-ols/) — unmixing core
+- [`peacoqc-rs`](../peacoqc-rs/), [`flow-gates`](../gates/), [`flow-plots`](../plots/)
+- [`flow-linalg`](../flow-linalg/) — compensation primitives
+- [`flow-peak-detection`](../flow-peak-detection/), [`flow-control-detection`](../flow-control-detection/)
+
 ## Installation
 
 ### Using Cargo
@@ -206,3 +229,7 @@ tru-ols unmix --help
 # Or see the built-in reference:
 tru-ols args
 ```
+
+## Performance
+
+Unmix throughput is dominated by [`flow-tru-ols`](../tru-ols/) (see its `docs/PROFILING.md`). For batch timing with multithreaded BLAS, set `OMP_NUM_THREADS=1` unless nested parallelism is intentional. `TRU_OLS_BATCH_SHARED_FACTOR_CACHE` controls shared mask-factor cache across stained files when `--stained` is a directory.

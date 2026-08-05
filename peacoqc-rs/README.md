@@ -1,9 +1,17 @@
 # PeacoQC-RS
 
-[![Rust](https://img.shields.io/badge/rust-1.70+-orange.svg)](https://www.rust-lang.org/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+Rust implementation of PeacoQC (Peak-based Quality Control) for flow cytometry, with an efficient, trait-based API so any FCS data structure can plug in to this method.
 
-PeacoQC-RS is a Rust implementation of PeacoQC (Peak-based Quality Control) algorithms for flow cytometry data. This library provides efficient, trait-based quality control methods that work with any FCS data structure through a simple trait interface.
+[![crates.io](https://img.shields.io/crates/v/peacoqc-rs.svg)](https://crates.io/crates/peacoqc-rs)
+[![docs.rs](https://docs.rs/peacoqc-rs/badge.svg)](https://docs.rs/peacoqc-rs)
+[![MIT](https://img.shields.io/crates/l/peacoqc-rs.svg)](LICENSE)
+
+## Overview
+
+- Time-bin quality scoring (isolation forest / MAD modes)
+- Margin event removal, consecutive-bin filtering, doublet hints
+- Boolean `good_cells` masks and CSV/JSON export
+- Optional FCS integration (`flow-fcs`) and QC overview plots
 
 ## Core Features
 
@@ -16,7 +24,19 @@ PeacoQC-RS is a Rust implementation of PeacoQC (Peak-based Quality Control) algo
 - **Consecutive Bins Filtering**: Removal of short consecutive regions
 - **Trait-Based Design**: Works with any data structure via `PeacoQCData` trait
 
+Feature flags:
+
+| Flag | Description | Notes |
+| ---- | ----------- | ----- |
+| `flow-fcs` (default) | Enable integration with the `flow-fcs` crate for FCS file support |
+| `gpu` | Enable GPU acceleration for multi-channel datasets (20-32x speedup for batched operations) |
+| `cubecl` | Enable cubeCL custom GPU kernels (requires `gpu` feature) |
+
 ## Installation
+
+```bash
+cargo add peacoqc-rs
+```
 
 Add this to your `Cargo.toml`:
 
@@ -25,22 +45,11 @@ Add this to your `Cargo.toml`:
 peacoqc-rs = { path = "../peacoqc-rs", version = "0.3.1", features = ["flow-fcs"] }
 ```
 
-Or from crates.io:
+## How it works
 
-```toml
-[dependencies]
-peacoqc-rs = { version = "0.3.1", features = ["flow-fcs"] }
-```
+PeacoQC bins events along time, estimates per-channel density structure, detects anomalous bins (IT and/or MAD), and optionally removes margin/monotonic/doublet pathologies. The public entry point is `peacoqc` over any type implementing the `PeacoQCData` trait. With the `flow-fcs` crate, `PeacoQCConfig::for_fcs` fills analysis channels from fluorescence parameters.
 
-### Feature Flags
-
-- `flow-fcs` (default): Enable integration with the `flow-fcs` crate for FCS file support
-- `gpu`: Enable GPU acceleration for multi-channel datasets (20-32x speedup for batched operations)
-- `cubecl`: Enable cubeCL custom GPU kernels (optional, requires `gpu` feature)
-
-## Quick Start
-
-### Basic Usage
+### Usage
 
 ```rust
 use peacoqc_rs::{PeacoQCConfig, PeacoQCData, QCMode, peacoqc};
@@ -121,20 +130,28 @@ impl FcsFilter for MyFcs {
 If you enable the `flow-fcs` feature flag, PeacoQC-RS provides trait implementations for the `Fcs` struct provided by it:
 
 ```rust
+use peacoqc_rs::{peacoqc, PeacoQCConfig, PeacoQCResult, QCMode, Result};
 use flow_fcs::Fcs;
-use peacoqc_rs::{PeacoQCConfig, QCMode, peacoqc};
 
-let fcs = Fcs::open("data.fcs")?;
+fn example() -> Result<()> {
+    // Open a file
+    let fcs = Fcs::open("data.fcs")?;
+    // Configure PeacoQC
+    let config: PeacoQCConfig = PeacoQCConfig {
+        channels: vec!["FL1-A".to_string(), "FL2-A".to_string()],
+        determine_good_cells: QCMode::All,
+        ..Default::default()
+    };
+    // Run QC with the config on the .fcs file handle
+    let result : PeacoQCResult = peacoqc(&fcs, &config)?;
+    let good_cells: &Vec<bool> = &result.good_cells;
+    let removed: f64 = result.percentage_removed;
+    // Apply the `good_cells` boolean mask from the PeacoQCResult struct
+    let clean: Fcs = fcs.filter(good_cells)?;
 
-let config = PeacoQCConfig {
-    channels: fcs.get_fluorescence_channels(), // Auto-detect channels
-    determine_good_cells: QCMode::All,
-    ..Default::default()
-};
-
-let result = peacoqc(&fcs, &config)?;
-// Apply the `good_cells` boolean mask from the PeacoQCResult struct
-let clean_fcs = fcs.filter(&result.good_cells)?;
+    println!("Removed {removed:.2}% of events");
+    Ok(())
+}
 ```
 
 ## API Overview
@@ -173,6 +190,7 @@ fn remove_doublets<T: PeacoQCData>(fcs: &T, config: &DoubletConfig) -> Result<Do
   - `cluster_distance_threshold`: Peak clustering threshold (default: None) - **NEW**
 
 **Builder pattern usage:**
+
 ```rust
 use peacoqc_rs::PeacoQCConfig;
 
@@ -359,9 +377,14 @@ Run benchmarks with:
 cargo bench --bench peacoqc_bench
 ```
 
-Benchmarks are currently being developed and will provide performance metrics for various dataset sizes.
+GPU paths need a suitable adapter; without one, prefer `--no-default-features --features flow-fcs`. Micro-opt notes: [`docs/PERF_AB.md`](docs/PERF_AB.md).
 
-### Test Coverage
+## Testing
+
+```bash
+cargo test -p peacoqc-rs --lib --no-default-features --features flow-fcs
+cargo run -p peacoqc-rs --no-default-features --features flow-fcs --example demo_qc_plot
+```
 
 The library includes comprehensive unit tests covering:
 
@@ -409,17 +432,17 @@ All functions return `Result<T, PeacoQCError>`. The `PeacoQCError` enum covers:
 - `NoPeaksDetected`: No peaks detected in data
 - `PolarsError`: Polars DataFrame error (when using flow-fcs feature)
 
-## License
-
-MIT License - see LICENSE file for details
-
 ## Attribution
 
-This Rust implementation is based on the original PeacoQC algorithm and R package. We gratefully acknowledge the original authors:
+This Rust implementation is based on the original PeacoQC algorithm and R package. We gratefully 
+acknowledge the original authors:
 
 **Original Paper:**
 
-- [Emmaneel, A., Quintelier, K., Sichien, D., Rybakowska, P., Marañón, C., Alarcón-Riquelme, M. E., Van Isterdael, G., Van Gassen, S., & Saeys, Y. (2022). PeacoQC: Peak-based selection of high quality cytometry data. *Cytometry A*, 101(4), 325-338. `https://doi.org/10.1002/cyto.a.24501`](https://doi.org/10.1002/cyto.a.24501)
+- [Emmaneel, A., Quintelier, K., Sichien, D., Rybakowska, P., Marañón, C., Alarcón-Riquelme, M. E., 
+Van Isterdael, G., Van Gassen, S., & Saeys, Y. (2022). PeacoQC: Peak-based selection of high quality 
+cytometry data. *Cytometry A*, 101(4), 325-338. `https://doi.org/10.1002/cyto.a.24501`](https://doi.
+org/10.1002/cyto.a.24501)
 
 **Original R Implementation:**
 
@@ -433,103 +456,20 @@ This Rust version provides:
 - Type safety
 - Trait-based extensibility
 
-## R Compatibility & Known Differences
+## License
 
-All default configuration parameters match the R package exactly (MAD=6, IT_limit=0.6, consecutive_bins=5, etc.). After the 0.3.1 `smooth.spline` port, end-to-end removal rates are typically within ~1 pp of R (D10 Well_013 ~0.5 pp; multi-well mean |Δ| ~0.9 pp). Larger historical gaps (up to ~6–7 pp) were dominated by the old spline approximation; remaining residual is mainly KDE / peak-trajectory differences.
-
-### Sources of Differences (in Order of Impact)
-
-#### 1. **Kernel Density Estimation (KDE) – Main Source of Peak Detection Differences**
-- **What differs**: R's KDE implementation vs. Rust's FFT-based KDE
-- **Impact**: Peak detection can differ by 1–7% of events
-- **Why it matters**: Small differences in peak positions → different cluster assignments → different feature matrix for Isolation Tree
-- **No config knob available**: KDE uses Silverman's rule of thumb (same as R); differences are algorithmic, not parametric
-
-#### 2. **Spline Smoothing in MAD Detection**
-- **Implementation**: Rust ports R's `stats::smooth.spline` (B-spline ridge, `.nknots.smspl` thinning, `spar→λ` via interior trace ratio). Golden tests vs R keep max\|diff\| ≲ 1e-4 at `spar=0.5`.
-- **Impact**: Remaining MAD differences vs R are typically from upstream peak trajectories (KDE), not the spline itself.
-- **Available config**: `MADConfig::smooth_param` (default: 0.5, matching R's `spar=0.5`)
-
-#### 3. **Peak Clustering Logic**
-- **What differs**: When multiple peaks are detected, clustering algorithm may assign peaks to clusters slightly differently
-- **Impact**: Feature matrix structure differs → Isolation Tree results vary
-- **Typical difference**: Small number of bins flagged differently
-- **No config knob available**: Clustering uses deterministic median-based assignment; differences are numerical precision
-
-#### 4. **Floating-Point Precision & Accumulation**
-- **What differs**: Different order of operations in calculations
-- **Impact**: Typically <1% in most metrics
-- **Affected by**: GPU acceleration (if enabled), FFT implementations
-- **How to minimize**: Use the same data types and preprocessing as R (32-bit float data, same compensation/transformation)
-
-### Preprocessing: Critical for Matching R Results
-
-The preprocessing order is **critical** for reproducibility:
-
-```rust
-// Recommended preprocessing order (matching R's PeacoQC):
-let fcs = fcs.open("data.fcs")?;
-
-// Step 1: Remove margins (on raw data)
-let margin_config = MarginConfig { /* ... */ };
-let fcs = fcs.filter(&remove_margins(&fcs, &margin_config)?.mask)?;
-
-// Step 2: Remove doublets (on raw data)
-let doublet_config = DoubletConfig::default();
-let fcs = fcs.filter(&remove_doublets(&fcs, &doublet_config)?.mask)?;
-
-// Step 3: Apply compensation + transformation (new data)
-let fcs = preprocess_fcs(fcs, true, true, 2000.0)?;
-
-// Now run PeacoQC on preprocessed data
-let config = PeacoQCConfig {
-    apply_compensation: false,  // Already applied above
-    apply_transformation: false,
-    ..Default::default()
-};
-let result = peacoqc(&fcs, &config)?;
-```
-
-**Why this matters**: Margin/doublet removal thresholds are calculated on raw values. Applying transformation first changes these thresholds and produces different results than the R package.
-
-### Debugging Discrepancies
-
-To identify the source of differences:
-
-1. **Compare bin structure first** (fastest check):
-   ```bash
-   # Should match exactly if preprocessing is identical
-   Rust: result.n_bins, result.events_per_bin
-   R: result$nr_bins, result$EventsPerBin
-   ```
-
-2. **Enable debug logging** to see per-bin details:
-   ```bash
-   PEACOQC_DEBUG_BINS=1 PEACOQC_DEBUG_SPLINE=1 your_app
-   ```
-
-3. **Compare removal percentages by method** (shows which step differs):
-   - Check `it_percentage` (Isolation Tree) separately from `mad_percentage` (MAD)
-   - If IT matches but MAD differs → spline smoothing or KDE is the source
-   - If both match but consecutive filter differs → numerical precision in edge cases
-
-4. **Check if GPU acceleration is active**:
-   - Disable GPU: `WGPU_BACKEND=gl` or rebuild without `--features gpu`
-   - GPU differences are typically <0.5% and more deterministic if using same batch sizes
-
-### Test Results: Validation Against R
-
-Rust implementation tested against R on real FCS datasets:
-
-| Metric | Expected Match | Observed Range |
-|--------|---|---|
-| Bin count (`n_bins`) | Exact | 100% match |
-| Events per bin | Exact | 100% match |
-| Isolation Tree results | Perfect or minor | 3/4 files perfect, 1/4 minor differences |
-| MAD results | Very close | 0.90–6.85% difference |
-| Final event removal | Very close | <5% difference typical |
-| IT + MAD combined | Very close | <3% difference typical |
+MIT
 
 ## Contributing
 
-Contributions are welcome! Please feel free to open issues or submit a Pull Request on [Github](https://github.com/jrmoynihan/flow).
+Contributions are welcome! Please feel free to open issues or submit a Pull Request on [Github]
+(https://github.com/jrmoynihan/flow).
+
+## Related crates
+
+- **Manual gates / Automated scatter gates** → [`flow-gates`](../gates/)
+- **CLI and Python bindings** → [`peacoqc-cli`](../peacoqc-cli/), [`peacoqc-py`](../peacoqc-py/)
+- **Shared FFT KDE for gates/plots/general analysis** → [`flow-density`](../flow-density/) (this crate still vendors a PeacoQC-oriented density helper under `stats::density`; migrating to `flow-density` is planned)
+- **Single-stain histogram peak isolation for unmixing medians** → [`flow-peak-detection`](../flow-peak-detection/) (different problem than PeacoQC time-bin peaks)
+- **Long QC preprocessing chain** (margins → doublets → compensate/transform → PeacoQC → scatter/debris) → [`tru-ols`](../tru-ols-cli/) library (`run_qc_pipeline`), not this crate alone
+- **CLI wrapper only** → [`peacoqc-cli`](../peacoqc-cli/)

@@ -1,60 +1,99 @@
 # flow-tru-ols
 
-TRU-OLS (Truncated ReUnmixing Ordinary Least Squares) algorithm for flow cytometry unmixing.
+TRU-OLS (Truncated ReUnmixing Ordinary Least Squares) for spectral flow cytometry unmixing.
 
-This crate implements TRU-OLS, which reduces the variance of unmixed abundance distributions by removing irrelevant endmembers (dyes) from the mixing matrix on a per-event basis. It is a variant of stepwise regression that uses unstained control data to determine which endmembers are relevant for each event.
+[![crates.io](https://img.shields.io/crates/v/flow-tru-ols.svg)](https://crates.io/crates/flow-tru-ols)
+[![docs.rs](https://docs.rs/flow-tru-ols/badge.svg)](https://docs.rs/flow-tru-ols)
+[![MIT](https://img.shields.io/crates/l/flow-tru-ols.svg)](LICENSE)
 
-## Features
+## What this crate is for
 
-- **`flow-fcs`** (default): FCS file loading and detector data extraction; required for real-world unmixing workflows.
-- **`plotting`**: Optional integration with `flow-plots` for abundance distribution and unmixing comparison plots.
-- **`blas`**: Use system BLAS (e.g. OpenBLAS) for linear algebra; otherwise uses pure-Rust [faer](https://github.com/sarah-ek/faer).
+Use `flow-tru-ols` when you need the **library** that:
 
-## Usage
+- Builds truncated per-event least-squares solves from a mixing matrix + unstained control
+- Exposes quality / comparison helpers vs plain OLS (`run_comparison`, report markdown)
+- Optionally loads detectors from FCS (`flow-fcs` feature) or plots abundances (`plotting`)
 
-Add to `Cargo.toml`:
+Use a sibling instead when you need:
+
+- **End-user CLI, batch unmix, control discovery, QC pipeline** → Cargo package [`tru-ols`](../tru-ols-cli/) in `tru-ols-cli/` (`cargo run -p tru-ols`)
+- **Spillover compensation only** → [`flow-linalg`](../flow-linalg/)
+- **FCS parse/write** → [`flow-fcs`](../fcs/)
+
+## How it works
+
+TRU-OLS is a stepwise-style truncated OLS: on each event it repeatedly solves least squares on shrinking endmember subsets until cutoffs (from unstained controls) stabilize. That is not a fixed two-pass “OLS then clean” workflow—inner iteration counts matter when comparing throughput to single-factorization OLS.
+
+Default linear algebra is pure-Rust [faer](https://github.com/sarah-ek/faer); optional `blas` pins ndarray for `ndarray-linalg`. Optional `cubecl` enables GPU GEMM experiments for the normal-equations RHS block.
+
+## Related crates
+
+- [`tru-ols` CLI](../tru-ols-cli/) — batch/single-file unmix, auto-gate QC, plots
+- [`flow-linalg`](../flow-linalg/) — compensation + condition/hotspot
+- [`flow-fcs`](../fcs/), [`flow-plots`](../plots/) — I/O and optional plotting
+- [`peacoqc-rs`](../peacoqc-rs/) — time-bin QC used by the CLI pipeline (not this lib)
+
+## Demo / API
 
 ```toml
 [dependencies]
-flow-tru-ols = { path = "../tru-ols", features = ["flow-fcs"] }
+flow-tru-ols = { version = "0.1.0", features = ["flow-fcs"] }
 ```
 
-Example: unmix with a mixing matrix and unstained control (see `src/lib.rs` for the full API):
+| Feature | Description |
+|---------|-------------|
+| `flow-fcs` *(default)* | FCS loading / detector extraction |
+| `plotting` | Abundance / comparison plots via `flow-plots` |
+| `blas` | System BLAS via `ndarray-linalg` |
+| `cubecl` | Optional GPU GEMM path |
+| `large-panels` | >128 endmembers |
+| `unmix-cache` | Bounded Gram Cholesky factor cache by active mask |
 
 ```rust
-use flow_tru_ols::{TruOls, UnmixingStrategy};
-use faer::mat;
+use flow_tru_ols::{TruOls, TruOlsError};
+use faer::{Mat, mat};
 
-let mixing_matrix = mat![[0.9, 0.1], [0.1, 0.9], [0.05, 0.05]];
-let unstained_control = mat![[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]];
-let dataset = mat![[100.0, 50.0, 10.0], [200.0, 150.0, 20.0]];
+fn example() -> Result<(), TruOlsError> {
+    let mixing_matrix: Mat<f64> = mat![[0.9, 0.1], [0.1, 0.9], [0.05, 0.05]];
+    let unstained_control: Mat<f64> = mat![[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]];
+    let dataset: Mat<f64> = mat![[100.0, 50.0, 10.0], [200.0, 150.0, 20.0]];
 
-let mut tru_ols = TruOls::new(mixing_matrix, unstained_control.clone(), 1)?;
-tru_ols.set_cutoff_percentile(0.995, unstained_control.as_ref())?;
-// Default strategy is UCM; opt into Zero if desired:
-// tru_ols.set_strategy(UnmixingStrategy::Zero);
-
-let unmixed = tru_ols.unmix(dataset.as_ref())?;
+    let mut tru_ols: TruOls = TruOls::new(mixing_matrix, unstained_control.clone(), 1)?;
+    tru_ols.set_cutoff_percentile(0.995, unstained_control.as_ref())?;
+    let unmixed: Mat<f64> = tru_ols.unmix(dataset.as_ref())?;
+    Ok(())
+}
 ```
 
-## CLI
-
-For batch unmixing, single-stain control handling, and plot output, use the **tru-ols-cli** crate in this workspace:
+Quality comparison (library):
 
 ```bash
-cargo run -p tru-ols-cli -- unmix --help
+cargo run -p flow-tru-ols --no-default-features --example quality_comparison_report
 ```
 
-See [tru-ols-cli/README.md](../tru-ols-cli/README.md) for installation and usage.
+CLI (different package name):
 
-## Documentation and notes
+```bash
+cargo run -p tru-ols -- unmix --help
+```
 
-Design notes, validation reports, and algorithm comparisons are in the [docs/](docs/) directory:
+## Performance
 
-- [docs/README.md](docs/README.md) — index of all documents
-- [docs/dev-notes.md](docs/dev-notes.md) — mixing matrix sources, future enhancements
-- [docs/validation-report.md](docs/validation-report.md) — validation vs Julia and fixes applied
+Profiling and A/B notes: [`docs/PROFILING.md`](docs/PROFILING.md). Criterion benches measure **throughput**, not OLS quality.
+
+```bash
+cargo bench -p flow-tru-ols --bench unmixing_benchmark
+# Optional GPU path:
+cargo bench -p flow-tru-ols --features cubecl --bench ols_method_compare
+```
+
+When benchmarking outer Rayon with multithreaded BLAS, set `OMP_NUM_THREADS=1` unless nested parallelism is intentional. `FLOW_TRU_OLS_FORCE_SEQUENTIAL=1` disables Rayon for A/B profiling.
+
+## Documentation
+
+- [`docs/README.md`](docs/README.md) — index
+- [`docs/comparison-with-julia.md`](docs/comparison-with-julia.md) — numerical agreement notes
 
 ## License
 
-MIT. See [LICENSE](../../LICENSE) in the repository root.
+MIT

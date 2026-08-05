@@ -12,43 +12,79 @@ The workspace includes libaries for:
 - QC'ing data
 - Performing unmixing
 
-:construction: 
 > **⚠️ Under Construction**: This workspace is actively under development. APIs may change, and some features may be incomplete. Use with caution in production environments.
 >
-:construction:
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Repository](https://img.shields.io/badge/github-jrmoynihan%2Fflow-blue)](https://github.com/jrmoynihan/flow)
 
-## Overview
+## Crate Overview
 
 This workspace contains multiple crates for flow cytometry analysis:
 
-- **`flow-fcs`**: A comprehensive, type-safe API for reading, parsing, and manipulating Flow Cytometry Standard (FCS) files. Built on top of [Polars](https://www.pola.rs/) for efficient columnar data operations, with zero-copy data access, SIMD-accelerated operations, and support for common flow cytometry data transformations.
-- **`flow-plots`**: Package for drawing and interacting with plots in flow cytometry data.
-- **`flow-gates`**: Package for drawing and interacting with gates in flow cytometry data.
-- **`peacoqc-rs`**: A reimplementation of the PeacoQC (R) algorithm from the Saeys lab, parallelized in Rust.
-- **`peacoqc-cli`**: A command-line interface (CLI) tool for using `peacoqc-rs`.
-- **`flow-tru-ols`**: TRU-OLS (Truncated ReUnmixing OLS) algorithm for flow cytometry unmixing; optional integration with `flow-fcs` and `flow-plots`.
-- **`tru-ols-cli`**: Command-line tool for TRU-OLS unmixing (batch or single-file, with optional QC and plot output).
+### I/O
 
-## Contributing
+| Package | Path | Description |
+| ------- | ---- | ----------- |
+| [`flow-fcs`](fcs/) | `fcs/` | A comprehensive, type-safe API for reading, parsing, writing, and manipulating FCS files. Built on top of [Polars](https://www.pola.rs/) for efficient columnar data operations, with zero-copy data access, and SIMD-accelerated operations. |
+| [`flow-fcs-compress`](flow-fcs-compress/) | `flow-fcs-compress/` | Codecs for compression and decompression of FCS files, a novel `.fcz` compressed format |
+| [`flow-fcs-bench`](flow-fcs-bench/) | `flow-fcs-bench/` | Synthetic / file harness for compress throughput (unpublished) |
 
-Contributions are welcome! Please feel free to submit a Pull Request or feature request.
+### Shared Primitives
+
+| Package | Path | Description |
+| ------- | ---- | ----------- |
+| [`flow-linalg`](flow-linalg/) | `flow-linalg/` | Pure-Rust linear algebra primitives for flow cytometry, built on [`faer`](https://crates.io/crates/faer). Spillover compensation, matrix condition / hotspot matrices |
+| [`flow-density`](flow-density/) | `flow-density/` | FFT-accelerated KDE (1D/2D) for use with gating, plotting, and high-dimensional reduction and clustering |
+| [`flow-clustering`](flow-clustering/) | `flow-clustering/` | K-means, DBSCAN, GMM for automated gating |
+| [`flow-knn`](flow-knn/) | `flow-knn/` | Reusable `KnnGraph`: Exact / HNSW / GPU-acceleration (optional) |
+| [`flow-peak-detection`](flow-peak-detection/) | `flow-peak-detection/` | Histogram peak isolation, e.g. for single-stain medians |
+| [`flow-control-detection`](flow-control-detection/) | `flow-control-detection/` | Filename heuristics for unstained / single-stain roles |
+
+### Analysis
+
+| Package | Path | Description |
+| ------- | ---- | ----------- |
+| [`flow-gates`](gates/) | `gates/` | Manual + GatingML gates, hierarchies, automated scatter/doublets/debris |
+| [`flow-plots`](plots/) | `plots/` | Density, scatter, histogram, and spectral plot rendering to static images |
+| [`peacoqc-rs`](peacoqc-rs/) | `peacoqc-rs/` | PeacoQC time-bin QC (IT / MAD / margins / doublets) |
+| [`flow-tru-ols`](tru-ols/) | `tru-ols/` | Truncated re-unmixing OLS core + quality metrics |
+| [`flow-pacmap`](flow-pacmap/) | `flow-pacmap/` | PaCMAP embedding (KNN via `flow-knn`) |
+
+### Apps and Bindings
+
+| Package | Path | Description |
+| ------- | ---- | ----- |
+| [`peacoqc-cli`](peacoqc-cli/) | `peacoqc-cli/` | CLI for performing PeacoQC on FCS files |
+| [`tru-ols-cli`](tru-ols-cli/) | `tru-ols-cli/` | CLI for performing TRU-OLS spectral unmixing on FCS files |
+| [`peacoqc-py`](peacoqc-py/) | `peacoqc-py/` | Python bindings for `peacoqc-rs` |
+
+## Building and Testing
+
+```bash
+cargo check --workspace
+cargo test --workspace --lib --bins
+cargo clippy --workspace
+```
 
 ## License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+MIT — see [LICENSE](LICENSE).
 
 ## Acknowledgments
 
-- Built with [Polars](https://www.pola.rs/) for high-performance data operations
-- Uses [faer](https://github.com/sarah-ek/faer) for pure-Rust linear algebra (compensation, unmixing)
-- Inspired by the need for fast, type-safe FCS file handling in Rust
+- [Polars](https://www.pola.rs/) for columnar storage of events/parameters
+- [faer](https://github.com/sarah-ek/faer) Linear algebra
+- [PeacoQC](https://github.com/saeyslab/PeacoQC) (Saeys lab) for the QC algorithm reimplemented in `peacoqc-rs`
+- [TRU-OLS](https://github.com/De-Novo-Research/TRU-OLS) (DeNovo Research) for the unmixing algorithm.
 
 ## Related Projects
 
-- [Polars](https://www.pola.rs/): Fast DataFrame library
-- [faer](https://github.com/sarah-ek/faer): Pure-Rust linear algebra library
-- [PeacoQC](https://github.com/saeyslab/PeacoQC): Peak-based selection of high quality cytometry data
-- 
+- [Polars](https://www.pola.rs/) — High-performance dataframe library
+- [faer](https://github.com/sarah-ek/faer) — Pure-Rust linear algebra library
+- [PeacoQC](https://github.com/saeyslab/PeacoQC) — Peak-based selection of high quality cytometry data
+- [ISAC FCS](https://flowcyt.sourceforge.net/) — Flow Cytometry Standard
+
+## Contributing
+
+Contributions are welcome!  Please submit an Issue or Pull Request to the repository!

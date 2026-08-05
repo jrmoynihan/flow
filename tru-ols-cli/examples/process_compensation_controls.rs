@@ -1374,7 +1374,7 @@ fn generate_kde_diagnostic_plot(
     channel_name: &str,
     output_path: &PathBuf,
 ) -> Result<()> {
-    use flow_utils::kde::KernelDensity;
+    use flow_density::KernelDensity;
     use plotters::prelude::*;
 
     // Estimate KDE

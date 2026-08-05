@@ -43,7 +43,7 @@ After completing the code, ask the user if they want a playground link. Only cal
 
 ### Project structure
 
-- **Rust workspace** (9 crates): `flow-fcs`, `flow-plots`, `flow-gates`, `flow-utils`, `flow-tru-ols`, `peacoqc-rs`, `peacoqc-cli`, `peacoqc-py`, `tru-ols-cli`
+- **Rust workspace** members include: `flow-fcs`, `flow-fcs-compress`, `flow-fcs-bench`, `flow-linalg`, `flow-density`, `flow-clustering`, `flow-knn`, `flow-pacmap`, `flow-plots`, `flow-gates`, `peacoqc-rs`, `peacoqc-cli`, `flow-tru-ols`, `flow-peak-detection`, `flow-control-detection`. On-disk but not always root workspace members: `tru-ols-cli` (package `tru-ols`), `peacoqc-py`.
 - **SvelteKit docs site**: root `package.json`, uses bun, Svelte 5, Tailwind CSS v4, mdsvex
 
 ### Rust crates
@@ -88,6 +88,7 @@ After completing the code, ask the user if they want a playground link. Only cal
 - Shared cross-algorithm primitives (KNN/HNSW/ANN and similar) should live in dedicated crates, not only inside one algorithm crate such as `flow-pacmap`.
 - Keep filling realistic n×d performance matrices so callers can eventually auto-select the best method for a workload; scale CPU vs GPU benches enough to show behavior under pressure.
 - Prefer composable typestate or capability markers over `Option`/`bool`-encoded invariants for verified pipeline states (version-aware FCS metadata, spillover-ready compensation, validated KNN graphs for PaCMAP, and similar).
+- For small `unsafe` or alloc/syscall micro-optimizations, A/B with Criterion first: record a baseline in crate/dev PERF docs, apply the change, re-measure, and keep only if the primary size clearly improves; otherwise revert and leave a documented reverted row.
 
 ---
 
@@ -99,7 +100,7 @@ After completing the code, ask the user if they want a playground link. Only cal
 - `FLOW_TRU_OLS_FORCE_SEQUENTIAL=1` disables Rayon for independent-event loops and for `TruOls::unmix` (useful for A/B profiling vs parallel builds). Independent-event paths use Rayon when there are more than 256 events; `unmix` uses Rayon above 10_000 events. When benchmarking outer Rayon together with a multithreaded BLAS backend, set `OMP_NUM_THREADS=1` (and vendor-specific BLAS thread limits) unless nested parallelism is intentional, to reduce oversubscription.
 - For `tru-ols unmix` when `--stained` is a directory, `TRU_OLS_BATCH_SHARED_FACTOR_CACHE` selects a shared mask-factor cache across stained files (default) or a fresh cache per file (`0`/`false`/`no`) for A/B timing; pair with `OMP_NUM_THREADS=1` when benchmarking alongside multithreaded BLAS.
 - TRU-OLS **vs** plain OLS **quality** (spread, fit, USE, dimensionality) is evaluated with `run_comparison` / `ComparisonReport`, `comparison_report_markdown`, or `cargo run -p flow-tru-ols --no-default-features --example quality_comparison_report`; Criterion benches measure **throughput**, not that quality comparison.
-- TRU-OLS **profiling** and A/B notes live in `tru-ols/docs/PROFILING.md`; end-to-end hot-path sampling uses the `profile_hot_path` example mode `tru_ols_unmix`. On macOS, **samply** is documented when `cargo flamegraph` trace collapse fails.
+- TRU-OLS **profiling** and A/B notes live in `tru-ols/docs/PROFILING.md`; end-to-end hot-path sampling uses the `profile_hot_path` example mode `tru_ols_unmix`. On macOS, **samply** is documented when `cargo flamegraph` trace collapse fails. Workspace-wide unsafe/alloc micro-opt A/B protocol (Criterion baseline → change → keep if ≥5% median on the primary size) is in `docs/dev/UNSAFE_MICROOPT_AB.md`, with per-crate results under `*/docs/PERF_AB.md` (and related).
 - Optional GPU paths use cubeCL/WGPU (`flow-tru-ols` behind the `cubecl` feature). Workspace direction is Burn + cubeCL 0.10-class stacks (Burn for Adam/device plumbing; raw cubeCL for custom sparse kernels such as PaCMAP pair gradients). GPU benches and modes like `normal_equations_gpu` need suitable adapters and may fail without one.
 - `tru-ols/docs/comparison-with-julia.md`, `tru-ols-cli/examples/compare_with_julia.rs`, and `tru-ols/docs/julia-and-blas-on-macos.md` cover Rust–Julia numerical agreement, optional throughput sidecars, and macOS BLAS/REPL inspection; no fixed CI timing regression—document machine, BLAS, and threads when publishing. Use `cargo run --release --example compare_with_julia` for representative wall times; the example takes four positional paths only (stained FCS, unstained FCS, controls directory, output directory)—flag-style tokens are treated as literal paths.
 - `TruOls::unmix` runs a variable inner loop (repeated least-squares solves on shrinking column subsets until cutoffs stabilize), not a fixed two-pass workflow; comparing throughput to single-factorization OLS paths only makes sense when solver paths and per-event iteration counts are aligned.

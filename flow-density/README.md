@@ -8,63 +8,77 @@ FFT-accelerated kernel density estimation for flow cytometry.
 
 ## Overview
 
-`flow-density` provides 1D and 2D kernel density estimation optimized for the event counts typical in flow cytometry (10K–10M events). The FFT-based algorithm avoids the O(n²) cost of naive KDE, making real-time density plots feasible even for large files.
+`flow-density` provides 1D and 2D kernel density estimation (KDE), peak-finding (mode), or contour extraction optimized for the event counts typical in flow cytometry (10K–10M events).
+
+The FFT-based KDE algorithm avoids the O(n²) cost of naive KDE, making real-time density plots feasible even for large files.
 
 ## Features
 
 | Feature | Description |
-|---------|-------------|
+| ------- | ----------- |
 | `kde` *(default)* | 1D and 2D kernel density estimation |
 | `gpu` | WebGPU-accelerated KDE via `burn` + `cubecl` (experimental) |
 
-## Public API
+- **1D KDE**: Gaussian kernel with Silverman bandwidth selection, evaluated via FFT convolution (`realfft`). Supports bandwidth adjustment factor and configurable grid resolution.
+- **2D KDE**: Separable Gaussian kernel on a regular grid, FFT-accelerated along each axis. Contour  extraction via threshold-based boundary tracing.
+- **Peak finding**: Local maxima detection with configurable minimum prominence (peak removal fraction).
+- **Contour extraction** from 2D density fields
+- *(Future)* Adaptive bandwidth KDE
+
+## Related crates
+
+- **Rendered density/scatter plots** → [`flow-plots`](../plots/) (pixel occupancy ≠ FFT KDE)
+- **Gates** [`flow-gates`](../gates/), [`flow-plots`](../plots/) — Uses FFT KDE for peak detection
+- **QC** [`peacoqc-rs`](../peacoqc-rs/) - Uses FFT KDE for density-based gating
+- **Clustering** [`flow-clustering`](../flow-clustering/) — clustering, not density estimation
+- **Single-stain peak isolation for unmixing** → [`flow-peak-detection`](../flow-peak-detection/)
+
+## Installation
+
+```bash
+cargo add flow-density
+```
+
+Or add it directly to your `Cargo.toml`:
+
+```toml
+[dependencies]
+flow-density = "0.1.1"
+```
+
+## API Usage
 
 ### 1D Density Estimation
 
 ```rust
-use flow_density::KernelDensity;
+use flow_density::{KernelDensity, KdeResult};
 
-let kde = KernelDensity::estimate(&data, 1.0, 512)?;
-let peaks = kde.find_peaks(0.1);       // locate density peaks
-let d = kde.density_at(42.0);          // query density at a point
+fn example(data: &[f64]) -> KdeResult<()> {
+    let kde: KernelDensity = KernelDensity::estimate(data, 1.0, 512)?;
+    let peaks: Vec<f64> = kde.find_peaks(0.1);  // locate density peaks
+    let d: f64 = kde.density_at(42.0);  // query density at a point
+    Ok(())
+}
 ```
 
 ### 2D Density Estimation
 
 ```rust
-use flow_density::KernelDensity2D;
+use flow_density::{KernelDensity2D, KdeResult};
 
-let kde2d = KernelDensity2D::estimate(&x_data, &y_data, 1.0, 256)?;
-let contour = kde2d.find_contour(0.5); // extract contour at threshold
-let d = kde2d.density_at(100.0, 200.0);
+fn example(x_data: &[f64], y_data: &[f64]) -> KdeResult<()> {
+    let kde2d: KernelDensity2D = KernelDensity2D::estimate(x_data, y_data, 1.0, 256)?;
+    let contour: Vec<(f64, f64)> = kde2d.find_contour(0.5);
+    let d: f64 = kde2d.density_at(100.0, 200.0);
+    Ok(())
+}
 ```
 
-### Utilities
+## Performance
 
-```rust
-use flow_density::common::{standard_deviation, interquartile_range, gaussian_kernel};
-```
+FFT KDE targets 10K–10M events where naive O(n²) KDE is impractical.
 
-## Algorithms
-
-- **1D KDE**: Gaussian kernel with Silverman bandwidth selection, evaluated via FFT convolution (`realfft`). Supports bandwidth adjustment factor and configurable grid resolution.
-- **2D KDE**: Separable Gaussian kernel on a regular grid, FFT-accelerated along each axis. Contour extraction via threshold-based boundary tracing.
-- **Peak finding**: Local maxima detection with configurable minimum prominence (peak removal fraction).
-
-## Scope
-
-This crate owns:
-
-- 1D and 2D kernel density estimation
-- Bandwidth selection heuristics (Silverman, Scott)
-- Peak/mode detection in density estimates
-- Contour extraction from 2D density fields
-- *(Future)* Adaptive bandwidth KDE
-- *(Future)* GPU-accelerated KDE for interactive use
-
-It does **not** own: plotting/rendering, clustering, gating logic, or FCS file I/O.
-
-## Tests
+## Testing
 
 ```bash
 cargo test -p flow-density

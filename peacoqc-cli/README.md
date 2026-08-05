@@ -1,15 +1,30 @@
 # PeacoQC-CLI
 
-[Rust](https://www.rust-lang.org/)
-[License: MIT](https://opensource.org/licenses/MIT)
+[![Rust](https://img.shields.io/badge/rust-1.70+-orange.svg)](https://www.rust-lang.org/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-Command-line tool for [PeacoQC (Peak-based Quality Control)](https://doi.org/10.1002/cyto.a.24501) for flow cytometry FCS files built on top of the `[peacoqc-rs` crate]([https://crates.io/crates/peacoqc-rs](https://crates.io/crates/peacoqc-rs)), which implements the PeacoQC algorithm. The CLI provides a simple interface to run quality control on one or more FCS files with parallel processing support.
+## What this crate is for
 
-For a **longer default preprocessing chain** (margins, raw doublet masks, compensation/transform, time-bin QC, then scatter or consensus forward-scatter debris gating), the workspace `tru-ols` package exposes `run_qc_pipeline` and related types in its library crate; this CLI stays focused on running PeacoQC on inputs you have already prepared.
+Command-line tool for [PeacoQC](https://doi.org/10.1002/cyto.a.24501) on FCS files, built on [`peacoqc-rs`](https://crates.io/crates/peacoqc-rs). Use it to run quality control on one or more FCS files with parallel processing.
 
-## Installation
+For a **longer default preprocessing chain** (margins, raw doublet masks, compensation/transform, time-bin QC, then scatter or consensus forward-scatter debris gating), use the workspace **`tru-ols` CLI package** in [`tru-ols-cli/`](../tru-ols-cli/) (`run_qc_pipeline` and related types)—not the `flow-tru-ols` library crate. This CLI stays focused on running PeacoQC on inputs you have already prepared.
 
-### From Source
+## How it works
+
+Wraps `peacoqc-rs` configuration and I/O: discover FCS paths, run QC, write cleaned files and optional reports. Algorithm details live in [`peacoqc-rs`](../peacoqc-rs/).
+
+## Related crates
+
+- [`peacoqc-rs`](../peacoqc-rs/) — QC library
+- [`peacoqc-py`](../peacoqc-py/) — Python bindings
+- [`tru-ols`](../tru-ols-cli/) CLI — orchestrated QC + unmix pipeline
+- [`flow-fcs`](../fcs/) — FCS I/O
+
+## Demo / API
+
+### Installation
+
+#### From Source
 
 ```bash
 git clone <repository-url>
@@ -19,7 +34,7 @@ cargo build --release
 
 The binary will be at `target/release/peacoqc`.
 
-### Using Cargo
+#### Using Cargo
 
 Install the binary as a cargo tool by pointing to its location (e.g. using the path of the repo cloned above):
 
@@ -344,14 +359,11 @@ The CLI continues processing even if individual files fail:
 
 ## Integration with peacoqc-rs
 
-This CLI is built on top of the `[peacoqc-rs` library]([https://crates.io/crates/peacoqc-rs](https://crates.io/crates/peacoqc-rs)), which provides:
+This CLI is built on [`peacoqc-rs`](../peacoqc-rs/), which provides trait-based QC, parallel processing, and optional [`flow-fcs`](../fcs/) integration. See that crate’s README and docs.rs for library usage.
 
-- Trait-based design for maximum flexibility
-- Efficient parallel processing
-- Comprehensive quality control algorithms
-- Integration with `[flow-fcs](https://crates.io/crates/flow-fcs)` for FCS file support
+## Performance
 
-See the `[peacoqc-rs` documentation]([https://crates.io/crates/peacoqc-rs](https://crates.io/crates/peacoqc-rs)) for library usage.
+Process directories and directories in parallel; wall time is dominated by FCS I/O and per-file PeacoQC. Prefer SSD-local inputs for large batches.
 
 ## License
 
@@ -363,11 +375,11 @@ We gratefully acknowledge the original PeacoQC algorithm authors:
 
 **Original Paper:**
 
-- [Emmaneel, A., Quintelier, K., Sichien, D., Rybakowska, P., Marañón, C., Alarcón-Riquelme, M. E., Van Isterdael, G., Van Gassen, S., & Saeys, Y. (2022). PeacoQC: Peak-based selection of high quality cytometry data. *Cytometry A*, 101(4), 325-338. `https://doi.org/10.1002/cyto.a.24501](https://doi.org/10.1002/cyto.a.24501)`
+- Emmaneel, A., Quintelier, K., Sichien, D., Rybakowska, P., Marañón, C., Alarcón-Riquelme, M. E., Van Isterdael, G., Van Gassen, S., & Saeys, Y. (2022). PeacoQC: Peak-based selection of high quality cytometry data. *Cytometry A*, 101(4), 325-338. https://doi.org/10.1002/cyto.a.24501
 
 **Original R Implementation:**
 
-- [GitHub: `https://github.com/saeyslab/PeacoQC](https://github.com/saeyslab/PeacoQC)`
+- https://github.com/saeyslab/PeacoQC
 - Authors: Annelies Emmaneel, Katrien Quintelier, and the Saeys Lab
 
 ## Contributing

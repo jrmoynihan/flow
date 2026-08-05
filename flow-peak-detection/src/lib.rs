@@ -59,7 +59,9 @@ pub fn detect_peaks_kde(
     let mean = finite.iter().sum::<f64>() / n;
     let var = finite.iter().map(|x| (x - mean).powi(2)).sum::<f64>() / n;
     let std = var.sqrt().max(f64::EPSILON);
-    let bw = bandwidth.unwrap_or_else(|| 1.06 * std * n.powf(-0.2)).max(f64::EPSILON);
+    let bw = bandwidth
+        .unwrap_or_else(|| 1.06 * std * n.powf(-0.2))
+        .max(f64::EPSILON);
 
     let mut xs = Vec::with_capacity(resolution);
     let mut dens = vec![0.0_f64; resolution];
@@ -177,7 +179,7 @@ pub fn isolate_positive_peak(data: &[f64], config: &PeakConfig) -> Result<PeakRe
 }
 
 /// Isolate the leftmost peak (negative population).
-pub fn find_negative_peak(data: &[f64], config: &PeakConfig) -> Result<PeakResult> {
+pub fn isolate_negative_peak(data: &[f64], config: &PeakConfig) -> Result<PeakResult> {
     isolate_peak(data, config, PeakSide::Negative)
 }
 

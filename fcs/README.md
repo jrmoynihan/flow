@@ -2,12 +2,8 @@
 
 A high-performance Rust library for reading, parsing, and manipulating Flow Cytometry Standard (FCS) files.
 
-:construction:
-
-> **⚠️ Under Construction**: This library is actively under development. APIs may change, and some features may be incomplete. Use with caution in production environments.
->
-:construction:
-
+[![crates.io](https://img.shields.io/crates/v/flow-fcs.svg)](https://crates.io/crates/flow-fcs)
+[![docs.rs](https://docs.rs/flow-fcs/badge.svg)](https://docs.rs/flow-fcs)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Repository](https://img.shields.io/badge/github-jrmoynihan%2Fflow--fcs-blue)](https://github.com/jrmoynihan/flow-fcs)
 
@@ -15,18 +11,23 @@ A high-performance Rust library for reading, parsing, and manipulating Flow Cyto
 
 `flow-fcs` provides a comprehensive, type-safe API for working with FCS files used in flow cytometry analysis. Built on top of [Polars](https://www.pola.rs/) for efficient columnar data operations, the library offers zero-copy data access, SIMD-accelerated operations, and support for common flow cytometry data transformations.
 
-## Features
+Use a sibling crate instead when you need:
 
-- **Full FCS Standard Support**: Supports FCS versions 1.0 through 4.0
+- **QC / gates / plots** → [`peacoqc-rs`](../peacoqc-rs/), [`flow-gates`](../gates/), [`flow-plots`](../plots/)
+- **Column compression / `.fcz`** → [`flow-fcs-compress`](../flow-fcs-compress/) (optional `compress` feature)
+- **Spillover math primitives** → [`flow-linalg`](../flow-linalg/) (optional `compensation` feature)
+- **TRU-OLS truncated unmixing** → [`flow-tru-ols`](../tru-ols/) (preferred for spectral unmixing)
+
+## How It Works
 
 - **High Performance**:
   - Memory-mapped file I/O for efficient large file handling
-  - Zero-copy column access via Polars
+  - Zero-copy column access via Polars for streaming stats, sliced data, lazy query evaluation across million-event files, and Arrow data format interop
   - SIMD-accelerated operations
   - Parallel processing with Rayon
 - **Data Transformations**:
   - Arcsinh transformation (with configurable cofactors)
-  - Compensation (spillover matrix)
+  - Compensation (spillover matrix) via the `compensation` feature
   - Spectral unmixing
 - **Polars Integration**:
   - Lazy evaluation for complex queries
@@ -37,87 +38,111 @@ A high-performance Rust library for reading, parsing, and manipulating Flow Cyto
   - Parameter metadata (names, labels, transforms)
   - GUID and file information
 - **Type Safety**: Strong typing throughout with clear error messages
+- **FCS v1.0–4.0 Support** with version-aware keyword/metadata typing.
 
 ## Installation
 
-Add this to your `Cargo.toml`:
+```bash
+cargo add flow-fcs
+```
+
+Or add this to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-flow-fcs = "0.2.2"
+flow-fcs = "0.4.1"
 ```
 
 ### Optional Features
 
-- `typescript`: Generate TypeScript bindings for Rust types (requires `ts-rs`)
+| Feature | Description |
+| ------- | ----------- |
+| `compress` | `.fcz` / compressed DATA via [`flow-fcs-compress`](../flow-fcs-compress/) |
+| `compensation` | Spillover apply paths via [`flow-linalg`](../flow-linalg/) |
+| `blas` | Opt-in system BLAS for selected linear-algebra paths |
+| `typescript` | TypeScript bindings via `ts-rs` |
+| `specta` | `specta::Type` derives (e.g. tauri-specta) |
+| `parquet-sidecar` | Parquet sidecar write/read (implies `compress`) |
 
 ```toml
 [dependencies]
-flow-fcs = { version = "0.2.2", features = ["typescript"] }
+flow-fcs = { version = "0.4.1", features = ["compensation", "compress"] }
 ```
 
 ## Quick Start
 
-### Opening an FCS File
+### Opening an FCS file
 
 ```rust
 use flow_fcs::Fcs;
+use anyhow::Result;
+use std::borrow::Cow;
 
-// Open an FCS file
-let fcs = Fcs::open("path/to/file.fcs")?;
+fn example() -> Result<()> {
+    let fcs: Fcs = Fcs::open("path/to/file.fcs")?;
 
-// Get basic information
-let num_events = fcs.get_number_of_events()?;
-let num_parameters = fcs.get_number_of_parameters()?;
-let guid = fcs.get_guid()?;
+    let num_events: &usize = fcs.get_number_of_events()?;
+    let num_parameters: &usize = fcs.get_number_of_parameters()?;
+    let guid: Cow<'_, str> = fcs.get_guid()?;
 
-println!("File: {} events, {} parameters", num_events, num_parameters);
-println!("GUID: {}", guid);
+    println!("File: {num_events} events, {num_parameters} parameters");
+    println!("GUID: {guid}");
+    Ok(())
+}
 ```
 
-### Accessing Parameter Data
+### Accessing parameter data
 
 ```rust
-// Get events for a specific parameter (zero-copy slice)
-let fsc_data = fcs.get_parameter_events_slice("FSC-A")?;
+use flow_fcs::Fcs;
+use anyhow::Result;
 
-// Get (x, y) pairs for plotting
-let xy_pairs = fcs.get_xy_pairs("FSC-A", "SSC-A")?;
-
-// Get parameter statistics using streaming (memory-efficient)
-let (min, max, mean, std) = fcs.get_parameter_statistics("FL1-A")?;
-println!("FL1-A: min={}, max={}, mean={:.2}, std={:.2}", min, max, mean, std);
+fn example(fcs: &Fcs) -> Result<()> {
+    let fsc_data: &[f32] = fcs.get_parameter_events_slice("FSC-A")?;
+    let xy_pairs: Vec<(f32, f32)> = fcs.get_xy_pairs("FSC-A", "SSC-A")?;
+    let (min, max, mean, std): (f32, f32, f32, f32) =
+        fcs.get_parameter_statistics("FL1-A")?;
+    println!("FL1-A: min={min}, max={max}, mean={mean:.2}, std={std:.2}");
+    Ok(())
+}
 ```
 
-### Data Transformations
+### Data transformations
 
 ```rust
-// Apply arcsinh transformation to a parameter
-let transformed = fcs.apply_arcsinh_transform("FL1-A", 200.0)?;
+use flow_fcs::{EventDataFrame, Fcs};
+use anyhow::Result;
+use faer::Mat;
 
-// Apply arcsinh to all fluorescence parameters with default cofactor
-let transformed = fcs.apply_default_arcsinh_transform()?;
+fn example(fcs: &Fcs) -> Result<()> {
+    let transformed: EventDataFrame = fcs.apply_arcsinh_transform("FL1-A", 200.0)?;
+    let transformed_all: EventDataFrame = fcs.apply_default_arcsinh_transform()?;
 
-// Apply compensation from file's $SPILLOVER keyword
-let compensated = fcs.apply_file_compensation()?;
+    // Requires the `compensation` feature (uses flow-linalg under the hood)
+    let compensated: EventDataFrame = fcs.apply_file_compensation()?;
 
-// Apply custom compensation matrix
-use faer::mat;
-let comp_matrix = mat![[1.0, 0.1], [0.05, 1.0]];
-let channels = vec!["FL1-A", "FL2-A"];
-let compensated = fcs.apply_compensation(comp_matrix.as_ref(), &channels)?;
+    let comp_matrix: Mat<f32> = faer::mat![[1.0, 0.1], [0.05, 1.0]];
+    let channels: Vec<&str> = vec!["FL1-A", "FL2-A"];
+    let compensated_custom: EventDataFrame =
+        fcs.apply_compensation(comp_matrix.as_ref(), &channels)?;
+    Ok(())
+}
 ```
 
-### Working with Metadata
+### Working with metadata
 
 ```rust
-// Get keyword values
-let filename = fcs.get_fil_keyword()?;
-let cytometer = fcs.get_keyword_string_value("$CYT")?;
+use flow_fcs::{Fcs, Parameter};
+use anyhow::Result;
+use std::borrow::Cow;
 
-// Access parameter information
-let param = fcs.find_parameter("FL1-A")?;
-println!("Channel: {}, Label: {}", param.channel_name, param.label_name);
+fn example(fcs: &Fcs) -> Result<()> {
+    let filename: Cow<'_, str> = fcs.get_fil_keyword()?;
+    let cytometer: Cow<'_, str> = fcs.get_keyword_string_value("$CYT")?;
+    let param: &Parameter = fcs.find_parameter("FL1-A")?;
+    println!("Channel: {}, Label: {}", param.channel_name, param.label_name);
+    Ok(())
+}
 ```
 
 ## API Overview
@@ -163,56 +188,67 @@ println!("Channel: {}, Label: {}", param.channel_name, param.label_name);
 - `get_number_of_parameters()`: Get parameter count
 - `find_parameter(channel_name)`: Find parameter by name
 
+See [docs.rs/flow-fcs](https://docs.rs/flow-fcs) for the full API (`Header`, `Metadata`, `Parameter`, `EventDataFrame`, GatingML-adjacent helpers, write paths, etc.). More examples live under `tests/`.
+
 ## Performance
 
-The library is optimized for performance:
+The library is aimed at high-performance:
 
 - **Memory-mapped I/O**: Large files are memory-mapped for efficient access
 - **Zero-copy operations**: Polars enables zero-copy column access
 - **SIMD acceleration**: Built-in SIMD operations via Polars
 - **Streaming execution**: Statistics and aggregations use streaming mode for large datasets
-- **Parallel processing**: Rayon enables parallel operations where applicable
+- **Parallel processing**: Rayon enables parallel operations where applicable (multi-channel / multi-parameter paths)
+
+Criterion benches: `dataframe_parsing`, `matrix_operations`, `column_extract`, `serialize_data`.
+
+Micro-opt A/B notes: [`docs/PERF_AB.md`](docs/PERF_AB.md).
+
+```bash
+cargo test -p flow-fcs --lib
+cargo bench -p flow-fcs
+```
 
 ## FCS Standard Support
 
-The library supports FCS versions:
+The library support FCS versions:
 
 - FCS 1.0
 - FCS 2.0
 - FCS 3.0
 - FCS 3.1 (default)
 - FCS 3.2
-- FCS 4.0
+- FCS 4.0 (when available)
 
 ## Error Handling
-
-The library uses `anyhow::Result` for error handling, providing detailed error messages for common issues:
 
 - File I/O errors
 - Invalid FCS format
 - Missing required keywords
 - Type conversion errors
 - Data validation failures
-
-## Examples
-
-See the `tests/` directory for more comprehensive examples of library usage.
+APIs return `anyhow::Result` (and crate error types where appropriate) with context for I/O failures, invalid FCS layout, missing keywords, and validation errors.
 
 ## Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+Contributions are welcome! Submit a Pull Request or Issue on the repository.
 
 ## License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+MIT — see the LICENSE file for details.
 
 ## Acknowledgments
 
-- Built with [Polars](https://www.pola.rs/) for high-performance data operations
-- Uses [faer](https://github.com/sarah-ek/faer) for pure-Rust linear algebra (compensation, unmixing)
-- Inspired by the need for fast, type-safe FCS file handling in Rust
+- Built with [Polars](https://www.pola.rs/) for high-performance columnar data operations
+- Uses [faer](https://github.com/sarah-ek/faer) for pure-Rust linear algebra (compensation paths via [`flow-linalg`](../flow-linalg/))
 
-## Related Projects
+## Related Crates & Projects
 
-- [Polars](https://www.pola.rs/): Fast DataFrame library
-- [faer](https://github.com/sarah-ek/faer): Pure-Rust linear algebra library
+- [`flow-fcs-compress`](../flow-fcs-compress/) — codecs and containers
+- [`flow-linalg`](../flow-linalg/) — compensation / condition metrics
+- [`flow-tru-ols`](../tru-ols/) — spectral unmixing (TRU-OLS)
+- [`flow-plots`](../plots/), [`flow-gates`](../gates/), [`peacoqc-rs`](../peacoqc-rs/) — visualization, gating, QC
+- [Polars](https://www.pola.rs/) — DataFrame / Arrow engine behind event tables
+- [faer](https://github.com/sarah-ek/faer) — pure-Rust linear algebra
+- [anyhow](https://crates.io/crates/anyhow) - Flexible concrete Error types built on std::error::Error
+- [ISAC FCS specification](https://flowcyt.sourceforge.net/) — Flow Cytometry Standard

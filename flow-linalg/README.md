@@ -8,61 +8,86 @@ Pure-Rust linear algebra primitives for flow cytometry, built on [`faer`](https:
 
 ## Overview
 
-`flow-linalg` provides the core matrix operations needed for fluorescence compensation and (future) spectral unmixing in flow cytometry pipelines. It requires no system BLAS/LAPACK — pure Rust via `faer`.
+`flow-linalg` provides the core matrix operations needed for:
 
 ## Features
 
-| Feature | Description |
-|---------|-------------|
+- **Spillover estimation**: Per-control column from median(positive) − median(negative), diagonal-normalized so `S[j][j] = 1`.
+- **Spillover inversion**: Partial-pivot LU decomposition via `faer`. Validates matrix is square and non-singular before inversion.
+- **Compensation application**: Per-event matrix-vector multiply, parallelized across output channels with `rayon`. Validates event count consistency across input channels
+- Matrix condition number / complexity metrics
+- Hotspot (similarity / mixing-matrix) diagnostics for spectral panels
+
+| Feature Flag | Description |
+| ------------ | ----------- |
 | `compensation` | Spillover matrix inversion and per-event compensation |
-| `unmixing` | *(stub)* Spectral unmixing — future implementation |
+
+## How it Works
+
+Compensation uses the `faer` crate's LU for spillover inversion and Rayon-parallel per-channel application when the `compensation` feature is on.
+
+Condition number metrics use SVD (\(κ₂\)).
+
+Hotspot matrix helpers operate on cosine-similarity or unit-normalized mixing-matrix Gram forms. No system BLAS is required.
 
 ## Installation
+
+```bash
+cargo add flow-linalg
+```
+
+Or add it directly to your `Cargo.toml`:
 
 ```toml
 [dependencies]
 flow-linalg = { version = "0.1.2", features = ["compensation"] }
 ```
 
-## Public API
+## API Usage
 
 ```rust
 use flow_linalg::compensation::{
-    invert_spillover, apply_compensation_inv, compensate_channels,
-    estimate_spillover, SingleStainControl,
+    apply_compensation_inv, estimate_spillover, invert_spillover, SingleStainControl,
 };
-use faer::MatRef;
+use flow_linalg::{
+    condition_metrics_f32, hotspot_from_mixing_matrix, ConditionMetrics, HotspotMatrix,
+};
+use anyhow::Result;
+use faer::Mat;
+use std::collections::HashMap;
 
-// Estimate spillover from single-stain positive/negative populations
-let spillover = estimate_spillover(&controls, n_detectors)?;
+fn example(
+    controls: &[SingleStainControl<'_>],
+    n_detectors: usize,
+    raw_channels: &[(&str, &[f32])],
+    channel_names: &[&str],
+    mixing: &Mat<f64>,
+) -> Result<()> {
+    // Estimate spillover from single-stain positive/negative populations
+    let spillover: Mat<f32> = estimate_spillover(controls, n_detectors)?;
+    // Invert a spillover matrix (partial-pivot LU decomposition)
+    let inv: Mat<f32> = invert_spillover(spillover.as_ref())?;
+    // Apply pre-inverted matrix to raw channel data (rayon-parallelized per channel)
+    let compensated: HashMap<String, Vec<f32>> =
+        apply_compensation_inv(raw_channels, inv.as_ref(), channel_names)?;
 
-// Invert a spillover matrix (partial-pivot LU decomposition)
-let inv = invert_spillover(spillover.as_ref())?;
+    // Spillover is f32 — use condition_metrics_f32 (or convert to f64 for condition_metrics).
+    let metrics: ConditionMetrics = condition_metrics_f32(spillover.as_ref())?;
+    let kappa: f64 = metrics.condition_number;
+    let complexity: f64 = metrics.complexity_index;
 
-// Apply pre-inverted matrix to raw channel data (rayon-parallelized per channel)
-let result = apply_compensation_inv(&raw_channels, inv.as_ref(), &channel_names)?;
-
-// Convenience: invert + apply + filter to requested channels
-let compensated = compensate_channels(&raw_channels, spillover.as_ref(), &matrix_names, &needed)?;
+// Calculate a spectral-unmixing-dependent error "hotspot" matrix (Mage, et al.)
+    let hotspot: HotspotMatrix = hotspot_from_mixing_matrix(mixing.as_ref())?;
+    let sifs: Vec<f64> = hotspot.sifs();
+    Ok(())
+}
 ```
 
-## Algorithms
+## Performance
 
-- **Spillover estimation**: Per-control column from median(positive) − median(negative), diagonal-normalized so `S[j][j] = 1`.
-- **Spillover inversion**: Partial-pivot LU decomposition via `faer`. Validates matrix is square and non-singular before inversion.
-- **Compensation application**: Per-event matrix-vector multiply, parallelized across output channels with `rayon`. Validates event count consistency across input channels.
+No published numbers yet.  `compensation` parallelizes across output channels.
 
-## Scope
-
-This crate is intentionally narrow — it owns:
-
-- Spillover matrix estimation from single-stain controls
-- Spillover matrix inversion
-- Compensation matrix application to event vectors
-- *(Future)* Ordinary least-squares and non-negative least-squares for spectral unmixing
-- *(Future)* Condition number and quality metrics for compensation matrices
-
-It does **not** own: FCS file parsing, spillover keyword extraction, transform application, or GUI concerns.
+Prefer measuring on your panel size rather than just micro-benching.
 
 ## Tests
 
@@ -70,8 +95,13 @@ It does **not** own: FCS file parsing, spillover keyword extraction, transform a
 cargo test -p flow-linalg --features compensation
 ```
 
-Unit tests covering identity matrices, known spillover removal, channel filtering, spillover estimation recovery, and error cases.
-
 ## License
 
 MIT
+
+## Related Crates
+
+- **Plotting or gating** → [`flow-plots`](../plots/), [`flow-gates`](../gates/)
+- **FCS file parsing** → [`flow-fcs`](../fcs/) — FCS I/O and optional compensation integration
+- **Spectral unmixing** → [`flow-tru-ols`](../tru-ols/) — Truncated Re-Unmixing OLS
+- **Unmixing via CLI** → [`tru-ols-cli`](../tru-ols-cli/) CLI for Unmix + QC pipeline
