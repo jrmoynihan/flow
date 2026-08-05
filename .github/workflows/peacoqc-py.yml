@@ -1,0 +1,131 @@
+name: peacoqc-py
+
+on:
+  push:
+    branches: [main]
+    paths: ["peacoqc-py/**", ".github/workflows/peacoqc-py.yml"]
+  pull_request:
+    branches: [main]
+    paths: ["peacoqc-py/**", ".github/workflows/peacoqc-py.yml"]
+  release:
+    types: [published]
+  workflow_dispatch:
+
+defaults:
+  run:
+    working-directory: peacoqc-py
+
+jobs:
+  linux:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        target: [x86_64, aarch64]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Build wheels
+        uses: PyO3/maturin-action@v1
+        with:
+          working-directory: peacoqc-py
+          target: ${{ matrix.target }}
+          args: --release --out dist
+          sccache: "true"
+          manylinux: auto
+      - name: Upload wheels
+        uses: actions/upload-artifact@v4
+        with:
+          name: wheels-linux-${{ matrix.target }}
+          path: peacoqc-py/dist
+
+  macos:
+    runs-on: macos-latest
+    strategy:
+      matrix:
+        target: [x86_64, aarch64]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Build wheels
+        uses: PyO3/maturin-action@v1
+        with:
+          working-directory: peacoqc-py
+          target: ${{ matrix.target }}
+          args: --release --out dist
+          sccache: "true"
+      - name: Upload wheels
+        uses: actions/upload-artifact@v4
+        with:
+          name: wheels-macos-${{ matrix.target }}
+          path: peacoqc-py/dist
+
+  windows:
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        target: [x64]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          architecture: ${{ matrix.target }}
+      - name: Build wheels
+        uses: PyO3/maturin-action@v1
+        with:
+          working-directory: peacoqc-py
+          target: ${{ matrix.target }}
+          args: --release --out dist
+          sccache: "true"
+      - name: Upload wheels
+        uses: actions/upload-artifact@v4
+        with:
+          name: wheels-windows-${{ matrix.target }}
+          path: peacoqc-py/dist
+
+  sdist:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build sdist
+        uses: PyO3/maturin-action@v1
+        with:
+          working-directory: peacoqc-py
+          command: sdist
+          args: --out dist
+      - name: Upload sdist
+        uses: actions/upload-artifact@v4
+        with:
+          name: wheels-sdist
+          path: peacoqc-py/dist
+
+  # Publishes to PyPI on GitHub release, using PyPI Trusted Publishing (OIDC) --
+  # no long-lived API token needed. Configure the trusted publisher on PyPI for
+  # this repo/workflow before the first release (see PyPI project settings ->
+  # Publishing). The `id-token: write` permission is required for OIDC.
+  publish:
+    name: Publish to PyPI
+    runs-on: ubuntu-latest
+    if: github.event_name == 'release' && github.event.action == 'published'
+    needs: [linux, macos, windows, sdist]
+    environment:
+      name: pypi
+      url: https://pypi.org/project/peacoqc/
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: wheels-*
+          path: peacoqc-py/dist
+          merge-multiple: true
+      - name: Publish to PyPI
+        uses: PyO3/maturin-action@v1
+        with:
+          working-directory: peacoqc-py
+          command: upload
+          args: --non-interactive --skip-existing dist/*
