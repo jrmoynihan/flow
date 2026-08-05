@@ -1,0 +1,7 @@
+# ring's pregenerated ARMv8 assembly requires the C preprocessor to define
+# __ARM_ARCH, which the manylinux aarch64 cross-compiler doesn't set unless
+# an explicit -march flag is passed. Without this, cross-compiling for
+# aarch64-unknown-linux-gnu fails building ring (pulled in transitively via
+# rustls/reqwest from polars-io's cloud support).
+[env]
+CFLAGS_aarch64_unknown_linux_gnu = "-march=armv8-a"
