@@ -9,12 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **Scatter overlay plots** (ScatterOverlay): Discrete gate colors via `ScatterPlotData::with_gates()` and `gate_colors` option
-- **Scatter colored by z-axis** (ScatterColoredContinuous): Continuous colormap via `ScatterPlotData::with_z()` and `z_range` option
+- **Scatter overlay plots** (`PlotType::Scatter`): Discrete gate colors via `ScatterPlotData::with_gates()` and `gate_colors` option
+- **Scatter colored by z-axis** (`PlotType::Intensity`): Continuous colormap via `ScatterPlotData::with_z()` and `z_range` option
 - **Density point size**: `point_size` option now affects density heatmap (contribution radius per point), matching scatter behavior
 - **Contour plots**: KDE-based contour lines with `contour_smoothing`, `draw_outliers`, `contour_level_count`
 - **HistogramPlot**: New plot type with filled/unfilled modes, overlaid series, gate colors, baseline separation, `scale_to_peak`
 - `ScatterPlotData`, `HistogramData`, `HistogramPlotOptions` types
+- **`BasePlotOptions` field promotion**: `DensityPlotOptionsBuilder`, `HistogramPlotOptionsBuilder`, and `SpectralSignaturePlotOptionsBuilder` now expose direct passthrough setters (`.width()`, `.height()`, `.title()`, etc.) for every `BasePlotOptions` field, so common layout options no longer require building a separate `BasePlotOptions` and passing it via `.base(...)`. `.base(...)` still works unchanged.
 
 ### Changed
 

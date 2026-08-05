@@ -1,7 +1,7 @@
 //! Options for histogram plots
 
 use crate::options::density::default_gate_colors;
-use crate::options::{AxisOptions, BasePlotOptions, PlotOptions};
+use crate::options::{AxisOptions, BasePlotOptions, PlotOptions, impl_base_options_passthrough};
 use derive_builder::Builder;
 
 /// Options for histogram plots
@@ -15,7 +15,8 @@ use derive_builder::Builder;
 ///
 /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
 /// let options = HistogramPlotOptions::new()
-///     .base(BasePlotOptions::new().width(800u32).height(600u32).build()?)
+///     .width(800u32)
+///     .height(600u32)
 ///     .histogram_filled(true)
 ///     .num_bins(50usize)
 ///     .build()?;
@@ -98,3 +99,7 @@ impl HistogramPlotOptions {
             .unwrap_or((60, 60, 60))
     }
 }
+
+impl_base_options_passthrough!(mut HistogramPlotOptionsBuilder:
+    width, height, margin, x_label_area_size, y_label_area_size,
+    title, show_title, show_colorbar, font_family, title_size, label_size, tick_size, show_grid);

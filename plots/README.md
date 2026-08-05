@@ -2,6 +2,10 @@
 
 A library for creating visualizations of flow cytometry data.
 
+[![crates.io](https://img.shields.io/crates/v/flow-plots.svg)](https://crates.io/crates/flow-plots)
+[![docs.rs](https://docs.rs/flow-plots/badge.svg)](https://docs.rs/flow-plots)
+[![MIT](https://img.shields.io/crates/l/flow-plots.svg)](LICENSE)
+
 ## Overview
 
 This library provides a flexible, extensible API for creating different types of plots from flow cytometry data. The architecture is designed to be easily extended with new plot types while maintaining clean separation of concerns.
@@ -13,33 +17,52 @@ This library provides a flexible, extensible API for creating different types of
 - **Progress Reporting**: Optional progress callbacks for streaming/progressive rendering
 - **Flexible Rendering**: Applications can inject their own execution and progress logic
 
-## Basic Usage
+Contour and KDE-backed paths utilize [`flow-density`](../flow-density/)
+Raster pixel density for heatmaps use local plot math.
+The optional `raster` feature exposes `kuva`(https://crates.io/crates/kuva)-backed RGBA paths for zero-copy UI display.
+
+## Installation
+
+```bash
+cargo add flow-plots
+```
+
+Or add it directly to your `Cargo.toml`:
+
+```toml
+[dependencies]
+flow-plots = "0.3.2"
+# Optional Kuva raster APIs:
+# flow-plots = { version = "0.3.2", features = ["raster"] }
+```
+
+## Usage
 
 ### Simple Density Plot
 
 ```rust
-use flow_plots::{DensityPlot, DensityPlotOptions};
+use flow_plots::{DensityPlot, DensityPlotOptions, PlotBytes};
 use flow_plots::render::RenderConfig;
 
 let plot = DensityPlot::new();
 let options = DensityPlotOptions::new()
-    .width(800)
-    .height(600)
+    .width(800u32)
+    .height(600u32)
     .title("My Density Plot")
     .build()?;
 
 let data: Vec<(f32, f32)> = vec![(100.0, 200.0), (150.0, 250.0)];
 let mut render_config = RenderConfig::default();
-let bytes = plot.render(data.into(), &options, &mut render_config)?;
+// PlotBytes is an alias for Vec<u8>, the raw PNG bytes
+let bytes: PlotBytes = plot.render(data.into(), &options, &mut render_config)?;
 ```
 
 ### Scatter with Discrete Gate Colors (Overlay)
 
-Color points by which filter/gate each event belongs to:
+Scatter colored by gate id or continuous z:
 
 ```rust
-use flow_plots::{DensityPlot, DensityPlotOptions, ScatterPlotData};
-use flow_plots::options::BasePlotOptions;
+use flow_plots::{DensityPlotOptions, ScatterPlotData};
 use flow_plots::plots::PlotType;
 
 let points = vec![(100.0, 200.0), (150.0, 250.0), (200.0, 300.0)];
@@ -47,8 +70,9 @@ let gate_ids = vec![0, 1, 0];  // gate index per point
 let data = ScatterPlotData::with_gates(points, gate_ids)?;
 
 let options = DensityPlotOptions::new()
-    .base(BasePlotOptions::new().width(800).height(600).build()?)
-    .plot_type(PlotType::ScatterOverlay)
+    .width(800u32)
+    .height(600u32)
+    .plot_type(PlotType::Scatter)
     .gate_colors(vec![
         (34, 139, 34),   // green
         (255, 165, 0),   // orange
@@ -72,10 +96,11 @@ let z_values = vec![0.3, 0.9];  // e.g., normalized expression
 let data = ScatterPlotData::with_z(points, z_values)?;
 
 let options = DensityPlotOptions::new()
-    .base(BasePlotOptions::new().width(800).height(600).build()?)
-    .plot_type(PlotType::ScatterColoredContinuous)
+    .width(800u32)
+    .height(600u32)
+    .plot_type(PlotType::Intensity)
     .colormap(ColorMaps::Viridis)
-    .z_range(Some((0.0, 1.0)))  // optional; auto from data if None
+    .z_range((0.0, 1.0))  // optional; auto from data if None
     .build()?;
 
 let bytes = plot.render(data, &options, &mut render_config)?;
@@ -87,7 +112,7 @@ Create 1D histograms from raw values, pre-binned data, or overlaid series:
 
 ```rust
 use flow_plots::{HistogramPlot, HistogramData, HistogramPlotOptions};
-use flow_plots::options::{BasePlotOptions, AxisOptions};
+use flow_plots::options::AxisOptions;
 use flow_plots::render::RenderConfig;
 
 let plot = HistogramPlot::new();
@@ -95,7 +120,8 @@ let plot = HistogramPlot::new();
 // Single histogram from raw values
 let data = HistogramData::from_values(vec![1.0, 2.0, 2.0, 3.0, 3.0, 3.0]);
 let options = HistogramPlotOptions::new()
-    .base(BasePlotOptions::new().width(800).height(600).build()?)
+    .width(800u32)
+    .height(600u32)
     .x_axis(AxisOptions::new().range(0.0..=10.0).build()?)
     .histogram_filled(true)
     .num_bins(20usize)
@@ -113,7 +139,8 @@ let data = HistogramData::overlaid(vec![
     (vec![2.5, 3.0, 3.0], 1),  // gate 1
 ]);
 let options = HistogramPlotOptions::new()
-    .base(BasePlotOptions::new().width(800).height(600).build()?)
+    .width(800u32)
+    .height(600u32)
     .histogram_filled(true)
     .scale_to_peak(true)
     .baseline_separation(0.2)
@@ -258,27 +285,27 @@ let bytes = with_render_lock(|| {
 For processing multiple plots together, use the batch API:
 
 ```rust
-use flow_plots::{DensityPlot, DensityPlotOptions};
+use flow_plots::{DensityPlot, DensityPlotOptions, ScatterPlotData};
 use flow_plots::render::RenderConfig;
 
 let plot = DensityPlot::new();
 let mut render_config = RenderConfig::default();
 
 // Prepare multiple plot requests
-let requests: Vec<(Vec<(f32, f32)>, DensityPlotOptions)> = vec![
+let requests: Vec<(ScatterPlotData, DensityPlotOptions)> = vec![
     (
-        vec![(100.0, 200.0), (150.0, 250.0)], // Data for plot 1
+        vec![(100.0, 200.0), (150.0, 250.0)].into(), // Data for plot 1
         DensityPlotOptions::new()
-            .width(800)
-            .height(600)
+            .width(800u32)
+            .height(600u32)
             .title("Plot 1")
             .build()?,
     ),
     (
-        vec![(200.0, 300.0), (250.0, 350.0)], // Data for plot 2
+        vec![(200.0, 300.0), (250.0, 350.0)].into(), // Data for plot 2
         DensityPlotOptions::new()
-            .width(800)
-            .height(600)
+            .width(800u32)
+            .height(600u32)
             .title("Plot 2")
             .build()?,
     ),
@@ -297,15 +324,15 @@ For applications that want to orchestrate rendering themselves (e.g., custom pro
 
 ```rust
 use flow_plots::density_calc::calculate_density_per_pixel_batch;
-use flow_plots::{DensityPlotOptions};
-use flow_plots::render::{RenderConfig, plotters_backend::render_pixels};
+use flow_plots::{DensityPlotOptions, ScatterPlotData};
+use flow_plots::render::{RenderConfig, render_pixels};
 use anyhow::Result;
 
 // Calculate density for multiple plots
-let requests: Vec<(Vec<(f32, f32)>, DensityPlotOptions)> = vec![
-    (data1, options1),
-    (data2, options2),
-    (data3, options3),
+let requests: Vec<(ScatterPlotData, DensityPlotOptions)> = vec![
+    (data1.into(), options1),
+    (data2.into(), options2),
+    (data3.into(), options3),
 ];
 
 // Get raw pixel data for all plots (density calculation only)
@@ -329,7 +356,7 @@ let plot_bytes: Result<Vec<Vec<u8>>> = raw_pixels_batch
 let plot_bytes = plot_bytes?;
 ```
 
-**Contour plots:** The low-level APIs (`calculate_plot_pixels`, `calculate_density_per_pixel_batch`) produce *density heatmaps* for all plot types, including `Contour` and `ContourOverlay`. To render contour lines, branch on `plot_type` and use `DensityPlot::render` (or call `flow_plots::contour::calculate_contours` + `flow_plots::render::plotters_backend::render_contour` directly).
+**Contour plots:** The low-level APIs (`calculate_plot_pixels`, `calculate_density_per_pixel_batch`) produce *density heatmaps* even when `plot_type` is `Contour`. To render contour lines, branch on `plot_type` and use `DensityPlot::render` (or call `flow_plots::contour::calculate_contours` + `flow_plots::render::render_contour` directly).
 
 **Note**: While batch processing is available, sequential processing (calling `render()` in a loop) is typically faster for most use cases. See `GPU_EVALUATION.md` for performance analysis.
 
@@ -442,39 +469,46 @@ let options = PlotOptions::new(
 // Option 1: Use helper function
 let mut builder = helpers::density_options_from_fcs(fcs, x_param, y_param)?;
 let options = builder
-    .width(800)
-    .height(600)
+    .width(800u32)
+    .height(600u32)
     .build()?;
 
 // Option 2: Manual construction
 let options = DensityPlotOptions::new()
-    .width(800)
-    .height(600)
-    .x_axis(|axis| axis
-        .range(0.0..=200_000.0)
-        .transform(TransformType::Arcsinh { cofactor: 150.0 }))
-    .y_axis(|axis| axis
-        .range(0.0..=200_000.0)
-        .transform(TransformType::Arcsinh { cofactor: 150.0 }))
+    .width(800u32)
+    .height(600u32)
+    .x_axis(
+        AxisOptions::new()
+            .range(0.0..=200_000.0)
+            .transform(TransformType::Arcsinh { cofactor: 150.0 })
+            .build()?,
+    )
+    .y_axis(
+        AxisOptions::new()
+            .range(0.0..=200_000.0)
+            .transform(TransformType::Arcsinh { cofactor: 150.0 })
+            .build()?,
+    )
     .build()?;
 ```
 
-### From Old `draw_plot` Function
+Full option surface: [docs.rs/flow-plots](https://docs.rs/flow-plots).
 
-**Old API:**
+## Performance
 
-```rust
-let (bytes, _, _, _) = draw_plot(pixels, &options)?;
-```
+Rayon is used on hot raster paths. Prefer extracting only needed channels from `flow-fcs` before render. System deps for plotters backends may include fontconfig/`pkg-config` on Linux.
 
-**New API:**
-
-```rust
-let plot = DensityPlot::new();
-let mut render_config = RenderConfig::default();
-let bytes = plot.render(data, &options, &mut render_config)?;
+```bash
+cargo test -p flow-plots --lib
 ```
 
 ## License
 
 MIT
+
+## Related crates
+
+- [`flow-density`](../flow-density/) — FFT KDE and contour primitives
+- [`flow-fcs`](../fcs/) — load channels / XY pairs
+- [`flow-gates`](../gates/) — gate overlays and automated gate review plots
+- [`flow-tru-ols`](../tru-ols/) — optional abundance plots behind its `plotting` feature

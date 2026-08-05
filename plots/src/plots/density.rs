@@ -27,13 +27,14 @@ use crate::render::kuva_backend::render_density_kuva;
 /// ```rust,no_run
 /// use flow_plots::plots::density::DensityPlot;
 /// use flow_plots::plots::traits::Plot;
-/// use flow_plots::options::{DensityPlotOptions, BasePlotOptions};
+/// use flow_plots::options::DensityPlotOptions;
 /// use flow_plots::render::RenderConfig;
 ///
 /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
 /// let plot = DensityPlot::new();
 /// let options = DensityPlotOptions::new()
-///     .base(BasePlotOptions::new().width(800u32).height(600u32).build()?)
+///     .width(800u32)
+///     .height(600u32)
 ///     .build()?;
 /// let data: Vec<(f32, f32)> = vec![(100.0, 200.0), (150.0, 250.0)];
 /// let mut render_config = RenderConfig::default();

@@ -1,5 +1,5 @@
 use crate::colormap::ColorMaps;
-use crate::options::{AxisOptions, BasePlotOptions, PlotOptions};
+use crate::options::{AxisOptions, BasePlotOptions, PlotOptions, impl_base_options_passthrough};
 use crate::plots::PlotType;
 use derive_builder::Builder;
 
@@ -16,7 +16,8 @@ use derive_builder::Builder;
 ///
 /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
 /// let options = DensityPlotOptions::new()
-///     .base(BasePlotOptions::new().width(800u32).height(600u32).build()?)
+///     .width(800u32)
+///     .height(600u32)
 ///     .colormap(ColorMaps::Viridis)
 ///     .build()?;
 /// # Ok(())
@@ -72,12 +73,12 @@ pub struct DensityPlotOptions {
     #[builder(default = "false")]
     pub draw_outliers: bool,
 
-    /// Colors for discrete gate overlay (ScatterOverlay, ContourOverlay).
+    /// Colors for discrete gate overlay (PlotType::Scatter with gate_ids set).
     /// gate_ids in data index into this slice. Default palette used if empty.
     #[builder(default)]
     pub gate_colors: Vec<(u8, u8, u8)>,
 
-    /// Z-axis range for continuous coloring (ScatterColoredContinuous).
+    /// Z-axis range for continuous coloring (PlotType::Intensity with z_values set).
     /// If None, min/max of z_values is used.
     #[builder(default)]
     pub z_range: Option<(f32, f32)>,
@@ -135,3 +136,7 @@ impl DensityPlotOptions {
         DensityPlotOptionsBuilder::default()
     }
 }
+
+impl_base_options_passthrough!(mut DensityPlotOptionsBuilder:
+    width, height, margin, x_label_area_size, y_label_area_size,
+    title, show_title, show_colorbar, font_family, title_size, label_size, tick_size, show_grid);

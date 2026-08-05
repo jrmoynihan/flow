@@ -302,7 +302,13 @@ pub fn calculate_plot_pixels(
 ) -> Vec<RawPixelData> {
     let xy = data.xy();
     match options.plot_type.canonical() {
-        PlotType::Scatter => scatter_to_pixels(xy, width, height, options),
+        PlotType::Scatter => {
+            if data.has_gates() {
+                scatter_to_pixels_overlay(data, width, height, options)
+            } else {
+                scatter_to_pixels(xy, width, height, options)
+            }
+        }
         PlotType::Intensity => {
             if data.has_z() {
                 scatter_to_pixels_colored(data, width, height, options)
@@ -326,7 +332,11 @@ pub fn calculate_plot_pixels_cancelable(
 ) -> Option<Vec<RawPixelData>> {
     let xy = data.xy();
     match options.plot_type.canonical() {
-        PlotType::Scatter => Some(scatter_to_pixels(xy, width, height, options)),
+        PlotType::Scatter => Some(if data.has_gates() {
+            scatter_to_pixels_overlay(data, width, height, options)
+        } else {
+            scatter_to_pixels(xy, width, height, options)
+        }),
         PlotType::Intensity => {
             if data.has_z() {
                 Some(scatter_to_pixels_colored(data, width, height, options))

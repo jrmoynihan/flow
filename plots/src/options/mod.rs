@@ -6,6 +6,7 @@ pub mod spectral;
 
 pub use axis::{AxisOptions, AxisOptionsBuilder};
 pub use base::{BasePlotOptions, BasePlotOptionsBuilder};
+pub(crate) use base::impl_base_options_passthrough;
 pub use density::{DensityPlotOptions, DensityPlotOptionsBuilder};
 pub use histogram::{HistogramPlotOptions, HistogramPlotOptionsBuilder};
 pub use spectral::{SpectralSignaturePlotOptions, SpectralSignaturePlotOptionsBuilder};

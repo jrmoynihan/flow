@@ -23,13 +23,13 @@ use flow_fcs::{Fcs, Parameter, TransformType, Transformable};
 ///
 /// ```rust,no_run
 /// use flow_plots::helpers::density_options_from_fcs;
-/// use flow_plots::options::BasePlotOptions;
 /// use flow_fcs::{Fcs, Parameter};
 ///
 /// # fn run(fcs: &Fcs, x_param: &Parameter, y_param: &Parameter) -> Result<(), Box<dyn std::error::Error>> {
 /// let mut builder = density_options_from_fcs(fcs, x_param, y_param)?;
 /// let options = builder
-///     .base(BasePlotOptions::new().width(800u32).height(600u32).build()?)
+///     .width(800u32)
+///     .height(600u32)
 ///     .build()?;
 /// # Ok(())
 /// # }

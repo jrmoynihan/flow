@@ -1,6 +1,6 @@
 //! Options for spectral signature plots
 
-use crate::options::{AxisOptions, BasePlotOptions, PlotOptions};
+use crate::options::{AxisOptions, BasePlotOptions, PlotOptions, impl_base_options_passthrough};
 use derive_builder::Builder;
 
 /// Options for spectral signature plots
@@ -44,3 +44,10 @@ impl SpectralSignaturePlotOptions {
         SpectralSignaturePlotOptionsBuilder::default()
     }
 }
+
+// show_grid is intentionally omitted: SpectralSignaturePlotOptions already has its
+// own top-level `show_grid` field with a derive_builder-generated setter of the
+// same name, so promoting `base.show_grid` too would collide.
+impl_base_options_passthrough!(owned SpectralSignaturePlotOptionsBuilder:
+    width, height, margin, x_label_area_size, y_label_area_size,
+    title, show_title, show_colorbar, font_family, title_size, label_size, tick_size);

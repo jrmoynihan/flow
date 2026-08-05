@@ -12,13 +12,13 @@
 //!
 //! ```rust,no_run
 //! use flow_plots::{DensityPlot, DensityPlotOptions, Plot};
-//! use flow_plots::options::BasePlotOptions;
 //! use flow_plots::render::RenderConfig;
 //!
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! let plot = DensityPlot::new();
 //! let options = DensityPlotOptions::new()
-//!     .base(BasePlotOptions::new().width(800u32).height(600u32).build()?)
+//!     .width(800u32)
+//!     .height(600u32)
 //!     .build()?;
 //! let data: Vec<(f32, f32)> = vec![(100.0, 200.0)];
 //! let mut render_config = RenderConfig::default();
