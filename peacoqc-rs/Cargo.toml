@@ -15,10 +15,14 @@ keywords=[
 categories=["science", "algorithms"]
 
 [features]
-default =["flow-fcs", "gpu"]
+default =["flow-fcs", "gpu", "plots"]
 flow-fcs=["dep:flow-fcs", "dep:polars"]
 gpu = ["dep:burn"]
 cubecl = ["dep:cubecl", "dep:bytemuck", "gpu"]
+# QC plot rendering (src/qc/plots.rs). Pulls in plotters, which on Linux
+# requires the system fontconfig library -- kept optional so consumers that
+# only need the QC algorithms (e.g. peacoqc-py) can skip that dependency.
+plots = ["dep:plotters", "dep:image"]
 
 [dependencies]
 flow-fcs = { path = "../fcs", version = "^0.4.1", optional=true }
@@ -27,8 +31,8 @@ anyhow.workspace    =true
 thiserror.workspace =true
 rand.workspace      =true
 rayon.workspace     =true
-plotters = { workspace = true }
-image = { workspace = true }
+plotters = { workspace = true, optional = true }
+image = { workspace = true, optional = true }
 serde.workspace     =true
 serde_json.workspace=true
 tracing.workspace   =true

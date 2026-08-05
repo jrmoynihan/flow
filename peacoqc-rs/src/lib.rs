@@ -101,12 +101,17 @@ pub mod fcs;
 
 pub use error::{PeacoQCError, Result};
 pub use qc::{
-    ChannelTrendSeries, DoubletConfig, DoubletResult, MarginConfig, MarginResult, PeacoQCConfig,
+    DoubletConfig, DoubletResult, MarginConfig, MarginResult, PeacoQCConfig,
     PeacoQCProgressCallback, PeacoQCProgressEvent, PeacoQCResult, QCExportFormat, QCExportOptions,
-    QCMode, QCPlotConfig, RemovalReason, build_channel_trend_series, build_time_overview_series,
-    create_qc_plots, export_csv_boolean, export_csv_boolean_from_mask, export_csv_numeric,
+    QCMode, RemovalReason, export_csv_boolean, export_csv_boolean_from_mask, export_csv_numeric,
     export_csv_numeric_from_mask, export_json_metadata, peacoqc, peacoqc_with_progress,
-    regions_by_reason, remove_doublets, remove_margins,
+    remove_doublets, remove_margins,
+};
+
+#[cfg(feature = "plots")]
+pub use qc::{
+    ChannelTrendSeries, QCPlotConfig, build_channel_trend_series, build_time_overview_series,
+    create_qc_plots, regions_by_reason,
 };
 
 #[cfg(feature = "flow-fcs")]
