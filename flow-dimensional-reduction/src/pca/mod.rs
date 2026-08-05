@@ -20,52 +20,27 @@ pub enum PcaError {
 
 pub type PcaResult<T> = Result<T, PcaError>;
 
+pub mod state;
+
+use state::{Fitted, Unfitted};
+
 mod sealed {
     pub trait Sealed {}
-    impl Sealed for super::UnfittedPcaResult {}
-    impl Sealed for super::FittedPcaResult {}
 }
 
 /// State of a [`Pca`]. Sealed: downstream crates cannot add states, so the set
 /// of valid transitions stays a fact local to this module.
 pub trait PcaComponent: sealed::Sealed + Sized + std::fmt::Debug {
-    /// Requested component count on [`UnfittedPcaResult`]; actual (clamped)
-    /// count on [`FittedPcaResult`].
+    /// Requested component count on [`state::Unfitted`]; actual (clamped)
+    /// count on [`state::Fitted`].
     fn n_components(&self) -> usize;
-}
-
-/// Unfitted state: holds only the requested component count.
-#[derive(Debug, Clone, Copy)]
-pub struct UnfittedPcaResult {
-    n_components: usize,
-}
-
-impl PcaComponent for UnfittedPcaResult {
-    fn n_components(&self) -> usize {
-        self.n_components
-    }
-}
-
-/// Fitted state: holds the basis produced by [`Pca::fit`].
-#[derive(Debug, Clone)]
-pub struct FittedPcaResult {
-    n_components: usize,
-    components: Mat<f32>,
-    explained_variance_ratio: Vec<f32>,
-    mean: Vec<f32>,
-}
-
-impl PcaComponent for FittedPcaResult {
-    fn n_components(&self) -> usize {
-        self.n_components
-    }
 }
 
 /// Principal Component Analysis, state-aware via type parameter.
 ///
 /// Fit with [`Pca::fit`], then project new data with [`Pca::transform`].
 ///
-/// `transform` and the basis accessors exist only on `Pca<FittedPcaResult>`,
+/// `transform` and the basis accessors exist only on `Pca<Fitted>`,
 /// so projecting before fitting is a compile error rather than a runtime one:
 ///
 /// ```compile_fail,E0599
@@ -77,17 +52,17 @@ impl PcaComponent for FittedPcaResult {
 ///
 /// The default type parameter keeps `Pca::new(k)` working without a turbofish.
 #[derive(Debug, Clone)]
-pub struct Pca<C: PcaComponent = UnfittedPcaResult> {
+pub struct Pca<C: PcaComponent = Unfitted> {
     state: C,
 }
 
-impl Pca<UnfittedPcaResult> {
+impl Pca<Unfitted> {
     /// Create an unfitted PCA requesting `n_components` components.
     ///
     /// The actual count is clamped to the feature count `d` during [`Pca::fit`].
     #[must_use]
     pub fn new(n_components: usize) -> Self {
-        Pca { state: UnfittedPcaResult { n_components } }
+        Pca { state: Unfitted { n_components } }
     }
 
     /// Fit to `n × d` row-major data, consuming the unfitted model.
@@ -101,7 +76,7 @@ impl Pca<UnfittedPcaResult> {
     /// [`PcaError::InsufficientData`] if `n < 2`;
     /// [`PcaError::DimensionMismatch`] if `data.len() != n * d`;
     /// [`PcaError::SvdFailed`] if the decomposition fails.
-    pub fn fit(self, data: &[f32], n: usize, d: usize) -> PcaResult<Pca<FittedPcaResult>> {
+    pub fn fit(self, data: &[f32], n: usize, d: usize) -> PcaResult<Pca<Fitted>> {
         if n == 0 || d == 0 {
             return Err(PcaError::EmptyData);
         }
@@ -164,11 +139,12 @@ impl Pca<UnfittedPcaResult> {
         // vector view to iterate the singular values in decomposition order.
         let sigma: Vec<f64> = svd.S().column_vector().iter().copied().collect();
 
-        // Row i of `components` is the i-th principal axis (column i of U).
-        let mut components = Mat::<f32>::zeros(k, d);
+        // Row i of `components` is the i-th principal axis (column i of U),
+        // stored flat row-major: axis i occupies [i*d .. (i+1)*d].
+        let mut components = vec![0.0_f32; k * d];
         for i in 0..k {
             for j in 0..d {
-                components[(i, j)] = *u.get(j, i) as f32;
+                components[i * d + j] = *u.get(j, i) as f32;
             }
         }
 
@@ -182,11 +158,11 @@ impl Pca<UnfittedPcaResult> {
 
         let mean = mean64.into_iter().map(|m| m as f32).collect();
 
-        Ok(Pca { state: FittedPcaResult { n_components: k, components, explained_variance_ratio, mean } })
+        Ok(Pca { state: Fitted { n_components: k, components, explained_variance_ratio, mean } })
     }
 }
 
-impl Pca<FittedPcaResult> {
+impl Pca<Fitted> {
     /// Project `n × d` row-major data onto the fitted axes.
     ///
     /// Returns `n × n_components` row-major.
@@ -206,15 +182,14 @@ impl Pca<FittedPcaResult> {
         }
 
         let k = self.state.n_components;
-        let out_len = n
-            .checked_mul(k)
-            .ok_or(PcaError::DimensionMismatch { len: data.len(), n, d })?;
-        let mut out = Vec::with_capacity(out_len);
+        // `k <= d` (clamped in `fit`) and `n * d` did not overflow above, so
+        // `n * k` cannot overflow either.
+        let mut out = Vec::with_capacity(n * k);
         for row in data.chunks_exact(d) {
             for i in 0..k {
                 let mut acc = 0.0_f32;
                 for (j, (&x, &m)) in row.iter().zip(self.state.mean.iter()).enumerate() {
-                    acc += (x - m) * self.state.components[(i, j)];
+                    acc += (x - m) * self.state.components[i * d + j];
                 }
                 out.push(acc);
             }
@@ -222,10 +197,16 @@ impl Pca<FittedPcaResult> {
         Ok(out)
     }
 
-    /// Principal axes, `n_components × d`.
+    /// Principal axes, `k * d` row-major: axis `i` occupies `[i*d .. (i+1)*d]`.
     #[must_use]
-    pub fn components(&self) -> &Mat<f32> {
+    pub fn components(&self) -> &[f32] {
         &self.state.components
+    }
+
+    /// Shape of [`Self::components`] as `(k, d)`.
+    #[must_use]
+    pub fn components_shape(&self) -> (usize, usize) {
+        (self.state.n_components, self.state.mean.len())
     }
 
     /// Fraction of total variance per component, descending.
@@ -359,10 +340,12 @@ mod tests {
         let (data, n, d) = diagonal_fixture();
         let pca = Pca::new(1).fit(&data, n, d).expect("fit");
         let norm = 14.0_f32.sqrt();
+        assert_eq!(pca.components_shape(), (1, 3), "k=1, d=3");
+        // k == 1, so axis 0 occupies the entire flat slice: indices 0..d.
         let c = pca.components();
-        approx::assert_abs_diff_eq!(c[(0, 0)].abs(), 1.0 / norm, epsilon = 1e-4);
-        approx::assert_abs_diff_eq!(c[(0, 1)].abs(), 2.0 / norm, epsilon = 1e-4);
-        approx::assert_abs_diff_eq!(c[(0, 2)].abs(), 3.0 / norm, epsilon = 1e-4);
+        approx::assert_abs_diff_eq!(c[0].abs(), 1.0 / norm, epsilon = 1e-4);
+        approx::assert_abs_diff_eq!(c[1].abs(), 2.0 / norm, epsilon = 1e-4);
+        approx::assert_abs_diff_eq!(c[2].abs(), 3.0 / norm, epsilon = 1e-4);
     }
 
     #[test]

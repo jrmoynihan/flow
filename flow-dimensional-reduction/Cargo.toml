@@ -16,3 +16,8 @@ thiserror = { workspace = true }
 
 [dev-dependencies]
 approx = { workspace = true }
+
+[package.metadata.scripts]
+dry-release = "cargo smart-release flow-dimensional-reduction --update-crates-index"
+publish     = "cargo smart-release flow-dimensional-reduction --update-crates-index --execute"
+changelog   = "cargo changelog flow-dimensional-reduction --write"
