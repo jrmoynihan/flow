@@ -17,6 +17,10 @@ defaults:
 
 jobs:
   linux:
+    # This repo tags releases per-crate (e.g. peacoqc-rs-v0.3.1); only run the
+    # release-triggered jobs for peacoqc-py's own tags, so releasing another
+    # crate doesn't also build/publish this one.
+    if: github.event_name != 'release' || startsWith(github.event.release.tag_name, 'peacoqc-py-v')
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -41,6 +45,7 @@ jobs:
           path: peacoqc-py/dist
 
   macos:
+    if: github.event_name != 'release' || startsWith(github.event.release.tag_name, 'peacoqc-py-v')
     runs-on: macos-latest
     strategy:
       matrix:
@@ -64,6 +69,7 @@ jobs:
           path: peacoqc-py/dist
 
   windows:
+    if: github.event_name != 'release' || startsWith(github.event.release.tag_name, 'peacoqc-py-v')
     runs-on: windows-latest
     strategy:
       matrix:
@@ -88,6 +94,7 @@ jobs:
           path: peacoqc-py/dist
 
   sdist:
+    if: github.event_name != 'release' || startsWith(github.event.release.tag_name, 'peacoqc-py-v')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -110,7 +117,7 @@ jobs:
   publish:
     name: Publish to PyPI
     runs-on: ubuntu-latest
-    if: github.event_name == 'release' && github.event.action == 'published'
+    if: github.event_name == 'release' && github.event.action == 'published' && startsWith(github.event.release.tag_name, 'peacoqc-py-v')
     needs: [linux, macos, windows, sdist]
     environment:
       name: pypi
