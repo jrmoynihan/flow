@@ -4,6 +4,12 @@ from __future__ import annotations
 
 import polars as pl
 
+__version__: str
+"""Version of the peacoqc Python bindings (this package)."""
+
+__peacoqc_rs_version__: str
+"""Version of the underlying peacoqc-rs algorithm crate baked into this wheel."""
+
 class QCResult:
     """Result of the PeacoQC quality control algorithm."""
 

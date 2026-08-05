@@ -656,6 +656,11 @@ fn filter_fcs(fcs: &PyFcsFile, mask: Vec<bool>) -> PyResult<PyFcsFile> {
 
 #[pymodule]
 fn peacoqc(m: &Bound<'_, PyModule>) -> PyResult<()> {
+    // Bindings version (this crate) vs. the underlying algorithm version
+    // (peacoqc-rs) are versioned independently -- see README "Checking versions".
+    m.add("__version__", env!("CARGO_PKG_VERSION"))?;
+    m.add("__peacoqc_rs_version__", peacoqc_rs::VERSION)?;
+
     m.add_class::<PyQCResult>()?;
     m.add_class::<PyMarginResult>()?;
     m.add_class::<PyDoubletResult>()?;

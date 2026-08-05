@@ -4,7 +4,7 @@ build-backend = "maturin"
 
 [project]
 name = "peacoqc-rs"
-version = "0.1.0"
+dynamic = ["version"]
 description = "Python bindings for peacoqc-rs flow cytometry quality control"
 readme = "README.md"
 requires-python = ">=3.9"

@@ -89,6 +89,10 @@
 //!
 //! See `examples/basic_usage.rs` and `examples/tauri_command.rs` for more complete examples.
 
+/// The `peacoqc-rs` crate version, e.g. for bindings to report which
+/// algorithm version they were built against.
+pub const VERSION: &str = env!("CARGO_PKG_VERSION");
+
 pub mod error;
 pub mod qc;
 pub mod stats;
