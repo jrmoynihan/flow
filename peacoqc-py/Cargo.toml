@@ -38,7 +38,7 @@ polars = { version = "^0.54.4", default-features = false, features = [
     "strings",
     "temporal",
 ] }
-pyo3 = { version = "0.28", features = ["extension-module"] }
+pyo3 = { version = "0.28", features = ["extension-module", "abi3-py39"] }
 pyo3-polars = { version = "0.27", features = ["dtype-full"] }
 thiserror = "2.0.19"
 anyhow = "1.0.102"
