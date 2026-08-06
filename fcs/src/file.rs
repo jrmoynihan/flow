@@ -1570,6 +1570,51 @@ impl Fcs {
             .collect())
     }
 
+    /// Materializes every parameter into a single `DataFrame` in one pass
+    /// over the DATA segment. Unlike `column()`/`columns()`, this is
+    /// deliberately uncached: a transform pipeline that calls this once and
+    /// drops the result when done should not leave every raw column resident
+    /// afterward. Use `column()`/`columns()` instead when you only need a
+    /// few channels — extracting all of them here costs the same traversal
+    /// as extracting one.
+    ///
+    /// # Errors
+    /// Will return `Err` if the DATA segment can't be validated, or if any
+    /// value fails to decode for its declared data type/width.
+    pub fn events(&self) -> Result<EventDataFrame> {
+        let layout = crate::columns::ColumnLayout::from_metadata(&self.metadata)?;
+        let data_bytes = self.data_bytes()?;
+        let n_params = layout.bytes_per_parameter.len();
+
+        let raw_columns: Vec<Box<[f32]>> = if layout.is_bit_packed {
+            let bits_per_parameter: Vec<usize> = (1..=n_params)
+                .map(|n| self.metadata.get_bits_per_parameter(n))
+                .collect::<Result<Vec<_>>>()?;
+            let f32_values = Self::parse_bit_packed_data(
+                data_bytes,
+                &bits_per_parameter,
+                &layout.data_types,
+                layout.num_events,
+            )?;
+            extract_all_param_columns(&f32_values, layout.num_events, n_params)
+                .into_iter()
+                .map(Vec::into_boxed_slice)
+                .collect()
+        } else {
+            let all_indices: Vec<usize> = (0..n_params).collect();
+            crate::columns::extract_columns(data_bytes, &layout, &all_indices)?
+        };
+
+        let mut df_columns: Vec<Column> = Vec::with_capacity(raw_columns.len());
+        for (idx, boxed) in raw_columns.into_iter().enumerate() {
+            let name = self.metadata.get_parameter_channel_name(idx + 1)?.to_string();
+            df_columns.push(Column::new(name.as_str().into(), boxed.into_vec()));
+        }
+
+        let df = DataFrame::new(layout.num_events, df_columns)?;
+        Ok(Arc::new(df))
+    }
+
     // ==================== NEW POLARS-BASED ACCESSOR METHODS ====================
 
     /// Get events for a parameter as a slice of f32 values
@@ -2523,6 +2568,39 @@ mod lazy_column_tests {
     fn column_rejects_unknown_channel() {
         let fcs = Fcs::open(COMPLIANCE_FCS).expect("open compliance fixture");
         assert!(fcs.column("NOT-A-REAL-CHANNEL").is_err());
+    }
+
+    #[test]
+    fn events_matches_data_frame_oracle() {
+        let fcs = Fcs::open(COMPLIANCE_FCS).expect("open compliance fixture");
+        let events_df = fcs.events().expect("events");
+
+        assert_eq!(events_df.height(), fcs.data_frame.height());
+        assert_eq!(events_df.width(), fcs.data_frame.width());
+        for name in fcs.get_parameter_names_from_dataframe() {
+            let from_events = events_df
+                .column(&name)
+                .unwrap()
+                .f32()
+                .unwrap()
+                .cont_slice()
+                .unwrap();
+            let from_eager = fcs.get_parameter_events_slice(&name).unwrap();
+            assert_eq!(from_events, from_eager, "column {name} mismatch between events() and data_frame");
+        }
+    }
+
+    #[test]
+    fn events_does_not_populate_the_column_cache() {
+        let fcs = Fcs::open(COMPLIANCE_FCS).expect("open compliance fixture");
+        let _ = fcs.events().expect("events");
+
+        let channel = fcs.get_parameter_names_from_dataframe()[0].clone();
+        let idx = fcs.find_parameter(&channel).unwrap().parameter_number - 1;
+        assert!(
+            fcs.columns[idx].get().is_none(),
+            "events() must not populate the lazy column cache — a QC'd file would otherwise hold both the raw columns and the derived frame"
+        );
     }
 }
 
