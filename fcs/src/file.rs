@@ -1598,7 +1598,20 @@ impl Fcs {
             )?;
             extract_all_param_columns(&f32_values, layout.num_events, n_params)
                 .into_iter()
-                .map(Vec::into_boxed_slice)
+                .enumerate()
+                .map(|(idx, mut column)| {
+                    // `extract_columns` (the non-bit-packed path below) applies
+                    // this masking internally; the bit-packed path decodes via
+                    // `parse_bit_packed_data`/`extract_all_param_columns`
+                    // instead, neither of which knows about `$PnR`, so it must
+                    // be applied here to match the eager `data_frame` oracle.
+                    if let Some(mask) = layout.range_masks[idx] {
+                        for value in column.iter_mut() {
+                            *value = ((*value as u32) & mask) as f32;
+                        }
+                    }
+                    column.into_boxed_slice()
+                })
                 .collect()
         } else {
             let all_indices: Vec<usize> = (0..n_params).collect();

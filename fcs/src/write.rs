@@ -1095,6 +1095,163 @@ mod offset_convergence_tests {
         let _ = std::fs::remove_file(&tmp);
     }
 
+    /// `Fcs::events()`'s bit-packed branch must apply the same `$PnR` range
+    /// mask that `extract_columns` (the non-bit-packed path) and the eager
+    /// `data_frame` pipeline apply. A bit-packed parameter's `$PnR` can be
+    /// narrower than what its `$PnB` bit width can represent — a real,
+    /// spec-legal combination (e.g. `$PnB=6` gives a 0-63 storage range, but
+    /// `$PnR=10` declares only a 0-9 ADC resolution) — in which case values
+    /// must be masked down to `next_power_of_two($PnR) - 1`. Hand-packs two
+    /// bit-packed channels (`$PnB=10`/`$PnR=1024`, a no-op-mask control, and
+    /// `$PnB=6`/`$PnR=10`, which must actually mask) and asserts `events()`
+    /// matches the masked values, and matches the eager `data_frame` oracle
+    /// (`get_parameter_events_slice`) for both channels.
+    #[test]
+    fn bit_packed_events_applies_pnr_mask_matching_data_frame_oracle() {
+        let tmp = std::env::temp_dir().join("flow_fcs_bit_packed_pnr_mask.fcs");
+
+        let n_params = 2usize;
+        let n_events = 4usize;
+        // Deliberately different bit widths whose sum (16) is byte-aligned,
+        // so the per-event bit stream needs no inter-event padding — keeps
+        // this test focused on masking, not stride computation (already
+        // covered by `bit_packed_pnb10_record_uses_correct_stride_and_decodes`).
+        let bits_per_param: [usize; 2] = [10, 6];
+        // P1's $PnR (1024) exactly fills its 10-bit width, so its mask (1023)
+        // is a no-op — control column, should pass through unchanged.
+        // P2's $PnR (10) is far narrower than its 6-bit width (0-63) can
+        // represent, so its mask (next_power_of_two(10) - 1 = 15) must
+        // actually strip bits: 20 -> 4, 50 -> 2, 63 -> 15.
+        let event_values: [[u16; 2]; 4] = [[0, 5], [511, 20], [512, 50], [1023, 63]];
+
+        // Pack MSB-first within the byte stream, matching `BitReader::read_bits`,
+        // same as the sibling stride test above.
+        let mut data_bytes: Vec<u8> = Vec::new();
+        let mut bit_pos = 0usize;
+        for event in &event_values {
+            for (param_idx, &value) in event.iter().enumerate() {
+                let bits = bits_per_param[param_idx];
+                for i in (0..bits).rev() {
+                    let bit = ((value >> i) & 1) as u8;
+                    let byte_idx = bit_pos / 8;
+                    if byte_idx == data_bytes.len() {
+                        data_bytes.push(0);
+                    }
+                    let shift = 7 - (bit_pos % 8);
+                    data_bytes[byte_idx] |= bit << shift;
+                    bit_pos += 1;
+                }
+            }
+        }
+        assert_eq!(
+            data_bytes.len(),
+            8,
+            "4 events x (10 + 6) bits = 64 bits = 8 bytes total"
+        );
+
+        let mut metadata = Metadata::new();
+        metadata.delimiter = '\u{000c}';
+        metadata.keywords.insert(
+            "$BYTEORD".to_string(),
+            Keyword::Byte(ByteKeyword::BYTEORD(ByteOrder::LittleEndian)),
+        );
+        metadata.keywords.insert(
+            "$DATATYPE".to_string(),
+            Keyword::Byte(ByteKeyword::DATATYPE(crate::datatype::FcsDataType::I)),
+        );
+        metadata.insert_string_keyword("$MODE".into(), "L".into());
+        metadata.insert_string_keyword("$NEXTDATA".into(), "0".into());
+        metadata
+            .keywords
+            .insert("$PAR".to_string(), Keyword::Int(IntegerKeyword::PAR(n_params)));
+        metadata.insert_string_keyword("$P1N".into(), "P1".into());
+        metadata.insert_string_keyword("$P1S".into(), "".into());
+        metadata
+            .keywords
+            .insert("$P1B".to_string(), Keyword::Int(IntegerKeyword::PnB(bits_per_param[0])));
+        metadata
+            .keywords
+            .insert("$P1R".to_string(), Keyword::Int(IntegerKeyword::PnR(1024)));
+        metadata.insert_string_keyword("$P2N".into(), "P2".into());
+        metadata.insert_string_keyword("$P2S".into(), "".into());
+        metadata
+            .keywords
+            .insert("$P2B".to_string(), Keyword::Int(IntegerKeyword::PnB(bits_per_param[1])));
+        metadata
+            .keywords
+            .insert("$P2R".to_string(), Keyword::Int(IntegerKeyword::PnR(10)));
+
+        assert_eq!(
+            metadata.calculate_bytes_per_event().expect("stride"),
+            2,
+            "record stride must be ceil((10 + 6) / 8) = 2 bytes/event"
+        );
+
+        let text_start = 58usize;
+        let mut data_start =
+            text_start + estimate_text_segment_size(&metadata, n_events, n_params);
+        let mut data_end = data_start + data_bytes.len() - 1;
+        let (text_segment, text_end, data_start, data_end) = {
+            let mut text_segment = Vec::new();
+            let mut text_end = text_start;
+            let mut converged = false;
+            for _ in 0..8 {
+                text_segment =
+                    serialize_metadata(&metadata, n_events, n_params, data_start, data_end)
+                        .expect("text");
+                text_end = text_start + text_segment.len() - 1;
+                let next_data_start = text_end + 1;
+                let next_data_end = next_data_start + data_bytes.len() - 1;
+                if next_data_start == data_start && next_data_end == data_end {
+                    converged = true;
+                    break;
+                }
+                data_start = next_data_start;
+                data_end = next_data_end;
+            }
+            assert!(converged, "TEXT/data offsets failed to converge");
+            (text_segment, text_end, data_start, data_end)
+        };
+
+        let header =
+            build_header(&Version::V3_1, text_start, text_end, data_start, data_end).expect("header");
+
+        let mut bytes = header;
+        bytes.extend_from_slice(&text_segment);
+        bytes.extend_from_slice(&data_bytes);
+        std::fs::write(&tmp, &bytes).expect("write fcs bytes");
+
+        let fcs = Fcs::open(tmp.to_str().unwrap()).expect("reopen");
+        let events_df = fcs.events().expect("events");
+
+        let p1_expected: Vec<f32> = vec![0.0, 511.0, 512.0, 1023.0];
+        let p2_expected: Vec<f32> = vec![5.0, 4.0, 2.0, 15.0];
+
+        for (channel, expected) in [("P1", &p1_expected), ("P2", &p2_expected)] {
+            let from_events = events_df
+                .column(channel)
+                .unwrap()
+                .f32()
+                .unwrap()
+                .cont_slice()
+                .unwrap();
+            assert_eq!(
+                from_events, expected.as_slice(),
+                "channel {channel}: events() should apply the $PnR mask"
+            );
+
+            let from_eager = fcs
+                .get_parameter_events_slice(channel)
+                .unwrap_or_else(|_| panic!("{channel} eager column"));
+            assert_eq!(
+                from_events, from_eager,
+                "channel {channel}: events() must match the eager data_frame oracle"
+            );
+        }
+
+        let _ = std::fs::remove_file(&tmp);
+    }
+
     /// flow-crates-1mg: `$NEXTDATA` traversal for multi-dataset FCS files (e.g. Beckman
     /// `.lmd` exports, which chain several datasets in one file). Hand-builds a
     /// two-dataset file: dataset 1 is a normal primary-header + TEXT + DATA layout
