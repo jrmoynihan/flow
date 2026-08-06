@@ -138,6 +138,57 @@ mod tests {
         assert_eq!(layout.range_masks, vec![None, None], "F32 params are never range-masked");
     }
 
+    /// 1 event x 3 parameters with deliberately non-uniform `$PnB` widths
+    /// (64, 16, 32 bits -> 8, 2, 4 bytes). `$DATATYPE I` since arbitrary
+    /// byte-aligned integer widths are unremarkable, unlike float widths.
+    /// Distinguishes a correct running-sum offset calculation from a buggy
+    /// `param_idx * constant_width` one: under running-sum the offsets are
+    /// `[0, 8, 10]` and the stride is `14`; `idx * 8` would wrongly give
+    /// `[0, 8, 16]`, and `idx * 4` would wrongly give `[0, 4, 8]` — both
+    /// distinguishable from the correct answer.
+    fn synthetic_metadata_varying_widths() -> Metadata {
+        let mut metadata = Metadata::new();
+        metadata.delimiter = '\u{000c}';
+        metadata
+            .keywords
+            .insert("$BYTEORD".to_string(), Keyword::Byte(ByteKeyword::BYTEORD(ByteOrder::LittleEndian)));
+        metadata
+            .keywords
+            .insert("$DATATYPE".to_string(), Keyword::Byte(ByteKeyword::DATATYPE(FcsDataType::I)));
+        metadata
+            .keywords
+            .insert("$PAR".to_string(), Keyword::Int(IntegerKeyword::PAR(3)));
+        metadata
+            .keywords
+            .insert("$TOT".to_string(), Keyword::Int(IntegerKeyword::TOT(1)));
+        let widths = [64, 16, 32];
+        for (i, &bits) in widths.iter().enumerate() {
+            let n = i + 1;
+            metadata.insert_string_keyword(format!("$P{n}N"), format!("P{n}"));
+            metadata
+                .keywords
+                .insert(format!("$P{n}B"), Keyword::Int(IntegerKeyword::PnB(bits)));
+        }
+        metadata
+    }
+
+    #[test]
+    fn layout_computes_running_sum_offsets_for_varying_widths() {
+        let metadata = synthetic_metadata_varying_widths();
+        let layout = super::ColumnLayout::from_metadata(&metadata).expect("layout");
+
+        assert_eq!(layout.bytes_per_parameter, vec![8, 2, 4]);
+        assert_eq!(
+            layout.param_offsets,
+            vec![0, 8, 10],
+            "running-sum offsets must reflect each preceding parameter's actual width, \
+             not param_idx * a constant width (idx*8 would wrongly give [0,8,16], \
+             idx*4 would wrongly give [0,4,8])"
+        );
+        assert_eq!(layout.bytes_per_event, 14, "8 + 2 + 4 = 14 bytes/event");
+        assert!(!layout.is_bit_packed);
+    }
+
     #[test]
     fn layout_computes_range_mask_for_integer_params() {
         let mut metadata = synthetic_metadata_2f32();
