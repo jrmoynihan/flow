@@ -988,16 +988,16 @@ pub fn filter_events_by_gate_with_resolver<R: GateResolver>(
 /// for `gate`. Two-channel gates use the gate's `(x, y)`; one-channel gates use the
 /// bounded channel for both slots (the batch filter only inspects the bounded axis,
 /// so the second slice is harmless and lets us reuse the 2-D `EventData` shape).
-/// NoChannel (mask) gates should never reach this function — they are resolved by
+/// NoChannels (mask) gates should never reach this function — they are resolved by
 /// the MaskResolver before geometric filtering.
 fn gate_axis_pair_for_raw_filter(gate: &Gate) -> (&str, &str) {
     match &gate.parameters {
-        crate::types::GateParameters::TwoChannel { x, y } => (x.as_ref(), y.as_ref()),
+        crate::types::GateParameters::TwoChannels { x, y } => (x.as_ref(), y.as_ref()),
         crate::types::GateParameters::OneChannel { channel } => {
             let c = channel.as_ref();
             (c, c)
         }
-        crate::types::GateParameters::NoChannel => ("", ""),
+        crate::types::GateParameters::NoChannels => ("", ""),
     }
 }
 

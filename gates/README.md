@@ -39,8 +39,8 @@ A `Gate` carries geometry, plot axis parameters, and a `GateCoordinateSpace` (ra
 
 ```toml
 [dependencies]
-flow-gates = "0.4.0"
-flow-fcs = "0.4"
+flow-gates = "0.5.0"
+flow-fcs = "0.5"
 ```
 
 ### Manual gate
