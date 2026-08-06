@@ -1092,6 +1092,16 @@ mod offset_convergence_tests {
             );
         }
 
+        // Stage A: column() must reject bit-packed files explicitly rather
+        // than silently decoding them wrong (the byte-stride traversal can't
+        // represent bit-packed records). events() correctness for bit-packed
+        // data (including $PnR masking) is verified separately by
+        // bit_packed_events_applies_pnr_mask_matching_data_frame_oracle.
+        assert!(
+            fcs.column("P1").is_err(),
+            "column() must reject bit-packed layouts, not attempt byte-stride decoding"
+        );
+
         let _ = std::fs::remove_file(&tmp);
     }
 
