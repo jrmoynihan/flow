@@ -496,34 +496,41 @@ git commit -m "feat(fcs): add extract_columns row-major traversal primitive"
 
 **Interfaces:**
 - Consumes: `extract_columns`, `ColumnLayout::from_metadata` (Task 2/3), `Fcs::find_parameter(&self, name: &str) -> Result<&Parameter>` (existing, `fcs/src/file.rs:1164`), `Parameter.parameter_number: usize` (existing field, 1-based).
-- Produces: `Fcs.columns: Arc<[OnceLock<Box<[f32]>>]>` (new field), `pub fn Fcs::column(&self, channel_name: &str) -> Result<&[f32]>`, `pub fn Fcs::columns(&self, channel_names: &[&str]) -> Result<Vec<&[f32]>>`, and a private `fn Fcs::data_bytes(&self) -> Result<&[u8]>` helper (the offset-validation logic factored out of `store_raw_data_as_dataframe`, reused by both the old eager path and the new lazy path). Task 5 (`events()`) and the oracle test in Task 6 both call `data_bytes()`.
+- Produces: `Fcs.columns: Arc<[OnceLock<Box<[f32]>>]>` (new field), `pub fn Fcs::column(&self, channel_name: &str) -> Result<&[f32]>`, `pub fn Fcs::columns(&self, channel_names: &[&str]) -> Result<Vec<&[f32]>>`, a private `fn Fcs::validated_data_bytes(header: &Header, mmap: &Mmap, metadata: &Metadata) -> Result<&[u8]>` (the offset-validation logic extracted from `store_raw_data_as_dataframe`, now the single implementation both it and the new path call), and a private `fn Fcs::data_bytes(&self) -> Result<&[u8]>` thin wrapper over it. Task 5 (`events()`) and the oracle test in Task 6 both call `data_bytes()`.
 
-- [ ] **Step 1: Factor out `data_bytes()` from the existing eager parser**
+- [ ] **Step 1: Extract the shared validation into a free function, called from both the old and new paths**
 
-In `fcs/src/file.rs`, `store_raw_data_as_dataframe` (starting line 535) currently does bounds validation inline against `header`/`mmap`/`metadata` parameters before `Self` exists. Extract that block into a method usable both there and from `&self` once the struct exists. Add this new method to `impl Fcs` (near `find_parameter`, e.g. after line 1163):
+In `fcs/src/file.rs`, `store_raw_data_as_dataframe` (starting line 535) validates DATA offsets inline against `header`/`mmap`/`metadata` parameters, before `Self` exists. Rather than duplicating that block for the new `&self`-based path, pull it into a standalone associated function that takes the same three inputs explicitly, so both the construction-time caller and the new instance method can share it with no behavior change and no copy of the logic.
+
+Add this new function to `impl Fcs` (near `find_parameter`, e.g. after line 1163):
 
 ```rust
-    /// Returns the validated DATA segment byte slice for this file.
+    /// Returns the validated DATA segment byte slice for the given
+    /// header/mmap/metadata triple. Shared by `store_raw_data_as_dataframe`
+    /// (called during construction, before `Self` exists) and `data_bytes`
+    /// (called on an already-constructed `Fcs`) so the two paths can't drift.
     ///
     /// # Errors
     /// Will return `Err` if the DATA offsets (from `$BEGINDATA`/`$ENDDATA` or
     /// the primary HEADER) fall outside the mapped file, or if start > end.
-    fn data_bytes(&self) -> Result<&[u8]> {
-        let mut data_start = *self.header.data_offset.start();
-        let mut data_end = *self.header.data_offset.end();
-        let mmap_len = self.file_access.mmap.len();
+    fn validated_data_bytes<'a>(
+        header: &Header,
+        mmap: &'a Mmap,
+        metadata: &Metadata,
+    ) -> Result<&'a [u8]> {
+        let mut data_start = *header.data_offset.start();
+        let mut data_end = *header.data_offset.end();
+        let mmap_len = mmap.len();
 
         if data_start == 0 {
-            data_start = self
-                .metadata
+            data_start = metadata
                 .get_integer_keyword("$BEGINDATA")
                 .map_err(|_| anyhow!("$BEGINDATA keyword not found. Unable to determine data start."))?
                 .get_usize()
                 .clone();
         }
         if data_end == 0 {
-            data_end = self
-                .metadata
+            data_end = metadata
                 .get_integer_keyword("$ENDDATA")
                 .map_err(|_| anyhow!("$ENDDATA keyword not found. Unable to determine data end."))?
                 .get_usize()
@@ -540,14 +547,33 @@ In `fcs/src/file.rs`, `store_raw_data_as_dataframe` (starting line 535) currentl
             return Err(anyhow!("Data start offset {} is greater than end offset {}", data_start, data_end));
         }
 
-        Ok(&self.file_access.mmap[data_start..=data_end])
+        Ok(&mmap[data_start..=data_end])
+    }
+
+    /// Returns the validated DATA segment byte slice for this file. Thin
+    /// `&self` wrapper over `validated_data_bytes` for callers that already
+    /// have a constructed `Fcs`.
+    ///
+    /// # Errors
+    /// Same conditions as `validated_data_bytes`.
+    fn data_bytes(&self) -> Result<&[u8]> {
+        Self::validated_data_bytes(&self.header, &self.file_access.mmap, &self.metadata)
     }
 ```
 
-This duplicates the validation from `store_raw_data_as_dataframe` rather than replacing it — leave `store_raw_data_as_dataframe` untouched in this task. Consolidating them is tempting but out of scope: `store_raw_data_as_dataframe` runs before `Self` exists (during construction), so it can't call a `&self` method. Reconciling the two is Stage B's job once `open()` itself is rewritten.
+Then replace the inline validation block at the top of `store_raw_data_as_dataframe` (the code from `let mut data_start = *header.data_offset.start();` through `let data_bytes = &mmap[data_start..=data_end];`, lines 541-592) with a single call:
+
+```rust
+        let data_bytes = Self::validated_data_bytes(header, mmap, metadata)?;
+```
+
+This is a pure refactor — same validation, same error messages, same behavior — so the existing tests that exercise `store_raw_data_as_dataframe`'s error paths (offset-out-of-bounds, missing `$BEGINDATA`/`$ENDDATA`, start > end) must still pass unchanged after this change.
 
 Run: `cargo check -p flow-fcs`
-Expected: builds clean (new private method, unused is fine since `#[warn(dead_code)]` won't fire until nothing calls it — but if it does warn, that's expected until Step 3 below adds callers).
+Expected: builds clean. The new `data_bytes` method is unused until Step 3 adds callers — expected, not a problem.
+
+Run: `cargo test -p flow-fcs`
+Expected: PASS, all 75 pre-existing tests — confirming the refactor didn't change `store_raw_data_as_dataframe`'s behavior.
 
 - [ ] **Step 2: Add the `columns` field and wire up both construction sites**
 
