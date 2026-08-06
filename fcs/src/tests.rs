@@ -52,14 +52,13 @@ mod polars_tests {
             Parameter::new(&3, "FL1-A", "FL1-A", &TransformType::Linear),
         );
 
-        Ok(Fcs {
-            header: Header::new(),
-            metadata: Metadata::new(),
-            parameters: params,
-            data_frame: Arc::new(df),
-            file_access: AccessWrapper::new(temp_path.to_str().unwrap_or(""))?,
-            columns: std::iter::repeat_with(std::sync::OnceLock::new).take(3).collect(),
-        })
+        Ok(Fcs::for_testing(
+            Header::new(),
+            Metadata::new(),
+            params,
+            Arc::new(df),
+            AccessWrapper::new(temp_path.to_str().unwrap_or(""))?,
+        ))
     }
 
     #[test]

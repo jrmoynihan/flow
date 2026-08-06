@@ -40,13 +40,13 @@ fn synthetic_drift_fcs(n: usize) -> Fcs {
     );
     let tmp = std::env::temp_dir().join(format!("peacoqc_syn_{}.tmp", std::process::id()));
     let _ = std::fs::write(&tmp, b"x");
-    Fcs {
-        header: Header::new(),
-        metadata: Metadata::new(),
-        parameters: params,
-        data_frame: Arc::new(df),
-        file_access: AccessWrapper::new(tmp.to_str().unwrap_or(".")).expect("access"),
-    }
+    Fcs::for_testing(
+        Header::new(),
+        Metadata::new(),
+        params,
+        Arc::new(df),
+        AccessWrapper::new(tmp.to_str().unwrap_or(".")).expect("access"),
+    )
 }
 
 #[test]

@@ -119,6 +119,10 @@ specta=[
 blas=["dep:ndarray-linalg", "dep:ndarray"]
 # Optional .fcz compressed read/write (via flow-fcs-compress)
 compress=["dep:flow-fcs-compress"]
+# Exposes Fcs::for_testing() for building fixtures outside this crate's own
+# test/bench targets (where #[cfg(test)] alone would suffice). Purely
+# additive — gates one constructor, no behavior change to anything else.
+test-util = []
 compensation = ["dep:flow-linalg"]
 # Optional Parquet sidecar: write/read FCS data as Parquet via Polars (Tier 1
 # of the M5d adapter — interop-first, doesn't yet plumb our specialized codecs

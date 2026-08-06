@@ -222,6 +222,39 @@ impl Fcs {
         })
     }
 
+    /// Builds an `Fcs` directly from its parts, for test fixtures that don't
+    /// go through `open()`. The `columns` cache always starts empty, sized to
+    /// `parameters.len()` — the same invariant `open()`'s construction path
+    /// maintains.
+    ///
+    /// Not part of the normal API: real code should always go through
+    /// `open()`/`open_all()`, which parse a real file and guarantee `header`/
+    /// `metadata`/`parameters`/`data_frame` are mutually consistent. This
+    /// constructor makes no such guarantee — it exists so other crates' test
+    /// fixtures (which build all of these by hand) can still construct an
+    /// `Fcs` without reaching into `columns`, a cache-only field that isn't
+    /// part of the public API.
+    #[cfg(any(test, feature = "test-util"))]
+    pub fn for_testing(
+        header: Header,
+        metadata: Metadata,
+        parameters: ParameterMap,
+        data_frame: EventDataFrame,
+        file_access: AccessWrapper,
+    ) -> Self {
+        let n_params = parameters.len();
+        Self {
+            header,
+            metadata,
+            parameters,
+            data_frame,
+            file_access,
+            columns: std::iter::repeat_with(std::sync::OnceLock::new)
+                .take(n_params)
+                .collect(),
+        }
+    }
+
     /// Opens and parses an FCS file from the given path
     ///
     /// This is the primary entry point for reading FCS files. It:

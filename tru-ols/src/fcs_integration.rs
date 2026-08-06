@@ -849,13 +849,13 @@ mod tests {
             Parameter::new(&3, "FL3-A", "FL3-A", &TransformType::Linear),
         );
 
-        Ok(Fcs {
-            header: Header::new(),
-            metadata: Metadata::new(),
-            parameters: params,
-            data_frame: Arc::new(df),
-            file_access: AccessWrapper::new(temp_path.to_str().unwrap_or(""))?,
-        })
+        Ok(Fcs::for_testing(
+            Header::new(),
+            Metadata::new(),
+            params,
+            Arc::new(df),
+            AccessWrapper::new(temp_path.to_str().unwrap_or(""))?,
+        ))
     }
 
     #[test]
@@ -1202,14 +1202,14 @@ mod tests {
             Parameter::new(&6, "FL3-A", "Dye3", &TransformType::Linear),
         );
 
-        let stained_fcs = Fcs {
-            header: Header::new(),
-            metadata: Metadata::new(),
-            parameters: params,
-            data_frame: Arc::new(df),
-            file_access: AccessWrapper::new(temp_path.to_str().unwrap_or(""))
+        let stained_fcs = Fcs::for_testing(
+            Header::new(),
+            Metadata::new(),
+            params,
+            Arc::new(df),
+            AccessWrapper::new(temp_path.to_str().unwrap_or(""))
                 .expect("Failed to create AccessWrapper"),
-        };
+        );
 
         let unstained_fcs = stained_fcs.clone();
 
@@ -1352,14 +1352,14 @@ mod tests {
             Parameter::new(&5, "FL3-A", "AF", &TransformType::Linear),
         );
 
-        let mut stained_fcs = Fcs {
-            header: Header::new(),
-            metadata: Metadata::new(),
-            parameters: params,
-            data_frame: Arc::new(df),
-            file_access: AccessWrapper::new(src_path.to_str().unwrap_or(""))
+        let mut stained_fcs = Fcs::for_testing(
+            Header::new(),
+            Metadata::new(),
+            params,
+            Arc::new(df),
+            AccessWrapper::new(src_path.to_str().unwrap_or(""))
                 .expect("AccessWrapper"),
-        };
+        );
         // Space delimiter corrupts keywords whose values contain spaces ($PROJ, …).
         stained_fcs.metadata.delimiter = '\u{000c}';
         // Seed sample metadata that must survive export (regression: `$P` strip dropped these).

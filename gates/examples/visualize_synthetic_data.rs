@@ -78,13 +78,13 @@ mod test_helpers {
             Parameter::new(&5, "SSC-H", "SSC-H", &TransformType::Linear),
         );
 
-        Ok(Fcs {
-            header: Header::new(),
-            metadata: Metadata::new(),
-            parameters: params,
-            data_frame: Arc::new(df),
-            file_access: AccessWrapper::new(temp_path.to_str().unwrap_or(""))?,
-        })
+        Ok(Fcs::for_testing(
+            Header::new(),
+            Metadata::new(),
+            params,
+            Arc::new(df),
+            AccessWrapper::new(temp_path.to_str().unwrap_or(""))?,
+        ))
     }
 
     fn generate_single_population(

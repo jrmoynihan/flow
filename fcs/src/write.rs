@@ -811,14 +811,13 @@ mod offset_convergence_tests {
             );
         }
 
-        let fcs = Fcs {
-            header: Header::new(),
+        let fcs = Fcs::for_testing(
+            Header::new(),
             metadata,
-            parameters: params,
-            data_frame: Arc::new(df),
-            file_access: AccessWrapper::new(stub.to_str().unwrap()).expect("access"),
-            columns: std::iter::repeat_with(std::sync::OnceLock::new).take(2).collect(),
-        };
+            params,
+            Arc::new(df),
+            AccessWrapper::new(stub.to_str().unwrap()).expect("access"),
+        );
 
         write_fcs_file(fcs, &tmp).expect("write");
 

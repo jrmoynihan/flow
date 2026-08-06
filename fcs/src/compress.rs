@@ -379,13 +379,13 @@ mod tests {
             Parameter::new(&3, "FL1-A", "FL1-A", &TransformType::Linear),
         );
 
-        let fcs = Fcs {
-            header: Header::new(),
-            metadata: Metadata::new(),
-            parameters: params,
-            data_frame: Arc::new(df),
-            file_access: AccessWrapper::new(placeholder.to_str().unwrap()).unwrap(),
-        };
+        let fcs = Fcs::for_testing(
+            Header::new(),
+            Metadata::new(),
+            params,
+            Arc::new(df),
+            AccessWrapper::new(placeholder.to_str().unwrap()).unwrap(),
+        );
         let names = vec!["FSC-A".to_string(), "SSC-A".to_string(), "FL1-A".to_string()];
         (fcs, names)
     }
