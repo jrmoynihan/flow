@@ -106,6 +106,19 @@ pub struct Fcs {
 
     /// A wrapper around the file, path, and memory-map
     pub file_access: AccessWrapper,
+
+    /// Per-parameter lazy column cache, indexed by `parameter_number - 1`.
+    /// `Arc<[..]>` (not `Vec<..>`) so `Fcs`'s derived `Clone` shares the
+    /// warmed cache across clones instead of deep-copying every populated
+    /// column — `OnceLock<T: Clone>` is itself `Clone` and would otherwise
+    /// duplicate contents. Sized once at `$PAR` length and never resized, so
+    /// element addresses are stable for the lifetime of the `Fcs`.
+    ///
+    /// `pub(crate)` rather than fully private: sibling modules (e.g.
+    /// `write`'s tests) construct `Fcs` via struct-literal syntax and need
+    /// to supply this field, but it is not part of the public API — external
+    /// callers only ever reach it through `column()`/`columns()`.
+    pub(crate) columns: std::sync::Arc<[std::sync::OnceLock<Box<[f32]>>]>,
 }
 
 /// Extract one parameter column from row-major flat `f32` event data.
@@ -205,6 +218,7 @@ impl Fcs {
             parameters: ParameterMap::default(),
             data_frame: Arc::new(DataFrame::empty()),
             file_access: AccessWrapper::new("")?,
+            columns: std::iter::repeat_with(std::sync::OnceLock::new).take(0).collect(),
         })
     }
 
@@ -371,12 +385,18 @@ impl Fcs {
             )
         })?;
 
+        let n_params = *metadata.get_number_of_parameters().unwrap_or(&0);
+        let columns = std::iter::repeat_with(std::sync::OnceLock::new)
+            .take(n_params)
+            .collect::<std::sync::Arc<[_]>>();
+
         let fcs = Self {
             parameters,
             data_frame,
             file_access,
             header,
             metadata,
+            columns,
         };
 
         // Log DataFrame event count and compare to $TOT
@@ -537,59 +557,7 @@ impl Fcs {
         mmap: &Mmap,
         metadata: &Metadata,
     ) -> Result<EventDataFrame> {
-        // Validate data offset bounds before accessing mmap
-        let mut data_start = *header.data_offset.start();
-        let mut data_end = *header.data_offset.end();
-        let mmap_len = mmap.len();
-
-        // Handle zero offsets by checking keywords
-        if data_start == 0 {
-            if let Ok(begin_data) = metadata.get_integer_keyword("$BEGINDATA") {
-                data_start = begin_data.get_usize().clone();
-            } else {
-                return Err(anyhow!(
-                    "$BEGINDATA keyword not found. Unable to determine data start."
-                ));
-            }
-        }
-
-        if data_end == 0 {
-            if let Ok(end_data) = metadata.get_integer_keyword("$ENDDATA") {
-                data_end = end_data.get_usize().clone();
-            } else {
-                return Err(anyhow!(
-                    "$ENDDATA keyword not found. Unable to determine data end."
-                ));
-            }
-        }
-
-        // Validate offsets
-        if data_start >= mmap_len {
-            return Err(anyhow!(
-                "Data start offset {} is beyond mmap length {}",
-                data_start,
-                mmap_len
-            ));
-        }
-
-        if data_end >= mmap_len {
-            return Err(anyhow!(
-                "Data end offset {} is beyond mmap length {}",
-                data_end,
-                mmap_len
-            ));
-        }
-
-        if data_start > data_end {
-            return Err(anyhow!(
-                "Data start offset {} is greater than end offset {}",
-                data_start,
-                data_end
-            ));
-        }
-
-        // Extract data bytes
-        let data_bytes = &mmap[data_start..=data_end];
+        let data_bytes = Self::validated_data_bytes(header, mmap, metadata)?;
 
         let number_of_parameters = metadata
             .get_number_of_parameters()
@@ -1177,6 +1145,61 @@ impl Fcs {
         Err(anyhow!("Parameter not found: {parameter_name}"))
     }
 
+    /// Returns the validated DATA segment byte slice for the given
+    /// header/mmap/metadata triple. Shared by `store_raw_data_as_dataframe`
+    /// (called during construction, before `Self` exists) and `data_bytes`
+    /// (called on an already-constructed `Fcs`) so the two paths can't drift.
+    ///
+    /// # Errors
+    /// Will return `Err` if the DATA offsets (from `$BEGINDATA`/`$ENDDATA` or
+    /// the primary HEADER) fall outside the mapped file, or if start > end.
+    fn validated_data_bytes<'a>(
+        header: &Header,
+        mmap: &'a Mmap,
+        metadata: &Metadata,
+    ) -> Result<&'a [u8]> {
+        let mut data_start = *header.data_offset.start();
+        let mut data_end = *header.data_offset.end();
+        let mmap_len = mmap.len();
+
+        if data_start == 0 {
+            data_start = metadata
+                .get_integer_keyword("$BEGINDATA")
+                .map_err(|_| anyhow!("$BEGINDATA keyword not found. Unable to determine data start."))?
+                .get_usize()
+                .clone();
+        }
+        if data_end == 0 {
+            data_end = metadata
+                .get_integer_keyword("$ENDDATA")
+                .map_err(|_| anyhow!("$ENDDATA keyword not found. Unable to determine data end."))?
+                .get_usize()
+                .clone();
+        }
+
+        if data_start >= mmap_len {
+            return Err(anyhow!("Data start offset {} is beyond mmap length {}", data_start, mmap_len));
+        }
+        if data_end >= mmap_len {
+            return Err(anyhow!("Data end offset {} is beyond mmap length {}", data_end, mmap_len));
+        }
+        if data_start > data_end {
+            return Err(anyhow!("Data start offset {} is greater than end offset {}", data_start, data_end));
+        }
+
+        Ok(&mmap[data_start..=data_end])
+    }
+
+    /// Returns the validated DATA segment byte slice for this file. Thin
+    /// `&self` wrapper over `validated_data_bytes` for callers that already
+    /// have a constructed `Fcs`.
+    ///
+    /// # Errors
+    /// Same conditions as `validated_data_bytes`.
+    fn data_bytes(&self) -> Result<&[u8]> {
+        Self::validated_data_bytes(&self.header, &self.file_access.mmap, &self.metadata)
+    }
+
     /// Looks for the parameter name as a key in the `parameters` hashmap and returns a mutable reference to it
     /// Performs case-insensitive lookup for parameter names
     /// # Errors
@@ -1482,6 +1505,69 @@ impl Fcs {
     /// Will return `Err` if the `$PAR` keyword is not found in the `metadata` or if the `$PAR` keyword cannot be converted to a `usize`
     pub fn get_number_of_parameters(&self) -> Result<&usize> {
         self.metadata.get_number_of_parameters()
+    }
+
+    /// Returns the raw (never compensated/transformed) values for one
+    /// parameter, computing and caching them on first access.
+    ///
+    /// Unlike `get_parameter_events_slice`, this never touches `data_frame`
+    /// — it decodes directly from the mmap on first call, then serves the
+    /// cached `Box<[f32]>` on every call after.
+    ///
+    /// # Errors
+    /// Will return `Err` if `channel_name` isn't a known parameter, if the
+    /// file is bit-packed (call `events()` instead), or if decoding fails.
+    pub fn column(&self, channel_name: &str) -> Result<&[f32]> {
+        let idx = self.find_parameter(channel_name)?.parameter_number - 1;
+        if let Some(existing) = self.columns[idx].get() {
+            return Ok(existing);
+        }
+
+        let layout = crate::columns::ColumnLayout::from_metadata(&self.metadata)?;
+        let data_bytes = self.data_bytes()?;
+        let mut decoded = crate::columns::extract_columns(data_bytes, &layout, &[idx])?;
+        let boxed = decoded.pop().expect("extract_columns returns exactly one column for one requested index");
+
+        // Another thread may have raced us to populate this slot; either
+        // value is correct (both were decoded from the same immutable file),
+        // so ignore a losing `set`.
+        let _ = self.columns[idx].set(boxed);
+        Ok(self.columns[idx].get().expect("just set or already set"))
+    }
+
+    /// Returns raw values for several parameters, decoding all uncached
+    /// members in a single pass over the DATA segment rather than one pass
+    /// per column. Prefer this over repeated `column()` calls when you know
+    /// the full set you need up front.
+    ///
+    /// # Errors
+    /// Will return `Err` under the same conditions as `column()`, for any of
+    /// `channel_names`.
+    pub fn columns(&self, channel_names: &[&str]) -> Result<Vec<&[f32]>> {
+        let indices: Vec<usize> = channel_names
+            .iter()
+            .map(|name| Ok(self.find_parameter(name)?.parameter_number - 1))
+            .collect::<Result<Vec<_>>>()?;
+
+        let missing: Vec<usize> = indices
+            .iter()
+            .copied()
+            .filter(|&idx| self.columns[idx].get().is_none())
+            .collect();
+
+        if !missing.is_empty() {
+            let layout = crate::columns::ColumnLayout::from_metadata(&self.metadata)?;
+            let data_bytes = self.data_bytes()?;
+            let decoded = crate::columns::extract_columns(data_bytes, &layout, &missing)?;
+            for (idx, boxed) in missing.into_iter().zip(decoded) {
+                let _ = self.columns[idx].set(boxed);
+            }
+        }
+
+        Ok(indices
+            .into_iter()
+            .map(|idx| self.columns[idx].get().expect("populated above").as_ref())
+            .collect())
     }
 
     // ==================== NEW POLARS-BASED ACCESSOR METHODS ====================
@@ -2385,6 +2471,58 @@ impl Fcs {
             .map_err(|e| anyhow!("Failed to create DataFrame: {}", e))?;
 
         Ok(Arc::new(df))
+    }
+}
+
+#[cfg(test)]
+mod lazy_column_tests {
+    use super::Fcs;
+
+    const COMPLIANCE_FCS: &str =
+        "/Users/kfls271/Rust/flow-crates/gates/Gating-ML.v1.5.081030.Compliance-tests.081030/List-mode Data Files/int-10000_events_random.fcs";
+
+    #[test]
+    fn column_matches_data_frame_oracle() {
+        let fcs = Fcs::open(COMPLIANCE_FCS).expect("open compliance fixture");
+        let channel = fcs.get_parameter_names_from_dataframe()[0].clone();
+
+        let lazy = fcs.column(&channel).expect("lazy column").to_vec();
+        let eager = fcs
+            .get_parameter_events_slice(&channel)
+            .expect("eager column")
+            .to_vec();
+
+        assert_eq!(lazy, eager, "lazy column() must match the eager data_frame for the same channel");
+    }
+
+    #[test]
+    fn column_caches_after_first_access() {
+        let fcs = Fcs::open(COMPLIANCE_FCS).expect("open compliance fixture");
+        let channel = fcs.get_parameter_names_from_dataframe()[0].clone();
+
+        let first = fcs.column(&channel).expect("first access").as_ptr();
+        let second = fcs.column(&channel).expect("second access").as_ptr();
+        assert_eq!(first, second, "second call must return the same cached allocation, not re-decode");
+    }
+
+    #[test]
+    fn columns_batch_matches_individual_column_calls() {
+        let fcs = Fcs::open(COMPLIANCE_FCS).expect("open compliance fixture");
+        let names = fcs.get_parameter_names_from_dataframe();
+        let (a, b) = (names[0].clone(), names[1].clone());
+
+        let batch = fcs.columns(&[&a, &b]).expect("batch");
+        let individual_a = fcs.column(&a).expect("a");
+        let individual_b = fcs.column(&b).expect("b");
+
+        assert_eq!(batch[0], individual_a);
+        assert_eq!(batch[1], individual_b);
+    }
+
+    #[test]
+    fn column_rejects_unknown_channel() {
+        let fcs = Fcs::open(COMPLIANCE_FCS).expect("open compliance fixture");
+        assert!(fcs.column("NOT-A-REAL-CHANNEL").is_err());
     }
 }
 
