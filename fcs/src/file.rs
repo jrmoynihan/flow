@@ -1518,21 +1518,10 @@ impl Fcs {
     /// Will return `Err` if `channel_name` isn't a known parameter, if the
     /// file is bit-packed (call `events()` instead), or if decoding fails.
     pub fn column(&self, channel_name: &str) -> Result<&[f32]> {
-        let idx = self.find_parameter(channel_name)?.parameter_number - 1;
-        if let Some(existing) = self.columns[idx].get() {
-            return Ok(existing);
-        }
-
-        let layout = crate::columns::ColumnLayout::from_metadata(&self.metadata)?;
-        let data_bytes = self.data_bytes()?;
-        let mut decoded = crate::columns::extract_columns(data_bytes, &layout, &[idx])?;
-        let boxed = decoded.pop().expect("extract_columns returns exactly one column for one requested index");
-
-        // Another thread may have raced us to populate this slot; either
-        // value is correct (both were decoded from the same immutable file),
-        // so ignore a losing `set`.
-        let _ = self.columns[idx].set(boxed);
-        Ok(self.columns[idx].get().expect("just set or already set"))
+        Ok(self
+            .columns(&[channel_name])?
+            .pop()
+            .expect("columns() returns exactly one slice for a single requested channel"))
     }
 
     /// Returns raw values for several parameters, decoding all uncached
@@ -1549,11 +1538,13 @@ impl Fcs {
             .map(|name| Ok(self.find_parameter(name)?.parameter_number - 1))
             .collect::<Result<Vec<_>>>()?;
 
-        let missing: Vec<usize> = indices
+        let mut missing: Vec<usize> = indices
             .iter()
             .copied()
             .filter(|&idx| self.columns[idx].get().is_none())
             .collect();
+        missing.sort_unstable();
+        missing.dedup();
 
         if !missing.is_empty() {
             let layout = crate::columns::ColumnLayout::from_metadata(&self.metadata)?;
@@ -2575,6 +2566,23 @@ mod lazy_column_tests {
 
         assert_eq!(batch[0], individual_a);
         assert_eq!(batch[1], individual_b);
+    }
+
+    #[test]
+    fn columns_dedupes_repeated_channel_request() {
+        let fcs = Fcs::open(COMPLIANCE_FCS).expect("open compliance fixture");
+        let channel = fcs.get_parameter_names_from_dataframe()[0].clone();
+
+        let batch = fcs.columns(&[&channel, &channel]).expect("batch with duplicate channel");
+        let individual = fcs.column(&channel).expect("individual column");
+
+        assert_eq!(batch[0], individual, "first slot of duplicate request must match column()");
+        assert_eq!(batch[1], individual, "second slot of duplicate request must match column()");
+        assert_eq!(
+            batch[0].as_ptr(),
+            batch[1].as_ptr(),
+            "both requested slots must be the same cached allocation, proving the channel was decoded once"
+        );
     }
 
     #[test]
