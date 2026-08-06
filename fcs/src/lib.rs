@@ -16,6 +16,7 @@ pub use write::{
 };
 
 mod byteorder;
+pub(crate) mod columns;
 #[cfg(feature = "compress")]
 pub mod compress;
 pub mod datatype;
