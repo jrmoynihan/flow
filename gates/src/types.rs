@@ -1378,12 +1378,12 @@ impl Serialize for GateParameters {
         #[derive(Serialize)]
         #[serde(tag = "type", rename_all = "snake_case")]
         enum GateParametersSer<'a> {
-            TwoChannel { x: &'a str, y: &'a str },
+            TwoChannels { x: &'a str, y: &'a str },
             OneChannel { channel: &'a str },
-            NoChannel {},
+            NoChannels {},
         }
         match self {
-            GateParameters::TwoChannel { x, y } => GateParametersSer::TwoChannel {
+            GateParameters::TwoChannel { x, y } => GateParametersSer::TwoChannels {
                 x: x.as_ref(),
                 y: y.as_ref(),
             }
@@ -1392,7 +1392,7 @@ impl Serialize for GateParameters {
                 channel: channel.as_ref(),
             }
             .serialize(serializer),
-            GateParameters::NoChannel => GateParametersSer::NoChannel {}.serialize(serializer),
+            GateParameters::NoChannel => GateParametersSer::NoChannels {}.serialize(serializer),
         }
     }
 }
@@ -1413,12 +1413,7 @@ impl<'de> Deserialize<'de> for GateParameters {
         #[derive(Deserialize)]
         #[serde(tag = "type", rename_all = "snake_case")]
         enum GateParametersTaggedDe {
-            // `two_channels`/`no_channels` (plural) are accepted for backward compatibility
-            // with workspaces saved by the brief window (2026-08-02 to 2026-08-06) where a
-            // formatting-cleanup commit accidentally renamed these wire tags; the canonical
-            // tags are singular, matching the `GateParameters` variant names.
-            #[serde(alias = "two_channels")]
-            TwoChannel {
+            TwoChannels {
                 x: String,
                 y: String,
             },
@@ -1428,8 +1423,7 @@ impl<'de> Deserialize<'de> for GateParameters {
                 #[allow(dead_code)]
                 companion: Option<String>,
             },
-            #[serde(alias = "no_channels")]
-            NoChannel {},
+            NoChannels {},
         }
         let helper = GateParametersDe::deserialize(deserializer)?;
         Ok(match helper {
@@ -1437,7 +1431,7 @@ impl<'de> Deserialize<'de> for GateParameters {
                 x: Arc::from(a.as_str()),
                 y: Arc::from(b.as_str()),
             },
-            GateParametersDe::Tagged(GateParametersTaggedDe::TwoChannel { x, y }) => {
+            GateParametersDe::Tagged(GateParametersTaggedDe::TwoChannels { x, y }) => {
                 GateParameters::TwoChannel {
                     x: Arc::from(x.as_str()),
                     y: Arc::from(y.as_str()),
@@ -1448,7 +1442,7 @@ impl<'de> Deserialize<'de> for GateParameters {
                     channel: Arc::from(channel.as_str()),
                 }
             }
-            GateParametersDe::Tagged(GateParametersTaggedDe::NoChannel {}) => {
+            GateParametersDe::Tagged(GateParametersTaggedDe::NoChannels {}) => {
                 GateParameters::NoChannel
             }
         })
