@@ -16,7 +16,7 @@
 - Keep the `.collect()`-based per-value decode loop, not `get_unchecked`/`set_len` tricks — a prior attempt at the latter regressed performance (`fcs/docs/PERF_AB.md`).
 - Reuse `Fcs::parse_parameter_value_to_f32` for scalar decoding rather than reimplementing dtype dispatch — it already handles `I`/`F`/`D` correctly, including the widths that are valid for each.
 - Bit-packed records (`$PnB` not a multiple of 8) are out of scope for the new lazy paths in this stage: `column()`/`columns()` return a clear `Err` for them, and `.events()` falls back to the existing `parse_bit_packed_data` + `extract_all_param_columns` pipeline unchanged. This is a real, permanent behavior for this format (bit-packing was deprecated in FCS 3.2), not a temporary gap.
-- All new code lives in `fcs/src/columns.rs` plus additions to `fcs/src/file.rs`; no other crate is touched in this plan.
+- All new code lives in `fcs/src/columns.rs` plus additions to `fcs/src/file.rs` — **amended after Task 6's workspace verification**: `Fcs`'s other fields (`header`, `metadata`, `parameters`, `data_frame`, `file_access`) are all `pub`, and it turns out several other crates (`tru-ols`, `peacoqc-rs`, `gates`, plus `flow-fcs`'s own `compress`-feature tests) construct `Fcs` directly via struct-literal syntax in their own test fixtures, bypassing `Fcs::open()`. Adding the `pub(crate)` `columns` field broke every one of those literals — `cargo test --workspace` didn't even compile. Task 7 fixes this by adding a `#[cfg(any(test, feature = "test-util"))]` public constructor (`Fcs::for_testing`) and migrating every broken call site to it, which does touch those other crates. This was a genuine plan gap (the original scope boundary assumed all construction went through `Fcs::open()`/`Fcs::new()`), not scope creep — confirmed with the project owner before proceeding (see `flow-crates-3nt`).
 
 ---
 
@@ -959,7 +959,276 @@ git commit -m "test(fcs): verify bit-packed fallback and full-workspace compatib
 
 ---
 
-### Task 7: Benchmark the new paths against the existing eager parse
+### Task 7: Fix cross-crate `Fcs` test-fixture construction, restore workspace compatibility
+
+**Why this task exists:** Task 6's `cargo test --workspace` run doesn't compile. `Fcs`'s other fields (`header`, `metadata`, `parameters`, `data_frame`, `file_access`) are all `pub`, so several crates historically built `Fcs` test fixtures via raw struct-literal syntax, bypassing `Fcs::open()` entirely. Adding the `pub(crate)` `columns` field in Task 4 broke every one of those literals — a `pub(crate)` field can't be named from outside the crate at all, so it's not a "missing field" a caller can just add. This was a real gap in the plan's original scope statement ("no other crate is touched"), confirmed with the project owner (see bead `flow-crates-3nt`) before writing this task. The fix: add a public, test-only constructor to `Fcs` and migrate every broken call site to it.
+
+**Files:**
+- Modify: `fcs/src/file.rs` (new `Fcs::for_testing` constructor)
+- Modify: `fcs/Cargo.toml` (new `test-util` feature)
+- Modify: `fcs/src/tests.rs`, `fcs/src/write.rs`, `fcs/src/compress.rs` (migrate 3 in-crate call sites)
+- Modify: `tru-ols/Cargo.toml`, `tru-ols/src/fcs_integration.rs` (enable feature, migrate 3 call sites)
+- Modify: `peacoqc-rs/Cargo.toml`, `peacoqc-rs/tests/synthetic_drift_peacoqc.rs` (enable feature, migrate 1 call site)
+- Modify: `gates/Cargo.toml`, `gates/tests/test_helpers.rs`, `gates/examples/visualize_synthetic_data.rs` (enable feature, migrate 2 call sites)
+
+**Interfaces:**
+- Consumes: nothing new — every call site already has `Header`, `Metadata`, `ParameterMap`, `EventDataFrame` (`Arc<DataFrame>`), and `AccessWrapper` values in scope; they're just re-passed as arguments instead of struct-literal fields.
+- Produces: `pub fn Fcs::for_testing(header: Header, metadata: Metadata, parameters: ParameterMap, data_frame: EventDataFrame, file_access: AccessWrapper) -> Self`, gated `#[cfg(any(test, feature = "test-util"))]`.
+
+- [ ] **Step 1: Add the `test-util` feature and the constructor**
+
+In `fcs/Cargo.toml`, add to the existing `[features]` table (near `compress=[...]`):
+```toml
+# Exposes Fcs::for_testing() for building fixtures outside this crate's own
+# test/bench targets (where #[cfg(test)] alone would suffice). Purely
+# additive — gates one constructor, no behavior change to anything else.
+test-util = []
+```
+
+In `fcs/src/file.rs`, add this new method to `impl Fcs`, directly after `pub fn new() -> Result<Self> { ... }` (around line 223):
+
+```rust
+    /// Builds an `Fcs` directly from its parts, for test fixtures that don't
+    /// go through `open()`. The `columns` cache always starts empty, sized to
+    /// `parameters.len()` — the same invariant `open()`'s construction path
+    /// maintains.
+    ///
+    /// Not part of the normal API: real code should always go through
+    /// `open()`/`open_all()`, which parse a real file and guarantee `header`/
+    /// `metadata`/`parameters`/`data_frame` are mutually consistent. This
+    /// constructor makes no such guarantee — it exists so other crates' test
+    /// fixtures (which build all of these by hand) can still construct an
+    /// `Fcs` without reaching into `columns`, a cache-only field that isn't
+    /// part of the public API.
+    #[cfg(any(test, feature = "test-util"))]
+    pub fn for_testing(
+        header: Header,
+        metadata: Metadata,
+        parameters: ParameterMap,
+        data_frame: EventDataFrame,
+        file_access: AccessWrapper,
+    ) -> Self {
+        let n_params = parameters.len();
+        Self {
+            header,
+            metadata,
+            parameters,
+            data_frame,
+            file_access,
+            columns: std::iter::repeat_with(std::sync::OnceLock::new)
+                .take(n_params)
+                .collect(),
+        }
+    }
+```
+
+Run: `cargo check -p flow-fcs --features test-util`
+Expected: builds clean (the function is new and unused outside test/feature-gated contexts within this crate itself, which is fine — `cargo check -p flow-fcs` without `--features test-util` still builds too, since `cfg(test)` alone satisfies the gate for the crate's own test binary).
+
+- [ ] **Step 2: Migrate the 3 in-crate call sites**
+
+In `fcs/src/tests.rs`, replace the `Ok(Fcs { header: Header::new(), metadata: Metadata::new(), parameters: params, data_frame: Arc::new(df), file_access: AccessWrapper::new(temp_path.to_str().unwrap_or(""))?, columns: std::iter::repeat_with(std::sync::OnceLock::new).take(3).collect(), })` (confirmed at `fcs/src/tests.rs:55-62`) with:
+```rust
+        Ok(Fcs::for_testing(
+            Header::new(),
+            Metadata::new(),
+            params,
+            Arc::new(df),
+            AccessWrapper::new(temp_path.to_str().unwrap_or(""))?,
+        ))
+```
+
+In `fcs/src/write.rs` (confirmed at `fcs/src/write.rs:813-820`), replace:
+```rust
+        let fcs = Fcs {
+            header: Header::new(),
+            metadata,
+            parameters: params,
+            data_frame: Arc::new(df),
+            file_access: AccessWrapper::new(stub.to_str().unwrap()).expect("access"),
+            columns: std::iter::repeat_with(std::sync::OnceLock::new).take(2).collect(),
+        };
+```
+with:
+```rust
+        let fcs = Fcs::for_testing(
+            Header::new(),
+            metadata,
+            params,
+            Arc::new(df),
+            AccessWrapper::new(stub.to_str().unwrap()).expect("access"),
+        );
+```
+
+In `fcs/src/compress.rs` (confirmed at `fcs/src/compress.rs:382-388`), replace:
+```rust
+        let fcs = Fcs {
+            header: Header::new(),
+            metadata: Metadata::new(),
+            parameters: params,
+            data_frame: Arc::new(df),
+            file_access: AccessWrapper::new(placeholder.to_str().unwrap()).unwrap(),
+        };
+```
+with:
+```rust
+        let fcs = Fcs::for_testing(
+            Header::new(),
+            Metadata::new(),
+            params,
+            Arc::new(df),
+            AccessWrapper::new(placeholder.to_str().unwrap()).unwrap(),
+        );
+```
+(Note: `compress.rs`'s site predates Task 4 and never got a `columns:` field added — it's been broken since Task 4 landed, just not caught until now because it's gated behind the `compress` feature, which is off by default. `Fcs::for_testing` fixes it too, no separate step needed.)
+
+Run: `cargo test -p flow-fcs --features compress,test-util`
+Expected: PASS, including `fcs/src/compress.rs`'s tests, which don't currently run under default features.
+
+Run: `cargo test -p flow-fcs`
+Expected: PASS — the default-feature test suite (94 tests as of Task 6) must be completely unaffected by this refactor.
+
+- [ ] **Step 3: Enable the feature and migrate `tru-ols`**
+
+In `tru-ols/Cargo.toml`, change (confirmed at line 32):
+```toml
+flow-fcs = { path = "../fcs", version = "^0.5.0", optional=true }
+```
+to:
+```toml
+flow-fcs = { path = "../fcs", version = "^0.5.0", optional=true, features=["test-util"] }
+```
+This enables `test-util` unconditionally whenever `tru-ols`'s own `flow-fcs` feature is active (on by default) — simpler than splitting a separate `[dev-dependencies]` entry, and harmless since the feature only unlocks one inert constructor. `tru-ols/Cargo.toml` has no existing `[dev-dependencies]` split for `flow-fcs` to extend, so this matches its existing single-declaration convention.
+
+In `tru-ols/src/fcs_integration.rs`, there are 3 identical-shaped `Fcs { header: Header::new(), metadata: Metadata::new(), parameters: params, data_frame: Arc::new(df), file_access: AccessWrapper::new(...)... }` literals (confirmed at approximately lines 852, 1205, 1355 — search for `Fcs {` within `#[cfg(test)] mod tests` to find the exact current line numbers, since earlier commits may have shifted them slightly). Replace each with the `Fcs::for_testing(...)` equivalent, preserving each site's own local variable names and whatever wrapping (`Ok(...)`, direct assignment to `let stained_fcs = ...`, `let mut stained_fcs = ...`) it currently has — only the inner `Fcs { ... }` becomes `Fcs::for_testing(...)`, argument order `header, metadata, parameters, data_frame, file_access`. For example, the first site (confirmed shape):
+```rust
+        Ok(Fcs {
+            header: Header::new(),
+            metadata: Metadata::new(),
+            parameters: params,
+            data_frame: Arc::new(df),
+            file_access: AccessWrapper::new(temp_path.to_str().unwrap_or(""))?,
+        })
+```
+becomes:
+```rust
+        Ok(Fcs::for_testing(
+            Header::new(),
+            Metadata::new(),
+            params,
+            Arc::new(df),
+            AccessWrapper::new(temp_path.to_str().unwrap_or(""))?,
+        ))
+```
+Apply the same mechanical transform to the other two sites, adjusting only for each site's own wrapping/variable names — none of them have a `columns:` field to drop (they predate Task 4 and were never patched, which is *why* they're broken).
+
+Run: `cargo test -p tru-ols --lib`
+Expected: PASS — this specifically could not even compile before this task; a passing run here is the concrete proof this task fixes the regression.
+
+- [ ] **Step 4: Enable the feature and migrate `peacoqc-rs`**
+
+In `peacoqc-rs/Cargo.toml`, change (confirmed at line 28):
+```toml
+flow-fcs = { path = "../fcs", version = "^0.5.0", optional=true }
+```
+to:
+```toml
+flow-fcs = { path = "../fcs", version = "^0.5.0", optional=true, features=["test-util"] }
+```
+
+In `peacoqc-rs/tests/synthetic_drift_peacoqc.rs` (confirmed at line 43-49), replace:
+```rust
+    Fcs {
+        header: Header::new(),
+        metadata: Metadata::new(),
+        parameters: params,
+        data_frame: Arc::new(df),
+        file_access: AccessWrapper::new(tmp.to_str().unwrap_or(".")).expect("access"),
+    }
+```
+with:
+```rust
+    Fcs::for_testing(
+        Header::new(),
+        Metadata::new(),
+        params,
+        Arc::new(df),
+        AccessWrapper::new(tmp.to_str().unwrap_or(".")).expect("access"),
+    )
+```
+
+Run: `cargo test -p peacoqc-rs --all-features`
+Expected: PASS.
+
+- [ ] **Step 5: Enable the feature and migrate `gates`**
+
+In `gates/Cargo.toml`, change (confirmed at line 19):
+```toml
+flow-fcs = { path = "../fcs", version = "^0.5.0" }
+```
+to:
+```toml
+flow-fcs = { path = "../fcs", version = "^0.5.0", features=["test-util"] }
+```
+
+In `gates/tests/test_helpers.rs` (confirmed at line 77-83), replace:
+```rust
+    Ok(Fcs {
+        header: Header::new(),
+        metadata: Metadata::new(),
+        parameters: params,
+        data_frame: Arc::new(df),
+        file_access: AccessWrapper::new(temp_path.to_str().unwrap_or(""))?,
+    })
+```
+with:
+```rust
+    Ok(Fcs::for_testing(
+        Header::new(),
+        Metadata::new(),
+        params,
+        Arc::new(df),
+        AccessWrapper::new(temp_path.to_str().unwrap_or(""))?,
+    ))
+```
+
+In `gates/examples/visualize_synthetic_data.rs` (confirmed at line 80-86), replace the identically-shaped literal with the same transform.
+
+Run: `cargo test -p gates`
+Expected: PASS.
+
+Run: `cargo build -p gates --examples`
+Expected: builds clean (examples aren't run by `cargo test`, only compiled — confirm `visualize_synthetic_data` itself still compiles).
+
+- [ ] **Step 6: Full workspace verification — the actual goal of this task**
+
+Run: `cargo test --workspace`
+Expected: PASS. This is the command that failed before this task and is the reason this task exists — every crate in `[workspace] members` (`fcs`, `flow-fcs-compress`, `flow-fcs-bench`, `flow-linalg`, `flow-density`, `flow-clustering`, `flow-knn`, `flow-dimensional-reduction`, `flow-pacmap`, `plots`, `gates`, `peacoqc-rs`, `peacoqc-cli`, `tru-ols`, `flow-peak-detection`, `flow-control-detection`) must compile and pass.
+
+Run: `cargo clippy --workspace --all-targets -- -D warnings`
+Expected: this may surface pre-existing lint debt unrelated to this task (Task 6 already found flow-fcs alone has some, tracked separately). Do not fix pre-existing warnings outside the files this task touches — only ensure the code this task added or changed (the `for_testing` constructor and the 9 migrated call sites) is clippy-clean. If pre-existing warnings block `-D warnings` from completing at the workspace level, note that in your report rather than fixing them (out of scope for this task) — but confirm via `cargo clippy -p flow-fcs -p tru-ols -p peacoqc-rs -p gates --all-targets -- -D warnings` (scoped to just the 4 crates this task touches) that this task's own changes are clean, which is what actually matters here.
+
+- [ ] **Step 7: Commit**
+
+```bash
+git add fcs/Cargo.toml fcs/src/file.rs fcs/src/tests.rs fcs/src/write.rs fcs/src/compress.rs \
+        tru-ols/Cargo.toml tru-ols/src/fcs_integration.rs \
+        peacoqc-rs/Cargo.toml peacoqc-rs/tests/synthetic_drift_peacoqc.rs \
+        gates/Cargo.toml gates/tests/test_helpers.rs gates/examples/visualize_synthetic_data.rs
+git commit -m "fix(fcs): add Fcs::for_testing constructor, restore cross-crate test-fixture construction
+
+Task 4's pub(crate) columns field broke every out-of-crate struct-literal
+construction of Fcs, since a pub(crate) field can't be named externally at
+all. Adds a public, feature-gated constructor and migrates every known
+broken call site (tru-ols, peacoqc-rs, gates, plus flow-fcs's own
+compress-feature tests) to use it instead."
+```
+
+**Known residual scope, not this task's job:** `tru-ols-cli` and `peacoqc-py` also construct `Fcs { .. }` literals directly and will need the same `Fcs::for_testing` migration, but neither is currently a `[workspace] members` entry, so neither blocks `cargo test --workspace` today. `tru-ols-cli`'s workspace-membership status is already tracked by `flow-crates-ihm`; note in your report that its `Fcs` construction sites will need this same fix whenever that bead is resolved, so the connection isn't lost.
+
+---
+
+### Task 8: Benchmark the new paths against the existing eager parse
 
 **Files:**
 - Create: `fcs/benches/lazy_column_access.rs`
