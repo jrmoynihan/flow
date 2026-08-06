@@ -28,7 +28,7 @@ use rayon::prelude::*;
 /// Based on benchmarks: 400,000 values (50,000 events × 8 parameters)
 /// - Float32: Always use sequential (benchmarks show sequential is 2-13x faster)
 /// - Int16/Int32/Float64: Use parallel for datasets with ≥400k values
-const PARALLEL_THRESHOLD: usize = 400_000;
+pub(crate) const PARALLEL_THRESHOLD: usize = 400_000;
 
 /// A shareable wrapper around the file path and memory-map
 ///
@@ -860,7 +860,7 @@ impl Fcs {
     /// # Errors
     /// Will return `Err` if a parameter's data type isn't `I`, or if there
     /// isn't enough data for the declared number of events.
-    fn parse_bit_packed_data(
+    pub(crate) fn parse_bit_packed_data(
         data_bytes: &[u8],
         bits_per_parameter: &[usize],
         data_types: &[FcsDataType],
@@ -1046,7 +1046,7 @@ impl Fcs {
     /// # Errors
     /// Will return `Err` if the bytes cannot be parsed according to the data type
     #[cold]
-    fn parse_parameter_value_to_f32(
+    pub(crate) fn parse_parameter_value_to_f32(
         bytes: &[u8],
         bytes_per_param: usize,
         data_type: &FcsDataType,
