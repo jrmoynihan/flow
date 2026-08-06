@@ -875,4 +875,362 @@ mod offset_convergence_tests {
         let _ = std::fs::remove_file(&tmp);
         let _ = std::fs::remove_file(&stub);
     }
+
+    /// flow-crates-d35: `$PnR` (true resolution) must be used to mask off garbage
+    /// in the unused high bits of a wider `$PnB` field. Beckman FC500/Gallios/Navios
+    /// and older BD instruments commonly store sub-16-bit ADC resolution (e.g. 10-bit,
+    /// $PnR=1024) inside a 16-bit field ($PnB=16), leaving the top bits as instrument
+    /// noise rather than zeros. Hand-builds the file (not via `write_fcs_file`, which
+    /// always serializes f32 data) so the on-disk bytes are real 16-bit integers with
+    /// deliberately corrupted high bits.
+    #[test]
+    fn pnr_mask_strips_garbage_high_bits_from_int16_data() {
+        let tmp = std::env::temp_dir().join("flow_fcs_pnr_mask.fcs");
+
+        let n_events = 4usize;
+        // True values are all within the declared $PnR=1024 (10-bit) resolution.
+        let true_values: [u16; 4] = [0, 1, 500, 1023];
+        // Garbage in the unused high 6 bits of the 16-bit field (bits 10-15).
+        let garbage: u16 = 0xFC00;
+
+        let mut data_bytes = Vec::with_capacity(n_events * 2);
+        for &v in &true_values {
+            let corrupted = v | garbage;
+            data_bytes.extend_from_slice(&corrupted.to_le_bytes());
+        }
+
+        let mut metadata = Metadata::new();
+        metadata.delimiter = '\u{000c}';
+        metadata.keywords.insert(
+            "$BYTEORD".to_string(),
+            Keyword::Byte(ByteKeyword::BYTEORD(ByteOrder::LittleEndian)),
+        );
+        metadata.keywords.insert(
+            "$DATATYPE".to_string(),
+            Keyword::Byte(ByteKeyword::DATATYPE(crate::datatype::FcsDataType::I)),
+        );
+        metadata.insert_string_keyword("$MODE".into(), "L".into());
+        metadata.insert_string_keyword("$NEXTDATA".into(), "0".into());
+        metadata.insert_string_keyword("$P1N".into(), "FL1-A".into());
+        metadata.insert_string_keyword("$P1S".into(), "".into());
+        metadata
+            .keywords
+            .insert("$P1B".to_string(), Keyword::Int(IntegerKeyword::PnB(16)));
+        metadata
+            .keywords
+            .insert("$P1R".to_string(), Keyword::Int(IntegerKeyword::PnR(1024)));
+
+        let text_start = 58usize;
+        let mut data_start = text_start + estimate_text_segment_size(&metadata, n_events, 1);
+        let mut data_end = data_start + data_bytes.len() - 1;
+        let (text_segment, text_end, data_start, data_end) = {
+            let mut text_segment = Vec::new();
+            let mut text_end = text_start;
+            let mut converged = false;
+            for _ in 0..8 {
+                text_segment =
+                    serialize_metadata(&metadata, n_events, 1, data_start, data_end).expect("text");
+                text_end = text_start + text_segment.len() - 1;
+                let next_data_start = text_end + 1;
+                let next_data_end = next_data_start + data_bytes.len() - 1;
+                if next_data_start == data_start && next_data_end == data_end {
+                    converged = true;
+                    break;
+                }
+                data_start = next_data_start;
+                data_end = next_data_end;
+            }
+            assert!(converged, "TEXT/data offsets failed to converge");
+            (text_segment, text_end, data_start, data_end)
+        };
+
+        let header =
+            build_header(&Version::V3_1, text_start, text_end, data_start, data_end).expect("header");
+
+        let mut bytes = header;
+        bytes.extend_from_slice(&text_segment);
+        bytes.extend_from_slice(&data_bytes);
+        std::fs::write(&tmp, &bytes).expect("write fcs bytes");
+
+        let fcs = Fcs::open(tmp.to_str().unwrap()).expect("reopen");
+        let values = fcs
+            .get_parameter_events_slice("FL1-A")
+            .expect("FL1-A column");
+
+        let expected: Vec<f32> = true_values.iter().map(|&v| v as f32).collect();
+        assert_eq!(
+            values, expected.as_slice(),
+            "$PnR mask should strip garbage high bits, leaving only the true 10-bit value"
+        );
+
+        let _ = std::fs::remove_file(&tmp);
+    }
+
+    /// flow-crates-bk6: non-byte-aligned `$PnB` (bit-packed) records must use
+    /// `ceil(sum(bits)/8)` for the record stride, not `sum(ceil(bits/8))` — the
+    /// latter overcounts whenever a parameter's width isn't a multiple of 8.
+    /// Hand-packs 8 channels of `$PnB=10` (80 bits = 10 bytes/event, not the
+    /// wrong 16 bytes/event `sum(ceil(10/8))*8` would predict) using the same
+    /// MSB-first bit order the production `BitReader` decodes, then asserts
+    /// both the corrected stride and the decoded values.
+    #[test]
+    fn bit_packed_pnb10_record_uses_correct_stride_and_decodes() {
+        let tmp = std::env::temp_dir().join("flow_fcs_bit_packed.fcs");
+
+        let n_params = 8usize;
+        let n_events = 2usize;
+        let bits_per_param = 10usize;
+        // All values fit in 10 bits (0..=1023); chosen to exercise low/high/mid values.
+        let event_values: [[u16; 8]; 2] = [
+            [0, 1, 2, 3, 511, 512, 1000, 1023],
+            [1023, 1000, 512, 511, 3, 2, 1, 0],
+        ];
+
+        // Pack MSB-first within the byte stream, matching `BitReader::read_bits`.
+        let mut data_bytes: Vec<u8> = Vec::new();
+        let mut bit_pos = 0usize;
+        for event in &event_values {
+            for &value in event {
+                for i in (0..bits_per_param).rev() {
+                    let bit = ((value >> i) & 1) as u8;
+                    let byte_idx = bit_pos / 8;
+                    if byte_idx == data_bytes.len() {
+                        data_bytes.push(0);
+                    }
+                    let shift = 7 - (bit_pos % 8);
+                    data_bytes[byte_idx] |= bit << shift;
+                    bit_pos += 1;
+                }
+            }
+        }
+        assert_eq!(
+            data_bytes.len(),
+            20,
+            "8 params x 10 bits = 10 bytes/event x 2 events should pack into 20 bytes total"
+        );
+
+        let mut metadata = Metadata::new();
+        metadata.delimiter = '\u{000c}';
+        metadata.keywords.insert(
+            "$BYTEORD".to_string(),
+            Keyword::Byte(ByteKeyword::BYTEORD(ByteOrder::LittleEndian)),
+        );
+        metadata.keywords.insert(
+            "$DATATYPE".to_string(),
+            Keyword::Byte(ByteKeyword::DATATYPE(crate::datatype::FcsDataType::I)),
+        );
+        metadata.insert_string_keyword("$MODE".into(), "L".into());
+        metadata.insert_string_keyword("$NEXTDATA".into(), "0".into());
+        metadata
+            .keywords
+            .insert("$PAR".to_string(), Keyword::Int(IntegerKeyword::PAR(n_params)));
+        for n in 1..=n_params {
+            metadata.insert_string_keyword(format!("$P{n}N"), format!("P{n}"));
+            metadata.insert_string_keyword(format!("$P{n}S"), "".into());
+            metadata.keywords.insert(
+                format!("$P{n}B"),
+                Keyword::Int(IntegerKeyword::PnB(bits_per_param)),
+            );
+            metadata.keywords.insert(
+                format!("$P{n}R"),
+                Keyword::Int(IntegerKeyword::PnR(1024)),
+            );
+        }
+
+        assert_eq!(
+            metadata.calculate_bytes_per_event().expect("stride"),
+            10,
+            "record stride must be ceil(sum(bits)/8) = ceil(80/8) = 10, not sum(ceil(10/8)) = 16"
+        );
+
+        let text_start = 58usize;
+        let mut data_start =
+            text_start + estimate_text_segment_size(&metadata, n_events, n_params);
+        let mut data_end = data_start + data_bytes.len() - 1;
+        let (text_segment, text_end, data_start, data_end) = {
+            let mut text_segment = Vec::new();
+            let mut text_end = text_start;
+            let mut converged = false;
+            for _ in 0..8 {
+                text_segment =
+                    serialize_metadata(&metadata, n_events, n_params, data_start, data_end)
+                        .expect("text");
+                text_end = text_start + text_segment.len() - 1;
+                let next_data_start = text_end + 1;
+                let next_data_end = next_data_start + data_bytes.len() - 1;
+                if next_data_start == data_start && next_data_end == data_end {
+                    converged = true;
+                    break;
+                }
+                data_start = next_data_start;
+                data_end = next_data_end;
+            }
+            assert!(converged, "TEXT/data offsets failed to converge");
+            (text_segment, text_end, data_start, data_end)
+        };
+
+        let header =
+            build_header(&Version::V3_1, text_start, text_end, data_start, data_end).expect("header");
+
+        let mut bytes = header;
+        bytes.extend_from_slice(&text_segment);
+        bytes.extend_from_slice(&data_bytes);
+        std::fs::write(&tmp, &bytes).expect("write fcs bytes");
+
+        let fcs = Fcs::open(tmp.to_str().unwrap()).expect("reopen");
+        for (param_idx, expected_values) in (1..=n_params).zip(
+            (0..n_params).map(|p| event_values.iter().map(|e| e[p] as f32).collect::<Vec<_>>()),
+        ) {
+            let channel = format!("P{param_idx}");
+            let values = fcs
+                .get_parameter_events_slice(&channel)
+                .unwrap_or_else(|_| panic!("{channel} column"));
+            assert_eq!(
+                values, expected_values.as_slice(),
+                "channel {channel} should decode the bit-packed values in event order"
+            );
+        }
+
+        let _ = std::fs::remove_file(&tmp);
+    }
+
+    /// flow-crates-1mg: `$NEXTDATA` traversal for multi-dataset FCS files (e.g. Beckman
+    /// `.lmd` exports, which chain several datasets in one file). Hand-builds a
+    /// two-dataset file: dataset 1 is a normal primary-header + TEXT + DATA layout
+    /// whose `$NEXTDATA` points at dataset 2's TEXT start; dataset 2 has NO second
+    /// 58-byte primary header (the FCS HEADER only exists once, at file start) — it's
+    /// just a second TEXT segment immediately following dataset 1's DATA, followed by
+    /// its own DATA. `Fcs::open()` must still return only dataset 1 (unchanged,
+    /// zero-cost default); `Fcs::open_all()` must return both, in order.
+    #[test]
+    fn open_all_traverses_nextdata_chain_across_two_datasets() {
+        let tmp = std::env::temp_dir().join("flow_fcs_nextdata_chain.fcs");
+
+        fn build_dataset_metadata(nextdata: usize) -> Metadata {
+            let mut metadata = Metadata::new();
+            metadata.delimiter = '\u{000c}';
+            metadata.keywords.insert(
+                "$BYTEORD".to_string(),
+                Keyword::Byte(ByteKeyword::BYTEORD(ByteOrder::LittleEndian)),
+            );
+            metadata.keywords.insert(
+                "$DATATYPE".to_string(),
+                Keyword::Byte(ByteKeyword::DATATYPE(crate::datatype::FcsDataType::F)),
+            );
+            metadata.insert_string_keyword("$MODE".into(), "L".into());
+            metadata.insert_string_keyword("$NEXTDATA".into(), nextdata.to_string());
+            metadata.insert_string_keyword("$P1N".into(), "FSC-A".into());
+            metadata.insert_string_keyword("$P1S".into(), "".into());
+            metadata
+                .keywords
+                .insert("$P1B".to_string(), Keyword::Int(IntegerKeyword::PnB(32)));
+            metadata.keywords.insert(
+                "$P1R".to_string(),
+                Keyword::Int(IntegerKeyword::PnR(262_144)),
+            );
+            metadata
+                .keywords
+                .insert("$P1E".to_string(), Keyword::Mixed(MixedKeyword::PnE(0.0, 0.0)));
+            metadata
+        }
+
+        /// Converge TEXT/DATA offsets for a dataset whose TEXT starts at `text_start`,
+        /// re-serializing until `$BEGINDATA`/`$ENDDATA` agree with the actual layout —
+        /// same pattern the other hand-built tests in this module use.
+        fn build_dataset_bytes(
+            metadata: &Metadata,
+            text_start: usize,
+            n_events: usize,
+            n_params: usize,
+            data_bytes: &[u8],
+        ) -> (Vec<u8>, usize, usize, usize) {
+            let mut data_start = text_start + estimate_text_segment_size(metadata, n_events, n_params);
+            let mut data_end = data_start + data_bytes.len() - 1;
+            let mut text_segment = Vec::new();
+            let mut text_end = text_start;
+            let mut converged = false;
+            for _ in 0..8 {
+                text_segment =
+                    serialize_metadata(metadata, n_events, n_params, data_start, data_end)
+                        .expect("text");
+                text_end = text_start + text_segment.len() - 1;
+                let next_data_start = text_end + 1;
+                let next_data_end = next_data_start + data_bytes.len() - 1;
+                if next_data_start == data_start && next_data_end == data_end {
+                    converged = true;
+                    break;
+                }
+                data_start = next_data_start;
+                data_end = next_data_end;
+            }
+            assert!(converged, "TEXT/data offsets failed to converge");
+            (text_segment, text_end, data_start, data_end)
+        }
+
+        let n_events = 3usize;
+        let dataset1_values: [f32; 3] = [1.0, 2.0, 3.0];
+        let dataset2_values: [f32; 3] = [10.0, 20.0, 30.0];
+        let data_bytes1 = serialize_f32_columns(&[&dataset1_values], true).expect("data1");
+        let data_bytes2 = serialize_f32_columns(&[&dataset2_values], true).expect("data2");
+
+        let text_start1 = 58usize;
+
+        // Converge dataset 1's own TEXT/DATA layout AND the file offset where dataset 2's
+        // TEXT begins ($NEXTDATA) together: changing $NEXTDATA's digit count changes
+        // dataset 1's TEXT length, which shifts where dataset 2 starts.
+        let mut next_data_guess = text_start1 + data_bytes1.len() * 2; // arbitrary seed
+        let (text_segment1, _text_end1, data_start1, data_end1) = loop {
+            let metadata1 = build_dataset_metadata(next_data_guess);
+            let (text_segment1, text_end1, data_start1, data_end1) =
+                build_dataset_bytes(&metadata1, text_start1, n_events, 1, &data_bytes1);
+            let actual_next_data = data_end1 + 1;
+            if actual_next_data == next_data_guess {
+                break (text_segment1, text_end1, data_start1, data_end1);
+            }
+            next_data_guess = actual_next_data;
+        };
+        let text_start2 = data_end1 + 1;
+
+        let metadata2 = build_dataset_metadata(0);
+        let (text_segment2, _text_end2, _data_start2, data_end2) =
+            build_dataset_bytes(&metadata2, text_start2, n_events, 1, &data_bytes2);
+
+        let header = build_header(&Version::V3_1, text_start1, data_start1 - 1, data_start1, data_end1)
+            .expect("header");
+
+        let mut bytes = header;
+        bytes.extend_from_slice(&text_segment1);
+        bytes.extend_from_slice(&data_bytes1);
+        bytes.extend_from_slice(&text_segment2);
+        bytes.extend_from_slice(&data_bytes2);
+        assert_eq!(bytes.len(), data_end2 + 1);
+        std::fs::write(&tmp, &bytes).expect("write fcs bytes");
+
+        // open() must still return only dataset 1 — the zero-cost, unchanged default.
+        let first_only = Fcs::open(tmp.to_str().unwrap()).expect("open first dataset");
+        assert_eq!(
+            first_only
+                .get_parameter_events_slice("FSC-A")
+                .expect("FSC-A column"),
+            dataset1_values.as_slice()
+        );
+
+        // open_all() must return both datasets, in order.
+        let all = Fcs::open_all(tmp.to_str().unwrap()).expect("open_all");
+        assert_eq!(all.len(), 2, "expected 2 chained datasets");
+        assert_eq!(
+            all[0]
+                .get_parameter_events_slice("FSC-A")
+                .expect("dataset 1 FSC-A column"),
+            dataset1_values.as_slice()
+        );
+        assert_eq!(
+            all[1]
+                .get_parameter_events_slice("FSC-A")
+                .expect("dataset 2 FSC-A column"),
+            dataset2_values.as_slice()
+        );
+
+        let _ = std::fs::remove_file(&tmp);
+    }
 }

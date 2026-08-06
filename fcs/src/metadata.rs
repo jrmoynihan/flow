@@ -312,35 +312,47 @@ impl Metadata {
         }
     }
 
-    /// Calculate the total bytes per event by summing bytes per parameter
+    /// Calculate the total bytes per event (record stride)
     ///
-    /// Uses `$PnB` (bits per parameter) divided by 8 to get bytes per parameter,
-    /// then sums across all parameters. This is more accurate than using `$DATATYPE`
-    /// which only provides a default value.
+    /// Sums the raw `$PnB` bit widths across all parameters first, then rounds up
+    /// to a whole byte *once*. This matters for non-byte-aligned (bit-packed)
+    /// layouts: e.g. 8 parameters of `$PnB=10` pack into a `ceil(80/8) = 10`-byte
+    /// record, not `sum(ceil(10/8)) = 8 * 2 = 16` bytes — rounding per-parameter
+    /// before summing overcounts whenever any `$PnB` isn't a multiple of 8. For
+    /// byte-aligned layouts (the common case) both orders agree, since rounding a
+    /// multiple of 8 is a no-op.
     ///
     /// # Errors
     /// Will return `Err` if the number of parameters cannot be determined or
     /// if any required `$PnB` keyword is missing
     pub fn calculate_bytes_per_event(&self) -> Result<usize> {
         let number_of_parameters = self.get_number_of_parameters()?;
-        let mut total_bytes = 0;
+        let mut total_bits = 0;
 
         for param_num in 1..=*number_of_parameters {
-            // Get $PnB (bits per parameter)
-            let bits = self.get_parameter_numeric_metadata(param_num, "B")?;
-            if let IntegerKeyword::PnB(bits_value) = bits {
-                // Convert bits to bytes (round up if not divisible by 8)
-                let bytes = (bits_value + 7) / 8;
-                total_bytes += bytes;
-            } else {
-                return Err(anyhow!(
-                    "$P{}B keyword found but is not the expected PnB variant",
-                    param_num
-                ));
-            }
+            total_bits += self.get_bits_per_parameter(param_num)?;
         }
 
-        Ok(total_bytes)
+        Ok(total_bits.div_ceil(8))
+    }
+
+    /// Get the raw, un-rounded `$PnB` bit width for a specific channel
+    ///
+    /// # Arguments
+    /// * `parameter_number` - 1-based parameter index
+    ///
+    /// # Errors
+    /// Will return `Err` if the `$PnB` keyword is missing for this parameter
+    pub fn get_bits_per_parameter(&self, parameter_number: usize) -> Result<usize> {
+        let bits = self.get_parameter_numeric_metadata(parameter_number, "B")?;
+        if let IntegerKeyword::PnB(bits_value) = bits {
+            Ok(*bits_value)
+        } else {
+            Err(anyhow!(
+                "$P{}B keyword found but is not the expected PnB variant",
+                parameter_number
+            ))
+        }
     }
 
     /// Get bytes per parameter for a specific channel
@@ -360,6 +372,32 @@ impl Metadata {
         } else {
             Err(anyhow!(
                 "$P{}B keyword found but is not the expected PnB variant",
+                parameter_number
+            ))
+        }
+    }
+
+    /// Get the declared range (`$PnR`) for a specific channel
+    ///
+    /// `$PnR` is the *true* resolution of a parameter's ADC, which can be narrower
+    /// than the storage width implied by `$PnB`. Instruments (e.g. Beckman
+    /// FC500/Gallios/Navios) commonly store sub-16-bit resolution in a 16-bit field,
+    /// leaving the unused high bits as instrument noise rather than zeros. Callers
+    /// use this to derive a mask (`range.next_power_of_two() - 1`) for integer
+    /// parameters.
+    ///
+    /// # Arguments
+    /// * `parameter_number` - 1-based parameter index
+    ///
+    /// # Errors
+    /// Will return `Err` if the `$PnR` keyword is missing for this parameter
+    pub fn get_range_for_channel(&self, parameter_number: usize) -> Result<usize> {
+        let range = self.get_parameter_numeric_metadata(parameter_number, "R")?;
+        if let IntegerKeyword::PnR(range_value) = range {
+            Ok(*range_value)
+        } else {
+            Err(anyhow!(
+                "$P{}R keyword found but is not the expected PnR variant",
                 parameter_number
             ))
         }

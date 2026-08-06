@@ -25,7 +25,7 @@ cubecl = ["dep:cubecl", "dep:bytemuck", "gpu"]
 plots = ["dep:plotters", "dep:image"]
 
 [dependencies]
-flow-fcs = { path = "../fcs", version = "^0.4.1", optional=true }
+flow-fcs = { path = "../fcs", version = "^0.5.0", optional=true }
 polars              ={ workspace=true, optional=true }
 anyhow.workspace    =true
 thiserror.workspace =true

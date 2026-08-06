@@ -143,6 +143,52 @@ pub fn extract_all_param_columns(
         .collect()
 }
 
+/// A cursor for reading arbitrary-width unsigned integers from a byte buffer,
+/// one bit at a time, MSB-first within each byte.
+///
+/// Used only for bit-packed (`$PnB` not a multiple of 8) FCS records, where
+/// values aren't byte-aligned and the fast byte-stride paths don't apply.
+struct BitReader<'a> {
+    bytes: &'a [u8],
+    bit_pos: usize,
+}
+
+impl<'a> BitReader<'a> {
+    fn new(bytes: &'a [u8]) -> Self {
+        Self { bytes, bit_pos: 0 }
+    }
+
+    /// Read the next `bits` bits (MSB-first) as a `u32`.
+    ///
+    /// # Errors
+    /// Will return `Err` if `bits` is more than 32, or if fewer than `bits`
+    /// bits remain in the buffer.
+    fn read_bits(&mut self, bits: usize) -> Result<u32> {
+        if bits > 32 {
+            return Err(anyhow!(
+                "Bit-packed parameter width {bits} exceeds the 32-bit reader limit"
+            ));
+        }
+        if self.bit_pos + bits > self.bytes.len() * 8 {
+            return Err(anyhow!(
+                "Bit-packed record ended mid-value: needed {bits} more bits at bit offset {}, only {} bits remain",
+                self.bit_pos,
+                self.bytes.len() * 8 - self.bit_pos
+            ));
+        }
+
+        let mut value: u32 = 0;
+        for _ in 0..bits {
+            let byte = self.bytes[self.bit_pos / 8];
+            let shift = 7 - (self.bit_pos % 8);
+            let bit = (byte >> shift) & 1;
+            value = (value << 1) | u32::from(bit);
+            self.bit_pos += 1;
+        }
+        Ok(value)
+    }
+}
+
 impl Fcs {
     /// Creates a new Fcs file struct
     /// # Errors
@@ -194,8 +240,6 @@ impl Fcs {
     /// # Ok::<(), anyhow::Error>(())
     /// ```
     pub fn open(path: &str) -> Result<Self> {
-        use tracing::debug;
-
         // Attempt to open the file path
         let file_access =
             AccessWrapper::new(path).with_context(|| format!("Failed to open file: {}", path))?;
@@ -205,13 +249,94 @@ impl Fcs {
             format!("Invalid file extension for: {}", file_access.path.display())
         })?;
 
-        // Create header and metadata structs from a memory map of the file
+        // Create the header struct from a memory map of the file
         let header = Header::from_mmap(&file_access.mmap).with_context(|| {
             format!(
                 "Failed to parse header from file: {}",
                 file_access.path.display()
             )
         })?;
+
+        let (fcs, _next_data_offset) = Self::parse_one_dataset(file_access, header)?;
+        Ok(fcs)
+    }
+
+    /// Opens and parses every dataset chained via `$NEXTDATA` in an FCS file
+    ///
+    /// Most FCS files contain exactly one dataset, in which case this costs the same
+    /// as `open()` and returns a single-element vec. Multi-dataset files (e.g. Beckman
+    /// `.lmd` exports) chain additional datasets via `$NEXTDATA`, an absolute byte
+    /// offset from the start of the file to the next dataset's TEXT segment. Only the
+    /// first dataset has a 58-byte primary HEADER; dataset 2+ is just a TEXT segment
+    /// (whose end is derived from its own `$BEGINDATA` value, since there's no fixed
+    /// byte range for it) followed by a DATA segment.
+    ///
+    /// `open()` deliberately stays a single-dataset call rather than being replaced by
+    /// this: for the common single-dataset file it's the same cost, but for a genuine
+    /// multi-dataset file it avoids parsing (and risking failure on) datasets a caller
+    /// never asked for.
+    ///
+    /// # Errors
+    /// Will return `Err` under the same conditions as `open()`, for any dataset in the
+    /// chain, or if the `$NEXTDATA` chain points outside the file or loops back on
+    /// itself.
+    pub fn open_all(path: &str) -> Result<Vec<Self>> {
+        let file_access =
+            AccessWrapper::new(path).with_context(|| format!("Failed to open file: {}", path))?;
+
+        Self::validate_fcs_extension(&file_access.path).with_context(|| {
+            format!("Invalid file extension for: {}", file_access.path.display())
+        })?;
+
+        let mut header = Header::from_mmap(&file_access.mmap).with_context(|| {
+            format!(
+                "Failed to parse header from file: {}",
+                file_access.path.display()
+            )
+        })?;
+        let version = header.version;
+        let mmap_len = file_access.mmap.len();
+
+        let mut datasets = Vec::new();
+        let mut seen_text_offsets = std::collections::HashSet::new();
+        loop {
+            let text_start = *header.text_offset.start();
+            if !seen_text_offsets.insert(text_start) {
+                return Err(anyhow!(
+                    "$NEXTDATA chain looped back to an already-visited TEXT offset {text_start}"
+                ));
+            }
+
+            let (fcs, next_data_offset) = Self::parse_one_dataset(file_access.clone(), header)?;
+            datasets.push(fcs);
+
+            if next_data_offset == 0 {
+                break;
+            }
+            if next_data_offset >= mmap_len {
+                return Err(anyhow!(
+                    "$NEXTDATA offset {next_data_offset} is beyond file length {mmap_len}"
+                ));
+            }
+            header = Self::header_for_dataset_at(&file_access.mmap, next_data_offset, version)?;
+        }
+
+        Ok(datasets)
+    }
+
+    /// Parses a single dataset's TEXT/DATA segments, given a `Header` already located
+    /// (either the file's primary 58-byte HEADER for dataset 1, or a synthetic header
+    /// from `header_for_dataset_at` for dataset 2+).
+    ///
+    /// Returns the parsed `Fcs` plus the `$NEXTDATA` value (0 if absent/unparseable,
+    /// meaning "no further dataset").
+    ///
+    /// # Errors
+    /// Will return `Err` if the TEXT segment cannot be validated, the raw data cannot
+    /// be read, or the parameter names and labels cannot be generated.
+    fn parse_one_dataset(file_access: AccessWrapper, header: Header) -> Result<(Self, usize)> {
+        use tracing::debug;
+
         let mut metadata = Metadata::from_mmap(&file_access.mmap, &header);
 
         metadata
@@ -292,7 +417,88 @@ impl Fcs {
             n_params, df_events
         );
 
-        Ok(fcs)
+        // $NEXTDATA has no dedicated IntegerKeyword variant (see keyword/parsing.rs's
+        // parse_fixed_keywords) — it always types as StringKeyword::Other, so it must be
+        // read back out as a string and parsed manually.
+        let next_data_offset = fcs
+            .metadata
+            .get_string_keyword("$NEXTDATA")
+            .ok()
+            .and_then(|kw| kw.get_str().trim().parse::<usize>().ok())
+            .unwrap_or(0);
+
+        Ok((fcs, next_data_offset))
+    }
+
+    /// Locates the TEXT/DATA boundary for a dataset that has no primary 58-byte HEADER
+    /// (i.e. any dataset after the first, reached via `$NEXTDATA`), and packages it as a
+    /// `Header` reusable by the existing single-HEADER parsing pipeline.
+    ///
+    /// There is no explicit "end of TEXT" value for these datasets — it can only be
+    /// derived as `$BEGINDATA - 1`, and `$BEGINDATA` is itself one of the keyword/value
+    /// pairs inside the TEXT segment being bounded. `find_begindata_offset` performs a
+    /// bounded, early-stopping scan for exactly that keyword, so it never reads into the
+    /// DATA segment (which could otherwise contain byte values matching the delimiter).
+    ///
+    /// # Errors
+    /// Will return `Err` if `$BEGINDATA` cannot be found or parsed before the end of the
+    /// file, or if its value doesn't make sense as a TEXT end (at or before `text_start`).
+    fn header_for_dataset_at(mmap: &Mmap, text_start: usize, version: crate::version::Version) -> Result<Header> {
+        let begin_data = Self::find_begindata_offset(mmap, text_start)?;
+        if begin_data <= text_start {
+            return Err(anyhow!(
+                "Invalid $BEGINDATA offset {begin_data} for dataset TEXT starting at {text_start}"
+            ));
+        }
+
+        Ok(Header {
+            version,
+            text_offset: text_start..=(begin_data - 1),
+            data_offset: 0..=0,
+            analysis_offset: 0..=0,
+        })
+    }
+
+    /// Scans a TEXT segment starting at `text_start`, stopping as soon as `$BEGINDATA`'s
+    /// value is found, and returns that value.
+    ///
+    /// Mirrors `Metadata::from_mmap`'s delimiter-tokenization exactly (same
+    /// keyword/value alternation), but stops at the first match instead of tokenizing
+    /// the whole segment, since the segment's end isn't known yet — that's the value
+    /// this function exists to find.
+    ///
+    /// # Errors
+    /// Will return `Err` if `$BEGINDATA` is not found before the end of the mmap, or its
+    /// value is not a valid unsigned integer.
+    fn find_begindata_offset(mmap: &Mmap, text_start: usize) -> Result<usize> {
+        let delimiter = mmap[text_start];
+        let rest = &mmap[(text_start + 1)..];
+
+        let mut prev_pos = 0;
+        let mut is_keyword = true;
+        let mut current_key = String::new();
+
+        for pos in memchr::memchr_iter(delimiter, rest) {
+            let segment = &rest[prev_pos..pos];
+            let text = std::str::from_utf8(segment).unwrap_or_default();
+
+            if is_keyword {
+                current_key = text.to_string();
+            } else {
+                if current_key.eq_ignore_ascii_case("$BEGINDATA") {
+                    return text.trim().parse::<usize>().with_context(|| {
+                        format!("Invalid $BEGINDATA value '{text}' while scanning for next dataset's TEXT boundary")
+                    });
+                }
+                current_key.clear();
+            }
+            is_keyword = !is_keyword;
+            prev_pos = pos + 1;
+        }
+
+        Err(anyhow!(
+            "Reached end of file while scanning for $BEGINDATA in dataset TEXT segment starting at offset {text_start}"
+        ))
     }
 
     /// Validates that the file extension is `.fcs`
@@ -414,7 +620,38 @@ impl Fcs {
             ));
         }
 
-        // Collect bytes per parameter and data types for each parameter
+        let data_types: Vec<FcsDataType> = (1..=*number_of_parameters)
+            .map(|param_num| {
+                metadata
+                    .get_data_type_for_channel(param_num)
+                    .with_context(|| format!("Failed to get data type for channel {}", param_num))
+            })
+            .collect::<Result<Vec<_>>>()?;
+
+        // Raw (un-rounded) $PnB bit widths. Any parameter whose width isn't a
+        // multiple of 8 means the whole record is bit-packed (values aren't
+        // byte-aligned), which the byte-stride fast/variable-width paths below
+        // can't represent — that requires a dedicated bit-level reader instead.
+        let bits_per_parameter: Vec<usize> = (1..=*number_of_parameters)
+            .map(|param_num| {
+                metadata
+                    .get_bits_per_parameter(param_num)
+                    .with_context(|| {
+                        format!("Failed to get bits per parameter for parameter {}", param_num)
+                    })
+            })
+            .collect::<Result<Vec<_>>>()?;
+        let is_bit_packed = bits_per_parameter.iter().any(|&bits| bits % 8 != 0);
+
+        let f32_values: Vec<f32> = if is_bit_packed {
+            Self::parse_bit_packed_data(
+                data_bytes,
+                &bits_per_parameter,
+                &data_types,
+                *number_of_events,
+            )?
+        } else {
+        // Collect bytes per parameter for each parameter
         let bytes_per_parameter: Vec<usize> = (1..=*number_of_parameters)
             .map(|param_num| {
                 metadata
@@ -425,14 +662,6 @@ impl Fcs {
                             param_num
                         )
                     })
-            })
-            .collect::<Result<Vec<_>>>()?;
-
-        let data_types: Vec<FcsDataType> = (1..=*number_of_parameters)
-            .map(|param_num| {
-                metadata
-                    .get_data_type_for_channel(param_num)
-                    .with_context(|| format!("Failed to get data type for channel {}", param_num))
             })
             .collect::<Result<Vec<_>>>()?;
 
@@ -448,7 +677,7 @@ impl Fcs {
             _ => false,
         };
 
-        let f32_values: Vec<f32> = if is_uniform {
+        if is_uniform {
             // Fast path: All parameters have same size and type - use bytemuck for zero-copy
             let bytes_per_param = uniform_bytes.ok_or_else(|| anyhow!("No uniform bytes found"))?;
             let data_type =
@@ -522,6 +751,7 @@ impl Fcs {
                 *number_of_events,
                 *number_of_parameters,
             )?
+        }
         };
 
         // Create Polars Series for each parameter (column)
@@ -530,12 +760,27 @@ impl Fcs {
         let mut columns: Vec<Column> = Vec::with_capacity(*number_of_parameters);
 
         for param_idx in 0..*number_of_parameters {
-            let param_values = extract_param_column(
+            let mut param_values = extract_param_column(
                 &f32_values,
                 *number_of_events,
                 *number_of_parameters,
                 param_idx,
             );
+
+            // $PnR is the parameter's *true* ADC resolution, which can be narrower than
+            // the storage width implied by $PnB. Some instruments (Beckman FC500/Gallios/
+            // Navios, older BD) leave the unused high bits as noise rather than zeroing
+            // them, so integer parameters must be masked down to their declared range.
+            // Float/double parameters ($DATATYPE F/D) aren't bit-packed ADC values and
+            // are exempt per spec.
+            if data_types[param_idx] == FcsDataType::I {
+                if let Ok(range) = metadata.get_range_for_channel(param_idx + 1) {
+                    let mask = range.next_power_of_two().saturating_sub(1) as u32;
+                    for value in &mut param_values {
+                        *value = ((*value as u32) & mask) as f32;
+                    }
+                }
+            }
 
             // Verify we got the right number of events
             assert_eq!(
@@ -590,6 +835,55 @@ impl Fcs {
         );
 
         Ok(Arc::new(df))
+    }
+
+    /// Parse a bit-packed record (at least one `$PnB` not a multiple of 8)
+    ///
+    /// FCS bit-packing (deprecated in 3.2, but still found in older exports)
+    /// stores parameters back-to-back at the bit level with no padding, so a
+    /// record isn't a whole number of bytes per parameter — e.g. 8 channels of
+    /// `$PnB=10` pack into a 10-byte (80-bit) record, not 16 bytes. This can't
+    /// reuse the byte-stride fast/variable-width paths, so it reads sequentially
+    /// with a bit cursor instead.
+    ///
+    /// Bit order: values are read MSB-first within the byte stream (the bit
+    /// cursor consumes the most significant unread bit of the current byte
+    /// first), matching the historical FCS packing convention. The FCS 3.2 spec
+    /// deprecated this layout specifically because real-world vendors disagreed
+    /// on bit order — this implementation is spec-derived and internally
+    /// consistent (round-trips its own encoding), but hasn't been validated
+    /// against a specific vendor's real bit-packed export.
+    ///
+    /// Only `$DATATYPE I` (integer) parameters are valid in a bit-packed record
+    /// per spec; a non-integer parameter here is a metadata inconsistency.
+    ///
+    /// # Errors
+    /// Will return `Err` if a parameter's data type isn't `I`, or if there
+    /// isn't enough data for the declared number of events.
+    fn parse_bit_packed_data(
+        data_bytes: &[u8],
+        bits_per_parameter: &[usize],
+        data_types: &[FcsDataType],
+        num_events: usize,
+    ) -> Result<Vec<f32>> {
+        if let Some(bad) = data_types.iter().find(|&&dt| dt != FcsDataType::I) {
+            return Err(anyhow!(
+                "Bit-packed ($PnB not a multiple of 8) records only support $DATATYPE I, found {:?}",
+                bad
+            ));
+        }
+
+        let mut reader = BitReader::new(data_bytes);
+        let num_params = bits_per_parameter.len();
+        let mut f32_values = Vec::with_capacity(num_events * num_params);
+
+        for _ in 0..num_events {
+            for &bits in bits_per_parameter {
+                f32_values.push(reader.read_bits(bits)? as f32);
+            }
+        }
+
+        Ok(f32_values)
     }
 
     /// Parse uniform data in bulk (all parameters have same size and type)

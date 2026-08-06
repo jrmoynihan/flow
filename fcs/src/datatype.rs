@@ -20,6 +20,13 @@ pub enum FcsDataType {
 }
 impl FcsDataType {
     /// Matches the string pattern and returns the corresponding data type
+    ///
+    /// `$DATATYPE A` (ASCII-encoded numeric strings) is intentionally unsupported: it was
+    /// deprecated by the FCS spec (superseded by binary integer/float storage) precisely
+    /// because vendor implementations disagreed on how to interpret it, and no supported
+    /// instrument or downstream tool in this project's ecosystem emits it. Returning `Err`
+    /// here is a deliberate decision, not a gap — see flow-crates-ee0.
+    ///
     /// # Errors
     /// Will return `Err` if `data_type` is not a valid data type (ASCII-encoded strings are not supported, but binary integers, single-precision floating point, and double-precision floating point are supported)
     pub fn from_keyword_str(data_type: &str) -> Result<Self> {
@@ -59,10 +66,24 @@ impl FcsDataType {
     #[must_use]
     pub fn get_bytes_for_bits(&self, bits: usize) -> usize {
         match self {
-            Self::I => (bits + 7) / 8, // Convert bits to bytes, rounding up
+            Self::I => bits.div_ceil(8),
             Self::F => 4,
             Self::D => 8,
             Self::A => 0,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn from_keyword_str_rejects_deprecated_ascii_datatype() {
+        let result = FcsDataType::from_keyword_str("A");
+        assert!(
+            result.is_err(),
+            "$DATATYPE A is deprecated by spec and must be rejected, not silently coerced"
+        );
     }
 }
