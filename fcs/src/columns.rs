@@ -90,6 +90,82 @@ impl ColumnLayout {
     }
 }
 
+use crate::file::Fcs;
+use anyhow::anyhow;
+use rayon::prelude::*;
+
+/// Decode the requested parameter indices from row-major FCS event bytes in
+/// a single pass over `data_bytes`. Extracting 1 column and extracting all of
+/// them cost the same per-event traversal — the DATA segment is interleaved,
+/// so there's no strided-vs-sequential choice to make, only how many values
+/// to keep per event. Callers should batch every column they need into one
+/// call rather than calling this once per column.
+///
+/// # Errors
+/// Returns `Err` if `layout.is_bit_packed` (bit-packed records aren't
+/// byte-aligned, so this stride-based traversal can't represent them — use
+/// the existing `parse_bit_packed_data` path instead), or if a value fails to
+/// decode for its declared data type/width.
+pub(crate) fn extract_columns(
+    data_bytes: &[u8],
+    layout: &ColumnLayout,
+    wanted: &[usize],
+) -> Result<Vec<Box<[f32]>>> {
+    if layout.is_bit_packed {
+        return Err(anyhow!(
+            "bit-packed FCS records don't support lazy single-column access; call events() instead"
+        ));
+    }
+
+    let total_event_bytes = layout.num_events * layout.bytes_per_event;
+    let event_bytes = data_bytes
+        .get(..total_event_bytes)
+        .ok_or_else(|| anyhow!(
+            "data segment ({} bytes) is shorter than {} events x {} bytes/event",
+            data_bytes.len(), layout.num_events, layout.bytes_per_event
+        ))?;
+
+    let decode_row = |event: &[u8]| -> Result<Vec<f32>> {
+        wanted
+            .iter()
+            .map(|&idx| {
+                let offset = layout.param_offsets[idx];
+                let width = layout.bytes_per_parameter[idx];
+                let mut value = Fcs::parse_parameter_value_to_f32(
+                    &event[offset..offset + width],
+                    width,
+                    &layout.data_types[idx],
+                    &layout.byte_order,
+                )?;
+                if let Some(mask) = layout.range_masks[idx] {
+                    value = ((value as u32) & mask) as f32;
+                }
+                Ok(value)
+            })
+            .collect()
+    };
+
+    let rows: Vec<Vec<f32>> = if layout.num_events * wanted.len() >= crate::file::PARALLEL_THRESHOLD {
+        event_bytes
+            .par_chunks_exact(layout.bytes_per_event)
+            .map(decode_row)
+            .collect::<Result<Vec<_>>>()?
+    } else {
+        event_bytes
+            .chunks_exact(layout.bytes_per_event)
+            .map(decode_row)
+            .collect::<Result<Vec<_>>>()?
+    };
+
+    let mut columns: Vec<Vec<f32>> = wanted.iter().map(|_| Vec::with_capacity(layout.num_events)).collect();
+    for row in rows {
+        for (column, value) in columns.iter_mut().zip(row) {
+            column.push(value);
+        }
+    }
+    Ok(columns.into_iter().map(Vec::into_boxed_slice).collect())
+}
+
 #[cfg(test)]
 mod tests {
     use crate::datatype::FcsDataType;
@@ -223,5 +299,72 @@ mod tests {
 
         let layout = super::ColumnLayout::from_metadata(&metadata).expect("layout");
         assert!(layout.is_bit_packed, "$PnB=10 is not a multiple of 8");
+    }
+
+    /// 3 events x 2 f32 params, little-endian, matching `synthetic_metadata_2f32`.
+    /// event0 = (1.0, 2.0), event1 = (3.0, 4.0), event2 = (5.0, 6.0).
+    fn synthetic_f32_bytes() -> Vec<u8> {
+        let values: [f32; 6] = [1.0, 2.0, 3.0, 4.0, 5.0, 6.0];
+        values.iter().flat_map(|v| v.to_le_bytes()).collect()
+    }
+
+    #[test]
+    fn extract_columns_decodes_requested_indices_only() {
+        let metadata = synthetic_metadata_2f32();
+        let layout = super::ColumnLayout::from_metadata(&metadata).expect("layout");
+        let data_bytes = synthetic_f32_bytes();
+
+        let param1_only = super::extract_columns(&data_bytes, &layout, &[1]).expect("extract");
+        assert_eq!(param1_only.len(), 1);
+        assert_eq!(&*param1_only[0], &[2.0f32, 4.0, 6.0]);
+
+        let both = super::extract_columns(&data_bytes, &layout, &[0, 1]).expect("extract");
+        assert_eq!(&*both[0], &[1.0f32, 3.0, 5.0]);
+        assert_eq!(&*both[1], &[2.0f32, 4.0, 6.0]);
+    }
+
+    #[test]
+    fn extract_columns_applies_range_mask_for_integer_params() {
+        let mut metadata = synthetic_metadata_2f32();
+        metadata
+            .keywords
+            .insert("$DATATYPE".to_string(), Keyword::Byte(ByteKeyword::DATATYPE(FcsDataType::I)));
+        for n in 1..=2 {
+            metadata
+                .keywords
+                .insert(format!("$P{n}R"), Keyword::Int(IntegerKeyword::PnR(16)));
+        }
+        let layout = super::ColumnLayout::from_metadata(&metadata).expect("layout");
+
+        // One event, param0 = 0xFF (255), param1 = 0x0A (10), both u32 LE in 4-byte fields.
+        let mut data_bytes = Vec::new();
+        data_bytes.extend_from_slice(&255u32.to_le_bytes());
+        data_bytes.extend_from_slice(&10u32.to_le_bytes());
+        let mut layout = layout;
+        layout.num_events = 1;
+
+        let columns = super::extract_columns(&data_bytes, &layout, &[0, 1]).expect("extract");
+        assert_eq!(&*columns[0], &[15.0f32], "0xFF & (16.next_power_of_two()-1 = 15) = 15");
+        assert_eq!(&*columns[1], &[10.0f32], "0x0A & 15 = 10, unaffected");
+    }
+
+    #[test]
+    fn extract_columns_rejects_bit_packed_layout() {
+        let mut metadata = synthetic_metadata_2f32();
+        metadata
+            .keywords
+            .insert("$DATATYPE".to_string(), Keyword::Byte(ByteKeyword::DATATYPE(FcsDataType::I)));
+        for n in 1..=2 {
+            metadata
+                .keywords
+                .insert(format!("$P{n}B"), Keyword::Int(IntegerKeyword::PnB(10)));
+        }
+        let layout = super::ColumnLayout::from_metadata(&metadata).expect("layout");
+
+        let err = super::extract_columns(&[], &layout, &[0]).unwrap_err();
+        assert!(
+            err.to_string().contains("bit-packed"),
+            "error should name the unsupported case, got: {err}"
+        );
     }
 }
