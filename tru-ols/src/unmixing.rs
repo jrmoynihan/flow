@@ -235,6 +235,14 @@ impl TruOls {
         self.strategy = strategy;
     }
 
+    /// The strategy actually in effect, including the constructor default.
+    ///
+    /// Provenance records this rather than the caller's `Option<UnmixingStrategy>`
+    /// so a `None` is written as the strategy that ran, not omitted.
+    pub fn strategy(&self) -> UnmixingStrategy {
+        self.strategy
+    }
+
     /// Returns **`(hits, misses)`** for the optional mask factorization cache (**`unmix-cache`** feature).
     #[cfg(feature = "unmix-cache")]
     pub fn unmix_factor_cache_hits_misses(&self) -> (u64, u64) {

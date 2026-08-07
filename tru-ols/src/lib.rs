@@ -94,6 +94,9 @@ pub mod gpu;
 #[cfg(feature = "flow-fcs")]
 pub mod fcs_integration;
 
+#[cfg(feature = "flow-fcs")]
+pub mod provenance;
+
 #[cfg(all(feature = "flow-fcs", feature = "plotting"))]
 pub mod plotting;
 

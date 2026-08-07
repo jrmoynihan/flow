@@ -8,10 +8,11 @@ use crate::error::TruOlsError;
 #[cfg(feature = "flow-fcs")]
 use crate::unmixing::{TruOls, UnmixingStrategy};
 #[cfg(feature = "flow-fcs")]
+use crate::provenance::UnmixProvenance;
+#[cfg(feature = "flow-fcs")]
 use faer::{Col, Mat};
 #[cfg(feature = "flow-fcs")]
 use flow_fcs::Fcs;
-#[cfg(feature = "flow-fcs")]
 
 /// Custom TEXT keyword identifying an unmixed product and its method.
 /// Stored/looked up as `$UNMIXED` because `flow-fcs` write always `$`-prefixes keys.
@@ -95,6 +96,48 @@ fn strip_parameter_index_keywords<S: std::hash::BuildHasher>(
     keywords: &mut std::collections::HashMap<String, flow_fcs::keyword::Keyword, S>,
 ) {
     keywords.retain(|k, _| !is_parameter_index_keyword(k));
+}
+
+/// The `$GUID` a source file identifies itself by, if it has one.
+///
+/// Checked under both spellings: the writer `$`-prefixes every key, but a file
+/// assembled in memory may still hold the bare form.
+#[cfg(feature = "flow-fcs")]
+fn source_guid(fcs: &Fcs) -> Option<String> {
+    for key in ["$GUID", "GUID"] {
+        if let Some(value) = fcs.metadata.keywords.get(key).and_then(|k| k.value_str()) {
+            let value = value.trim();
+            if !value.is_empty() {
+                return Some(value.to_string());
+            }
+        }
+    }
+    None
+}
+
+/// Free text for `$UNSTAINEDINFO` naming the control the background came from.
+///
+/// FCS 3.2 defines this keyword for exactly this: describing how unstained /
+/// autofluorescence information was obtained. A GUID alone is not human
+/// readable, so this records the control's filename too.
+#[cfg(feature = "flow-fcs")]
+fn describe_unstained_control(unstained: &Fcs, autofluorescence_name: &str) -> Option<String> {
+    let name = unstained
+        .metadata
+        .keywords
+        .get("$FIL")
+        .and_then(|k| k.value_str())
+        .map(|v| v.trim().to_string())
+        .filter(|v| !v.is_empty())
+        .or_else(|| {
+            std::path::Path::new(&unstained.file_access.path)
+                .file_name()
+                .map(|n| n.to_string_lossy().into_owned())
+        })?;
+
+    Some(format!(
+        "Autofluorescence endmember '{autofluorescence_name}' derived from unstained control '{name}'"
+    ))
 }
 
 /// Replace any cloned source GUID with a fresh identity for the unmixed product.
@@ -190,7 +233,7 @@ fn build_unmixed_fcs_from_unmixed_abundances(
     selected_marker_names: &[Option<String>],
     selected_fluor_names: &[Option<String>],
     af_channel_name: &str,
-    unmixed_method: &str,
+    provenance: &UnmixProvenance,
 ) -> Result<Fcs, TruOlsError> {
     use flow_fcs::keyword::Keyword;
     use polars::prelude::Column;
@@ -451,12 +494,6 @@ fn build_unmixed_fcs_from_unmixed_abundances(
         Keyword::Int(flow_fcs::keyword::IntegerKeyword::PAR(new_param_count)),
     );
 
-    // Prefer a non-space TEXT delimiter so sample keywords with spaces ($PROJ, TUBENAME, …)
-    // survive write → reopen. Keep an existing non-space delimiter from the source file.
-    if output_fcs.metadata.delimiter == ' ' || output_fcs.metadata.delimiter == '\0' {
-        output_fcs.metadata.delimiter = '\u{000c}'; // form feed — common for Cytek / FCS 3.1
-    }
-
     // Strip acquisition spillover (detectors removed) and write identity over abundances.
     strip_acquisition_spillover_keywords(&mut output_fcs.metadata.keywords);
     if !abundance_channel_names.is_empty() {
@@ -466,21 +503,21 @@ fn build_unmixed_fcs_from_unmixed_abundances(
             Keyword::Mixed(identity_spillover_keyword(&abundance_channel_names)),
         );
     }
-    {
-        use flow_fcs::keyword::{Keyword, StringKeyword};
-        let method = {
-            let trimmed = unmixed_method.trim();
-            if trimmed.is_empty() {
-                UNMIXED_METHOD_TRU_OLS
-            } else {
-                trimmed
-            }
-        };
-        output_fcs.metadata.keywords.insert(
-            UNMIXED_KEYWORD.to_string(),
-            Keyword::String(StringKeyword::Other(Arc::from(method))),
-        );
-    }
+
+    // Every export path reaches this function, so stamping here - rather than in
+    // each caller - is what makes the provenance guarantee hold on all of them.
+    // `stamp_onto` also mints a product `$GUID` (the clone above inherited the
+    // source's) and moves the file off a space TEXT delimiter, which free-text
+    // provenance values would otherwise corrupt.
+    provenance.stamp_onto(&mut output_fcs);
+
+    // Unmixed products are emitted as FCS 3.2 - the version that has native
+    // keywords for what provenance needs to say ($ORIGINALITY, $UNSTAINEDINFO,
+    // $LAST_MODIFIED). This is scoped to derived files on purpose: raw
+    // passthrough writes elsewhere in the workspace keep their source version,
+    // because re-declaring a vendor file as 3.2 would assert conformance we
+    // have not checked.
+    output_fcs.header.version = flow_fcs::upgrade::stamp_v3_2(&mut output_fcs.metadata);
 
     Ok(output_fcs)
 }
@@ -572,6 +609,27 @@ fn tru_ols_unmix_fcs_impl(
         )));
     }
 
+    // Snapshot the transform before `mode` consumes the matrix. Everything the
+    // caller told us is captured here; `strategy` is overwritten below with the
+    // value that actually ran, since `None` means "the constructor default".
+    let mut provenance = UnmixProvenance::from_matrix(
+        {
+            let trimmed = unmixed_method.trim();
+            if trimmed.is_empty() {
+                UNMIXED_METHOD_TRU_OLS
+            } else {
+                trimmed
+            }
+        },
+        detector_names.iter().map(|s| s.to_string()).collect(),
+        endmember_names.iter().map(|s| s.to_string()).collect(),
+        mixing_matrix.as_ref(),
+    );
+    provenance.af_endmember_index = Some(autofluorescence_idx);
+    provenance.raw_datasource_guid = source_guid(stained);
+    provenance.unstained_datasource_guid = source_guid(unstained_control);
+    provenance.unstained_info = describe_unstained_control(unstained_control, autofluorescence_name);
+
     let stained_data = extract_detector_data(stained, detector_names)?;
     let unstained_data = extract_detector_data(unstained_control, detector_names)?;
 
@@ -605,6 +663,7 @@ fn tru_ols_unmix_fcs_impl(
     if let Some(s) = strategy {
         tru_ols.set_strategy(s);
     }
+    provenance.strategy = Some(tru_ols.strategy());
 
     let unmixed_abundances = tru_ols.unmix(stained_data.as_ref())?;
 
@@ -620,7 +679,7 @@ fn tru_ols_unmix_fcs_impl(
         selected_marker_names,
         selected_fluor_names,
         af_channel_name,
-        unmixed_method,
+        &provenance,
     )
 }
 
@@ -1373,6 +1432,24 @@ mod tests {
                 "$PLATENAME".into(),
                 Keyword::String(StringKeyword::Other(Arc::from("Plate_001"))),
             );
+            // FCS 3.2 requires `$CYT`; the product inherits it from the source.
+            stained_fcs.metadata.keywords.insert(
+                "$CYT".into(),
+                Keyword::String(StringKeyword::Other(Arc::from("Aurora 5L"))),
+            );
+            // 3.1 spellings the 3.2 stamp has to migrate.
+            stained_fcs.metadata.keywords.insert(
+                "$DATE".into(),
+                Keyword::String(StringKeyword::Other(Arc::from("01-JAN-2024"))),
+            );
+            stained_fcs.metadata.keywords.insert(
+                "$BTIM".into(),
+                Keyword::String(StringKeyword::Other(Arc::from("14:30:00"))),
+            );
+            stained_fcs.metadata.keywords.insert(
+                "$WELLID".into(),
+                Keyword::String(StringKeyword::Other(Arc::from("B04"))),
+            );
             stained_fcs.metadata.keywords.insert(
                 "TUBENAME".into(),
                 Keyword::String(StringKeyword::Other(Arc::from("Full Stain"))),
@@ -1397,7 +1474,15 @@ mod tests {
                 }),
             );
         }
-        let unstained_fcs = stained_fcs.clone();
+        let mut unstained_fcs = stained_fcs.clone();
+        // Distinct identity so provenance can't pass by accidentally recording the
+        // stained GUID in both source slots.
+        unstained_fcs.metadata.keywords.insert(
+            "$GUID".into(),
+            flow_fcs::keyword::Keyword::String(flow_fcs::keyword::StringKeyword::Other(
+                Arc::from("11111111-2222-3333-4444-555555555555"),
+            )),
+        );
 
         let mixing_matrix = mat![[0.9, 0.1], [0.1, 0.9], [0.05, 0.05]];
         let detector_names = &["FL1-A", "FL2-A", "FL3-A"];
@@ -1406,7 +1491,7 @@ mod tests {
         let fluor_names = vec![Some("BUV615".into()), None];
         let target_names = vec![Some("CD19".into()), None];
 
-        let mut unmixed = stained_fcs
+        let unmixed = stained_fcs
             .apply_tru_ols_unmixing(
                 &unstained_fcs,
                 mixing_matrix,
@@ -1422,11 +1507,15 @@ mod tests {
             )
             .expect("unmix");
 
-        crate::pipeline::set_raw_datasource_guid(
-            &mut unmixed,
-            "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+        // Deliberately no manual `set_raw_datasource_guid` / `mint_unmixed_file_guid`
+        // here: the point of this assertion is that the *trait* path stamps its own
+        // provenance. It used to be the caller's job, which is how the trait path
+        // came to emit files that inherited the raw file's `$GUID`.
+        assert!(
+            crate::provenance::UnmixProvenance::read_from(&unmixed).is_some(),
+            "trait path must stamp provenance without caller help; keys={:?}",
+            unmixed.metadata.keywords.keys().collect::<Vec<_>>()
         );
-        mint_unmixed_file_guid(&mut unmixed);
 
         assert!(
             unmixed.metadata.keywords.contains_key(UNMIXED_KEYWORD)
@@ -1479,16 +1568,99 @@ mod tests {
         assert!((spill.0[(0, 0)] - 1.0).abs() < 1e-5);
         assert!(spill.0[(0, 1)].abs() < 1e-5);
 
-        let raw_ds = reopened
-            .get_keyword_string_value(crate::pipeline::RAW_DATASOURCE_GUID_KEYWORD)
-            .or_else(|_| {
-                reopened.get_keyword_string_value(&format!(
-                    "${}",
-                    crate::pipeline::RAW_DATASOURCE_GUID_KEYWORD
-                ))
-            })
-            .expect("RAW_DATASOURCE_GUID");
-        assert_eq!(raw_ds.as_ref(), "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee");
+        // The product declares FCS 3.2 and actually speaks it: the required
+        // `$CYT` is present, the 3.1 spellings have been migrated, and the
+        // originals are still there for a 3.1 reader.
+        assert_eq!(
+            reopened.header.version,
+            flow_fcs::Version::V3_2,
+            "unmixed products are emitted as 3.2"
+        );
+        assert_eq!(
+            reopened
+                .get_keyword_string_value("$CYT")
+                .expect("$CYT required by 3.2")
+                .as_ref(),
+            "Aurora 5L"
+        );
+        assert_eq!(
+            reopened
+                .get_keyword_string_value(crate::provenance::ORIGINALITY_KEYWORD)
+                .expect("$ORIGINALITY")
+                .as_ref(),
+            crate::provenance::ORIGINALITY_DATA_MODIFIED
+        );
+        assert_eq!(
+            reopened
+                .get_keyword_string_value("$BEGINDATETIME")
+                .expect("$DATE + $BTIM migrated")
+                .as_ref(),
+            "2024-01-01T14:30:00"
+        );
+        assert_eq!(
+            reopened
+                .get_keyword_string_value("$LOCATIONID")
+                .expect("$WELLID migrated")
+                .as_ref(),
+            "B04"
+        );
+        assert_eq!(
+            reopened
+                .get_keyword_string_value("$CARRIERTYPE")
+                .expect("$PLATENAME migrated")
+                .as_ref(),
+            "Plate_001"
+        );
+        assert!(
+            reopened.get_keyword_string_value("$DATE").is_ok(),
+            "deprecated originals stay for 3.1 readers"
+        );
+
+        // Full provenance survives the write/reopen boundary, not just the two GUIDs.
+        let recovered = crate::provenance::UnmixProvenance::read_from(&reopened)
+            .expect("provenance recovered after reopen");
+        assert_eq!(recovered.method, UNMIXED_METHOD_TRU_OLS);
+        assert_eq!(recovered.detector_names, detector_names);
+        assert_eq!(recovered.endmember_names, endmember_names);
+        assert_eq!(
+            recovered.raw_datasource_guid.as_deref(),
+            Some("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")
+        );
+        assert_eq!(
+            recovered.unstained_datasource_guid.as_deref(),
+            Some("11111111-2222-3333-4444-555555555555")
+        );
+        assert_eq!(
+            recovered.af_endmember_index,
+            Some(1),
+            "Autofluorescence is endmember 1"
+        );
+        assert_eq!(
+            recovered.strategy,
+            Some(UnmixingStrategy::UnstainedControlMapping),
+            "the effective strategy, not the caller's `None`"
+        );
+        assert!(
+            recovered
+                .unstained_info
+                .as_deref()
+                .is_some_and(|s| s.contains("Autofluorescence")),
+            "unstained info describes the AF endmember: {:?}",
+            recovered.unstained_info
+        );
+        // f32 storage of an f64 source matrix, so compare with tolerance rather than
+        // by equality; the ASCII round-trip itself is exact (`f32::to_string` is
+        // shortest-round-trip).
+        let expected_row_major = [0.9_f64, 0.1, 0.1, 0.9, 0.05, 0.05];
+        assert_eq!(recovered.mixing_matrix.len(), expected_row_major.len());
+        for (got, want) in recovered.mixing_matrix.iter().zip(expected_row_major) {
+            assert!(
+                (f64::from(*got) - want).abs() < 1e-6,
+                "matrix {:?} != {expected_row_major:?}",
+                recovered.mixing_matrix
+            );
+        }
+
         let product_guid = reopened
             .metadata
             .keywords
@@ -1505,6 +1677,10 @@ mod tests {
         assert_ne!(
             product_guid_str, "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
             "unmixed product must mint a new GUID"
+        );
+        assert_ne!(
+            product_guid_str, "11111111-2222-3333-4444-555555555555",
+            "…and it must not be the unstained control's either"
         );
 
         let names: Vec<String> = reopened
