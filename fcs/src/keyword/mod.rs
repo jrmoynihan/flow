@@ -121,6 +121,27 @@ pub enum MixedKeyword {
     /// **Example**: `$P3L (488)` - single wavelength
     /// **Example**: `$P4L (488,532,633)` - multiple co-axial lasers
     PnL(Vec<usize>),
+
+    /// The spectral mixing matrix an unmixing step was solved against.
+    ///
+    /// Not part of the FCS standard - a `$`-prefixed vendor keyword written by
+    /// this workspace so an unmixed file records the transform that produced
+    /// it. `$SPILLOVER` cannot carry it: that encoding declares a single `n`
+    /// and assumes an `n x n` matrix, whereas a mixing matrix is
+    /// detectors x endmembers and is rectangular in every real panel.
+    ///
+    /// Format: `nDet,nEm,det_1,..,det_nDet,em_1,..,em_nEm,v_11,..,v_nDet_nEm`,
+    /// values row-major with detectors as rows.
+    ///
+    /// **Example**: `$TRUOLS_MIXMAT/2,3,B1-A,B2-A,FITC,PE,AF/0.9,0.1,0.02,0.05,0.8,0.3`
+    MixingMatrix {
+        n_detectors: usize,
+        n_endmembers: usize,
+        detector_names: Vec<String>,
+        endmember_names: Vec<String>,
+        /// Row-major, `n_detectors * n_endmembers` entries.
+        matrix_values: Vec<f32>,
+    },
 }
 
 impl StringableKeyword for MixedKeyword {
@@ -152,6 +173,24 @@ impl StringableKeyword for MixedKeyword {
                 "SPILLOVER({}, {}, {})",
                 n_parameters,
                 parameter_names.join(", "),
+                matrix_values
+                    .iter()
+                    .map(|v| v.to_string())
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            )),
+            Self::MixingMatrix {
+                n_detectors,
+                n_endmembers,
+                detector_names,
+                endmember_names,
+                matrix_values,
+            } => Cow::Owned(format!(
+                "MixingMatrix({}x{}, [{}], [{}], {})",
+                n_detectors,
+                n_endmembers,
+                detector_names.join(", "),
+                endmember_names.join(", "),
                 matrix_values
                     .iter()
                     .map(|v| v.to_string())
@@ -196,6 +235,21 @@ impl Hash for MixedKeyword {
             } => {
                 n_parameters.hash(state);
                 parameter_names.hash(state);
+                for f in matrix_values {
+                    f.to_bits().hash(state);
+                }
+            }
+            Self::MixingMatrix {
+                n_detectors,
+                n_endmembers,
+                detector_names,
+                endmember_names,
+                matrix_values,
+            } => {
+                n_detectors.hash(state);
+                n_endmembers.hash(state);
+                detector_names.hash(state);
+                endmember_names.hash(state);
                 for f in matrix_values {
                     f.to_bits().hash(state);
                 }
@@ -293,6 +347,20 @@ pub enum StringKeyword {
 
     /// Acquisition flow rate setting (FCS 3.2+)
     FLOWRATE(Arc<str>),
+
+    /// Free-text description of the unstained control and how it was applied
+    /// (FCS 3.2+). The spec's native home for "where did the autofluorescence
+    /// estimate come from".
+    UNSTAINEDINFO(Arc<str>),
+    /// Per-parameter unstained population centers (FCS 3.2+).
+    ///
+    /// The spec defines a structured value, `n,$PnN_1,…,$PnN_n,c_1,…,c_n`,
+    /// shaped like `$SPILLOVER`'s header. It is deliberately kept opaque here:
+    /// storing the raw string round-trips any vendor's spacing and precision
+    /// untouched, and nothing in this workspace consumes the centers
+    /// numerically yet. Promote it to a `MixedKeyword` with a real parser when
+    /// a caller actually needs the values.
+    UNSTAINEDCENTERS(Arc<str>),
 
     /// Sample volume (FCS 3.1+)
     VOL(Arc<str>),
@@ -394,6 +462,27 @@ pub enum ByteKeyword {
     PnDATATYPE(FcsDataType),
 }
 
+impl Keyword {
+    /// The keyword's value as text, for callers that want to read a scalar back
+    /// out of TEXT without knowing which variant it parsed into.
+    ///
+    /// Returns `None` for [`Keyword::Mixed`]. Every other variant's `get_str`
+    /// round-trips through the writer, but `MixedKeyword::get_str` is a
+    /// *display* rendering (`"MixingMatrix(2x3, [B1-A, B2-A], …)"`), not the
+    /// comma-separated serialization the writer emits. Handing that to a caller
+    /// expecting a value would be a silently wrong read, so structured keywords
+    /// have to be matched on their variant.
+    pub fn value_str(&self) -> Option<Cow<'_, str>> {
+        match self {
+            Keyword::String(k) => Some(k.get_str()),
+            Keyword::Byte(k) => Some(k.get_str()),
+            Keyword::Int(k) => Some(k.get_str()),
+            Keyword::Float(k) => Some(k.get_str()),
+            Keyword::Mixed(_) => None,
+        }
+    }
+}
+
 pub trait StringableKeyword {
     fn get_str(&self) -> Cow<'_, str>;
 }
@@ -455,6 +544,8 @@ impl StringableKeyword for StringKeyword {
             | Self::PnANALYTE(value)
             | Self::PnFEATURE(value)
             | Self::FLOWRATE(value)
+            | Self::UNSTAINEDINFO(value)
+            | Self::UNSTAINEDCENTERS(value)
             | Self::VOL(value)
             | Self::ORIGINALITY(value)
             | Self::LastModifier(value)

@@ -200,18 +200,33 @@ impl Metadata {
     /// - any keyword has a Pn[X] value where n is greater than the number of parameters indicated by the $PAR keyword
     pub fn validate_text_segment_keywords(&self, header: &Header) -> Result<()> {
         debug!(version = %header.version, "validate FCS TEXT keywords");
-        let required_keywords = header.version.get_required_keywords();
-        for keyword in required_keywords {
-            if !self.keywords.contains_key(*keyword) {
-                return Err(anyhow!(
-                    "Invalid FCS {:?} file: Missing keyword: {}",
-                    header.version,
-                    keyword
-                ));
-            }
+        let missing = self.missing_required_keywords(header);
+        if missing.is_empty() {
+            return Ok(());
         }
+        Err(anyhow!(
+            "Invalid FCS {} file: missing {} required keyword(s): {}",
+            header.version,
+            missing.len(),
+            missing.join(", ")
+        ))
+    }
 
-        Ok(())
+    /// Every keyword the declared version requires that this TEXT segment does
+    /// not carry, in the order the version lists them.
+    ///
+    /// Reported in full rather than short-circuiting on the first miss: a
+    /// caller repairing a file wants the whole list, and one round trip
+    /// through the error message beats one per missing keyword.
+    #[must_use]
+    pub fn missing_required_keywords(&self, header: &Header) -> Vec<&'static str> {
+        header
+            .version
+            .get_required_keywords()
+            .iter()
+            .filter(|keyword| !self.keywords.contains_key(**keyword))
+            .copied()
+            .collect()
     }
 
     /// Validates if a GUID is present in the file's metadata, and if not, generates a new one.

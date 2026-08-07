@@ -10,15 +10,21 @@ pub use metadata::Metadata;
 pub use parameter::{ChannelName, EventDataFrame, EventDatum, LabelName, Parameter, ParameterMap};
 pub use transform::{Formattable, TransformType, Transformable};
 pub use version::Version;
+pub use conformance::{Severity, Violation};
+pub use crc::StoredCrc;
 pub use write::{
-    add_column, concatenate_events, duplicate_fcs_file, edit_metadata_and_save, filter_events,
-    write_fcs_file,
+    ConformancePolicy, CrcPolicy, WriteOptions, add_column, concatenate_events,
+    duplicate_fcs_file, edit_metadata_and_save, filter_events, write_fcs_file,
+    write_fcs_file_with,
 };
 
 mod byteorder;
 #[cfg(feature = "compress")]
 pub mod compress;
+pub mod conformance;
+pub mod crc;
 pub mod datatype;
+pub mod datetime;
 pub mod file;
 pub mod header;
 pub mod keyword;
@@ -27,6 +33,7 @@ pub mod metadata;
 pub mod parameter;
 mod tests;
 pub mod transform;
+pub mod upgrade;
 pub mod version;
 pub mod write;
 

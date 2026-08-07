@@ -3228,6 +3228,7 @@ dependencies = [
  "bytecount",
  "bytemuck",
  "byteorder",
+ "chrono",
  "criterion 0.8.2",
  "derive_builder",
  "faer 0.24.4",

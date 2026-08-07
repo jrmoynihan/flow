@@ -2,6 +2,7 @@
 use crate::{
     FcsDataType, TransformType, Transformable,
     byteorder::ByteOrder,
+    crc::StoredCrc,
     header::Header,
     keyword::{IntegerableKeyword, StringableKeyword},
     metadata::Metadata,
@@ -10,7 +11,7 @@ use crate::{
 // Standard library imports
 use std::borrow::Cow;
 use std::fs::File;
-use std::ops::Deref;
+use std::ops::{Deref, RangeInclusive};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
@@ -143,6 +144,96 @@ pub fn extract_all_param_columns(
         .collect()
 }
 
+/// Where a data set's segments actually live, after resolving the HEADER's
+/// 8-digit offset fields against the TEXT keywords.
+///
+/// All offsets are relative to the start of the *data set*, which for the first
+/// data set in a file is byte zero (§2.2.2). Ranges are inclusive of their end
+/// byte, matching [`Header`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SegmentOffsets {
+    pub text: RangeInclusive<usize>,
+    pub data: RangeInclusive<usize>,
+    /// `None` when the data set has no ANALYSIS segment, which is the norm.
+    pub analysis: Option<RangeInclusive<usize>>,
+}
+
+impl SegmentOffsets {
+    /// Offset of the last byte belonging to any segment of the data set.
+    ///
+    /// §3.7 defines the CRC's input as running through "the last byte of the
+    /// final segment", and does not promise the segments appear in any
+    /// particular order - so this takes a max rather than assuming DATA is last.
+    #[must_use]
+    pub fn last_byte(&self) -> usize {
+        let analysis_end = self.analysis.as_ref().map_or(0, |range| *range.end());
+        (*self.text.end()).max(*self.data.end()).max(analysis_end)
+    }
+}
+
+/// Resolves a data set's segment offsets, falling back to the TEXT keywords
+/// wherever the HEADER declares zero.
+///
+/// **Do not read the offsets off [`Header`] directly.** `Header::from_mmap`
+/// reports the HEADER's 8-digit fields verbatim, and §2.2.4 requires those
+/// fields to be `0` whenever a segment falls beyond the first 99,999,999 bytes,
+/// with the real values carried in `$BEGINDATA`/`$ENDDATA` and
+/// `$BEGINANALYSIS`/`$ENDANALYSIS`. A spec-conformant ~100 MB file therefore
+/// reports `0..=0` for DATA, so any caller that trusts the header alone silently
+/// reads the wrong byte range on exactly the large files this fallback exists
+/// for.
+///
+/// # Errors
+/// Returns an error if DATA's offsets are zero in the HEADER and the
+/// corresponding keywords are absent or unparseable - a data set whose DATA
+/// segment cannot be located is not usable.
+pub fn resolve_segment_offsets(header: &Header, metadata: &Metadata) -> Result<SegmentOffsets> {
+    let keyword = |key: &str| {
+        metadata
+            .get_integer_keyword(key)
+            .ok()
+            .map(|value| *value.get_usize())
+    };
+
+    // TEXT needs no fallback: §3.2.1 requires the primary TEXT segment to lie
+    // entirely within the first 99,999,999 bytes, so its HEADER offsets are
+    // always real. Read it verbatim.
+    let text = header.text_offset.clone();
+
+    let mut data_start = *header.data_offset.start();
+    let mut data_end = *header.data_offset.end();
+    if data_start == 0 {
+        data_start = keyword("$BEGINDATA").ok_or_else(|| {
+            anyhow!("$BEGINDATA keyword not found. Unable to determine data start.")
+        })?;
+    }
+    if data_end == 0 {
+        data_end = keyword("$ENDDATA")
+            .ok_or_else(|| anyhow!("$ENDDATA keyword not found. Unable to determine data end."))?;
+    }
+
+    // ANALYSIS is optional, and an absent one is spelled `0 0` in the HEADER -
+    // the same spelling as "too large to declare here". The keywords
+    // disambiguate: present and non-zero means a real segment, anything else
+    // means there isn't one. Unlike DATA, a missing ANALYSIS is not an error.
+    let analysis_start = match *header.analysis_offset.start() {
+        0 => keyword("$BEGINANALYSIS").unwrap_or(0),
+        offset => offset,
+    };
+    let analysis_end = match *header.analysis_offset.end() {
+        0 => keyword("$ENDANALYSIS").unwrap_or(0),
+        offset => offset,
+    };
+    let analysis =
+        (analysis_end > 0 && analysis_end >= analysis_start).then_some(analysis_start..=analysis_end);
+
+    Ok(SegmentOffsets {
+        text,
+        data: data_start..=data_end,
+        analysis,
+    })
+}
+
 /// A cursor for reading arbitrary-width unsigned integers from a byte buffer,
 /// one bit at a time, MSB-first within each byte.
 ///
@@ -258,7 +349,131 @@ impl Fcs {
         })?;
 
         let (fcs, _next_data_offset) = Self::parse_one_dataset(file_access, header)?;
+        fcs.warn_if_crc_conflicts();
         Ok(fcs)
+    }
+
+    /// As [`open`](Self::open), but refuses a file whose stored CRC contradicts
+    /// its contents.
+    ///
+    /// `open` deliberately only warns: vendor files routinely carry an absent or
+    /// simply wrong CRC, and hard-failing would make them unopenable for no
+    /// safety gain. Use this where a corrupt file must not be processed - an
+    /// ingest boundary, or anything that will overwrite the source.
+    ///
+    /// A file with no CRC (the `00000000` opt-out) is accepted: it asserts
+    /// nothing, so there is nothing to contradict. Only a stored value that
+    /// disagrees with the bytes is an error.
+    ///
+    /// # Errors
+    /// As [`open`](Self::open), plus an error when the stored CRC conflicts with
+    /// the computed one.
+    pub fn open_verified(path: &str) -> Result<Self> {
+        let fcs = Self::open(path)?;
+        fcs.verify_crc()?;
+        Ok(fcs)
+    }
+
+    /// The CRC field exactly as it appears on disk (§3.7).
+    ///
+    /// Reads the eight bytes immediately after this data set's final segment.
+    /// Files written before this crate supported the CRC report
+    /// [`StoredCrc::Missing`] - the bytes simply are not there.
+    #[must_use]
+    pub fn stored_crc(&self) -> StoredCrc {
+        let Ok(segments) = resolve_segment_offsets(&self.header, &self.metadata) else {
+            return StoredCrc::Missing;
+        };
+        crate::crc::parse_field(&self.file_access.mmap, segments.last_byte() + 1)
+    }
+
+    /// CRC-16/KERMIT over this data set's bytes, as §3.7 defines the range:
+    /// the first byte of the HEADER through the last byte of the final segment.
+    ///
+    /// # Errors
+    /// Returns an error if the segment offsets cannot be resolved, if the
+    /// declared range runs past the end of the file, or if this is not the first
+    /// data set in a `$NEXTDATA` chain (see [`is_first_dataset`](Self::is_first_dataset)).
+    pub fn computed_crc(&self) -> Result<u16> {
+        if !self.is_first_dataset() {
+            return Err(anyhow!(
+                "CRC computation for $NEXTDATA-chained datasets is not implemented: \
+                 offsets are relative to each data set's own start (§3.3.31), which \
+                 this Fcs does not record"
+            ));
+        }
+        let segments = resolve_segment_offsets(&self.header, &self.metadata)?;
+        let end = segments.last_byte();
+        let mmap = &self.file_access.mmap;
+        let bytes = mmap.get(0..=end).ok_or_else(|| {
+            anyhow!(
+                "data set declares its final segment ending at byte {end}, past the {} byte file",
+                mmap.len()
+            )
+        })?;
+        Ok(crate::crc::compute(bytes))
+    }
+
+    /// Whether this `Fcs` is the first data set in its file.
+    ///
+    /// Only the first data set begins at byte zero, and §3.7 computes each data
+    /// set's CRC from its own start - so this is the precondition for
+    /// [`computed_crc`](Self::computed_crc). Determined by re-reading the 58-byte
+    /// primary HEADER and comparing TEXT offsets rather than by storing a flag,
+    /// which would mean adding a field to [`Fcs`] and breaking every
+    /// struct-literal construction of it across the workspace.
+    #[must_use]
+    pub fn is_first_dataset(&self) -> bool {
+        Header::from_mmap(&self.file_access.mmap)
+            .is_ok_and(|primary| primary.text_offset == self.header.text_offset)
+    }
+
+    /// Checks the stored CRC against the computed one.
+    ///
+    /// # Errors
+    /// Returns an error only when a stored CRC *value* disagrees with the bytes.
+    /// Absent, malformed, and missing fields pass: they make no claim, and
+    /// rejecting them would fail every pre-CRC file in existence.
+    pub fn verify_crc(&self) -> Result<()> {
+        let stored = self.stored_crc();
+        let StoredCrc::Value(claimed) = stored else {
+            return Ok(());
+        };
+        let computed = self.computed_crc()?;
+        if claimed == computed {
+            return Ok(());
+        }
+        Err(anyhow!(
+            "CRC mismatch in {}: file stores {claimed} but its bytes hash to {computed} \
+             (the data set is corrupt, or was modified without updating the CRC)",
+            self.file_access.path.display()
+        ))
+    }
+
+    /// Logs a warning if the stored CRC contradicts the file's bytes.
+    ///
+    /// Called from [`open`](Self::open) so corruption is at least visible on the
+    /// default path. Any failure to *evaluate* the CRC is itself only a debug
+    /// note: a file we cannot check is not a file we should refuse.
+    fn warn_if_crc_conflicts(&self) {
+        let StoredCrc::Value(claimed) = self.stored_crc() else {
+            return;
+        };
+        match self.computed_crc() {
+            Ok(computed) if claimed != computed => tracing::warn!(
+                file = %self.file_access.path.display(),
+                stored = claimed,
+                computed,
+                "FCS CRC mismatch: the file may be corrupt or was modified without \
+                 updating its CRC. Continuing anyway; use Fcs::open_verified to reject."
+            ),
+            Ok(_) => {}
+            Err(error) => tracing::debug!(
+                file = %self.file_access.path.display(),
+                %error,
+                "could not evaluate the stored FCS CRC"
+            ),
+        }
     }
 
     /// Opens and parses every dataset chained via `$NEXTDATA` in an FCS file
@@ -538,30 +753,10 @@ impl Fcs {
         metadata: &Metadata,
     ) -> Result<EventDataFrame> {
         // Validate data offset bounds before accessing mmap
-        let mut data_start = *header.data_offset.start();
-        let mut data_end = *header.data_offset.end();
+        let segments = resolve_segment_offsets(header, metadata)?;
+        let data_start = *segments.data.start();
+        let data_end = *segments.data.end();
         let mmap_len = mmap.len();
-
-        // Handle zero offsets by checking keywords
-        if data_start == 0 {
-            if let Ok(begin_data) = metadata.get_integer_keyword("$BEGINDATA") {
-                data_start = begin_data.get_usize().clone();
-            } else {
-                return Err(anyhow!(
-                    "$BEGINDATA keyword not found. Unable to determine data start."
-                ));
-            }
-        }
-
-        if data_end == 0 {
-            if let Ok(end_data) = metadata.get_integer_keyword("$ENDDATA") {
-                data_end = end_data.get_usize().clone();
-            } else {
-                return Err(anyhow!(
-                    "$ENDDATA keyword not found. Unable to determine data end."
-                ));
-            }
-        }
 
         // Validate offsets
         if data_start >= mmap_len {
