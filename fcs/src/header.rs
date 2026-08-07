@@ -26,10 +26,12 @@ pub struct Header {
     pub analysis_offset: RangeInclusive<usize>,
     /// OTHER segments, in HEADER order (§3.6).
     ///
-    /// The HEADER is not fixed at 58 bytes: §3.6 allows any number of extra
-    /// 8-byte start/end offset pairs from byte 58 onward, holding vendor-defined
-    /// OTHER segments. There is no count field - the pairs simply run up to
-    /// wherever TEXT begins. Empty for the overwhelming majority of files.
+    /// The HEADER is not fixed at 58 bytes: §3.6 and Table 2 allow any number of
+    /// extra 8-byte start/end offset pairs from byte 58 onward, holding
+    /// vendor-defined OTHER segments. There is no count field - the pairs simply
+    /// run up to whichever segment starts first, which is not necessarily TEXT
+    /// (see [`header_end`](Self::header_end)). Empty for the overwhelming
+    /// majority of files.
     pub other_offsets: Vec<RangeInclusive<usize>>,
 }
 impl Serialize for Header {
@@ -90,29 +92,66 @@ impl Header {
         Self::check_header_spaces(&bytes[6..=9])?;
 
         let text_offset = Self::get_text_offsets(bytes)?;
+        let data_offset = Self::get_data_offsets(bytes)?;
+        let analysis_offset = Self::get_analysis_offsets(bytes)?;
         Ok(Self {
             version: Self::get_version(bytes)?,
-            other_offsets: Self::get_other_offsets(all, *text_offset.start()),
+            other_offsets: Self::get_other_offsets(
+                all,
+                Self::header_end(&text_offset, &data_offset, &analysis_offset),
+            ),
             text_offset,
-            data_offset: Self::get_data_offsets(bytes)?,
-            analysis_offset: Self::get_analysis_offsets(bytes)?,
+            data_offset,
+            analysis_offset,
         })
+    }
+
+    /// Byte offset at which the HEADER stops and the next segment begins.
+    ///
+    /// The HEADER carries no length field and no count of its OTHER offset
+    /// pairs, so its end is implied by whichever segment starts first - FCS 3.1
+    /// Table 1 spelled the bound as "beginning of next segment". That segment is
+    /// **not** always TEXT. §3.1 Example 3 is a legal HEADER whose DATA segment
+    /// precedes TEXT:
+    ///
+    /// ```text
+    /// FCS3.2******202451**203140****1792**202450*******0*******0
+    /// ```
+    ///
+    /// Bounding the scan at TEXT there would read all 200,659 bytes of the DATA
+    /// segment as candidate offset pairs, and any 16 bytes of event data that
+    /// happen to be ASCII digits would be mistaken for an OTHER segment.
+    ///
+    /// Zero starts are skipped: they mean the segment is absent, or that it sits
+    /// past the 99,999,999-byte limit and is declared only in TEXT. TEXT itself
+    /// is always a usable bound, since §3.2.3 requires it within that limit.
+    fn header_end(
+        text: &RangeInclusive<usize>,
+        data: &RangeInclusive<usize>,
+        analysis: &RangeInclusive<usize>,
+    ) -> usize {
+        [*text.start(), *data.start(), *analysis.start()]
+            .into_iter()
+            .filter(|&start| start >= HEADER_SIZE)
+            .min()
+            .unwrap_or(HEADER_SIZE)
     }
 
     /// Parses the OTHER segment offset pairs that follow the fixed 58 bytes (§3.6).
     ///
-    /// The HEADER carries no count for these, so the only available terminator
-    /// is where TEXT begins - the HEADER's true length is implicitly
-    /// `text_offset.start()`. Files with no OTHER segments have nothing between
-    /// byte 58 and TEXT, so this yields an empty vec without touching the
-    /// buffer, which is the common case and stays free.
+    /// Table 2 lists them as 8-byte start/end pairs from byte 58 onward, with
+    /// "there may be 0 or any number of user-defined OTHER segments" and no count
+    /// field - see [`header_end`](Self::header_end) for how the run is bounded.
+    /// Files with no OTHER segments have nothing between byte 58 and the next
+    /// segment, so this yields an empty vec without touching the buffer, which is
+    /// the common case and stays free.
     ///
-    /// Deliberately lenient rather than fallible: §2.2.11 fills unused HEADER
-    /// space with ASCII spaces, so a run of blank "pairs" is padding, not
-    /// corruption, and a file is not worth refusing over a segment nothing reads
-    /// yet. Anything that isn't a well-formed ascending non-zero pair is skipped.
-    fn get_other_offsets(bytes: &[u8], text_start: usize) -> Vec<RangeInclusive<usize>> {
-        let Some(region) = bytes.get(HEADER_SIZE..text_start.min(bytes.len())) else {
+    /// Deliberately lenient rather than fallible: §3.8 fills unused HEADER space
+    /// with ASCII spaces, so a run of blank "pairs" is padding, not corruption,
+    /// and a file is not worth refusing over a segment nothing reads yet.
+    /// Anything that isn't a well-formed ascending non-zero pair is skipped.
+    fn get_other_offsets(bytes: &[u8], header_end: usize) -> Vec<RangeInclusive<usize>> {
+        let Some(region) = bytes.get(HEADER_SIZE..header_end.min(bytes.len())) else {
             return Vec::new();
         };
         region
@@ -262,5 +301,95 @@ impl Header {
 impl Default for Header {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+#[cfg(test)]
+mod other_segment_bounds_tests {
+    use super::{HEADER_SIZE, Header};
+
+    /// Assembles a 58-byte HEADER plus whatever trails it.
+    fn header_bytes(
+        text: (usize, usize),
+        data: (usize, usize),
+        analysis: (usize, usize),
+        trailing: &[u8],
+    ) -> Vec<u8> {
+        let mut bytes = b"FCS3.2    ".to_vec();
+        for (start, end) in [text, data, analysis] {
+            bytes.extend_from_slice(format!("{start:>8}{end:>8}").as_bytes());
+        }
+        assert_eq!(bytes.len(), HEADER_SIZE);
+        bytes.extend_from_slice(trailing);
+        bytes
+    }
+
+    /// §3.6 Table 2: the pairs after byte 58 are OTHER segments.
+    #[test]
+    fn offset_pairs_after_byte_58_are_read_as_other_segments() {
+        let bytes = header_bytes(
+            (74, 500),
+            (501, 999),
+            (0, 0),
+            format!("{:>8}{:>8}", 1000, 1200).as_bytes(),
+        );
+
+        let header = Header::from_bytes(&bytes).expect("header");
+        assert_eq!(header.other_offsets, vec![1000..=1200]);
+        assert_eq!(header.text_offset, 74..=500);
+    }
+
+    /// The HEADER ends where the *next* segment begins, and §3.1 Example 3 makes
+    /// that DATA rather than TEXT:
+    ///
+    /// ```text
+    /// FCS3.2******202451**203140****1792**202450*******0*******0
+    /// ```
+    ///
+    /// Bounding the OTHER scan at TEXT would run it across the whole DATA
+    /// segment. The DATA here is built so that failure is deterministic rather
+    /// than luck: its first 16 bytes are ASCII, so a scan starting at byte 58
+    /// reads them as a well-formed pair and invents an OTHER segment.
+    #[test]
+    fn a_data_segment_preceding_text_is_not_scanned_for_other_offsets() {
+        const PHANTOM: &[u8; 16] = b"     100     200";
+
+        let mut data = PHANTOM.to_vec();
+        data.resize(942, 0);
+        let data_end = HEADER_SIZE + data.len() - 1;
+
+        let mut trailing = data;
+        trailing.extend_from_slice(&[b' '; 201]);
+        let bytes = header_bytes(
+            (data_end + 1, data_end + 201),
+            (HEADER_SIZE, data_end),
+            (0, 0),
+            &trailing,
+        );
+
+        let header = Header::from_bytes(&bytes).expect("header");
+        assert!(
+            header.other_offsets.is_empty(),
+            "DATA precedes TEXT, so the HEADER ends at byte {HEADER_SIZE} and declares no \
+             OTHER segments; got {:?} read out of the DATA segment",
+            header.other_offsets
+        );
+    }
+
+    /// A segment declared as 0 is absent, or lives past the 99,999,999-byte limit
+    /// and is declared only in TEXT (§3.1 Example 2). Either way it cannot bound
+    /// the HEADER, and treating its 0 as the bound would suppress every OTHER
+    /// segment on exactly the large files that are hardest to test.
+    #[test]
+    fn a_zeroed_data_offset_does_not_bound_the_header() {
+        let bytes = header_bytes(
+            (74, 500),
+            (0, 0),
+            (0, 0),
+            format!("{:>8}{:>8}", 1000, 1200).as_bytes(),
+        );
+
+        let header = Header::from_bytes(&bytes).expect("header");
+        assert_eq!(header.other_offsets, vec![1000..=1200]);
     }
 }
