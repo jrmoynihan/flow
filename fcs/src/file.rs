@@ -107,6 +107,15 @@ pub struct Fcs {
 
     /// A wrapper around the file, path, and memory-map
     pub file_access: AccessWrapper,
+
+    /// Byte offset of this data set's first byte within the file.
+    ///
+    /// Zero for the first (usually only) data set; for each data set reached via
+    /// `$NEXTDATA` it is the previous data set's start plus that offset. Every
+    /// offset in [`header`](Self::header) and in the `$BEGIN*`/`$END*` keywords
+    /// is measured from here, not from byte zero (§2.4.3) - see
+    /// [`resolve_segment_offsets`].
+    pub dataset_start: usize,
 }
 
 /// Extract one parameter column from row-major flat `f32` event data.
@@ -147,58 +156,121 @@ pub fn extract_all_param_columns(
 /// Where a data set's segments actually live, after resolving the HEADER's
 /// 8-digit offset fields against the TEXT keywords.
 ///
-/// All offsets are relative to the start of the *data set*, which for the first
-/// data set in a file is byte zero (§2.2.2). Ranges are inclusive of their end
-/// byte, matching [`Header`].
+/// Offsets here are **file-absolute** - they can index the mmap directly. The
+/// values on disk are not: §2.4.3 measures every HEADER field, and §3.3.3 every
+/// `$BEGIN*`/`$END*` keyword, from the start of the *data set* that declares
+/// them. [`resolve_segment_offsets`] is where the two coordinate systems meet.
+/// Ranges are inclusive of their end byte, matching [`Header`].
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SegmentOffsets {
     pub text: RangeInclusive<usize>,
     pub data: RangeInclusive<usize>,
     /// `None` when the data set has no ANALYSIS segment, which is the norm.
     pub analysis: Option<RangeInclusive<usize>>,
+    /// Vendor-defined OTHER segments (§3.6), in HEADER order. Usually empty.
+    pub other: Vec<RangeInclusive<usize>>,
 }
 
 impl SegmentOffsets {
     /// Offset of the last byte belonging to any segment of the data set.
     ///
     /// §3.7 defines the CRC's input as running through "the last byte of the
-    /// final segment", and does not promise the segments appear in any
-    /// particular order - so this takes a max rather than assuming DATA is last.
+    /// final segment of the data set (which may be a TEXT, DATA, ANALYSIS or
+    /// OTHER segment)" - all four, and in no promised order, so this takes a max
+    /// rather than assuming DATA is last.
+    ///
+    /// Omitting OTHER here is not a harmless gap: it would make
+    /// [`computed_crc`](Fcs::computed_crc) hash a range that stops short of the
+    /// real end, so a *valid* file with a trailing OTHER segment would be
+    /// reported as corrupt and refused by [`open_verified`](Fcs::open_verified).
     #[must_use]
     pub fn last_byte(&self) -> usize {
         let analysis_end = self.analysis.as_ref().map_or(0, |range| *range.end());
-        (*self.text.end()).max(*self.data.end()).max(analysis_end)
+        let other_end = self.other.iter().map(|range| *range.end()).max().unwrap_or(0);
+        (*self.text.end())
+            .max(*self.data.end())
+            .max(analysis_end)
+            .max(other_end)
     }
 }
 
-/// Resolves a data set's segment offsets, falling back to the TEXT keywords
-/// wherever the HEADER declares zero.
+/// Resolves one declared offset to a file-absolute position.
 ///
-/// **Do not read the offsets off [`Header`] directly.** `Header::from_mmap`
+/// Every FCS offset is measured from the start of the *data set* that declares
+/// it, not from the start of the file: HEADER fields per §2.4.3, `$BEGINDATA`
+/// and `$BEGINANALYSIS` per §3.3.3, `$NEXTDATA` per §3.3.31. For the first data
+/// set those are the same number, which is why the distinction stays invisible
+/// until a file carries a *third* data set: a two-data-set chain only ever takes
+/// one hop, and that hop starts at zero.
+///
+/// Vendors get this wrong often enough that a strict reading would fail to open
+/// real files, so rather than assume, this disambiguates:
+///
+/// - `offset < dataset_start` can only be relative; read absolutely it would
+///   place the segment before the data set that owns it.
+/// - otherwise prefer the relative reading, unless it runs off the end of the
+///   file - in which case the writer must have meant file-absolute.
+///
+/// The two readings are genuinely indistinguishable when `dataset_start <=
+/// offset` and `dataset_start + offset` still fits in the file. The spec reading
+/// wins there.
+fn absolutize(offset: usize, dataset_start: usize, file_len: usize, what: &str) -> usize {
+    if dataset_start == 0 {
+        return offset;
+    }
+    let relative = dataset_start.saturating_add(offset);
+    if offset >= dataset_start && relative >= file_len {
+        tracing::warn!(
+            field = what,
+            offset,
+            dataset_start,
+            file_len,
+            "FCS offset is not data-set-relative as §2.4.3 requires; reading it as \
+             file-absolute, since the relative reading runs past the end of the file"
+        );
+        return offset;
+    }
+    relative
+}
+
+/// Resolves a data set's segment offsets to **file-absolute** ranges, falling
+/// back to the TEXT keywords wherever the HEADER declares zero.
+///
+/// `dataset_start` is the file offset of this data set's first byte - zero for
+/// the first data set, and `previous_start + $NEXTDATA` for each one after it.
+/// See [`absolutize`] for how the on-disk relative offsets are rebased.
+///
+/// **Do not read the offsets off [`Header`] directly.** `Header::from_bytes`
 /// reports the HEADER's 8-digit fields verbatim, and §2.2.4 requires those
 /// fields to be `0` whenever a segment falls beyond the first 99,999,999 bytes,
 /// with the real values carried in `$BEGINDATA`/`$ENDDATA` and
 /// `$BEGINANALYSIS`/`$ENDANALYSIS`. A spec-conformant ~100 MB file therefore
 /// reports `0..=0` for DATA, so any caller that trusts the header alone silently
 /// reads the wrong byte range on exactly the large files this fallback exists
-/// for.
+/// for - and on any data set past the first, it reads the wrong range full stop.
 ///
 /// # Errors
 /// Returns an error if DATA's offsets are zero in the HEADER and the
 /// corresponding keywords are absent or unparseable - a data set whose DATA
 /// segment cannot be located is not usable.
-pub fn resolve_segment_offsets(header: &Header, metadata: &Metadata) -> Result<SegmentOffsets> {
+pub fn resolve_segment_offsets(
+    header: &Header,
+    metadata: &Metadata,
+    dataset_start: usize,
+    file_len: usize,
+) -> Result<SegmentOffsets> {
     let keyword = |key: &str| {
         metadata
             .get_integer_keyword(key)
             .ok()
             .map(|value| *value.get_usize())
     };
+    let rebase = |offset: usize, what: &str| absolutize(offset, dataset_start, file_len, what);
 
     // TEXT needs no fallback: §3.2.1 requires the primary TEXT segment to lie
-    // entirely within the first 99,999,999 bytes, so its HEADER offsets are
-    // always real. Read it verbatim.
-    let text = header.text_offset.clone();
+    // entirely within the first 99,999,999 bytes of its data set, so its HEADER
+    // offsets are always real.
+    let text = text_range(header, dataset_start, file_len);
 
     let mut data_start = *header.data_offset.start();
     let mut data_end = *header.data_offset.end();
@@ -224,14 +296,37 @@ pub fn resolve_segment_offsets(header: &Header, metadata: &Metadata) -> Result<S
         0 => keyword("$ENDANALYSIS").unwrap_or(0),
         offset => offset,
     };
-    let analysis =
-        (analysis_end > 0 && analysis_end >= analysis_start).then_some(analysis_start..=analysis_end);
+    let analysis = (analysis_end > 0 && analysis_end >= analysis_start).then(|| {
+        rebase(analysis_start, "$BEGINANALYSIS")..=rebase(analysis_end, "$ENDANALYSIS")
+    });
+
+    // OTHER segments have no keyword fallback - §3.6 confines them to the first
+    // 99,999,999 bytes of the data set precisely so the HEADER can always
+    // declare them - so the HEADER pairs are the whole story.
+    let other = header
+        .other_offsets
+        .iter()
+        .map(|range| {
+            rebase(*range.start(), "OTHER begin")..=rebase(*range.end(), "OTHER end")
+        })
+        .collect();
 
     Ok(SegmentOffsets {
         text,
-        data: data_start..=data_end,
+        data: rebase(data_start, "$BEGINDATA")..=rebase(data_end, "$ENDDATA"),
         analysis,
+        other,
     })
+}
+
+/// The file-absolute byte range of a data set's TEXT segment.
+///
+/// Split out of [`resolve_segment_offsets`] because it is the one range that can
+/// be computed without the metadata - and it has to be, since reading the
+/// metadata means reading TEXT first.
+fn text_range(header: &Header, dataset_start: usize, file_len: usize) -> RangeInclusive<usize> {
+    absolutize(*header.text_offset.start(), dataset_start, file_len, "TEXT begin")
+        ..=absolutize(*header.text_offset.end(), dataset_start, file_len, "TEXT end")
 }
 
 /// A cursor for reading arbitrary-width unsigned integers from a byte buffer,
@@ -296,6 +391,7 @@ impl Fcs {
             parameters: ParameterMap::default(),
             data_frame: Arc::new(DataFrame::empty()),
             file_access: AccessWrapper::new("")?,
+            dataset_start: 0,
         })
     }
 
@@ -348,7 +444,7 @@ impl Fcs {
             )
         })?;
 
-        let (fcs, _next_data_offset) = Self::parse_one_dataset(file_access, header)?;
+        let (fcs, _next_data_offset) = Self::parse_one_dataset(file_access, header, 0)?;
         fcs.warn_if_crc_conflicts();
         Ok(fcs)
     }
@@ -381,33 +477,44 @@ impl Fcs {
     /// [`StoredCrc::Missing`] - the bytes simply are not there.
     #[must_use]
     pub fn stored_crc(&self) -> StoredCrc {
-        let Ok(segments) = resolve_segment_offsets(&self.header, &self.metadata) else {
+        let Ok(segments) = self.segment_offsets() else {
             return StoredCrc::Missing;
         };
         crate::crc::parse_field(&self.file_access.mmap, segments.last_byte() + 1)
     }
 
+    /// This data set's segments, as file-absolute byte ranges.
+    ///
+    /// # Errors
+    /// As [`resolve_segment_offsets`].
+    pub fn segment_offsets(&self) -> Result<SegmentOffsets> {
+        resolve_segment_offsets(
+            &self.header,
+            &self.metadata,
+            self.dataset_start,
+            self.file_access.mmap.len(),
+        )
+    }
+
     /// CRC-16/KERMIT over this data set's bytes, as §3.7 defines the range:
     /// the first byte of the HEADER through the last byte of the final segment.
     ///
+    /// §3.7 scopes the CRC to a data set, not a file, so a `$NEXTDATA`-chained
+    /// data set hashes from [`dataset_start`](Self::dataset_start) rather than
+    /// from byte zero.
+    ///
     /// # Errors
-    /// Returns an error if the segment offsets cannot be resolved, if the
-    /// declared range runs past the end of the file, or if this is not the first
-    /// data set in a `$NEXTDATA` chain (see [`is_first_dataset`](Self::is_first_dataset)).
+    /// Returns an error if the segment offsets cannot be resolved, or if the
+    /// declared range runs past the end of the file.
     pub fn computed_crc(&self) -> Result<u16> {
-        if !self.is_first_dataset() {
-            return Err(anyhow!(
-                "CRC computation for $NEXTDATA-chained datasets is not implemented: \
-                 offsets are relative to each data set's own start (§3.3.31), which \
-                 this Fcs does not record"
-            ));
-        }
-        let segments = resolve_segment_offsets(&self.header, &self.metadata)?;
+        let segments = self.segment_offsets()?;
+        let start = self.dataset_start;
         let end = segments.last_byte();
         let mmap = &self.file_access.mmap;
-        let bytes = mmap.get(0..=end).ok_or_else(|| {
+        let bytes = mmap.get(start..=end).ok_or_else(|| {
             anyhow!(
-                "data set declares its final segment ending at byte {end}, past the {} byte file",
+                "data set at byte {start} declares its final segment ending at byte {end}, \
+                 past the {} byte file",
                 mmap.len()
             )
         })?;
@@ -415,17 +522,9 @@ impl Fcs {
     }
 
     /// Whether this `Fcs` is the first data set in its file.
-    ///
-    /// Only the first data set begins at byte zero, and §3.7 computes each data
-    /// set's CRC from its own start - so this is the precondition for
-    /// [`computed_crc`](Self::computed_crc). Determined by re-reading the 58-byte
-    /// primary HEADER and comparing TEXT offsets rather than by storing a flag,
-    /// which would mean adding a field to [`Fcs`] and breaking every
-    /// struct-literal construction of it across the workspace.
     #[must_use]
-    pub fn is_first_dataset(&self) -> bool {
-        Header::from_mmap(&self.file_access.mmap)
-            .is_ok_and(|primary| primary.text_offset == self.header.text_offset)
+    pub const fn is_first_dataset(&self) -> bool {
+        self.dataset_start == 0
     }
 
     /// Checks the stored CRC against the computed one.
@@ -480,11 +579,18 @@ impl Fcs {
     ///
     /// Most FCS files contain exactly one dataset, in which case this costs the same
     /// as `open()` and returns a single-element vec. Multi-dataset files (e.g. Beckman
-    /// `.lmd` exports) chain additional datasets via `$NEXTDATA`, an absolute byte
-    /// offset from the start of the file to the next dataset's TEXT segment. Only the
-    /// first dataset has a 58-byte primary HEADER; dataset 2+ is just a TEXT segment
-    /// (whose end is derived from its own `$BEGINDATA` value, since there's no fixed
-    /// byte range for it) followed by a DATA segment.
+    /// `.lmd` exports) chain additional datasets via `$NEXTDATA`, which §3.3.31 defines
+    /// as "the byte offset from the beginning of *a data set* to the first byte in the
+    /// HEADER of the next data set" - **relative, not file-absolute**. Each hop is
+    /// therefore `dataset_start + $NEXTDATA`, and the two only coincide for the first
+    /// hop, which starts at zero. A two-data-set file takes exactly one hop and so
+    /// cannot tell the two readings apart; it takes a third data set to see the
+    /// difference, which is why `.lmd` files (always exactly two) never exposed this.
+    ///
+    /// §2.4.2 requires every data set to carry its own 58-byte HEADER, so that is what
+    /// each hop looks for first. Vendors that omit it fall back to
+    /// `header_for_dataset_at`, which treats the target as a bare TEXT segment and
+    /// derives its end from the data set's own `$BEGINDATA`.
     ///
     /// `open()` deliberately stays a single-dataset call rather than being replaced by
     /// this: for the common single-dataset file it's the same cost, but for a genuine
@@ -513,27 +619,37 @@ impl Fcs {
         let mmap_len = file_access.mmap.len();
 
         let mut datasets = Vec::new();
-        let mut seen_text_offsets = std::collections::HashSet::new();
+        let mut dataset_start = 0usize;
+        // Keyed on the data set's own base, not on its TEXT offset: under the
+        // relative model every data set in the chain reports the same TEXT
+        // offset (58, or 0 for a headerless one), so TEXT offsets would look
+        // like a loop on the very first hop.
+        let mut seen_starts = std::collections::HashSet::new();
         loop {
-            let text_start = *header.text_offset.start();
-            if !seen_text_offsets.insert(text_start) {
+            if !seen_starts.insert(dataset_start) {
                 return Err(anyhow!(
-                    "$NEXTDATA chain looped back to an already-visited TEXT offset {text_start}"
+                    "$NEXTDATA chain looped back to an already-visited data set at byte \
+                     {dataset_start}"
                 ));
             }
 
-            let (fcs, next_data_offset) = Self::parse_one_dataset(file_access.clone(), header)?;
+            let (fcs, next_data_offset) =
+                Self::parse_one_dataset(file_access.clone(), header, dataset_start)?;
             datasets.push(fcs);
 
             if next_data_offset == 0 {
                 break;
             }
-            if next_data_offset >= mmap_len {
+            // §3.3.31: relative to *this* data set's start, not the file's.
+            let next_start = absolutize(next_data_offset, dataset_start, mmap_len, "$NEXTDATA");
+            if next_start >= mmap_len {
                 return Err(anyhow!(
-                    "$NEXTDATA offset {next_data_offset} is beyond file length {mmap_len}"
+                    "$NEXTDATA offset {next_data_offset} from the data set at byte \
+                     {dataset_start} points to byte {next_start}, beyond the {mmap_len} byte file"
                 ));
             }
-            header = Self::header_for_dataset_at(&file_access.mmap, next_data_offset, version)?;
+            dataset_start = next_start;
+            header = Self::header_for_dataset_at(&file_access.mmap, dataset_start, version)?;
         }
 
         Ok(datasets)
@@ -549,10 +665,18 @@ impl Fcs {
     /// # Errors
     /// Will return `Err` if the TEXT segment cannot be validated, the raw data cannot
     /// be read, or the parameter names and labels cannot be generated.
-    fn parse_one_dataset(file_access: AccessWrapper, header: Header) -> Result<(Self, usize)> {
+    fn parse_one_dataset(
+        file_access: AccessWrapper,
+        header: Header,
+        dataset_start: usize,
+    ) -> Result<(Self, usize)> {
         use tracing::debug;
 
-        let mut metadata = Metadata::from_mmap(&file_access.mmap, &header);
+        let mmap_len = file_access.mmap.len();
+        let mut metadata = Metadata::from_text_segment(
+            &file_access.mmap,
+            &text_range(&header, dataset_start, mmap_len),
+        );
 
         metadata
             .validate_text_segment_keywords(&header)
@@ -576,15 +700,17 @@ impl Fcs {
             anyhow!("Failed to generate parameter map: {}\n\n{}", e, diagnostic)
         })?;
 
-        let data_frame = Self::store_raw_data_as_dataframe(&header, &file_access.mmap, &metadata)
-            .map_err(|e| {
-            let diagnostic = Self::format_diagnostic_info(&header, &metadata, &file_access.path);
-            anyhow!(
-                "Failed to store raw data as DataFrame: {}\n\n{}",
-                e,
-                diagnostic
-            )
-        })?;
+        let data_frame =
+            Self::store_raw_data_as_dataframe(&header, &file_access.mmap, &metadata, dataset_start)
+                .map_err(|e| {
+                    let diagnostic =
+                        Self::format_diagnostic_info(&header, &metadata, &file_access.path);
+                    anyhow!(
+                        "Failed to store raw data as DataFrame: {}\n\n{}",
+                        e,
+                        diagnostic
+                    )
+                })?;
 
         let fcs = Self {
             parameters,
@@ -592,6 +718,7 @@ impl Fcs {
             file_access,
             header,
             metadata,
+            dataset_start,
         };
 
         // Log DataFrame event count and compare to $TOT
@@ -645,32 +772,58 @@ impl Fcs {
         Ok((fcs, next_data_offset))
     }
 
-    /// Locates the TEXT/DATA boundary for a dataset that has no primary 58-byte HEADER
-    /// (i.e. any dataset after the first, reached via `$NEXTDATA`), and packages it as a
-    /// `Header` reusable by the existing single-HEADER parsing pipeline.
+    /// Produces the `Header` for a data set reached via `$NEXTDATA`, whose first byte is
+    /// at file offset `dataset_start`.
     ///
-    /// There is no explicit "end of TEXT" value for these datasets — it can only be
-    /// derived as `$BEGINDATA - 1`, and `$BEGINDATA` is itself one of the keyword/value
-    /// pairs inside the TEXT segment being bounded. `find_begindata_offset` performs a
+    /// §2.4.2 makes a HEADER mandatory for every data set, so the real 58-byte HEADER is
+    /// tried first and used when it parses. Some vendors omit it and place a bare TEXT
+    /// segment at the `$NEXTDATA` target instead; for those, a synthetic header is
+    /// built. Either way the returned offsets are **data-set-relative**, matching what a
+    /// real HEADER carries, so the rest of the pipeline rebases them uniformly.
+    ///
+    /// The synthetic case has no explicit "end of TEXT" value — it can only be derived
+    /// as `$BEGINDATA - 1`, and `$BEGINDATA` is itself one of the keyword/value pairs
+    /// inside the TEXT segment being bounded. `find_begindata_offset` performs a
     /// bounded, early-stopping scan for exactly that keyword, so it never reads into the
     /// DATA segment (which could otherwise contain byte values matching the delimiter).
     ///
     /// # Errors
-    /// Will return `Err` if `$BEGINDATA` cannot be found or parsed before the end of the
-    /// file, or if its value doesn't make sense as a TEXT end (at or before `text_start`).
-    fn header_for_dataset_at(mmap: &Mmap, text_start: usize, version: crate::version::Version) -> Result<Header> {
-        let begin_data = Self::find_begindata_offset(mmap, text_start)?;
-        if begin_data <= text_start {
+    /// Will return `Err` if no HEADER is present and `$BEGINDATA` cannot be found or
+    /// parsed before the end of the file, or if its value doesn't make sense as a TEXT
+    /// end (at or before the start of the data set).
+    fn header_for_dataset_at(
+        mmap: &Mmap,
+        dataset_start: usize,
+        version: crate::version::Version,
+    ) -> Result<Header> {
+        if let Ok(header) = Header::from_bytes(&mmap[dataset_start..]) {
+            return Ok(header);
+        }
+
+        let mmap_len = mmap.len();
+        let begin_data = absolutize(
+            Self::find_begindata_offset(mmap, dataset_start)?,
+            dataset_start,
+            mmap_len,
+            "$BEGINDATA",
+        );
+        if begin_data <= dataset_start {
             return Err(anyhow!(
-                "Invalid $BEGINDATA offset {begin_data} for dataset TEXT starting at {text_start}"
+                "Invalid $BEGINDATA offset {begin_data} for headerless data set starting at \
+                 {dataset_start}"
             ));
         }
 
         Ok(Header {
             version,
-            text_offset: text_start..=(begin_data - 1),
+            // Relative: TEXT is the whole data set up to DATA, since there is no HEADER
+            // occupying the first 58 bytes.
+            text_offset: 0..=(begin_data - dataset_start - 1),
             data_offset: 0..=0,
             analysis_offset: 0..=0,
+            // A data set with no HEADER cannot declare OTHER segments: §3.6 puts
+            // their offsets in the HEADER and nowhere else.
+            other_offsets: Vec::new(),
         })
     }
 
@@ -751,12 +904,13 @@ impl Fcs {
         header: &Header,
         mmap: &Mmap,
         metadata: &Metadata,
+        dataset_start: usize,
     ) -> Result<EventDataFrame> {
         // Validate data offset bounds before accessing mmap
-        let segments = resolve_segment_offsets(header, metadata)?;
+        let mmap_len = mmap.len();
+        let segments = resolve_segment_offsets(header, metadata, dataset_start, mmap_len)?;
         let data_start = *segments.data.start();
         let data_end = *segments.data.end();
-        let mmap_len = mmap.len();
 
         // Validate offsets
         if data_start >= mmap_len {

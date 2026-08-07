@@ -914,6 +914,7 @@ mod tests {
             parameters: params,
             data_frame: Arc::new(df),
             file_access: AccessWrapper::new(temp_path.to_str().unwrap_or(""))?,
+            dataset_start: 0,
         })
     }
 
@@ -1268,6 +1269,7 @@ mod tests {
             data_frame: Arc::new(df),
             file_access: AccessWrapper::new(temp_path.to_str().unwrap_or(""))
                 .expect("Failed to create AccessWrapper"),
+            dataset_start: 0,
         };
 
         let unstained_fcs = stained_fcs.clone();
@@ -1418,6 +1420,7 @@ mod tests {
             data_frame: Arc::new(df),
             file_access: AccessWrapper::new(src_path.to_str().unwrap_or(""))
                 .expect("AccessWrapper"),
+            dataset_start: 0,
         };
         // Space delimiter corrupts keywords whose values contain spaces ($PROJ, …).
         stained_fcs.metadata.delimiter = '\u{000c}';

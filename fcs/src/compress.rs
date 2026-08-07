@@ -390,6 +390,7 @@ mod tests {
             parameters: params,
             data_frame: Arc::new(df),
             file_access: AccessWrapper::new(placeholder.to_str().unwrap()).unwrap(),
+            dataset_start: 0,
         };
         let names = vec!["FSC-A".to_string(), "SSC-A".to_string(), "FL1-A".to_string()];
         (fcs, names)

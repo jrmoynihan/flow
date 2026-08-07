@@ -84,6 +84,7 @@ mod test_helpers {
             parameters: params,
             data_frame: Arc::new(df),
             file_access: AccessWrapper::new(temp_path.to_str().unwrap_or(""))?,
+            dataset_start: 0,
         })
     }
 

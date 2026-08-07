@@ -547,7 +547,7 @@ pub fn add_column(
 // ==================== Internal Helper Functions ====================
 
 /// The primary HEADER is always exactly 58 bytes; TEXT starts immediately after.
-pub(crate) const HEADER_SIZE: usize = 58;
+pub(crate) use crate::header::HEADER_SIZE;
 
 /// A serialized TEXT segment together with the segment offsets it agrees with.
 pub(crate) struct FcsLayout {
@@ -1070,6 +1070,7 @@ mod offset_convergence_tests {
             parameters: params,
             data_frame: Arc::new(df),
             file_access: AccessWrapper::new(stub.to_str().unwrap()).expect("access"),
+            dataset_start: 0,
         };
 
         write_fcs_file(fcs, &tmp).expect("write");
@@ -1294,6 +1295,7 @@ mod offset_convergence_tests {
             parameters: params,
             data_frame: Arc::new(df),
             file_access: AccessWrapper::new(stub.to_str().unwrap()).expect("access"),
+            dataset_start: 0,
         };
         write_fcs_file(fcs, &tmp).expect("write");
 
@@ -1643,6 +1645,243 @@ mod offset_convergence_tests {
 
         let _ = std::fs::remove_file(&tmp);
     }
+
+    /// flow-crates-x17.10: `$NEXTDATA` is *data-set-relative* (§3.3.31), not
+    /// file-absolute, and so is every other FCS offset (§2.4.3, §3.3.3).
+    ///
+    /// Two data sets cannot show this: the only hop starts at byte zero, where
+    /// the two readings coincide. It takes a third. Under the old absolute
+    /// reading the second hop lands back on data set 2's own start and
+    /// `open_all` reports a chain loop, so this test fails loudly rather than
+    /// silently mis-parsing.
+    ///
+    /// This file is fully spec-conformant, unlike the two-data-set case above:
+    /// §2.4.2 requires each data set to carry its own 58-byte HEADER, and all of
+    /// its declared offsets are measured from that HEADER's first byte.
+    #[test]
+    fn open_all_resolves_nextdata_relative_to_each_dataset_start() {
+        let tmp = std::env::temp_dir().join("flow_fcs_nextdata_relative_chain.fcs");
+
+        fn metadata_with_nextdata(nextdata: usize) -> Metadata {
+            let mut metadata = Metadata::new();
+            metadata.delimiter = '\u{000c}';
+            metadata.keywords.insert(
+                "$BYTEORD".to_string(),
+                Keyword::Byte(ByteKeyword::BYTEORD(ByteOrder::LittleEndian)),
+            );
+            metadata.keywords.insert(
+                "$DATATYPE".to_string(),
+                Keyword::Byte(ByteKeyword::DATATYPE(crate::datatype::FcsDataType::F)),
+            );
+            metadata.insert_string_keyword("$MODE".into(), "L".into());
+            metadata.insert_string_keyword("$NEXTDATA".into(), nextdata.to_string());
+            metadata.insert_string_keyword("$P1N".into(), "FSC-A".into());
+            metadata.insert_string_keyword("$P1S".into(), String::new());
+            metadata
+                .keywords
+                .insert("$P1B".to_string(), Keyword::Int(IntegerKeyword::PnB(32)));
+            metadata.keywords.insert(
+                "$P1R".to_string(),
+                Keyword::Int(IntegerKeyword::PnR(262_144)),
+            );
+            metadata
+                .keywords
+                .insert("$P1E".to_string(), Keyword::Mixed(MixedKeyword::PnE(0.0, 0.0)));
+            metadata
+        }
+
+        /// Serialize one data set as HEADER + TEXT + DATA, with every offset
+        /// measured from its own first byte. Returns the bytes and the data
+        /// set's total length, which is exactly what its `$NEXTDATA` must say.
+        fn build_dataset(nextdata: usize, values: &[f32]) -> (Vec<u8>, usize) {
+            let data_bytes = serialize_f32_columns(&[values], true).expect("data");
+            let metadata = metadata_with_nextdata(nextdata);
+            let FcsLayout {
+                text_segment,
+                data_start,
+                data_end,
+                ..
+            } = resolve_layout(&metadata, HEADER_SIZE, values.len(), 1, data_bytes.len())
+                .expect("layout");
+
+            let mut bytes =
+                build_header(&Version::V3_1, HEADER_SIZE, data_start - 1, data_start, data_end)
+                    .expect("header");
+            bytes.extend_from_slice(&text_segment);
+            bytes.extend_from_slice(&data_bytes);
+            assert_eq!(bytes.len(), data_end + 1, "data set is HEADER+TEXT+DATA");
+            (bytes, data_end + 1)
+        }
+
+        // A data set's own length is its `$NEXTDATA`, and writing that number
+        // changes the TEXT length — converge before committing to it.
+        let mut nextdata = 0usize;
+        loop {
+            let (_, len) = build_dataset(nextdata, &[1.0, 2.0, 3.0]);
+            if len == nextdata {
+                break;
+            }
+            nextdata = len;
+        }
+
+        let values: [[f32; 3]; 3] = [[1.0, 2.0, 3.0], [10.0, 20.0, 30.0], [100.0, 200.0, 300.0]];
+        // Data sets 1 and 2 point onward; data set 3 terminates the chain with 0.
+        // All three have identical TEXT lengths only because `nextdata` and `0`
+        // are both written into the same converged layout — data set 3's shorter
+        // value is padded by `resolve_layout`, so `dataset_start` arithmetic
+        // stays exact.
+        let (bytes1, len1) = build_dataset(nextdata, &values[0]);
+        let (bytes2, len2) = build_dataset(nextdata, &values[1]);
+        let (bytes3, _) = build_dataset(0, &values[2]);
+        assert_eq!(len1, nextdata);
+        assert_eq!(len2, nextdata);
+
+        let mut file_bytes = bytes1;
+        file_bytes.extend_from_slice(&bytes2);
+        file_bytes.extend_from_slice(&bytes3);
+        std::fs::write(&tmp, &file_bytes).expect("write fcs bytes");
+
+        let all = Fcs::open_all(tmp.to_str().unwrap()).expect("open_all");
+        assert_eq!(all.len(), 3, "expected 3 chained data sets");
+
+        for (index, expected) in values.iter().enumerate() {
+            assert_eq!(
+                all[index]
+                    .get_parameter_events_slice("FSC-A")
+                    .unwrap_or_else(|_| panic!("data set {} FSC-A column", index + 1)),
+                expected.as_slice(),
+                "data set {} decoded the wrong DATA segment",
+                index + 1
+            );
+        }
+
+        // The point of the test. The first hop is 0 + nextdata either way; the
+        // second must be *data set 2's start* + nextdata, not the bare offset.
+        assert_eq!(all[0].dataset_start, 0);
+        assert_eq!(all[1].dataset_start, nextdata);
+        assert_eq!(
+            all[2].dataset_start,
+            all[1].dataset_start + nextdata,
+            "the second $NEXTDATA hop must be relative to data set 2's start (§3.3.31)"
+        );
+
+        // §3.7 scopes the CRC to a data set, so a chained one is now computable
+        // rather than refused — it hashes its own bytes, not the file's.
+        assert!(all[0].is_first_dataset());
+        assert!(!all[2].is_first_dataset());
+        let dataset3 = &file_bytes[all[2].dataset_start..];
+        assert_eq!(
+            all[2].computed_crc().expect("chained data set CRC"),
+            crate::crc::compute(dataset3),
+            "a chained data set's CRC covers its own bytes only"
+        );
+
+        let _ = std::fs::remove_file(&tmp);
+    }
+
+    /// flow-crates-x17.11: §3.7 runs the CRC through "the last byte of the final
+    /// segment of the data set (which may be a TEXT, DATA, ANALYSIS or OTHER
+    /// segment)". All four - and OTHER can legally sit after DATA.
+    ///
+    /// This is a *false accusation* bug rather than a missed-corruption one: a
+    /// range that stops at DATA makes a perfectly valid file's stored CRC look
+    /// wrong, so `open` warns about corruption that isn't there and
+    /// `open_verified` refuses to open it at all. Our own writer never emits an
+    /// OTHER segment, so no round-trip test could have caught this - the file
+    /// has to be hand-assembled.
+    #[test]
+    fn the_crc_range_includes_a_trailing_other_segment() {
+        let tmp = std::env::temp_dir().join("flow_fcs_other_segment_crc.fcs");
+
+        let mut metadata = Metadata::new();
+        metadata.delimiter = '\u{000c}';
+        metadata.keywords.insert(
+            "$BYTEORD".to_string(),
+            Keyword::Byte(ByteKeyword::BYTEORD(ByteOrder::LittleEndian)),
+        );
+        metadata.keywords.insert(
+            "$DATATYPE".to_string(),
+            Keyword::Byte(ByteKeyword::DATATYPE(crate::datatype::FcsDataType::F)),
+        );
+        metadata.insert_string_keyword("$MODE".into(), "L".into());
+        metadata.insert_string_keyword("$P1N".into(), "FSC-A".into());
+        metadata.insert_string_keyword("$P1S".into(), String::new());
+        metadata
+            .keywords
+            .insert("$P1B".to_string(), Keyword::Int(IntegerKeyword::PnB(32)));
+        metadata.keywords.insert(
+            "$P1R".to_string(),
+            Keyword::Int(IntegerKeyword::PnR(262_144)),
+        );
+        metadata
+            .keywords
+            .insert("$P1E".to_string(), Keyword::Mixed(MixedKeyword::PnE(0.0, 0.0)));
+
+        let values: [f32; 3] = [1.0, 2.0, 3.0];
+        let data_bytes = serialize_f32_columns(&[&values], true).expect("data");
+
+        // §3.6: one extra 8-byte start/end offset pair after the fixed 58, so
+        // this data set's HEADER is 74 bytes and TEXT begins there.
+        const OTHER_PAIR: usize = 16;
+        let text_start = HEADER_SIZE + OTHER_PAIR;
+        let FcsLayout {
+            text_segment,
+            data_start,
+            data_end,
+            ..
+        } = resolve_layout(&metadata, text_start, values.len(), 1, data_bytes.len())
+            .expect("layout");
+
+        // Opens with eight ASCII digits on purpose. A CRC range that stops at
+        // DATA reads *these* bytes as the CRC field, so they decide whether the
+        // bug shows up as a false "corrupt file" rejection or as a CRC that is
+        // silently never checked. A vendor blob starting with an ID or timestamp
+        // is ordinary, so the harsher of the two is the one worth pinning.
+        let other_blob = b"00000042 vendor instrument blob, opaque to every reader here";
+        let other_start = data_end + 1;
+        let other_end = other_start + other_blob.len() - 1;
+
+        let mut bytes =
+            build_header(&Version::V3_1, text_start, data_start - 1, data_start, data_end)
+                .expect("header");
+        bytes.extend_from_slice(format!("{other_start:>8}{other_end:>8}").as_bytes());
+        assert_eq!(bytes.len(), text_start, "HEADER grew by exactly one pair");
+        bytes.extend_from_slice(&text_segment);
+        bytes.extend_from_slice(&data_bytes);
+        bytes.extend_from_slice(other_blob);
+        assert_eq!(bytes.len(), other_end + 1);
+
+        // A correct CRC over the whole data set, OTHER segment included, then
+        // the 8-byte field itself (§3.7 excludes it from its own input).
+        let checksum = crate::crc::compute(&bytes);
+        bytes.extend_from_slice(&crate::crc::format_field(Some(checksum)));
+        std::fs::write(&tmp, &bytes).expect("write fcs bytes");
+
+        let fcs = Fcs::open_verified(tmp.to_str().unwrap())
+            .expect("a valid file with a trailing OTHER segment must not be refused");
+
+        let segments = fcs.segment_offsets().expect("segments");
+        assert_eq!(
+            segments.other,
+            vec![other_start..=other_end],
+            "the HEADER's OTHER pair should be parsed, not silently dropped"
+        );
+        assert_eq!(
+            segments.last_byte(),
+            other_end,
+            "§3.7's final segment is the OTHER segment here, not DATA"
+        );
+        assert_eq!(fcs.computed_crc().expect("crc"), checksum);
+        assert!(matches!(fcs.stored_crc(), crate::StoredCrc::Value(v) if v == checksum));
+
+        // DATA still decodes: growing the HEADER must not shift anything.
+        assert_eq!(
+            fcs.get_parameter_events_slice("FSC-A").expect("FSC-A"),
+            values.as_slice()
+        );
+
+        let _ = std::fs::remove_file(&tmp);
+    }
 }
 
 /// flow-crates-x17.4: conformance checking on the write path.
@@ -1719,6 +1958,7 @@ mod conformance_on_write_tests {
             parameters: params,
             data_frame: Arc::new(df),
             file_access: AccessWrapper::new(stub.to_str().unwrap()).expect("access"),
+            dataset_start: 0,
         };
         (fcs, stub)
     }

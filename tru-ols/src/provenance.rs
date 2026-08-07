@@ -476,6 +476,7 @@ mod tests {
             data_frame: Arc::new(df),
             file_access: AccessWrapper::new(path.to_str().unwrap_or(""))
                 .expect("build fixture access wrapper"),
+            dataset_start: 0,
         }
     }
 

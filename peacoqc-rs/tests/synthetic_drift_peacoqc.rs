@@ -46,6 +46,7 @@ fn synthetic_drift_fcs(n: usize) -> Fcs {
         parameters: params,
         data_frame: Arc::new(df),
         file_access: AccessWrapper::new(tmp.to_str().unwrap_or(".")).expect("access"),
+        dataset_start: 0,
     }
 }
 
