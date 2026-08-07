@@ -44,6 +44,12 @@ fn bench_two_column_access(c: &mut Criterion) {
     group.finish();
 }
 
+/// Measured result (Task 8): `events_uncached` runs ~8x slower than
+/// `open_eager_baseline` alone — NOT because `events()` pays for `open()`'s
+/// parse too (criterion's `iter_batched` excludes setup-closure time from
+/// the measurement), but because `extract_columns` has no uniform-width
+/// fast path and decodes every value through a `#[cold]`-annotated
+/// function. Tracked as `flow-crates-3si`.
 fn bench_full_materialization(c: &mut Criterion) {
     let mut group = c.benchmark_group("full_materialization");
     group.warm_up_time(Duration::from_millis(300));

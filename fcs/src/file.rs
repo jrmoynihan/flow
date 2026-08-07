@@ -1550,6 +1550,13 @@ impl Fcs {
     /// # Errors
     /// Will return `Err` if `channel_name` isn't a known parameter, if the
     /// file is bit-packed (call `events()` instead), or if decoding fails.
+    ///
+    /// # Warning
+    /// Only meaningful on an `Fcs` obtained from `open()`/`open_all()`. A
+    /// clone whose `data_frame` was replaced (e.g. by filtering or
+    /// compensation elsewhere in this workspace) still shares this cache via
+    /// `Arc`, and will decode against the *original* file's bytes — not
+    /// whatever the replaced `data_frame` represents. See `flow-crates-rkq`.
     pub fn column(&self, channel_name: &str) -> Result<&[f32]> {
         Ok(self
             .columns(&[channel_name])?
@@ -1565,11 +1572,30 @@ impl Fcs {
     /// # Errors
     /// Will return `Err` under the same conditions as `column()`, for any of
     /// `channel_names`.
+    ///
+    /// # Warning
+    /// Only meaningful on an `Fcs` obtained from `open()`/`open_all()`. A
+    /// clone whose `data_frame` was replaced (e.g. by filtering or
+    /// compensation elsewhere in this workspace) still shares this cache via
+    /// `Arc`, and will decode against the *original* file's bytes — not
+    /// whatever the replaced `data_frame` represents. See `flow-crates-rkq`.
     pub fn columns(&self, channel_names: &[&str]) -> Result<Vec<&[f32]>> {
         let indices: Vec<usize> = channel_names
             .iter()
             .map(|name| Ok(self.find_parameter(name)?.parameter_number - 1))
             .collect::<Result<Vec<_>>>()?;
+
+        for &idx in &indices {
+            if idx >= self.columns.len() {
+                return Err(anyhow!(
+                    "parameter index {} is outside this file's column cache ({} slots) — \
+                     this Fcs was likely derived (e.g. via filtering or unmixing) rather than \
+                     opened, and its column cache was never resized to match its current parameters",
+                    idx,
+                    self.columns.len()
+                ));
+            }
+        }
 
         let mut missing: Vec<usize> = indices
             .iter()
@@ -1605,6 +1631,13 @@ impl Fcs {
     /// # Errors
     /// Will return `Err` if the DATA segment can't be validated, or if any
     /// value fails to decode for its declared data type/width.
+    ///
+    /// # Warning
+    /// Only meaningful on an `Fcs` obtained from `open()`/`open_all()`. A
+    /// clone whose `data_frame` was replaced (e.g. by filtering or
+    /// compensation elsewhere in this workspace) still shares this cache via
+    /// `Arc`, and will decode against the *original* file's bytes — not
+    /// whatever the replaced `data_frame` represents. See `flow-crates-rkq`.
     pub fn events(&self) -> Result<EventDataFrame> {
         let layout = crate::columns::ColumnLayout::from_metadata(&self.metadata)?;
         let data_bytes = self.data_bytes()?;
@@ -2559,9 +2592,52 @@ impl Fcs {
 #[cfg(test)]
 mod lazy_column_tests {
     use super::Fcs;
+    use crate::{Header, Metadata, Parameter, TransformType, file::AccessWrapper, parameter::ParameterMap};
+    use polars::{frame::DataFrame, prelude::Column};
 
     const COMPLIANCE_FCS: &str =
         "/Users/kfls271/Rust/flow-crates/gates/Gating-ML.v1.5.081030.Compliance-tests.081030/List-mode Data Files/int-10000_events_random.fcs";
+
+    #[test]
+    fn columns_returns_err_not_panic_when_cache_is_smaller_than_parameter_number() {
+        // `Fcs::for_testing` sizes the column cache to `parameters.len()`, so
+        // giving it a single parameter yields a 1-slot cache. If that
+        // parameter's `parameter_number` doesn't correspond to a slot within
+        // that cache (as would happen on a derived `Fcs` whose `parameters`
+        // were replaced without resizing `columns` — see the production
+        // scenario in tru-ols's spectral-unmixing output), `columns()` must
+        // return `Err` instead of panicking on an out-of-bounds index.
+        let temp_path = std::env::temp_dir().join("test_fcs_oob_column_cache.tmp");
+        std::fs::write(&temp_path, b"test").expect("write temp file");
+
+        let mut params = ParameterMap::default();
+        params.insert(
+            "OutOfRange".into(),
+            Parameter::new(&5, "OutOfRange", "OutOfRange", &TransformType::Linear),
+        );
+
+        let df = DataFrame::new(1, vec![Column::new("OutOfRange".into(), vec![1.0f32])])
+            .expect("build test dataframe");
+
+        let fcs = Fcs::for_testing(
+            Header::new(),
+            Metadata::new(),
+            params,
+            std::sync::Arc::new(df),
+            AccessWrapper::new(temp_path.to_str().unwrap_or("")).expect("access wrapper"),
+        );
+
+        let result = fcs.column("OutOfRange");
+        assert!(
+            result.is_err(),
+            "out-of-bounds cache index must return Err, not panic"
+        );
+        let message = result.unwrap_err().to_string();
+        assert!(
+            message.contains("column cache"),
+            "error message should mention the column cache/index mismatch, got: {message}"
+        );
+    }
 
     #[test]
     fn column_matches_data_frame_oracle() {

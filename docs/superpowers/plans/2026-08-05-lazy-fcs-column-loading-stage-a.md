@@ -1320,6 +1320,8 @@ harness=false
 Run: `cargo bench -p flow-fcs --bench lazy_column_access`
 Expected: completes and prints a criterion report. There's no pass/fail assertion here — this is a measurement, not a test. Record the reported numbers in the task's completion notes (or the bead) so a future reader knows whether `two_column_access/lazy_columns_uncached` is in the same ballpark as `eager_data_frame_two_columns`, and whether `full_materialization/events_uncached` is roughly at parity with `open_eager_baseline` (it should be — same traversal, same decode logic, no `Arc<DataFrame>` double-parse).
 
+**Amended after the final whole-branch review:** this expectation did not hold — `events_uncached` measured ~8x `open_eager_baseline`, and the real cause is `extract_columns` lacking a uniform-width fast path and routing every value through a `#[cold]`-annotated function, not double work from `open()` (criterion excludes setup-closure time). Tracked as `flow-crates-3si`, to be resolved before Stage B is planned.
+
 - [ ] **Step 3: Commit**
 
 ```bash

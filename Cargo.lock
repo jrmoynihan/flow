@@ -3221,7 +3221,7 @@ dependencies = [
 
 [[package]]
 name = "flow-fcs"
-version = "0.5.0"
+version = "0.5.1"
 dependencies = [
  "anyhow",
  "approx",
