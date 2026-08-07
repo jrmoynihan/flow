@@ -100,6 +100,10 @@ name   ="column_extract"
 harness=false
 
 [[bench]]
+name   ="lazy_column_access"
+harness=false
+
+[[bench]]
 name   ="serialize_data"
 harness=false
 
