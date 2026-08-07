@@ -778,7 +778,7 @@ impl Fcs {
                 if let Ok(range) = metadata.get_range_for_channel(param_idx + 1) {
                     let mask = range.next_power_of_two().saturating_sub(1) as u32;
                     for value in &mut param_values {
-                        *value = ((*value as u32) & mask) as f32;
+                        *value = crate::columns::apply_range_mask(*value, Some(mask));
                     }
                 }
             }
@@ -1662,10 +1662,8 @@ impl Fcs {
                     // `parse_bit_packed_data`/`extract_all_param_columns`
                     // instead, neither of which knows about `$PnR`, so it must
                     // be applied here to match the eager `data_frame` oracle.
-                    if let Some(mask) = layout.range_masks[idx] {
-                        for value in column.iter_mut() {
-                            *value = ((*value as u32) & mask) as f32;
-                        }
+                    for value in column.iter_mut() {
+                        *value = crate::columns::apply_range_mask(*value, layout.range_masks[idx]);
                     }
                     column.into_boxed_slice()
                 })
@@ -2725,10 +2723,8 @@ mod lazy_column_tests {
         let fcs = Fcs::open(COMPLIANCE_FCS).expect("open compliance fixture");
         let _ = fcs.events().expect("events");
 
-        let channel = fcs.get_parameter_names_from_dataframe()[0].clone();
-        let idx = fcs.find_parameter(&channel).unwrap().parameter_number - 1;
         assert!(
-            fcs.columns[idx].get().is_none(),
+            fcs.columns.iter().all(|slot| slot.get().is_none()),
             "events() must not populate the lazy column cache — a QC'd file would otherwise hold both the raw columns and the derived frame"
         );
     }

@@ -2,8 +2,8 @@
 //!
 //! FCS event data is stored interleaved: `event0_p0, event0_p1, …, event1_p0, …`.
 //! `ColumnLayout` precomputes the fixed per-parameter byte offsets and widths
-//! from metadata once; `extract_columns` (added in the next task) walks the
-//! bytes exactly once per call, decoding only the requested parameter indices.
+//! from metadata; `extract_columns` walks the bytes exactly once per call,
+//! decoding only the requested parameter indices.
 
 use crate::byteorder::ByteOrder;
 use crate::datatype::FcsDataType;
@@ -11,17 +11,24 @@ use crate::metadata::Metadata;
 use anyhow::Result;
 
 /// Precomputed per-parameter byte layout for one FCS file's DATA segment,
-/// derived once from metadata. Reused across every `column()`/`columns()`/
-/// `events()` call so repeated access doesn't re-walk `$PnB`/`$PnR`/etc.
+/// derived from metadata. Built fresh on each `column()`/`columns()`/
+/// `events()` call — it is the *decoded values* that get cached (in
+/// `Fcs.columns`), not this layout.
 #[derive(Debug, Clone)]
 pub(crate) struct ColumnLayout {
+    /// Number of events (`$TOT`) this layout was computed for.
     pub num_events: usize,
+    /// Total bytes consumed by one full event record — the sum of `bytes_per_parameter`.
     pub bytes_per_event: usize,
+    /// Byte width of each parameter (`$PnB / 8`), in parameter order.
     pub bytes_per_parameter: Vec<usize>,
     /// Running-sum byte offset of each parameter within one event record.
     /// Not `param_idx * width` — widths vary per parameter.
     pub param_offsets: Vec<usize>,
+    /// Declared FCS data type (`$DATATYPE` or a `$PnDATATYPE` override) of
+    /// each parameter, in parameter order.
     pub data_types: Vec<FcsDataType>,
+    /// Byte order (`$BYTEORD`), shared by every parameter in this file.
     pub byte_order: ByteOrder,
     /// `$PnR`-derived mask for integer parameters whose storage width
     /// (`$PnB`) exceeds their declared ADC resolution. `None` for float/double
@@ -30,6 +37,16 @@ pub(crate) struct ColumnLayout {
     /// True if any `$PnB` isn't a multiple of 8. The byte-stride traversal in
     /// `extract_columns` can't represent bit-packed records.
     pub is_bit_packed: bool,
+}
+
+/// Applies the `$PnR`-derived integer range mask to a decoded value, if one
+/// applies. `None` (float/double parameters, or integer parameters without a
+/// usable `$PnR`) passes the value through unchanged.
+pub(crate) fn apply_range_mask(value: f32, mask: Option<u32>) -> f32 {
+    match mask {
+        Some(mask) => ((value as u32) & mask) as f32,
+        None => value,
+    }
 }
 
 impl ColumnLayout {
@@ -137,9 +154,7 @@ pub(crate) fn extract_columns(
                     &layout.data_types[idx],
                     &layout.byte_order,
                 )?;
-                if let Some(mask) = layout.range_masks[idx] {
-                    value = ((value as u32) & mask) as f32;
-                }
+                value = apply_range_mask(value, layout.range_masks[idx]);
                 Ok(value)
             })
             .collect()
