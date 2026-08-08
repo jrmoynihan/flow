@@ -86,9 +86,25 @@ impl Metadata {
             text_slice,
             delimiter,
             crate::text::Escaping::None,
-        );
+        )
+        .peekable();
+
+        // TEXT need not end on the delimiter (some writers omit the final
+        // one). When it doesn't, `TextFields`' last field is an *unterminated*
+        // remainder rather than a real, delimiter-closed field — and if that
+        // remainder is invalid UTF-8, it decodes to "". The pre-extraction
+        // implementation's trailing-segment handling silently dropped that
+        // remainder rather than record a bogus empty key or value; restore
+        // that guard so this extraction stays a no-op even on malformed
+        // input. A merely-empty field that *is* delimiter-bounded (e.g. two
+        // consecutive delimiters) is unaffected: it is always genuine, never
+        // a decode failure, so it is recorded exactly as before.
+        let unterminated_tail = text_slice.last().is_some_and(|&b| b != delimiter);
 
         while let Some(key) = fields.next() {
+            if fields.peek().is_none() && unterminated_tail && key.is_empty() {
+                break;
+            }
             let Some(value) = fields.next() else {
                 // A keyword with no value at the end of TEXT. Invalid FCS, but
                 // observed; drop it as the previous implementation did.
@@ -98,6 +114,9 @@ impl Metadata {
                 );
                 break;
             };
+            if fields.peek().is_none() && unterminated_tail && value.is_empty() {
+                break;
+            }
             if key.is_empty() {
                 continue;
             }
@@ -664,5 +683,81 @@ impl Metadata {
         metadata.validate_guid();
 
         Ok(metadata)
+    }
+}
+
+#[cfg(test)]
+mod from_text_segment_tests {
+    use super::Metadata;
+    use std::io::Write;
+
+    /// Writes `text_body` (the TEXT segment's bytes, *including* its leading
+    /// delimiter byte, matching what `Header::text_offset` would point at)
+    /// to a temp file, memory-maps it, and runs it through
+    /// `Metadata::from_text_segment`. `from_text_segment` only needs a byte
+    /// range into a mapped file — it does not need a real HEADER/DATA/other
+    /// segments around it — so this is a faithful, minimal exercise of the
+    /// function under test.
+    fn parse(text_body: &[u8]) -> Metadata {
+        let mut file = tempfile::NamedTempFile::new().expect("temp file");
+        file.write_all(text_body).expect("write temp file");
+        file.flush().expect("flush temp file");
+        // SAFETY: file is exclusively owned by this test and not mutated
+        // after the write above; same convention `Fcs::open` and
+        // `compress.rs`'s tests use.
+        let mmap = unsafe { memmap3::Mmap::map(file.as_file()) }.expect("mmap temp file");
+        Metadata::from_text_segment(&mmap, &(0..=(text_body.len() - 1)))
+    }
+
+    #[test]
+    fn a_dangling_key_terminated_by_a_delimiter_is_dropped() {
+        // Accepted, harmless divergence from the pre-extraction implementation:
+        // that version silently dropped a keyword-with-no-value here (its
+        // trailing-segment guard never ran, because nothing followed the
+        // dangling key's own terminating delimiter). The rewritten loop
+        // reaches its "no value" branch instead and additionally logs a
+        // `tracing::debug!` — observationally identical (nothing is
+        // returned either way) but worth pinning here so a future change
+        // cannot start inserting "BADKEY" without a test noticing.
+        let metadata = parse(b"|$PAR|2|BADKEY|");
+
+        assert_eq!(metadata.keywords.len(), 1, "{:?}", metadata.keywords);
+        assert!(metadata.keywords.contains_key("$PAR"));
+        assert!(!metadata.keywords.contains_key("BADKEY"));
+    }
+
+    #[test]
+    fn an_unterminated_invalid_utf8_tail_value_is_dropped_not_recorded_as_empty() {
+        // TEXT need not end on the delimiter. If the last, unterminated
+        // field is invalid UTF-8 (a Latin-1 byte in `$COM`/`$PnS` is a real
+        // occurrence in the wild), `TextFields` decodes it to "" — and
+        // without the restored guard, that "" was getting inserted as
+        // `$COM`'s value, which the pre-extraction implementation never did
+        // (its trailing-segment guard checked decoded emptiness and skipped
+        // the whole pair). 0xFF is never valid UTF-8 in any position.
+        let mut body = b"|$PAR|2|$COM|".to_vec();
+        body.push(0xFF);
+        let metadata = parse(&body);
+
+        assert_eq!(metadata.keywords.len(), 1, "{:?}", metadata.keywords);
+        assert!(metadata.keywords.contains_key("$PAR"));
+        assert!(
+            !metadata.keywords.contains_key("$COM"),
+            "an invalid-UTF-8 unterminated tail must not be recorded as an empty value: {:?}",
+            metadata.keywords
+        );
+    }
+
+    #[test]
+    fn a_genuinely_empty_value_between_delimiters_is_still_recorded() {
+        // Contrast case: this is delimiter-bounded, not an unterminated
+        // tail, so the restored guard must not touch it. FCS2.0/3.0 files
+        // use this to mean "empty value" (see `text.rs`'s
+        // `no_escaping_treats_a_doubled_delimiter_as_an_empty_field`), and
+        // that must keep working even though it is also the last field.
+        let metadata = parse(b"|$PAR|2|$COM||");
+
+        assert_eq!(metadata.keywords.len(), 2, "{:?}", metadata.keywords);
+        assert!(metadata.keywords.contains_key("$COM"));
     }
 }
