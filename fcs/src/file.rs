@@ -724,6 +724,7 @@ impl Fcs {
         let mut metadata = Metadata::from_text_segment(
             &file_access.mmap,
             &text_range(&header, dataset_start, mmap_len),
+            header.version,
         );
 
         metadata
@@ -856,7 +857,7 @@ impl Fcs {
 
         let mmap_len = mmap.len();
         let begin_data = absolutize(
-            Self::find_begindata_offset(mmap, dataset_start)?,
+            Self::find_begindata_offset(mmap, dataset_start, version)?,
             dataset_start,
             mmap_len,
             "$BEGINDATA",
@@ -889,17 +890,25 @@ impl Fcs {
     /// segment — the segment's end isn't known yet, which is the value this function
     /// exists to find.
     ///
+    /// `version` picks the same escaping policy `Metadata::from_text_segment` would use
+    /// for this data set, so a doubled delimiter is interpreted identically whichever
+    /// function encounters it first.
+    ///
     /// # Errors
     /// Will return `Err` if `$BEGINDATA` is not found before the end of the mmap, or its
     /// value is not a valid unsigned integer.
-    fn find_begindata_offset(mmap: &Mmap, text_start: usize) -> Result<usize> {
+    fn find_begindata_offset(
+        mmap: &Mmap,
+        text_start: usize,
+        version: crate::version::Version,
+    ) -> Result<usize> {
         let delimiter = mmap[text_start];
         let rest = &mmap[(text_start + 1)..];
 
         let mut fields = crate::text::TextFields::new(
             rest,
             delimiter,
-            crate::text::Escaping::None,
+            crate::text::Escaping::for_version(version),
         );
 
         while let Some(key) = fields.next() {

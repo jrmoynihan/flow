@@ -64,17 +64,27 @@ impl Metadata {
     /// Uses memchr for fast delimiter finding (5-10x faster than byte-by-byte iteration)
     #[must_use]
     pub fn from_mmap(mmap: &Mmap, header: &Header) -> Self {
-        Self::from_text_segment(mmap, &header.text_offset)
+        Self::from_text_segment(mmap, &header.text_offset, header.version)
     }
 
     /// As [`from_mmap`](Self::from_mmap), but takes the TEXT segment's
-    /// **file-absolute** byte range directly.
+    /// **file-absolute** byte range directly, plus the version whose escaping
+    /// rules apply.
     ///
     /// [`Header`] carries data-set-relative offsets (§2.4.3), so any data set
     /// past the first in a `$NEXTDATA` chain must resolve those against its own
     /// base before they can index the mmap. `from_mmap` is the `base == 0` case.
+    ///
+    /// `version` decides whether a doubled delimiter is one escaped literal
+    /// (FCS 3.1+) or two boundaries around an empty value (3.0 and earlier).
+    /// Data sets reached through `$NEXTDATA` have no HEADER of their own, so
+    /// callers pass the file's primary version.
     #[must_use]
-    pub fn from_text_segment(mmap: &Mmap, text_range: &std::ops::RangeInclusive<usize>) -> Self {
+    pub fn from_text_segment(
+        mmap: &Mmap,
+        text_range: &std::ops::RangeInclusive<usize>,
+        version: crate::version::Version,
+    ) -> Self {
         // Read the first byte of the text segment to determine the delimiter:
         let delimiter = mmap[*text_range.start()];
 
@@ -85,7 +95,7 @@ impl Metadata {
         let mut fields = crate::text::TextFields::new(
             text_slice,
             delimiter,
-            crate::text::Escaping::None,
+            crate::text::Escaping::for_version(version),
         )
         .peekable();
 
@@ -706,7 +716,10 @@ mod from_text_segment_tests {
         // after the write above; same convention `Fcs::open` and
         // `compress.rs`'s tests use.
         let mmap = unsafe { memmap3::Mmap::map(file.as_file()) }.expect("mmap temp file");
-        Metadata::from_text_segment(&mmap, &(0..=(text_body.len() - 1)))
+        // These tests pin FCS2.0-era tokenizer behaviour (an empty value
+        // between two delimiters must still be recorded), so exercise them
+        // under the pre-3.1 (non-doubling) escaping policy.
+        Metadata::from_text_segment(&mmap, &(0..=(text_body.len() - 1)), crate::version::Version::V2_0)
     }
 
     #[test]
@@ -759,5 +772,41 @@ mod from_text_segment_tests {
 
         assert_eq!(metadata.keywords.len(), 2, "{:?}", metadata.keywords);
         assert!(metadata.keywords.contains_key("$COM"));
+    }
+}
+
+#[cfg(test)]
+mod delimiter_escaping_read_tests {
+    use crate::file::Fcs;
+
+    /// Every corpus file must parse to the same keyword count it did before
+    /// escaping existed. Two of the ten (`fcs2_int16_13367ev_8par_GvHD.fcs`
+    /// and `real-8-parameters.data.fcs`) carry FCS2.0 empty values and are the
+    /// load-bearing cases: under an unconditional un-double they would lose
+    /// keywords as fields shifted.
+    #[test]
+    fn every_corpus_file_parses_without_field_shift() {
+        if !crate::corpus::is_available() {
+            eprintln!("compliance corpus missing, skipping");
+            return;
+        }
+        for path in crate::corpus::files() {
+            let name = path.file_name().unwrap_or_default().to_string_lossy().to_string();
+            let fcs = Fcs::open(path.to_str().expect("utf-8 path"))
+                .unwrap_or_else(|e| panic!("open {name}: {e}"));
+
+            // A shifted tokenizer loses $PAR/$TOT or reads them as garbage,
+            // so these two accessors are a sharp shift detector.
+            let par = *fcs.metadata.get_number_of_parameters()
+                .unwrap_or_else(|e| panic!("{name}: $PAR: {e}"));
+            let tot = *fcs.metadata.get_number_of_events()
+                .unwrap_or_else(|e| panic!("{name}: $TOT: {e}"));
+            assert!(par > 0, "{name}: $PAR must be positive");
+            assert!(tot > 0, "{name}: $TOT must be positive");
+            assert_eq!(
+                fcs.data_frame.width(), par,
+                "{name}: decoded column count must match $PAR"
+            );
+        }
     }
 }

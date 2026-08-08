@@ -21,7 +21,6 @@ pub(crate) enum Escaping {
     /// A run of N delimiters encodes N/2 literal delimiter characters, and
     /// terminates the field iff N is odd. Decodable only because FCS 3.1 and
     /// later forbid empty keyword values.
-    #[allow(dead_code)] // wired into readers in Task 3; exercised by tests here
     Doubled,
 }
 
@@ -30,7 +29,6 @@ impl Escaping {
     /// rare FCS3.0 file with an escaped delimiter keeps mis-parsing — the
     /// status quo. Being wrong at 3.0 means a common FCS3.0 file with an empty
     /// value *newly* desynchronizes.
-    #[allow(dead_code)] // called from readers starting Task 3; exercised by tests here
     pub(crate) const fn for_version(version: Version) -> Self {
         match version {
             Version::V1_0 | Version::V2_0 | Version::V3_0 => Self::None,
@@ -234,5 +232,19 @@ mod tests {
         assert_eq!(Escaping::for_version(Version::V3_1), Escaping::Doubled);
         assert_eq!(Escaping::for_version(Version::V3_2), Escaping::Doubled);
         assert_eq!(Escaping::for_version(Version::V4_0), Escaping::Doubled);
+    }
+
+    #[test]
+    fn corpus_empty_values_survive_under_v2_0_policy() {
+        // real-8-parameters.data.fcs is FCS2.0 and contains `\Comments\\Row\2\`.
+        // Under Doubled this would read as Comments="|Row" and shift every
+        // subsequent field by one, which is exactly the desynchronization the
+        // writer bug causes. Version::V2_0 must therefore not un-double.
+        use crate::version::Version;
+        let escaping = Escaping::for_version(Version::V2_0);
+        assert_eq!(
+            fields("Comments||Row|2|", b'|', escaping),
+            vec!["Comments", "", "Row", "2"]
+        );
     }
 }
