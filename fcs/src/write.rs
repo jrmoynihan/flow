@@ -1047,7 +1047,10 @@ mod offset_convergence_tests {
         metadata.insert_string_keyword("$NEXTDATA".into(), "0".into());
         metadata.insert_string_keyword("$P1N".into(), "FSC-A".into());
         metadata.insert_string_keyword("$P2N".into(), "FL1-A".into());
-        metadata.insert_string_keyword("$P1S".into(), "".into());
+        // $P1S intentionally omitted: FCS 3.1+ (this test's declared version,
+        // via Header::new()) forbids an empty keyword value, so the correct
+        // encoding of "no label" is to leave $PnS out, not write it blank.
+        // Do not add it back with an empty value.
         metadata.insert_string_keyword("$P2S".into(), "FITC".into());
         for n in 1..=2 {
             metadata.keywords.insert(
@@ -1464,7 +1467,10 @@ mod offset_convergence_tests {
             .insert("$PAR".to_string(), Keyword::Int(IntegerKeyword::PAR(n_params)));
         for n in 1..=n_params {
             metadata.insert_string_keyword(format!("$P{n}N"), format!("P{n}"));
-            metadata.insert_string_keyword(format!("$P{n}S"), "".into());
+            // $PnS intentionally omitted: FCS 3.1+ (this test's declared
+            // version) forbids an empty keyword value, so the correct
+            // encoding of "no label" is to leave $PnS out, not write it
+            // blank. Do not add it back with an empty value.
             metadata.keywords.insert(
                 format!("$P{n}B"),
                 Keyword::Int(IntegerKeyword::PnB(bits_per_param)),
@@ -1595,7 +1601,10 @@ mod offset_convergence_tests {
             .keywords
             .insert("$PAR".to_string(), Keyword::Int(IntegerKeyword::PAR(n_params)));
         metadata.insert_string_keyword("$P1N".into(), "P1".into());
-        metadata.insert_string_keyword("$P1S".into(), "".into());
+        // $P1S/$P2S intentionally omitted below: FCS 3.1+ (this test's
+        // declared version) forbids an empty keyword value, so the correct
+        // encoding of "no label" is to leave $PnS out, not write it blank.
+        // Do not add them back with an empty value.
         metadata
             .keywords
             .insert("$P1B".to_string(), Keyword::Int(IntegerKeyword::PnB(bits_per_param[0])));
@@ -1603,7 +1612,6 @@ mod offset_convergence_tests {
             .keywords
             .insert("$P1R".to_string(), Keyword::Int(IntegerKeyword::PnR(1024)));
         metadata.insert_string_keyword("$P2N".into(), "P2".into());
-        metadata.insert_string_keyword("$P2S".into(), "".into());
         metadata
             .keywords
             .insert("$P2B".to_string(), Keyword::Int(IntegerKeyword::PnB(bits_per_param[1])));
