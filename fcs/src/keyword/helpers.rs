@@ -161,6 +161,58 @@ pub fn parse_spillover(value: &str) -> Option<MixedKeyword> {
     })
 }
 
+/// Parses the `$TRUOLS_MIXMAT` rectangular mixing matrix.
+///
+/// Format: `nDet,nEm,det_1,..,det_nDet,em_1,..,em_nEm,v_11,..,v_nDet_nEm`,
+/// values row-major with detectors as rows.
+///
+/// Unlike [`parse_spillover`], both dimensions are declared, because a mixing
+/// matrix is detectors x endmembers and the two are almost never equal.
+///
+/// # Returns
+/// `Some(MixedKeyword::MixingMatrix {..})` if every declared name and value is
+/// present and every value parses; `None` otherwise. Truncated or overlong
+/// input is rejected rather than silently reshaped - a matrix that is the
+/// wrong shape produces silently wrong abundances downstream, so a keyword
+/// that does not parse exactly is worth losing.
+pub fn parse_mixing_matrix(value: &str) -> Option<MixedKeyword> {
+    let parts: Vec<&str> = value.trim().split(',').collect();
+
+    let n_detectors = parts.first()?.trim().parse::<usize>().ok()?;
+    let n_endmembers = parts.get(1)?.trim().parse::<usize>().ok()?;
+
+    // Both counts come straight off untrusted file bytes, so every offset is
+    // computed with checked arithmetic - an overflow here would panic in debug
+    // and index out of bounds in release.
+    let names_start = 2usize;
+    let values_start = names_start
+        .checked_add(n_detectors)?
+        .checked_add(n_endmembers)?;
+    let expected_len = values_start.checked_add(n_detectors.checked_mul(n_endmembers)?)?;
+    if parts.len() != expected_len {
+        return None;
+    }
+
+    let names = |range: std::ops::Range<usize>| -> Vec<String> {
+        parts[range].iter().map(|s| s.trim().to_string()).collect()
+    };
+    let detector_names = names(names_start..names_start + n_detectors);
+    let endmember_names = names(names_start + n_detectors..values_start);
+
+    let matrix_values: Vec<f32> = parts[values_start..]
+        .iter()
+        .map(|s| parse_float_with_comma_decimal(s))
+        .collect::<Option<_>>()?;
+
+    Some(MixedKeyword::MixingMatrix {
+        n_detectors,
+        n_endmembers,
+        detector_names,
+        endmember_names,
+        matrix_values,
+    })
+}
+
 /// Known prefixes for parameter-related keywords
 ///
 /// These prefixes are used for parameter (P), gate (G, deprecated), and region (R) keywords.

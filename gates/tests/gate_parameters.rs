@@ -7,19 +7,6 @@ use flow_gates::types::{
 use std::sync::Arc;
 
 #[test]
-fn legacy_tuple_deserializes_to_two_channel() {
-    let json = r#"["FSC-A","SSC-A"]"#;
-    let gp: GateParameters = serde_json::from_str(json).expect("params");
-    match gp {
-        GateParameters::TwoChannel { x, y } => {
-            assert_eq!(x.as_ref(), "FSC-A");
-            assert_eq!(y.as_ref(), "SSC-A");
-        }
-        _ => panic!("expected two_channel"),
-    }
-}
-
-#[test]
 fn one_channel_matches_either_plot_axis() {
     let p = GateParameters::OneChannel {
         channel: Arc::from("FSC-A"),
@@ -30,20 +17,8 @@ fn one_channel_matches_either_plot_axis() {
 }
 
 #[test]
-fn legacy_one_channel_with_companion_drops_companion() {
-    // Workspaces saved before `companion` was removed include the field; deserialization
-    // must accept and silently drop it.
-    let json = r#"{"type":"one_channel","channel":"FL1-A","companion":"SSC-A"}"#;
-    let gp: GateParameters = serde_json::from_str(json).expect("params");
-    match gp {
-        GateParameters::OneChannel { channel } => assert_eq!(channel.as_ref(), "FL1-A"),
-        _ => panic!("expected one_channel"),
-    }
-}
-
-#[test]
 fn two_channel_matches_swap() {
-    let p = GateParameters::TwoChannel {
+    let p = GateParameters::TwoChannels {
         x: Arc::from("FSC-A"),
         y: Arc::from("SSC-A"),
     };
@@ -84,4 +59,34 @@ fn gate_matches_plot_delegates_to_parameters() {
     );
     assert!(gate.matches_plot_parameters("FL1-A", "PE-A"));
     assert!(!gate.matches_plot_parameters("FSC-A", "SSC-A"));
+}
+
+/// Pins the exact on-the-wire tags. `GateParameters` derives its serde impls, so the
+/// tag strings come from the variant names via `rename_all = "snake_case"` — nothing
+/// spells them out. This test is the only thing that would catch a variant rename
+/// silently changing the persisted workspace format.
+#[test]
+fn wire_tags_are_stable() {
+    let cases = [
+        (
+            GateParameters::TwoChannels {
+                x: Arc::from("FSC-A"),
+                y: Arc::from("SSC-A"),
+            },
+            r#"{"type":"two_channels","x":"FSC-A","y":"SSC-A"}"#,
+        ),
+        (
+            GateParameters::OneChannel {
+                channel: Arc::from("FL1-A"),
+            },
+            r#"{"type":"one_channel","channel":"FL1-A"}"#,
+        ),
+        (GateParameters::NoChannels, r#"{"type":"no_channels"}"#),
+    ];
+    for (params, expected_json) in cases {
+        let json = serde_json::to_string(&params).expect("serialize");
+        assert_eq!(json, expected_json, "wire format changed for {params:?}");
+        let back: GateParameters = serde_json::from_str(&json).expect("deserialize");
+        assert_eq!(back, params, "roundtrip lost data for {params:?}");
+    }
 }

@@ -102,11 +102,11 @@ impl GateStatistics {
         }
 
         match &gate.parameters {
-            GateParameters::TwoChannel { x, y } => Self::calculate_two_channel(fcs, gate, x, y),
+            GateParameters::TwoChannels { x, y } => Self::calculate_two_channel(fcs, gate, x, y),
             GateParameters::OneChannel { channel } => {
                 Self::calculate_one_channel(fcs, gate, channel)
             }
-            GateParameters::NoChannel => Err(anyhow!(
+            GateParameters::NoChannels => Err(anyhow!(
                 "Mask gates do not support direct statistics calculation"
             )),
         }

@@ -29,6 +29,7 @@ polars={ workspace=true, default-features=false, features=[
     "dtype-full",
     "streaming",
 ] }
+chrono={ workspace=true }
 faer={ workspace=true }
 faer-ext={ workspace=true }
 ndarray={ workspace=true, optional=true }

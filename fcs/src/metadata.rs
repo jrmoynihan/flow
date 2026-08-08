@@ -64,12 +64,22 @@ impl Metadata {
     /// Uses memchr for fast delimiter finding (5-10x faster than byte-by-byte iteration)
     #[must_use]
     pub fn from_mmap(mmap: &Mmap, header: &Header) -> Self {
-        // Read the first byte of the text segment to determine the delimiter:
-        let delimiter = mmap[*header.text_offset.start()];
+        Self::from_text_segment(mmap, &header.text_offset)
+    }
 
-        // Read the text content
-        // header.text_offset is RangeInclusive, so we use it directly but SKIP the first byte, which is the delimiter (used above)
-        let text_slice = &mmap[(*header.text_offset.start() + 1)..=*header.text_offset.end()];
+    /// As [`from_mmap`](Self::from_mmap), but takes the TEXT segment's
+    /// **file-absolute** byte range directly.
+    ///
+    /// [`Header`] carries data-set-relative offsets (§2.4.3), so any data set
+    /// past the first in a `$NEXTDATA` chain must resolve those against its own
+    /// base before they can index the mmap. `from_mmap` is the `base == 0` case.
+    #[must_use]
+    pub fn from_text_segment(mmap: &Mmap, text_range: &std::ops::RangeInclusive<usize>) -> Self {
+        // Read the first byte of the text segment to determine the delimiter:
+        let delimiter = mmap[*text_range.start()];
+
+        // Read the text content, SKIPping the first byte, which is the delimiter (used above)
+        let text_slice = &mmap[(*text_range.start() + 1)..=*text_range.end()];
 
         // Extract keyword value pairs using memchr for fast delimiter finding
         let mut keywords: KeywordMap = FxHashMap::default();
@@ -144,8 +154,8 @@ impl Metadata {
                 if is_keyword {
                     // This is a keyword without a value - shouldn't happen in valid FCS files
                     tracing::debug!(
-                        "Warning: Keyword '{}' at end of text segment has no value \n {:?}",
-                        text, header
+                        "Warning: Keyword '{}' at end of text segment ({:?}) has no value",
+                        text, text_range
                     );
                 } else {
                     // This is a value - store the keyword-value pair
@@ -200,18 +210,33 @@ impl Metadata {
     /// - any keyword has a Pn[X] value where n is greater than the number of parameters indicated by the $PAR keyword
     pub fn validate_text_segment_keywords(&self, header: &Header) -> Result<()> {
         debug!(version = %header.version, "validate FCS TEXT keywords");
-        let required_keywords = header.version.get_required_keywords();
-        for keyword in required_keywords {
-            if !self.keywords.contains_key(*keyword) {
-                return Err(anyhow!(
-                    "Invalid FCS {:?} file: Missing keyword: {}",
-                    header.version,
-                    keyword
-                ));
-            }
+        let missing = self.missing_required_keywords(header);
+        if missing.is_empty() {
+            return Ok(());
         }
+        Err(anyhow!(
+            "Invalid FCS {} file: missing {} required keyword(s): {}",
+            header.version,
+            missing.len(),
+            missing.join(", ")
+        ))
+    }
 
-        Ok(())
+    /// Every keyword the declared version requires that this TEXT segment does
+    /// not carry, in the order the version lists them.
+    ///
+    /// Reported in full rather than short-circuiting on the first miss: a
+    /// caller repairing a file wants the whole list, and one round trip
+    /// through the error message beats one per missing keyword.
+    #[must_use]
+    pub fn missing_required_keywords(&self, header: &Header) -> Vec<&'static str> {
+        header
+            .version
+            .get_required_keywords()
+            .iter()
+            .filter(|keyword| !self.keywords.contains_key(**keyword))
+            .copied()
+            .collect()
     }
 
     /// Validates if a GUID is present in the file's metadata, and if not, generates a new one.

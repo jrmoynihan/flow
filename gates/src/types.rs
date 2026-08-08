@@ -1251,103 +1251,52 @@ impl GateMode {
 /// transpose-aware: each offset goes through the plot pipeline of the channel it
 /// belongs to, regardless of which screen axis that channel currently occupies.
 ///
-/// Backward compatibility: the legacy `{ offset_x, offset_y }` JSON shape is
-/// accepted by the deserializer but cannot be auto-migrated without the parent
-/// `Gate`'s parameters (channel names live there, not on `LabelPosition`). The
-/// legacy form deserializes into a sentinel-keyed map; callers must invoke
-/// [`Gate::fixup_label_position`] after load to replace sentinels with real
-/// channel names.
-#[derive(Debug, Clone, PartialEq)]
+/// The only accepted JSON shape is `{ "offsets": { "<channel>": <f32>, .. } }`.
+/// The pre-per-channel `{ offset_x, offset_y }` form is not supported.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
+#[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
+#[cfg_attr(feature = "typescript", ts(export))]
 pub struct LabelPosition {
     #[cfg_attr(feature = "specta", specta(type = std::collections::HashMap<String, f32>))]
     pub offsets: std::collections::HashMap<Arc<str>, f32>,
 }
 
-/// Sentinel keys used by the legacy `{offset_x, offset_y}` deserialization path.
-/// Replaced with real channel names by [`Gate::fixup_label_position`] when the
-/// gate is loaded and its `parameters` are known.
-pub const LABEL_LEGACY_X_KEY: &str = "__legacy_offset_x__";
-pub const LABEL_LEGACY_Y_KEY: &str = "__legacy_offset_y__";
-
-impl Serialize for LabelPosition {
-    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        use serde::ser::SerializeStruct;
-        let mut s = serializer.serialize_struct("LabelPosition", 1)?;
-        // Serialize the HashMap with `&str` keys so output is `{"channel": value, ...}`.
-        let map: std::collections::HashMap<&str, &f32> =
-            self.offsets.iter().map(|(k, v)| (k.as_ref(), v)).collect();
-        s.serialize_field("offsets", &map)?;
-        s.end()
-    }
-}
-
-impl<'de> Deserialize<'de> for LabelPosition {
-    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        #[derive(Deserialize)]
-        #[serde(untagged)]
-        enum LabelPositionDe {
-            New {
-                offsets: std::collections::HashMap<String, f32>,
-            },
-            Legacy {
-                offset_x: f32,
-                offset_y: f32,
-            },
-        }
-
-        match LabelPositionDe::deserialize(deserializer)? {
-            LabelPositionDe::New { offsets } => Ok(LabelPosition {
-                offsets: offsets
-                    .into_iter()
-                    .map(|(k, v)| (Arc::from(k.as_str()), v))
-                    .collect(),
-            }),
-            LabelPositionDe::Legacy { offset_x, offset_y } => {
-                let mut map = std::collections::HashMap::with_capacity(2);
-                map.insert(Arc::from(LABEL_LEGACY_X_KEY), offset_x);
-                map.insert(Arc::from(LABEL_LEGACY_Y_KEY), offset_y);
-                Ok(LabelPosition { offsets: map })
-            }
-        }
-    }
-}
-
 /// Which parameters (channels) a gate uses: full 2D gating, or 1D range on one channel.
 ///
-/// - **TwoChannel** — polygon, rectangle, ellipse, boolean operands: the gate is defined
+/// - **TwoChannels** — polygon, rectangle, ellipse, boolean operands: the gate is defined
 ///   in the `(x, y)` channel pair (order matches the plot / event column pair).
 /// - **OneChannel** — range gate: `channel` carries the min/max bounds. The gate has no
 ///   second axis; consumers needing a "companion" axis (e.g. to build a 2D event plane for
 ///   rendering) must supply it from the *plot context*, not from the gate.
-/// - **NoChannel** — mask gates: parameter-agnostic, applies to all plots regardless of
+/// - **NoChannels** — mask gates: parameter-agnostic, applies to all plots regardless of
 ///   axes. The gate filters events by precomputed membership, not geometric containment.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(tag = "type", rename_all = "snake_case")]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
+#[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
+#[cfg_attr(
+    feature = "typescript",
+    ts(export, tag = "type", rename_all = "snake_case")
+)]
 pub enum GateParameters {
-    TwoChannel { x: Arc<str>, y: Arc<str> },
+    TwoChannels { x: Arc<str>, y: Arc<str> },
     OneChannel { channel: Arc<str> },
-    NoChannel,
+    NoChannels,
 }
 
 impl GateParameters {
     /// Whether this gate should appear on a plot whose axes are `(plot_x, plot_y)` (either order).
     pub fn matches_plot_parameters(&self, plot_x: &str, plot_y: &str) -> bool {
         match self {
-            GateParameters::TwoChannel { x, y } => {
+            GateParameters::TwoChannels { x, y } => {
                 (x.as_ref() == plot_x && y.as_ref() == plot_y)
                     || (x.as_ref() == plot_y && y.as_ref() == plot_x)
             }
             GateParameters::OneChannel { channel, .. } => {
                 channel.as_ref() == plot_x || channel.as_ref() == plot_y
             }
-            GateParameters::NoChannel => true,
+            GateParameters::NoChannels => true,
         }
     }
 
@@ -1355,7 +1304,7 @@ impl GateParameters {
     pub fn range_channel_name(&self) -> Option<&str> {
         match self {
             GateParameters::OneChannel { channel, .. } => Some(channel.as_ref()),
-            GateParameters::TwoChannel { .. } | GateParameters::NoChannel => None,
+            GateParameters::TwoChannels { .. } | GateParameters::NoChannels => None,
         }
     }
 
@@ -1363,89 +1312,10 @@ impl GateParameters {
     /// channels are present in a spillover matrix (matrix-scoping).
     pub fn channel_names(&self) -> Vec<&str> {
         match self {
-            GateParameters::TwoChannel { x, y } => vec![x.as_ref(), y.as_ref()],
+            GateParameters::TwoChannels { x, y } => vec![x.as_ref(), y.as_ref()],
             GateParameters::OneChannel { channel } => vec![channel.as_ref()],
-            GateParameters::NoChannel => vec![],
+            GateParameters::NoChannels => vec![],
         }
-    }
-}
-
-impl Serialize for GateParameters {
-    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        #[derive(Serialize)]
-        #[serde(tag = "type", rename_all = "snake_case")]
-        enum GateParametersSer<'a> {
-            TwoChannels { x: &'a str, y: &'a str },
-            OneChannel { channel: &'a str },
-            NoChannels {},
-        }
-        match self {
-            GateParameters::TwoChannel { x, y } => GateParametersSer::TwoChannels {
-                x: x.as_ref(),
-                y: y.as_ref(),
-            }
-            .serialize(serializer),
-            GateParameters::OneChannel { channel } => GateParametersSer::OneChannel {
-                channel: channel.as_ref(),
-            }
-            .serialize(serializer),
-            GateParameters::NoChannel => GateParametersSer::NoChannels {}.serialize(serializer),
-        }
-    }
-}
-
-impl<'de> Deserialize<'de> for GateParameters {
-    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        #[derive(Deserialize)]
-        #[serde(untagged)]
-        enum GateParametersDe {
-            Legacy([String; 2]),
-            Tagged(GateParametersTaggedDe),
-        }
-        // `companion` is accepted for backward compatibility with workspaces saved before
-        // the field was removed. The value is silently dropped — it was never authoritative.
-        #[derive(Deserialize)]
-        #[serde(tag = "type", rename_all = "snake_case")]
-        enum GateParametersTaggedDe {
-            TwoChannels {
-                x: String,
-                y: String,
-            },
-            OneChannel {
-                channel: String,
-                #[serde(default)]
-                #[allow(dead_code)]
-                companion: Option<String>,
-            },
-            NoChannels {},
-        }
-        let helper = GateParametersDe::deserialize(deserializer)?;
-        Ok(match helper {
-            GateParametersDe::Legacy([a, b]) => GateParameters::TwoChannel {
-                x: Arc::from(a.as_str()),
-                y: Arc::from(b.as_str()),
-            },
-            GateParametersDe::Tagged(GateParametersTaggedDe::TwoChannels { x, y }) => {
-                GateParameters::TwoChannel {
-                    x: Arc::from(x.as_str()),
-                    y: Arc::from(y.as_str()),
-                }
-            }
-            GateParametersDe::Tagged(GateParametersTaggedDe::OneChannel { channel, .. }) => {
-                GateParameters::OneChannel {
-                    channel: Arc::from(channel.as_str()),
-                }
-            }
-            GateParametersDe::Tagged(GateParametersTaggedDe::NoChannels {}) => {
-                GateParameters::NoChannel
-            }
-        })
     }
 }
 
@@ -1457,7 +1327,7 @@ pub fn gate_parameters_from_geometry_and_axes(
 ) -> GateParameters {
     // Mask gates are parameter-agnostic.
     if matches!(geometry, GateGeometry::Mask { .. }) {
-        return GateParameters::NoChannel;
+        return GateParameters::NoChannels;
     }
     // A quadrant gate is inherently two-channel; derive its axes from the two
     // dividers (one per channel) so it matches a plot regardless of the axes
@@ -1473,7 +1343,7 @@ pub fn gate_parameters_from_geometry_and_axes(
             .get(1)
             .map(|d| d.channel.clone())
             .unwrap_or_else(|| plot_y.clone());
-        return GateParameters::TwoChannel { x, y };
+        return GateParameters::TwoChannels { x, y };
     }
     let one_channel_node = match geometry {
         GateGeometry::Range { min, .. } => Some(min),
@@ -1489,7 +1359,7 @@ pub fn gate_parameters_from_geometry_and_axes(
             .unwrap_or_else(|| plot_x.clone());
         return GateParameters::OneChannel { channel };
     }
-    GateParameters::TwoChannel {
+    GateParameters::TwoChannels {
         x: plot_x,
         y: plot_y,
     }
@@ -1591,10 +1461,7 @@ pub struct QuadrantSub {
     /// four independent labels, so each corner owns its own offset rather than
     /// the gate carrying a single one. `None` = default screen-corner placement.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[cfg_attr(
-        feature = "typescript",
-        ts(optional, type = "{ offsets: Record<string, number> }")
-    )]
+    #[cfg_attr(feature = "typescript", ts(optional))]
     pub label_position: Option<LabelPosition>,
 }
 
@@ -1673,26 +1540,12 @@ pub struct Gate {
     pub geometry: GateGeometry,
     pub mode: GateMode,
     /// Channels this gate uses in raw/event space (see [`GateParameters`]).
-    /// `GateParameters` has a custom serde impl (tagged, snake_case), so its TS
-    /// shape is given inline here rather than deriving `TS` on the enum.
-    #[cfg_attr(
-        feature = "typescript",
-        ts(
-            type = "{ type: \"two_channel\", x: string, y: string } | { type: \"one_channel\", channel: string } | { type: \"no_channel\" }"
-        )
-    )]
     pub parameters: GateParameters,
     /// The parameter-processing state the node coordinates are expressed in.
     /// Filters compare against event data in the same space; a mismatch is a
     /// typed error, not silent corruption. No default — every gate must declare.
     pub coordinate_space: GateCoordinateSpace,
     /// Optional label position as offset from first node in raw data coordinates.
-    /// `LabelPosition` has a custom serde impl (`{ offsets }`, with a legacy
-    /// accept-only form), so its TS shape is given inline.
-    #[cfg_attr(
-        feature = "typescript",
-        ts(type = "{ offsets: Record<string, number> } | null")
-    )]
     pub label_position: Option<LabelPosition>,
     /// Source gates this gate was derived from, if any (Rectangle from ranges, Quadrant from thresholds).
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -1814,11 +1667,11 @@ impl Gate {
         self.parameters.range_channel_name()
     }
 
-    /// `Some((x, y))` for [`GateParameters::TwoChannel`]; `None` for one-channel or no-channel gates.
+    /// `Some((x, y))` for [`GateParameters::TwoChannels`]; `None` for one-channel or no-channel gates.
     pub fn two_channel_axes(&self) -> Option<(&str, &str)> {
         match &self.parameters {
-            GateParameters::TwoChannel { x, y } => Some((x.as_ref(), y.as_ref())),
-            GateParameters::OneChannel { .. } | GateParameters::NoChannel => None,
+            GateParameters::TwoChannels { x, y } => Some((x.as_ref(), y.as_ref())),
+            GateParameters::OneChannel { .. } | GateParameters::NoChannels => None,
         }
     }
 
@@ -1826,34 +1679,34 @@ impl Gate {
     pub fn one_channel_axis(&self) -> Option<&str> {
         match &self.parameters {
             GateParameters::OneChannel { channel, .. } => Some(channel.as_ref()),
-            GateParameters::TwoChannel { .. } | GateParameters::NoChannel => None,
+            GateParameters::TwoChannels { .. } | GateParameters::NoChannels => None,
         }
     }
 
     /// Primary channel the gate references in event-data space.
     ///
-    /// For [`GateParameters::TwoChannel`] this is `x` (the first column of the 2-D pair).
+    /// For [`GateParameters::TwoChannels`] this is `x` (the first column of the 2-D pair).
     /// For [`GateParameters::OneChannel`] this is the bounded `channel`.
-    /// For [`GateParameters::NoChannel`] (mask gates) returns `None`.
+    /// For [`GateParameters::NoChannels`] (mask gates) returns `None`.
     ///
     /// Use [`Gate::two_channel_axes`] when the caller specifically needs *both* axes — that
     /// returns `None` for range gates and forces the caller to handle the 1-D case explicitly,
     /// instead of silently substituting a stale "companion" axis.
     pub fn primary_channel_name(&self) -> Option<&str> {
         match &self.parameters {
-            GateParameters::TwoChannel { x, .. } => Some(x.as_ref()),
+            GateParameters::TwoChannels { x, .. } => Some(x.as_ref()),
             GateParameters::OneChannel { channel } => Some(channel.as_ref()),
-            GateParameters::NoChannel => None,
+            GateParameters::NoChannels => None,
         }
     }
 
-    /// Deprecated alias for [`Gate::primary_channel_name`] that panics on NoChannel.
+    /// Deprecated alias for [`Gate::primary_channel_name`] that panics on NoChannels.
     /// Prefer `primary_channel_name()` which returns `Option`.
     pub fn x_parameter_channel_name(&self) -> &str {
         match &self.parameters {
-            GateParameters::TwoChannel { x, .. } => x.as_ref(),
+            GateParameters::TwoChannels { x, .. } => x.as_ref(),
             GateParameters::OneChannel { channel } => channel.as_ref(),
-            GateParameters::NoChannel => "",
+            GateParameters::NoChannels => "",
         }
     }
 
@@ -1985,43 +1838,6 @@ impl Gate {
             spillover_group_id: self.spillover_group_id.clone(),
             data_context_id: self.data_context_id.clone(),
             origin: self.origin,
-        }
-    }
-
-    /// Replace any legacy `{offset_x, offset_y}` sentinel keys on this gate's
-    /// `label_position` with the gate's real channel names. Call after
-    /// deserializing a workspace saved before [`LabelPosition`] became
-    /// per-channel; no-op when the label is already in the new form.
-    ///
-    /// Two-channel gates: [`LABEL_LEGACY_X_KEY`] -> `parameters.x`,
-    /// [`LABEL_LEGACY_Y_KEY`] -> `parameters.y`.
-    /// One-channel (range, threshold) gates: [`LABEL_LEGACY_X_KEY`] ->
-    /// `parameters.channel`. The legacy `offset_y` is dropped (1-D gate has
-    /// no second axis; orthogonal pixel falls back to plot midpoint at render).
-    pub fn fixup_label_position(&mut self) {
-        let Some(label_pos) = self.label_position.as_mut() else {
-            return;
-        };
-        let legacy_x = label_pos.offsets.remove(LABEL_LEGACY_X_KEY);
-        let legacy_y = label_pos.offsets.remove(LABEL_LEGACY_Y_KEY);
-        if legacy_x.is_none() && legacy_y.is_none() {
-            return;
-        }
-        match &self.parameters {
-            GateParameters::TwoChannel { x, y } => {
-                if let Some(v) = legacy_x {
-                    label_pos.offsets.insert(x.clone(), v);
-                }
-                if let Some(v) = legacy_y {
-                    label_pos.offsets.insert(y.clone(), v);
-                }
-            }
-            GateParameters::OneChannel { channel } => {
-                if let Some(v) = legacy_x {
-                    label_pos.offsets.insert(channel.clone(), v);
-                }
-            }
-            GateParameters::NoChannel => {}
         }
     }
 

@@ -1,6 +1,6 @@
 use super::helpers::{
     extract_parameter_suffix, is_parameter_keyword, parse_float_tuple, parse_float_vector,
-    parse_float_with_comma_decimal, parse_pnd, parse_spillover,
+    parse_float_with_comma_decimal, parse_mixing_matrix, parse_pnd, parse_spillover,
 };
 use super::{
     ByteKeyword, FloatKeyword, IntegerKeyword, KeywordCreationResult, MixedKeyword, StringKeyword,
@@ -97,6 +97,15 @@ pub fn parse_fixed_keywords(key: &str, value: &str) -> Option<KeywordCreationRes
         "FLOWRATE" => Some(KeywordCreationResult::String(StringKeyword::FLOWRATE(
             Arc::from(trimmed_value),
         ))),
+        "UNSTAINEDINFO" => Some(KeywordCreationResult::String(StringKeyword::UNSTAINEDINFO(
+            Arc::from(trimmed_value),
+        ))),
+        "UNSTAINEDCENTERS" => Some(KeywordCreationResult::String(
+            StringKeyword::UNSTAINEDCENTERS(Arc::from(trimmed_value)),
+        )),
+        // Vendor keyword: the rectangular mixing matrix an unmixing step solved
+        // against. Not `$SPILLOVER` - that encoding is square-only.
+        "TRUOLS_MIXMAT" => parse_mixing_matrix(trimmed_value).map(KeywordCreationResult::Mixed),
         // Handle compensation matrix keywords: $SPILLOVER (FCS 3.1+), $SPILL (unofficial/custom), $COMP (FCS 3.0)
         "SPILLOVER" => parse_spillover(trimmed_value).map(KeywordCreationResult::Mixed),
         "SPILL" => parse_spillover(trimmed_value).map(KeywordCreationResult::Mixed),

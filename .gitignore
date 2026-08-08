@@ -13,6 +13,11 @@ node_modules/
 .cursor/plans
 .vscode/
 
+# Agent scratch worktrees. `git worktree add` puts a real checkout here; it is
+# already a registered worktree of this repo, so committing it would nest a
+# second copy of the tree inside the first.
+.claude/worktrees/
+
 # OS
 .DS_Store
 Thumbs.db

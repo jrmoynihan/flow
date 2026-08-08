@@ -5,6 +5,30 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.5.0 (2026-08-06)
+
+### Breaking
+
+ - **`GateParameters` now derives `Serialize`/`Deserialize` instead of hand-written
+   impls.** The wire tags follow the variant names, so the tag strings live in
+   exactly one place and flow through `ts-rs`/`specta` unedited. Variants renamed
+   `TwoChannel` → `TwoChannels` and `NoChannel` → `NoChannels` (`OneChannel` is
+   unchanged); the JSON tags change to `"two_channels"` / `"no_channels"`
+   accordingly.
+ - Removed the `GateParameters::Legacy([String; 2])` accept-only tuple form and
+   the `companion` field. A one-channel gate stores only its bounded `channel`;
+   consumers needing a paired axis take it from the plot context.
+ - **`LabelPosition` no longer accepts the pre-per-channel
+   `{ offset_x, offset_y }` form.** The only accepted shape is
+   `{ "offsets": { "<channel>": <f32> } }`, and it too now derives its serde impls.
+ - Removed `LABEL_LEGACY_X_KEY`, `LABEL_LEGACY_Y_KEY`, and
+   `Gate::fixup_label_position`. The fixup had no callers, so legacy blobs were
+   already loading with dead sentinel keys and rendering at offset 0 — the
+   "compatibility" was a silent no-op, not a migration.
+ - **No migration:** serialized gates carrying the old parameter tags or the old
+   label-position shape will not deserialize. Callers must handle the load failure
+   (log + continue). This converts a silent wrong-render into a loud parse error.
+
 ## 0.4.0 (2026-07-22)
 
 <csr-id-1e7cca7cde867e127e8e4a4b253cab187799ceb5/>

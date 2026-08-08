@@ -6,7 +6,9 @@ use std::fmt::Display;
 ///
 /// Each version has different required keywords and structural requirements.
 /// The library supports FCS versions 1.0 through 4.0, with 3.1 as the default.
-#[derive(Debug, Clone, Copy, Default, Hash)]
+// `Hash` without `Eq` is close to useless - it can produce a hash but nothing
+// can look the value back up - so the two are derived together here.
+#[derive(Debug, Clone, Copy, Default, Hash, PartialEq, Eq)]
 pub enum Version {
     V1_0,
     V2_0,
@@ -50,8 +52,11 @@ impl Serialize for Version {
 
 impl Version {
     /// Returns the required *non-parameter* indexed keywords for the 'TEXT' segment in a given FCS version as a static array of strings
+    ///
+    /// The returned slice is `'static` (every arm is a `const`), so callers can
+    /// hold onto the names without borrowing the `Version`.
     #[must_use]
-    pub fn get_required_keywords(&self) -> &[&str] {
+    pub fn get_required_keywords(&self) -> &'static [&'static str] {
         const V1_0: [&str; 0] = [];
         const V2_0: [&str; 5] = [
             "$BYTEORD",  // byte order for data acquisition computer

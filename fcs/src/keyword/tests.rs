@@ -505,3 +505,174 @@ mod integration {
         }
     }
 }
+
+/// flow-crates-x17.4: the FCS 3.2 keyword set. `$UNSTAINEDINFO` and
+/// `$UNSTAINEDCENTERS` are new here; the rest were already implemented but
+/// untested, and they share the same failure mode worth guarding against.
+///
+/// A missing dispatch arm in `match_and_parse_keyword` does not fail loudly -
+/// it falls through to `StringKeyword::Other`, which still parses, still
+/// serializes, and still round-trips. The keyword simply stops being
+/// recognizable by type. So these tests assert the *variant*, not just the
+/// value, and separately assert that `get_str` (the accessor the writer uses
+/// at write.rs:596) returns the value rather than an empty catch-all.
+mod fcs_3_2_keywords {
+    use super::*;
+
+    /// Assert `key` parses to the variant selected by `expect`, and that the
+    /// value survives the `get_str` accessor the serializer goes through.
+    fn assert_round_trips(
+        key: &str,
+        value: &str,
+        expect: fn(&StringKeyword) -> bool,
+    ) {
+        let result = match_and_parse_keyword(key, value);
+        let KeywordCreationResult::String(sk) = result else {
+            panic!("{key} did not parse as a string keyword");
+        };
+        assert!(
+            expect(&sk),
+            "{key} parsed to the wrong variant (likely fell through to Other)"
+        );
+        assert_eq!(
+            sk.get_str(),
+            value,
+            "{key} lost its value passing through get_str"
+        );
+    }
+
+    #[test]
+    fn unstainedinfo_parses_and_round_trips() {
+        assert_round_trips(
+            "$UNSTAINEDINFO",
+            "unstained control acquired 2026-08-06, 50000 events",
+            |sk| matches!(sk, StringKeyword::UNSTAINEDINFO(_)),
+        );
+    }
+
+    #[test]
+    fn unstainedcenters_parses_and_round_trips() {
+        // The spec's structured form. Kept opaque on purpose - this asserts
+        // the delimiters and precision survive verbatim.
+        assert_round_trips(
+            "$UNSTAINEDCENTERS",
+            "3,FSC-A,SSC-A,FL1-A,102.5,88.25,1043.0",
+            |sk| matches!(sk, StringKeyword::UNSTAINEDCENTERS(_)),
+        );
+    }
+
+    #[test]
+    fn the_rest_of_the_3_2_string_keywords_reach_their_variants() {
+        assert_round_trips("$BEGINDATETIME", "2026-08-06T09:15:00Z", |sk| {
+            matches!(sk, StringKeyword::BEGINDATETIME(_))
+        });
+        assert_round_trips("$ENDDATETIME", "2026-08-06T09:22:31Z", |sk| {
+            matches!(sk, StringKeyword::ENDDATETIME(_))
+        });
+        assert_round_trips("$CARRIERID", "PLATE-0042", |sk| {
+            matches!(sk, StringKeyword::CARRIERID(_))
+        });
+        assert_round_trips("$CARRIERTYPE", "96 well plate", |sk| {
+            matches!(sk, StringKeyword::CARRIERTYPE(_))
+        });
+        assert_round_trips("$LOCATIONID", "H12", |sk| {
+            matches!(sk, StringKeyword::LOCATIONID(_))
+        });
+        assert_round_trips("$FLOWRATE", "30 uL/min", |sk| {
+            matches!(sk, StringKeyword::FLOWRATE(_))
+        });
+    }
+}
+
+/// `$TRUOLS_MIXMAT` - the rectangular mixing matrix an unmixing step solved
+/// against.
+#[cfg(test)]
+mod mixing_matrix {
+    use super::*;
+
+    /// 2 detectors x 3 endmembers. Deliberately non-square: the whole reason
+    /// this keyword exists rather than reusing `$SPILLOVER` is that a real
+    /// panel never has one endmember per detector.
+    const RECTANGULAR: &str = "2,3,B1-A,B2-A,FITC,PE,AF,0.9,0.1,0.02,0.05,0.8,0.3";
+
+    fn parse(value: &str) -> KeywordCreationResult {
+        match_and_parse_keyword("$TRUOLS_MIXMAT", value)
+    }
+
+    #[test]
+    fn a_rectangular_matrix_keeps_both_dimensions_and_both_name_lists() {
+        let KeywordCreationResult::Mixed(MixedKeyword::MixingMatrix {
+            n_detectors,
+            n_endmembers,
+            detector_names,
+            endmember_names,
+            matrix_values,
+        }) = parse(RECTANGULAR)
+        else {
+            panic!("$TRUOLS_MIXMAT did not reach MixedKeyword::MixingMatrix");
+        };
+
+        assert_eq!((n_detectors, n_endmembers), (2, 3));
+        assert_eq!(detector_names, ["B1-A", "B2-A"]);
+        assert_eq!(endmember_names, ["FITC", "PE", "AF"]);
+        // Row-major: detector B1-A's three coefficients come first.
+        assert_eq!(matrix_values, [0.9, 0.1, 0.02, 0.05, 0.8, 0.3]);
+    }
+
+    /// The names are split by count, not by any marker, so a wrong `nDet`
+    /// would silently steal an endmember name. Pin the boundary with
+    /// dimensions that cannot be confused for each other.
+    #[test]
+    fn the_name_split_follows_the_declared_detector_count() {
+        let KeywordCreationResult::Mixed(MixedKeyword::MixingMatrix {
+            detector_names,
+            endmember_names,
+            ..
+        }) = parse("3,1,D1,D2,D3,ONLY-EM,1.0,2.0,3.0")
+        else {
+            panic!("did not parse");
+        };
+        assert_eq!(detector_names, ["D1", "D2", "D3"]);
+        assert_eq!(endmember_names, ["ONLY-EM"]);
+    }
+
+    /// A matrix of the wrong shape produces silently wrong abundances
+    /// downstream, so anything that does not parse exactly must be rejected
+    /// rather than reshaped. Falling through to `StringKeyword::Other` keeps
+    /// the raw text recoverable without pretending it is a matrix.
+    #[test]
+    fn malformed_input_falls_through_instead_of_panicking() {
+        for (case, value) in [
+            ("one value short", "2,3,B1-A,B2-A,FITC,PE,AF,0.9,0.1,0.02,0.05,0.8"),
+            (
+                "one value long",
+                "2,3,B1-A,B2-A,FITC,PE,AF,0.9,0.1,0.02,0.05,0.8,0.3,0.7",
+            ),
+            ("names truncated", "2,3,B1-A,FITC,PE,AF,0.9,0.1,0.02,0.05,0.8,0.3"),
+            (
+                "non-numeric value",
+                "2,3,B1-A,B2-A,FITC,PE,AF,0.9,0.1,0.02,0.05,0.8,not-a-number",
+            ),
+            ("no endmember count", "2"),
+            ("empty", ""),
+        ] {
+            assert!(
+                matches!(
+                    parse(value),
+                    KeywordCreationResult::String(StringKeyword::Other(_))
+                ),
+                "{case}: expected a fall-through to Other, got a parsed matrix"
+            );
+        }
+    }
+
+    /// `n_detectors * n_endmembers` is computed from untrusted file input.
+    #[test]
+    fn an_absurd_declared_size_does_not_overflow() {
+        let value = format!("{},{},x,y", usize::MAX, usize::MAX);
+        assert!(matches!(
+            parse(&value),
+            KeywordCreationResult::String(StringKeyword::Other(_))
+        ));
+    }
+}

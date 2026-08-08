@@ -36,6 +36,18 @@ fmt = "cargo fmt --workspace"
 publish-workspace = "cargo publish --workspace"
 
 [workspace.dependencies]
+# Calendar arithmetic for the FCS 3.2 datetime keywords. Already in the graph
+# via polars, so this costs nothing to compile.
+#
+# `now` (not `clock`) is what our code actually needs: `Utc::now()` without
+# `Local`, whose `localtime_r` call is the subject of RUSTSEC-2020-0159. Note
+# that this is a floor, not a ceiling - cargo unions features across the graph,
+# and polars enables `clock`, so `iana-time-zone` is compiled regardless of what
+# we declare here. The declaration keeps us off that path on our own account if
+# polars ever drops chrono; staying off `Local` in the source is what actually
+# holds today. Nothing here needs a local timezone - FCS timestamps are either
+# zoneless or carry an explicit offset.
+chrono = { version = "0.4", default-features = false, features = ["std", "now"] }
 # Polars for columnar data storage
 # Note: Using default-features = false to reduce bloat, but keeping dtype-full as it's needed
 polars = { version = "0.54.4", default-features = false, features = [

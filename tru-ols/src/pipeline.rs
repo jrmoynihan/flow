@@ -78,6 +78,7 @@ mod fcs_export {
     };
     use crate::metrics::{FitMetrics, compute_fit_metrics};
     use crate::preprocessing::{CutoffCalculator, NonspecificObservation};
+    use crate::provenance::UnmixFitProvenance;
     use crate::unmixing::{TruOls, UnmixingStrategy};
     use flow_fcs::Fcs;
     use flow_fcs::keyword::{Keyword, StringKeyword};
@@ -86,7 +87,11 @@ mod fcs_export {
     use std::sync::Arc;
 
     /// Provenance keyword written onto exported unmixed FCS files.
-    pub const RAW_DATASOURCE_GUID_KEYWORD: &str = "RAW_DATASOURCE_GUID";
+    ///
+    /// Re-exported from [`crate::provenance`], which owns the full keyword set.
+    /// Previously spelled without the `$`; the writer prefixes every key, so
+    /// files on disk always carried the `$` form and readers tolerate both.
+    pub use crate::provenance::RAW_DATASOURCE_GUID_KEYWORD;
 
     /// Compact fit metrics suitable for IPC / CLI summaries.
     #[derive(Debug, Clone)]
@@ -138,6 +143,12 @@ mod fcs_export {
         pub fit_metrics: Option<FitMetricsSummary>,
     }
 
+    /// Sets `$RAW_DATASOURCE_GUID` in isolation.
+    ///
+    /// Retained for callers that stamp a source pointer onto a file they built
+    /// themselves. The export paths no longer need it: provenance is written as
+    /// one record by [`crate::provenance::UnmixProvenance::stamp_onto`], which
+    /// is reached from the single builder both paths share.
     pub fn set_raw_datasource_guid(fcs: &mut Fcs, guid: &str) {
         fcs.metadata.keywords.insert(
             RAW_DATASOURCE_GUID_KEYWORD.into(),
@@ -239,9 +250,40 @@ mod fcs_export {
             &af_pn,
             UNMIXED_METHOD_TRU_OLS,
         )?;
-        // Provenance first, then mint a distinct product GUID (do not keep the raw `$GUID`).
-        set_raw_datasource_guid(&mut unmixed, req.raw_datasource_guid);
-        crate::fcs_integration::mint_unmixed_file_guid(&mut unmixed);
+        // The builder already stamped the transform, both source GUIDs, the
+        // strategy and a fresh product identity. Enrich that record with the two
+        // things only this path knows - the cutoff percentile it computed and
+        // the fit metrics it was asked for - plus a caller-supplied source
+        // pointer, which may name something other than the stained file's own
+        // `$GUID` (a LIMS id, say).
+        //
+        // `write_to` rather than `stamp_onto`: the identity minted above must
+        // not churn.
+        match crate::provenance::UnmixProvenance::read_from(&unmixed) {
+            Some(mut provenance) => {
+                provenance.cutoff_percentile = Some(cutoff);
+                provenance.fit = fit_metrics.as_ref().map(|f| UnmixFitProvenance {
+                    r_squared_mean: f.r_squared_mean,
+                    r_squared_median: f.r_squared_median,
+                    residual_abs_mean: f.residual_abs_mean,
+                    residual_abs_median: f.residual_abs_median,
+                    residual_abs_max: f.residual_abs_max,
+                });
+                if !req.raw_datasource_guid.trim().is_empty() {
+                    provenance.raw_datasource_guid = Some(req.raw_datasource_guid.to_string());
+                }
+                provenance.write_to(&mut unmixed);
+            }
+            // Unreachable via the builder, but a silent skip here would drop the
+            // caller's source pointer without trace, so fall back to the shim.
+            None => {
+                tracing::warn!(
+                    "unmixed file carries no provenance record; writing the source GUID alone"
+                );
+                set_raw_datasource_guid(&mut unmixed, req.raw_datasource_guid);
+                crate::fcs_integration::mint_unmixed_file_guid(&mut unmixed);
+            }
+        }
 
         let out_path = unmixed_output_path(&req.stained.file_access.path, req.output_dir);
         write_fcs_file(unmixed, &out_path).map_err(|e| {

@@ -2,7 +2,7 @@
 //!
 //! Covers the scenarios from the QC-as-gate design:
 //! - Mask gates serialize/deserialize correctly (with optional file_guid)
-//! - NoChannel parameters match all plot axes
+//! - NoChannels parameters match all plot axes
 //! - Mask gates in hierarchy chains are resolved by the closure (not rejected)
 //! - Missing masks return empty set (file excluded)
 //! - system_managed and overrides fields persist through serialization
@@ -115,7 +115,7 @@ fn gate_with_mask_geometry_roundtrip() {
             },
         },
         mode: GateMode::Global,
-        parameters: GateParameters::NoChannel,
+        parameters: GateParameters::NoChannels,
         coordinate_space: GateCoordinateSpace::Raw,
         label_position: None,
         derived_from: None,
@@ -173,11 +173,11 @@ fn system_managed_true_roundtrips() {
     assert!(restored.system_managed);
 }
 
-// ─── GateParameters::NoChannel Tests ───────────────────────────────────────
+// ─── GateParameters::NoChannels Tests ───────────────────────────────────────
 
 #[test]
 fn no_channel_matches_all_plot_parameters() {
-    let p = GateParameters::NoChannel;
+    let p = GateParameters::NoChannels;
     assert!(p.matches_plot_parameters("FSC-A", "SSC-A"));
     assert!(p.matches_plot_parameters("CD4", "CD8"));
     assert!(p.matches_plot_parameters("anything", "at-all"));
@@ -185,7 +185,7 @@ fn no_channel_matches_all_plot_parameters() {
 
 #[test]
 fn no_channel_serialization_roundtrip() {
-    let p = GateParameters::NoChannel;
+    let p = GateParameters::NoChannels;
     let json = serde_json::to_string(&p).expect("serialize");
     let restored: GateParameters = serde_json::from_str(&json).expect("deserialize");
     assert_eq!(p, restored);
@@ -205,7 +205,7 @@ fn make_mask_gate(id: &str, invert: bool, parent_id: Option<&str>) -> Gate {
             },
         },
         mode: GateMode::Global,
-        parameters: GateParameters::NoChannel,
+        parameters: GateParameters::NoChannels,
         coordinate_space: GateCoordinateSpace::Raw,
         label_position: None,
         derived_from: None,
@@ -297,7 +297,7 @@ fn mask_gate_chain_intersects_with_geometric_gate() {
         name: "Lymphocytes".to_string(),
         geometry: GateGeometry::Rectangle { min, max },
         mode: GateMode::Global,
-        parameters: GateParameters::TwoChannel {
+        parameters: GateParameters::TwoChannels {
             x: Arc::from("X"),
             y: Arc::from("Y"),
         },
@@ -369,7 +369,7 @@ fn missing_mask_returns_empty_set() {
             },
         },
         mode: GateMode::Global,
-        parameters: GateParameters::NoChannel,
+        parameters: GateParameters::NoChannels,
         coordinate_space: GateCoordinateSpace::Raw,
         label_position: None,
         derived_from: None,
@@ -520,7 +520,7 @@ fn mixed_qc_status_excludes_unqcd_file_from_stats() {
             },
         },
         mode: GateMode::Global,
-        parameters: GateParameters::NoChannel,
+        parameters: GateParameters::NoChannels,
         coordinate_space: GateCoordinateSpace::Raw,
         label_position: None,
         derived_from: None,
@@ -542,7 +542,7 @@ fn mixed_qc_status_excludes_unqcd_file_from_stats() {
             },
         },
         mode: GateMode::Global,
-        parameters: GateParameters::NoChannel,
+        parameters: GateParameters::NoChannels,
         coordinate_space: GateCoordinateSpace::Raw,
         label_position: None,
         derived_from: None,
@@ -564,7 +564,7 @@ fn mixed_qc_status_excludes_unqcd_file_from_stats() {
             },
         },
         mode: GateMode::Global,
-        parameters: GateParameters::NoChannel,
+        parameters: GateParameters::NoChannels,
         coordinate_space: GateCoordinateSpace::Raw,
         label_position: None,
         derived_from: None,

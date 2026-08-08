@@ -10,7 +10,6 @@
 //!   piece a typical analysis pipeline actually needs.
 
 use std::fs::File;
-use std::io::Write as _;
 use std::path::Path;
 use std::sync::Arc;
 
@@ -154,34 +153,40 @@ impl Fcs {
         );
 
         // Compose HEADER + TEXT + DATA via flow-fcs's serializer helpers.
-        let header_size = 58usize;
-        let text_start = header_size;
-        let est_text =
-            crate::write::estimate_text_segment_size(&metadata, n_events, n_params);
-        let estimated_text_end = text_start + est_text - 1;
-        let data_start = estimated_text_end + 1;
-        let data_end = data_start + data_segment.len() - 1;
-        let text_segment =
-            crate::write::serialize_metadata(&metadata, n_events, n_params, data_start, data_end)
-                .map_err(|e| anyhow!("serialize_metadata: {e}"))?;
-        let text_end = text_start + text_segment.len() - 1;
-        let data_start = text_end + 1;
-        let data_end = data_start + data_segment.len() - 1;
+        //
+        // This must go through `resolve_layout`, not a single serialize pass: writing
+        // TEXT once from an estimated offset and then correcting only the HEADER
+        // leaves the `$BEGINDATA`/`$ENDDATA` baked into TEXT disagreeing with it.
+        // Readers prefer the HEADER so that stayed invisible - until an offset too
+        // wide for the 8-digit HEADER field is written as `0` and the reader falls
+        // back to the stale TEXT value, decoding the wrong bytes as events.
+        let layout = crate::write::resolve_layout(
+            &metadata,
+            crate::write::HEADER_SIZE,
+            n_events,
+            n_params,
+            data_segment.len(),
+        )
+            .map_err(|e| anyhow!("resolve_layout: {e}"))?;
         let header = crate::write::build_header(
             &self.header.version,
-            text_start,
-            text_end,
-            data_start,
-            data_end,
+            layout.text_start,
+            layout.text_end,
+            layout.data_start,
+            layout.data_end,
         )
         .map_err(|e| anyhow!("build_header: {e}"))?;
 
-        let mut file = File::create(path)?;
-        file.write_all(&header)?;
-        file.write_all(&text_segment)?;
-        file.write_all(&data_segment)?;
-        file.sync_all()?;
-        Ok(())
+        // Same CRC treatment as the plain writer: the inline payload sits in a
+        // DATA segment like any other, so §3.7 applies unchanged. A reader that
+        // cannot decode FCZ1 can still verify the file is intact.
+        crate::write::write_segments(
+            path,
+            &header,
+            &layout.text_segment,
+            &data_segment,
+            crate::write::CrcPolicy::default(),
+        )
     }
 
     /// Load only the columnar event data from a `.fcs` file written by
@@ -491,6 +496,63 @@ mod tests {
                 .unwrap();
             assert_eq!(got, original, "channel {name} did not round-trip");
         }
+    }
+
+    /// `write_inline_fcs` used to serialize TEXT once from an estimated offset and
+    /// then fix up only the HEADER, leaving a stale `$BEGINDATA` inside TEXT. Readers
+    /// prefer the HEADER, so it stayed invisible — but once an offset too wide for the
+    /// 8-digit HEADER field is written as `0`, the reader falls back to that stale
+    /// TEXT value and decodes the wrong bytes as events.
+    #[test]
+    fn inline_fcs_text_begindata_agrees_with_header() {
+        let tmp = TempDir::new().unwrap();
+        let (fcs, _) = build_test_fcs(&tmp, 2_000);
+
+        let path = tmp.path().join("offsets.fcs");
+        fcs.write_inline_fcs(&path, FczWriteOptions::default())
+            .expect("write_inline_fcs");
+
+        let bytes = std::fs::read(&path).expect("read back");
+        let header_data_start: usize = std::str::from_utf8(&bytes[26..34])
+            .unwrap()
+            .trim()
+            .parse()
+            .expect("HEADER $BEGINDATA");
+        let header_data_end: usize = std::str::from_utf8(&bytes[34..42])
+            .unwrap()
+            .trim()
+            .parse()
+            .expect("HEADER $ENDDATA");
+
+        let text_start: usize = std::str::from_utf8(&bytes[10..18]).unwrap().trim().parse().unwrap();
+        let text_end: usize = std::str::from_utf8(&bytes[18..26]).unwrap().trim().parse().unwrap();
+        let text = String::from_utf8_lossy(&bytes[text_start..=text_end]);
+
+        let keyword_value = |key: &str| -> usize {
+            let delim = text.chars().next().expect("leading delimiter");
+            let needle = format!("{delim}{key}{delim}");
+            let start = text.find(&needle).unwrap_or_else(|| panic!("{key} in TEXT"))
+                + needle.len();
+            let rest = &text[start..];
+            let end = rest.find(delim).unwrap_or(rest.len());
+            rest[..end].trim().parse().unwrap_or_else(|_| panic!("{key} value"))
+        };
+
+        assert_eq!(
+            keyword_value("$BEGINDATA"),
+            header_data_start,
+            "TEXT $BEGINDATA must match the primary HEADER"
+        );
+        assert_eq!(
+            keyword_value("$ENDDATA"),
+            header_data_end,
+            "TEXT $ENDDATA must match the primary HEADER"
+        );
+        assert_eq!(
+            header_data_start,
+            text_end + 1,
+            "DATA must begin immediately after TEXT — no unaccounted gap"
+        );
     }
 
     #[test]
