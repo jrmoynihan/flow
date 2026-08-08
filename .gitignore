@@ -13,6 +13,11 @@ node_modules/
 .cursor/plans
 .vscode/
 
+# Cursor hook bookkeeping. Rewritten on almost every turn (generation ids, turn
+# counters) and keyed on absolute local transcript paths, so it dirties the tree
+# constantly and means nothing on another machine.
+.cursor/hooks/state/
+
 # Agent scratch worktrees. `git worktree add` puts a real checkout here; it is
 # already a registered worktree of this repo, so committing it would nest a
 # second copy of the tree inside the first.
