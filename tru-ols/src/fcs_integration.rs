@@ -293,9 +293,20 @@ fn build_unmixed_fcs_from_unmixed_abundances(
                 ))),
             );
 
+            // $PnS must not be blank: FCS 3.1+ (this export always stamps 3.2, see
+            // `stamp_v3_2` below) forbids empty keyword values, because a doubled
+            // delimiter is the escape for one literal delimiter in those versions —
+            // a blank value serialises to two adjacent delimiters and the next
+            // keyword's bytes get absorbed into this one on read. Use the channel
+            // name; `Parameter::effective_label`/`get_display_label` already treat a
+            // `$PnS` equal to `$PnN` as "no override" and fall back to the channel,
+            // so this is display-neutral versus the old empty value. Do not
+            // "simplify" this back to `""`.
             output_fcs.metadata.keywords.insert(
                 format!("$P{}S", param_num),
-                Keyword::String(StringKeyword::PnS(Arc::from(""))),
+                Keyword::String(StringKeyword::PnS(Arc::from(
+                    orig_param.channel_name.as_ref().to_string(),
+                ))),
             );
 
             output_fcs.metadata.keywords.insert(
@@ -390,9 +401,24 @@ fn build_unmixed_fcs_from_unmixed_abundances(
             Keyword::String(StringKeyword::PnN(Arc::from(unmixed_col_name.clone()))),
         );
 
+        // $PnS must not be blank: `target` is `unwrap_or_default()`-ed above and can
+        // be "" when no marker name resolved. FCS 3.1+ (this export always stamps
+        // 3.2, see `stamp_v3_2` below) forbids empty keyword values, because a
+        // doubled delimiter is the escape for one literal delimiter in those
+        // versions — a blank value serialises to two adjacent delimiters and the
+        // next keyword's bytes get absorbed into this one on read. Fall back to
+        // the fluor name already written as `$PnN` above; `get_display_label`
+        // already treats a `$PnS` equal to `$PnN` as "no override" and falls back
+        // to the channel, so this is display-neutral versus the old empty value.
+        // Do not "simplify" this back to `""`.
+        let pns_value = if target.is_empty() {
+            unmixed_col_name.clone()
+        } else {
+            target
+        };
         output_fcs.metadata.keywords.insert(
             format!("$P{}S", param_num),
-            Keyword::String(StringKeyword::PnS(Arc::from(target))),
+            Keyword::String(StringKeyword::PnS(Arc::from(pns_value))),
         );
 
         // $P{i}B - Bits per parameter (32 for float32)
@@ -451,13 +477,20 @@ fn build_unmixed_fcs_from_unmixed_abundances(
         use flow_fcs::keyword::{IntegerKeyword, MixedKeyword, StringKeyword};
         output_fcs.metadata.keywords.insert(
             format!("$P{}N", param_num),
-            Keyword::String(StringKeyword::PnN(Arc::from(af_pn))),
+            Keyword::String(StringKeyword::PnN(Arc::from(af_pn.clone()))),
         );
 
-        // Leave $PnS blank for autofluorescence
+        // $PnS must not be blank: FCS 3.1+ (this export always stamps 3.2, see
+        // `stamp_v3_2` below) forbids empty keyword values, because a doubled
+        // delimiter is the escape for one literal delimiter in those versions —
+        // a blank value serialises to two adjacent delimiters and the next
+        // keyword's bytes get absorbed into this one on read. Use `af_pn`
+        // (defaults to "Autofluorescence" unless the caller supplied their own
+        // AF channel name), a genuinely descriptive label, not merely a legal
+        // one. Do not "simplify" this back to `""`.
         output_fcs.metadata.keywords.insert(
             format!("$P{}S", param_num),
-            Keyword::String(StringKeyword::PnS(Arc::from(""))),
+            Keyword::String(StringKeyword::PnS(Arc::from(af_pn))),
         );
 
         output_fcs.metadata.keywords.insert(
