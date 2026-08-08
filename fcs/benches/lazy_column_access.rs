@@ -7,10 +7,15 @@ use flow_fcs::file::Fcs;
 use std::hint::black_box;
 use std::time::Duration;
 
-const COMPLIANCE_FCS: &str = "/Users/kfls271/Rust/flow-crates/gates/Gating-ML.v1.5.081030.Compliance-tests.081030/List-mode Data Files/int-10000_events_random.fcs";
+fn compliance_fcs() -> String {
+    flow_fcs::corpus::path("int-10000_events_random.fcs")
+        .to_str()
+        .expect("utf-8 corpus path")
+        .to_string()
+}
 
 fn bench_two_column_access(c: &mut Criterion) {
-    let fcs = Fcs::open(COMPLIANCE_FCS).expect("open compliance fixture");
+    let fcs = Fcs::open(&compliance_fcs()).expect("open compliance fixture");
     let names = fcs.get_parameter_names_from_dataframe();
     let (a, b) = (names[0].clone(), names[1].clone());
 
@@ -19,8 +24,9 @@ fn bench_two_column_access(c: &mut Criterion) {
     group.measurement_time(Duration::from_secs(3));
 
     group.bench_function("lazy_columns_uncached", |bencher| {
+        let fixture = compliance_fcs();
         bencher.iter_batched(
-            || Fcs::open(COMPLIANCE_FCS).expect("reopen for cold cache"),
+            || Fcs::open(&fixture).expect("reopen for cold cache"),
             |fresh| {
                 // `columns()` returns `Vec<&[f32]>` borrowing from `fresh`, so
                 // the result can't be returned from this closure (it would
@@ -57,15 +63,17 @@ fn bench_full_materialization(c: &mut Criterion) {
     group.sample_size(20);
 
     group.bench_function("events_uncached", |bencher| {
+        let fixture = compliance_fcs();
         bencher.iter_batched(
-            || Fcs::open(COMPLIANCE_FCS).expect("reopen for cold cache"),
+            || Fcs::open(&fixture).expect("reopen for cold cache"),
             |fresh| black_box(fresh.events().expect("events")),
             criterion::BatchSize::LargeInput,
         );
     });
 
     group.bench_function("open_eager_baseline", |bencher| {
-        bencher.iter(|| black_box(Fcs::open(COMPLIANCE_FCS).expect("open")));
+        let fixture = compliance_fcs();
+        bencher.iter(|| black_box(Fcs::open(&fixture).expect("open")));
     });
 
     group.finish();

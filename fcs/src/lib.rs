@@ -24,6 +24,8 @@ pub(crate) mod columns;
 pub mod compress;
 pub mod conformance;
 pub mod crc;
+#[doc(hidden)]
+pub mod corpus;
 pub mod datatype;
 pub mod datetime;
 pub mod file;

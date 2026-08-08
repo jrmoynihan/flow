@@ -441,12 +441,12 @@ mod tests {
     #[test]
     #[ignore = "requires gates/Gating-ML.* compliance corpus"]
     fn real_fcs_round_trip_int10000() {
-        let path = "/Users/kfls271/Rust/flow-crates/gates/Gating-ML.v1.5.081030.Compliance-tests.081030/List-mode Data Files/int-10000_events_random.fcs";
-        if !std::path::Path::new(path).exists() {
+        let path = crate::corpus::path("int-10000_events_random.fcs");
+        if !path.exists() {
             eprintln!("compliance corpus file missing, skipping");
             return;
         }
-        let fcs = Fcs::open(path).expect("open compliance file");
+        let fcs = Fcs::open(path.to_str().expect("utf-8 corpus path")).expect("open compliance file");
         let tmp = TempDir::new().unwrap();
         let fcz_path = tmp.path().join("rt.fcz");
         fcs.write_fcz(&fcz_path, FczWriteOptions::default())

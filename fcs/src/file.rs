@@ -2986,8 +2986,9 @@ mod lazy_column_tests {
     use crate::{Header, Metadata, Parameter, TransformType, file::AccessWrapper, parameter::ParameterMap};
     use polars::{frame::DataFrame, prelude::Column};
 
-    const COMPLIANCE_FCS: &str =
-        "/Users/kfls271/Rust/flow-crates/gates/Gating-ML.v1.5.081030.Compliance-tests.081030/List-mode Data Files/int-10000_events_random.fcs";
+    fn compliance_fcs() -> std::path::PathBuf {
+        crate::corpus::path("int-10000_events_random.fcs")
+    }
 
     #[test]
     fn columns_returns_err_not_panic_when_cache_is_smaller_than_parameter_number() {
@@ -3032,7 +3033,7 @@ mod lazy_column_tests {
 
     #[test]
     fn column_matches_data_frame_oracle() {
-        let fcs = Fcs::open(COMPLIANCE_FCS).expect("open compliance fixture");
+        let fcs = Fcs::open(compliance_fcs().to_str().expect("utf-8 corpus path")).expect("open compliance fixture");
         let channel = fcs.get_parameter_names_from_dataframe()[0].clone();
 
         let lazy = fcs.column(&channel).expect("lazy column").to_vec();
@@ -3046,7 +3047,7 @@ mod lazy_column_tests {
 
     #[test]
     fn column_caches_after_first_access() {
-        let fcs = Fcs::open(COMPLIANCE_FCS).expect("open compliance fixture");
+        let fcs = Fcs::open(compliance_fcs().to_str().expect("utf-8 corpus path")).expect("open compliance fixture");
         let channel = fcs.get_parameter_names_from_dataframe()[0].clone();
 
         let first = fcs.column(&channel).expect("first access").as_ptr();
@@ -3056,7 +3057,7 @@ mod lazy_column_tests {
 
     #[test]
     fn columns_batch_matches_individual_column_calls() {
-        let fcs = Fcs::open(COMPLIANCE_FCS).expect("open compliance fixture");
+        let fcs = Fcs::open(compliance_fcs().to_str().expect("utf-8 corpus path")).expect("open compliance fixture");
         let names = fcs.get_parameter_names_from_dataframe();
         let (a, b) = (names[0].clone(), names[1].clone());
 
@@ -3070,7 +3071,7 @@ mod lazy_column_tests {
 
     #[test]
     fn columns_dedupes_repeated_channel_request() {
-        let fcs = Fcs::open(COMPLIANCE_FCS).expect("open compliance fixture");
+        let fcs = Fcs::open(compliance_fcs().to_str().expect("utf-8 corpus path")).expect("open compliance fixture");
         let channel = fcs.get_parameter_names_from_dataframe()[0].clone();
 
         let batch = fcs.columns(&[&channel, &channel]).expect("batch with duplicate channel");
@@ -3087,13 +3088,13 @@ mod lazy_column_tests {
 
     #[test]
     fn column_rejects_unknown_channel() {
-        let fcs = Fcs::open(COMPLIANCE_FCS).expect("open compliance fixture");
+        let fcs = Fcs::open(compliance_fcs().to_str().expect("utf-8 corpus path")).expect("open compliance fixture");
         assert!(fcs.column("NOT-A-REAL-CHANNEL").is_err());
     }
 
     #[test]
     fn events_matches_data_frame_oracle() {
-        let fcs = Fcs::open(COMPLIANCE_FCS).expect("open compliance fixture");
+        let fcs = Fcs::open(compliance_fcs().to_str().expect("utf-8 corpus path")).expect("open compliance fixture");
         let events_df = fcs.events().expect("events");
 
         assert_eq!(events_df.height(), fcs.data_frame.height());
@@ -3113,7 +3114,7 @@ mod lazy_column_tests {
 
     #[test]
     fn events_does_not_populate_the_column_cache() {
-        let fcs = Fcs::open(COMPLIANCE_FCS).expect("open compliance fixture");
+        let fcs = Fcs::open(compliance_fcs().to_str().expect("utf-8 corpus path")).expect("open compliance fixture");
         let _ = fcs.events().expect("events");
 
         assert!(
