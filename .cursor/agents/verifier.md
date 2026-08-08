@@ -31,8 +31,8 @@ When verifying completed work:
 ### 3. Test Functionality
 
 ```bash
-# Run tests
-cargo test
+# Run tests (nextest; use `cargo test --doc` for doctests)
+cargo nextest run
 
 # Check compilation
 cargo check

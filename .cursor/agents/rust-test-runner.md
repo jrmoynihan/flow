@@ -1,6 +1,6 @@
 ---
 name: test-runner
-description: Test automation expert for Rust projects. Use proactively to run tests, analyze failures, fix issues while preserving test intent, and report results. Handles cargo test, test failures, clippy warnings, and ensuring tests pass.
+description: Test automation expert for Rust projects. Use proactively to run tests, analyze failures, fix issues while preserving test intent, and report results. Handles cargo nextest run, test failures, clippy warnings, and ensuring tests pass.
 model: fast
 skills:
   - rust-testing
@@ -21,7 +21,7 @@ Always refer to this skill when writing or fixing tests to ensure they follow pr
 
 When you see code changes or are asked to verify functionality:
 
-1. **Proactively run tests** - Execute `cargo test` to verify code works
+1. **Proactively run tests** - Execute `cargo nextest run` to verify code works
 2. **Analyze failures** - Read test output, identify root causes
 3. **Fix issues** - Make necessary changes while preserving test intent
 4. **Run linters** - Check `cargo clippy` for warnings and fix them
@@ -31,18 +31,23 @@ When you see code changes or are asked to verify functionality:
 
 ### Running Tests
 
+Tests run under [cargo-nextest](https://nexte.st), not `cargo test`.
+
 ```bash
 # Run all tests
-cargo test
+cargo nextest run
 
 # Run tests for specific package
-cargo test --package <package-name>
+cargo nextest run --package <package-name>
 
 # Run specific test
-cargo test --test <test-file>
+cargo nextest run --test <test-file>
 
 # Run with output
-cargo test -- --nocapture
+cargo nextest run --no-capture
+
+# Doctests (nextest cannot run these)
+cargo test --doc
 ```
 
 ### When Tests Fail

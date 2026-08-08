@@ -28,7 +28,7 @@ license = "MIT"
 
 [workspace.metadata.scripts]
 build = "cargo build --workspace"
-test = "cargo test --workspace"
+test = "cargo nextest run --workspace"
 run = "cargo run --workspace"
 check = "cargo check --workspace"
 clippy = "cargo clippy --workspace"

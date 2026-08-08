@@ -30,7 +30,7 @@ The prompt you pass to the subagent must include:
 2. **Issue body (or a short summary)** – What was requested, steps to reproduce, or context.
 3. **Repo/workspace path** – The project path so the subagent knows where to work.
 4. **Acceptance criteria** – From the issue or inferred (checklists, "done when", requirements).
-5. **Explicit task in one sentence** – e.g. "Fix the failing test in `foo.rs` and ensure `cargo test` passes."
+5. **Explicit task in one sentence** – e.g. "Fix the failing test in `foo.rs` and ensure `cargo nextest run` passes."
 
 Rule: the subagent should be able to do the job without opening the issue again.
 

@@ -57,11 +57,11 @@ path = "examples/visualize_synthetic_data.rs"
 required-features = []
 
 [package.metadata.scripts]
-test-compliance     ="cargo test --test compliance_tests -- --ignored"
-test-compliance-list="cargo test --test compliance_tests -- --list"
-test-all            ="cargo test --all-features"
-test-unit           ="cargo test --lib"
-test-integration    ="cargo test --test '*'"
+test-compliance     ="cargo nextest run --test compliance_tests --run-ignored=only"
+test-compliance-list="cargo nextest list --test compliance_tests"
+test-all            ="cargo nextest run --all-features"
+test-unit           ="cargo nextest run --lib"
+test-integration    ="cargo nextest run --tests"
 dry-release         ="cargo smart-release flow-gates --update-crates-index"
 publish             ="cargo smart-release flow-gates --update-crates-index --execute"
 changelog           ="cargo changelog flow-gates --write"

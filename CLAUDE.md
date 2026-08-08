@@ -60,13 +60,21 @@ This protocol applies when ending a Beads implementation workflow. It is subordi
 
 ## Build & Test
 
-_Add your build and test commands here_
+Tests run under [cargo-nextest](https://nexte.st), not `cargo test`. Install it with
+`cargo install cargo-nextest --locked`; `cargo nt` is a workspace alias for
+`cargo nextest run`. Nextest does not run doctests, so those stay on the built-in
+harness.
 
 ```bash
-# Example:
-# npm install
-# npm test
+cargo check --workspace
+cargo nextest run --workspace --lib --bins
+cargo test --doc --workspace
+cargo clippy --workspace
 ```
+
+Repository nextest configuration lives in `.config/nextest.toml`. Use
+`cargo nextest run --profile ci` to run every test instead of stopping at the
+first failure.
 
 ## Architecture Overview
 

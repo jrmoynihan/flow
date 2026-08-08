@@ -68,7 +68,7 @@ harness = false
 required-features = ["cubecl"]
 
 [package.metadata.scripts]
-test       ="cargo test"
+test       ="cargo nextest run"
 dry-release="cargo smart-release flow-tru-ols --update-crates-index"
 publish    ="cargo smart-release flow-tru-ols --update-crates-index --execute"
 changelog  ="cargo changelog flow-tru-ols --write"

@@ -7,7 +7,7 @@ These subagents are available across all Rust projects. They provide specialized
 ### test-runner
 **Model**: fast
 
-Test automation expert. Proactively runs tests, analyzes failures, fixes issues while preserving test intent, and reports results. Handles `cargo test`, test failures, clippy warnings.
+Test automation expert. Proactively runs tests, analyzes failures, fixes issues while preserving test intent, and reports results. Handles `cargo nextest run`, test failures, clippy warnings.
 
 **Use when**: You need tests run, failures fixed, or code verified.
 

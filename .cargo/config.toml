@@ -1,0 +1,4 @@
+# Cargo cannot override the built-in `test` subcommand, so nextest gets its own
+# short alias instead. `cargo test --doc` remains the way to run doctests.
+[alias]
+nt = "nextest run"

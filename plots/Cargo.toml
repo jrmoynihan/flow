@@ -67,7 +67,7 @@ name   ="batch_density"
 harness=false
 
 [package.metadata.scripts]
-test       ="cargo test"
+test       ="cargo nextest run"
 dry-release="cargo smart-release flow-plots --update-crates-index"
 publish    ="cargo smart-release flow-plots --update-crates-index --execute"
 changelog  ="cargo changelog flow-plots --write"

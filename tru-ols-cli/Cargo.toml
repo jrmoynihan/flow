@@ -68,7 +68,7 @@ inquire="0.9"
 shellexpand="3.1.2"
 
 [package.metadata.scripts]
-test       ="cargo test"
+test       ="cargo nextest run"
 dry-release="cargo smart-release tru-ols --update-crates-index --no-dependencies"
 publish    ="cargo smart-release tru-ols --update-crates-index --no-dependencies --execute"
 changelog  ="cargo changelog tru-ols --write"

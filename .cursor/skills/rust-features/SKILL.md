@@ -238,7 +238,7 @@ cargo build --no-default-features
 cargo build --features "gpu,cuda"
 
 # Run tests with feature
-cargo test --features gpu
+cargo nextest run --features gpu
 
 # Run benchmarks with feature
 cargo bench --features gpu

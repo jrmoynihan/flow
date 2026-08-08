@@ -254,18 +254,30 @@ fn test_error_message() {
 
 ## Running Tests
 
+This project runs tests with [cargo-nextest](https://nexte.st) (`cargo install
+cargo-nextest --locked`). `cargo nt` is a workspace alias for `cargo nextest run`.
+
 ```bash
 # Run all tests
-cargo test
+cargo nextest run
 
 # Run specific test
-cargo test test_function_name
+cargo nextest run test_function_name
 
-# Run tests with output
-cargo test -- --nocapture
+# Run tests with output (implies serial execution)
+cargo nextest run --no-capture
 
 # Run tests in specific file
-cargo test --test integration_test
+cargo nextest run --test integration_test
+
+# Run ignored tests only
+cargo nextest run --run-ignored=only
+```
+
+Nextest does not run doctests, so those still use the built-in harness:
+
+```bash
+cargo test --doc
 ```
 
 ## Examples from Project

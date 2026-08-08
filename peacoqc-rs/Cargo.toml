@@ -70,7 +70,7 @@ name   ="peaks_alloc_micro"
 harness=false
 
 [package.metadata.scripts]
-test       ="cargo test"
+test       ="cargo nextest run"
 dry-release="cargo smart-release peacoqc-rs --update-crates-index"
 publish    ="cargo smart-release peacoqc-rs --update-crates-index --execute"
 changelog  ="cargo changelog peacoqc-rs --write"

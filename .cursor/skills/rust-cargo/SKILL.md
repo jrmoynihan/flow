@@ -151,21 +151,27 @@ cargo build --workspace
 
 ### Testing
 
+Tests run under [cargo-nextest](https://nexte.st), aliased to `cargo nt` in this
+workspace. Doctests are the one exception — nextest cannot run them.
+
 ```bash
 # Run all tests
-cargo test
+cargo nextest run
 
 # Run tests for specific package
-cargo test --package <package-name>
+cargo nextest run --package <package-name>
 
 # Run specific test
-cargo test test_name
+cargo nextest run test_name
 
 # Run tests with output
-cargo test -- --nocapture
+cargo nextest run --no-capture
 
 # Run tests with features
-cargo test --features <feature-name>
+cargo nextest run --features <feature-name>
+
+# Doctests (built-in harness)
+cargo test --doc
 ```
 
 ### Checking
@@ -256,7 +262,7 @@ cargo tree --invert -p <crate-name>
 ```toml
 [workspace.metadata.scripts]
 build = "cargo build --workspace"
-test = "cargo test --workspace"
+test = "cargo nextest run --workspace"
 check = "cargo check --workspace"
 clippy = "cargo clippy --workspace"
 fmt = "cargo fmt --workspace"

@@ -36,7 +36,7 @@ tempfile = { workspace = true }
 dialoguer="0.12"
 
 [package.metadata.scripts]
-test       ="cargo test"
+test       ="cargo nextest run"
 dry-release="cargo smart-release peacoqc-cli --update-crates-index"
 publish    ="cargo smart-release peacoqc-cli --update-crates-index --execute"
 changelog  ="cargo changelog peacoqc-cli --write"

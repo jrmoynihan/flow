@@ -48,7 +48,8 @@ After completing the code, ask the user if they want a playground link. Only cal
 
 ### Rust crates
 
-- Build/test commands: `cargo check --workspace`, `cargo test --workspace --lib --bins`, `cargo clippy --workspace`
+- Build/test commands: `cargo check --workspace`, `cargo nextest run --workspace --lib --bins`, `cargo clippy --workspace`
+- Tests run under [cargo-nextest](https://nexte.st), not `cargo test`. Install it with `cargo install cargo-nextest --locked`; `cargo nt` is a workspace alias for `cargo nextest run`. Nextest does not run doctests — use `cargo test --doc` for those.
 - The TRU-OLS CLI crate path is `tru-ols-cli/`; Cargo package name is `tru-ols` (`cargo run -p tru-ols`, `cargo check -p tru-ols`).
 - `peacoqc-rs` tests that use GPU/KDE (via WGPU/Vulkan) will fail in headless VMs without a GPU adapter. Use `--no-default-features --features flow-fcs` when running peacoqc-rs examples to skip GPU backend.
 - System deps `libfontconfig1-dev` and `pkg-config` are required by the `plotters` crate.
@@ -63,11 +64,12 @@ After completing the code, ask the user if they want a playground link. Only cal
 
 ### Running tests
 
-- `cargo test -p flow-fcs --lib` — 74 tests, all pass
-- `cargo test -p flow-plots --lib` — 2 tests, all pass
-- `cargo test -p flow-gates --lib` — 64 tests, all pass
-- `cargo test -p flow-tru-ols --lib` — 13 tests, all pass
-- `cargo test -p peacoqc-rs --lib` — some tests fail without GPU; non-GPU tests pass
+- `cargo nextest run -p flow-fcs --lib` — 74 tests, all pass
+- `cargo nextest run -p flow-plots --lib` — 2 tests, all pass
+- `cargo nextest run -p flow-gates --lib` — 64 tests, all pass
+- `cargo nextest run -p flow-tru-ols --lib` — 13 tests, all pass
+- `cargo nextest run -p peacoqc-rs --lib` — some tests fail without GPU; non-GPU tests pass
+- Doctests are not covered by nextest: `cargo test --doc --workspace`
 - Demo example: `cargo run -p peacoqc-rs --no-default-features --features flow-fcs --example demo_qc_plot`
 
 **Optional QC debug artifacts (local / CI when enabled)**

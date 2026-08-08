@@ -61,10 +61,18 @@ This workspace contains multiple crates for flow cytometry analysis:
 
 ## Building and Testing
 
+Tests run under [cargo-nextest](https://nexte.st) (`cargo install cargo-nextest --locked`).
+
 ```bash
 cargo check --workspace
-cargo test --workspace --lib --bins
+cargo nextest run --workspace --lib --bins
 cargo clippy --workspace
+```
+
+Nextest does not run doctests, so those stay on the built-in harness:
+
+```bash
+cargo test --doc --workspace
 ```
 
 ## License

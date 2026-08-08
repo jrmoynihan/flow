@@ -1,0 +1,14 @@
+# Repository configuration for cargo-nextest (https://nexte.st).
+#
+# Note that nextest does not run doctests; those still need `cargo test --doc`.
+
+[store]
+dir = "target/nextest"
+
+[profile.default]
+fail-fast = true
+
+# Selected with `cargo nextest run -P ci` (or NEXTEST_PROFILE=ci). CI wants the
+# full failure list in one run rather than stopping at the first one.
+[profile.ci]
+fail-fast = false
