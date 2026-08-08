@@ -193,7 +193,6 @@ mod tests {
     /// in `fcs/src/write.rs`'s existing bit-packed test.
     fn synthetic_metadata_2f32() -> Metadata {
         let mut metadata = Metadata::new();
-        metadata.delimiter = '\u{000c}';
         metadata
             .keywords
             .insert("$BYTEORD".to_string(), Keyword::Byte(ByteKeyword::BYTEORD(ByteOrder::LittleEndian)));
@@ -239,7 +238,6 @@ mod tests {
     /// distinguishable from the correct answer.
     fn synthetic_metadata_varying_widths() -> Metadata {
         let mut metadata = Metadata::new();
-        metadata.delimiter = '\u{000c}';
         metadata
             .keywords
             .insert("$BYTEORD".to_string(), Keyword::Byte(ByteKeyword::BYTEORD(ByteOrder::LittleEndian)));

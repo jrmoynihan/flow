@@ -1058,7 +1058,6 @@ mod offset_convergence_tests {
         );
 
         let mut metadata = Metadata::new();
-        metadata.delimiter = '\u{000c}';
         // Inflate TEXT so estimate_text_segment_size undershoots/overshoots.
         for i in 0..80 {
             metadata.insert_string_keyword(
@@ -1191,7 +1190,6 @@ mod offset_convergence_tests {
         // negative, and the leading `-` is a byte the serializer must account
         // for.
         let mut metadata = Metadata::new();
-        metadata.delimiter = '\u{000c}';
         metadata.insert_string_keyword("$BYTEORD".into(), "1,2,3,4".into());
         metadata.insert_string_keyword("$DATATYPE".into(), "F".into());
         metadata.insert_string_keyword("$MODE".into(), "L".into());
@@ -1291,7 +1289,6 @@ mod offset_convergence_tests {
         );
 
         let mut metadata = Metadata::new();
-        metadata.delimiter = '\u{000c}';
         metadata.insert_string_keyword("$BYTEORD".into(), "1,2,3,4".into());
         metadata.insert_string_keyword("$DATATYPE".into(), "F".into());
         metadata.insert_string_keyword("$MODE".into(), "L".into());
@@ -1381,7 +1378,6 @@ mod offset_convergence_tests {
         }
 
         let mut metadata = Metadata::new();
-        metadata.delimiter = '\u{000c}';
         metadata.keywords.insert(
             "$BYTEORD".to_string(),
             Keyword::Byte(ByteKeyword::BYTEORD(ByteOrder::LittleEndian)),
@@ -1393,7 +1389,6 @@ mod offset_convergence_tests {
         metadata.insert_string_keyword("$MODE".into(), "L".into());
         metadata.insert_string_keyword("$NEXTDATA".into(), "0".into());
         metadata.insert_string_keyword("$P1N".into(), "FL1-A".into());
-        metadata.insert_string_keyword("$P1S".into(), "".into());
         metadata
             .keywords
             .insert("$P1B".to_string(), Keyword::Int(IntegerKeyword::PnB(16)));
@@ -1477,7 +1472,6 @@ mod offset_convergence_tests {
         );
 
         let mut metadata = Metadata::new();
-        metadata.delimiter = '\u{000c}';
         metadata.keywords.insert(
             "$BYTEORD".to_string(),
             Keyword::Byte(ByteKeyword::BYTEORD(ByteOrder::LittleEndian)),
@@ -1612,7 +1606,6 @@ mod offset_convergence_tests {
         );
 
         let mut metadata = Metadata::new();
-        metadata.delimiter = '\u{000c}';
         metadata.keywords.insert(
             "$BYTEORD".to_string(),
             Keyword::Byte(ByteKeyword::BYTEORD(ByteOrder::LittleEndian)),
@@ -1714,7 +1707,6 @@ mod offset_convergence_tests {
 
         fn build_dataset_metadata(nextdata: usize) -> Metadata {
             let mut metadata = Metadata::new();
-            metadata.delimiter = '\u{000c}';
             metadata.keywords.insert(
                 "$BYTEORD".to_string(),
                 Keyword::Byte(ByteKeyword::BYTEORD(ByteOrder::LittleEndian)),
@@ -1726,7 +1718,6 @@ mod offset_convergence_tests {
             metadata.insert_string_keyword("$MODE".into(), "L".into());
             metadata.insert_string_keyword("$NEXTDATA".into(), nextdata.to_string());
             metadata.insert_string_keyword("$P1N".into(), "FSC-A".into());
-            metadata.insert_string_keyword("$P1S".into(), "".into());
             metadata
                 .keywords
                 .insert("$P1B".to_string(), Keyword::Int(IntegerKeyword::PnB(32)));
@@ -1847,7 +1838,6 @@ mod offset_convergence_tests {
 
         fn metadata_with_nextdata(nextdata: usize) -> Metadata {
             let mut metadata = Metadata::new();
-            metadata.delimiter = '\u{000c}';
             metadata.keywords.insert(
                 "$BYTEORD".to_string(),
                 Keyword::Byte(ByteKeyword::BYTEORD(ByteOrder::LittleEndian)),
@@ -1859,7 +1849,6 @@ mod offset_convergence_tests {
             metadata.insert_string_keyword("$MODE".into(), "L".into());
             metadata.insert_string_keyword("$NEXTDATA".into(), nextdata.to_string());
             metadata.insert_string_keyword("$P1N".into(), "FSC-A".into());
-            metadata.insert_string_keyword("$P1S".into(), String::new());
             metadata
                 .keywords
                 .insert("$P1B".to_string(), Keyword::Int(IntegerKeyword::PnB(32)));
@@ -2013,7 +2002,6 @@ mod offset_convergence_tests {
         let tmp = std::env::temp_dir().join("flow_fcs_other_segment_crc.fcs");
 
         let mut metadata = Metadata::new();
-        metadata.delimiter = '\u{000c}';
         metadata.keywords.insert(
             "$BYTEORD".to_string(),
             Keyword::Byte(ByteKeyword::BYTEORD(ByteOrder::LittleEndian)),
@@ -2024,7 +2012,6 @@ mod offset_convergence_tests {
         );
         metadata.insert_string_keyword("$MODE".into(), "L".into());
         metadata.insert_string_keyword("$P1N".into(), "FSC-A".into());
-        metadata.insert_string_keyword("$P1S".into(), String::new());
         metadata
             .keywords
             .insert("$P1B".to_string(), Keyword::Int(IntegerKeyword::PnB(32)));
@@ -2144,7 +2131,6 @@ mod conformance_on_write_tests {
         );
 
         let mut metadata = Metadata::new();
-        metadata.delimiter = '\u{000c}';
         for (key, value) in [
             ("$BEGINDATA", "0"),
             ("$BYTEORD", "1,2,3,4"),
@@ -2267,6 +2253,22 @@ mod conformance_on_write_tests {
         for version in [Version::V2_0, Version::V3_0, Version::V3_1, Version::V3_2] {
             let (mut fcs, stub) = v3_2_fcs(&format!("passthrough_{version}"));
             fcs.header.version = version;
+
+            // Pre-3.1 TEXT has no escape mechanism at all (`Escaping::for_version`
+            // maps V1_0/V2_0/V3_0 to `Escaping::None`), so a value containing the
+            // chosen delimiter has no legal encoding under those versions - this
+            // isn't a writer limitation to work around, it's the FCS 2.0/3.0
+            // format itself being unable to express it. `v3_2_fcs`'s
+            // `$CYT = "Test Cytometer"` contains a space, `Metadata::new()`'s
+            // default delimiter, so a conformant FCS 2.0/3.0 writer must choose
+            // a delimiter absent from every value (form feed appears in none of
+            // this fixture's keywords). The writer does not yet reject an
+            // unencodable pre-3.1 value/delimiter combination itself - given a
+            // space delimiter here it would silently corrupt TEXT instead of
+            // erroring; that gap is tracked as flow-crates-2s7.
+            if matches!(version, Version::V2_0 | Version::V3_0) {
+                fcs.metadata.delimiter = '\u{000c}';
+            }
 
             let out = std::env::temp_dir().join(format!("flow_fcs_version_{version}.fcs"));
             write_fcs_file(fcs, &out).expect("write");
