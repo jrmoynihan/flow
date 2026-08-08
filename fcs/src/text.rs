@@ -154,6 +154,44 @@ impl<'a> Iterator for TextFields<'a> {
     }
 }
 
+/// Append `text` to `out`, doubling any occurrence of `delimiter` when the
+/// version escapes. The key is escaped as well as the value: user-defined
+/// keywords are free-form and can contain the delimiter too.
+pub(crate) fn escape_into(out: &mut Vec<u8>, text: &str, delimiter: u8, escaping: Escaping) {
+    match escaping {
+        Escaping::None => out.extend_from_slice(text.as_bytes()),
+        Escaping::Doubled => {
+            for &byte in text.as_bytes() {
+                out.push(byte);
+                if byte == delimiter {
+                    out.push(byte);
+                }
+            }
+        }
+    }
+}
+
+/// The TEXT delimiter must be a single byte in ASCII 1-126.
+///
+/// NUL is excluded because it cannot be distinguished from padding, and
+/// anything at or above 127 is either DEL or the lead byte of a multi-byte
+/// UTF-8 sequence — neither is a single-byte delimiter, and `memchr` on a
+/// truncated lead byte would split mid-character.
+///
+/// # Errors
+/// Returns `Err` naming the rejected delimiter if it falls outside that range.
+pub(crate) fn validate_delimiter(delimiter: char) -> anyhow::Result<u8> {
+    let code = delimiter as u32;
+    if (1..=126).contains(&code) {
+        Ok(code as u8)
+    } else {
+        Err(anyhow::anyhow!(
+            "Invalid TEXT delimiter U+{code:04X}: must be a single ASCII byte in 1-126 \
+             (NUL and anything at or above DEL are not representable as a delimiter)"
+        ))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{Escaping, TextFields};
@@ -246,5 +284,50 @@ mod tests {
             fields("Comments||Row|2|", b'|', escaping),
             vec!["Comments", "", "Row", "2"]
         );
+    }
+
+    #[test]
+    fn escape_into_doubles_the_delimiter_only_under_doubled() {
+        let mut out = Vec::new();
+        super::escape_into(&mut out, "a|b", b'|', Escaping::Doubled);
+        assert_eq!(out, b"a||b");
+
+        let mut out = Vec::new();
+        super::escape_into(&mut out, "a|b", b'|', Escaping::None);
+        assert_eq!(out, b"a|b");
+    }
+
+    #[test]
+    fn escape_then_tokenize_round_trips() {
+        let mut body = Vec::new();
+        for (key, value) in [("$COM", "hello world"), ("$PAR", "2")] {
+            super::escape_into(&mut body, key, b' ', Escaping::Doubled);
+            body.push(b' ');
+            super::escape_into(&mut body, value, b' ', Escaping::Doubled);
+            body.push(b' ');
+        }
+        let got: Vec<String> = TextFields::new(&body, b' ', Escaping::Doubled)
+            .map(std::borrow::Cow::into_owned)
+            .collect();
+        assert_eq!(got, vec!["$COM", "hello world", "$PAR", "2"]);
+    }
+
+    #[test]
+    fn validate_delimiter_accepts_ascii_1_to_126() {
+        assert!(super::validate_delimiter('\u{0001}').is_ok());
+        assert!(super::validate_delimiter(' ').is_ok());
+        assert!(super::validate_delimiter('\u{000c}').is_ok());
+        assert!(super::validate_delimiter('~').is_ok());
+    }
+
+    #[test]
+    fn validate_delimiter_rejects_nul_and_out_of_range() {
+        for bad in ['\u{0000}', '\u{007f}', '\u{00e9}'] {
+            let err = super::validate_delimiter(bad).unwrap_err().to_string();
+            assert!(
+                err.contains("delimiter"),
+                "error should name the delimiter, got: {err}"
+            );
+        }
     }
 }

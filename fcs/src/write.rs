@@ -147,6 +147,7 @@ pub fn write_fcs_file_with(
         n_events,
         n_params,
         data_segment.len(),
+        fcs.header.version,
     )?;
 
     // Build header
@@ -569,6 +570,10 @@ pub(crate) struct FcsLayout {
 /// through a `$NEXTDATA` chain begin after the previous data set's DATA instead, since
 /// the 58-byte primary HEADER exists only once, at file start.
 ///
+/// `version` decides TEXT's escaping policy, which changes TEXT's length and
+/// therefore `$BEGINDATA` — the fixed-point loop absorbs that with no extra
+/// work, since it re-serializes until the offsets settle.
+///
 /// # Errors
 /// Returns `Err` if `data_len` is zero, if serialization fails, or if the offsets
 /// fail to settle within [`MAX_LAYOUT_PASSES`].
@@ -578,6 +583,7 @@ pub(crate) fn resolve_layout(
     n_events: usize,
     n_params: usize,
     data_len: usize,
+    version: Version,
 ) -> Result<FcsLayout> {
     if data_len == 0 {
         return Err(anyhow!("Cannot lay out an FCS file with an empty DATA segment"));
@@ -588,11 +594,13 @@ pub(crate) fn resolve_layout(
     // a few bytes even when one keyword is tens of KB. The previous heuristic assumed
     // a flat 50 bytes per keyword, which a 64x40 $TRUOLS_MIXMAT (~30 KB) missed by the
     // entire 30 KB, costing extra full passes over a large TEXT.
-    let mut data_start = text_start + serialize_metadata(metadata, n_events, n_params, 0, 0)?.len();
+    let mut data_start =
+        text_start + serialize_metadata(metadata, n_events, n_params, 0, 0, version)?.len();
     let mut data_end = data_start + data_len - 1;
 
     for _ in 0..MAX_LAYOUT_PASSES {
-        let text_segment = serialize_metadata(metadata, n_events, n_params, data_start, data_end)?;
+        let text_segment =
+            serialize_metadata(metadata, n_events, n_params, data_start, data_end, version)?;
         let text_end = text_start + text_segment.len() - 1;
         let next_data_start = text_end + 1;
         let next_data_end = next_data_start + data_len - 1;
@@ -624,16 +632,17 @@ pub(crate) fn serialize_metadata(
     n_params: usize,
     data_start: usize,
     data_end: usize,
+    version: Version,
 ) -> Result<Vec<u8>> {
-    let delimiter = metadata.delimiter as u8;
-    let mut text_segment = Vec::new();
+    let delimiter = crate::text::validate_delimiter(metadata.delimiter)?;
+    let escaping = crate::text::Escaping::for_version(version);
 
-    // Helper to add keyword-value pair
+    // Collect first, serialize second. Validation needs to see each value
+    // before any bytes are committed, and the closure below is `FnMut`, so it
+    // cannot both borrow `text_segment` mutably and be read from.
+    let mut pairs: Vec<(String, String)> = Vec::new();
     let mut add_keyword = |key: &str, value: &str| {
-        text_segment.push(delimiter);
-        text_segment.extend_from_slice(format!("${}", key).as_bytes());
-        text_segment.push(delimiter);
-        text_segment.extend_from_slice(value.as_bytes());
+        pairs.push((format!("${key}"), value.to_string()));
     };
 
     // Required keywords (order matters for FCS compatibility)
@@ -808,8 +817,24 @@ pub(crate) fn serialize_metadata(
         add_keyword(key_without_prefix, &value_str);
     }
 
-    // Add trailing delimiter after the last value to properly terminate the text segment
-    // The parser expects the text segment to end with a delimiter after the last value
+    let mut text_segment = Vec::new();
+    for (key, value) in &pairs {
+        if escaping == crate::text::Escaping::Doubled && value.is_empty() {
+            return Err(anyhow!(
+                "FCS {version} forbids empty keyword values, but {key} has one. \
+                 An empty value serializes to a doubled delimiter, which reads back \
+                 as one literal delimiter — silently corrupting every field after it. \
+                 Omit {key} instead of writing it with no value."
+            ));
+        }
+        text_segment.push(delimiter);
+        crate::text::escape_into(&mut text_segment, key, delimiter, escaping);
+        text_segment.push(delimiter);
+        crate::text::escape_into(&mut text_segment, value, delimiter, escaping);
+    }
+
+    // Trailing delimiter terminates the last value; the reader's tokenizer
+    // expects it.
     text_segment.push(delimiter);
 
     Ok(text_segment)
@@ -1189,7 +1214,7 @@ mod offset_convergence_tests {
             }),
         );
 
-        let layout = resolve_layout(&metadata, HEADER_SIZE, n_events, n_params, data_len)
+        let layout = resolve_layout(&metadata, HEADER_SIZE, n_events, n_params, data_len, Version::V3_1)
             .expect("30 KB keyword must not defeat layout resolution");
 
         assert_eq!(layout.text_start, HEADER_SIZE);
@@ -1219,6 +1244,7 @@ mod offset_convergence_tests {
             n_params,
             layout.data_start,
             layout.data_end,
+            Version::V3_1,
         )
         .expect("reserialize");
         assert_eq!(
@@ -1375,8 +1401,8 @@ mod offset_convergence_tests {
             .keywords
             .insert("$P1R".to_string(), Keyword::Int(IntegerKeyword::PnR(1024)));
 
-        let layout =
-            resolve_layout(&metadata, HEADER_SIZE, n_events, 1, data_bytes.len()).expect("layout");
+        let layout = resolve_layout(&metadata, HEADER_SIZE, n_events, 1, data_bytes.len(), Version::V3_1)
+            .expect("layout");
         let FcsLayout {
             text_segment,
             text_start,
@@ -1493,7 +1519,7 @@ mod offset_convergence_tests {
             text_end,
             data_start,
             data_end,
-        } = resolve_layout(&metadata, HEADER_SIZE, n_events, n_params, data_bytes.len())
+        } = resolve_layout(&metadata, HEADER_SIZE, n_events, n_params, data_bytes.len(), Version::V3_1)
             .expect("layout");
 
         let header =
@@ -1632,7 +1658,7 @@ mod offset_convergence_tests {
             text_end,
             data_start,
             data_end,
-        } = resolve_layout(&metadata, text_start, n_events, n_params, data_bytes.len())
+        } = resolve_layout(&metadata, text_start, n_events, n_params, data_bytes.len(), Version::V3_1)
             .expect("layout");
 
         let header =
@@ -1731,7 +1757,7 @@ mod offset_convergence_tests {
                 data_start,
                 data_end,
                 ..
-            } = resolve_layout(metadata, text_start, n_events, n_params, data_bytes.len())
+            } = resolve_layout(metadata, text_start, n_events, n_params, data_bytes.len(), Version::V3_1)
                 .expect("layout");
             (text_segment, text_end, data_start, data_end)
         }
@@ -1858,7 +1884,7 @@ mod offset_convergence_tests {
                 data_start,
                 data_end,
                 ..
-            } = resolve_layout(&metadata, HEADER_SIZE, values.len(), 1, data_bytes.len())
+            } = resolve_layout(&metadata, HEADER_SIZE, values.len(), 1, data_bytes.len(), Version::V3_1)
                 .expect("layout");
 
             let mut bytes =
@@ -2022,7 +2048,7 @@ mod offset_convergence_tests {
             data_start,
             data_end,
             ..
-        } = resolve_layout(&metadata, text_start, values.len(), 1, data_bytes.len())
+        } = resolve_layout(&metadata, text_start, values.len(), 1, data_bytes.len(), Version::V3_1)
             .expect("layout");
 
         // Opens with eight ASCII digits on purpose. A CRC range that stops at
@@ -2372,5 +2398,163 @@ mod conformance_on_write_tests {
 
         let _ = std::fs::remove_file(&out);
         let _ = std::fs::remove_file(&stub);
+    }
+}
+
+#[cfg(test)]
+mod delimiter_escaping_write_tests {
+    use super::*;
+    use crate::keyword::{IntegerKeyword, Keyword, MixedKeyword, StringableKeyword};
+    use crate::version::Version;
+    use crate::{Header, Metadata, Parameter, TransformType, file::AccessWrapper, parameter::ParameterMap};
+    use polars::prelude::Column;
+    use std::sync::Arc;
+
+    /// One-event, one-parameter FCS whose `$CYT` carries `cyt_value`, written
+    /// under `version` with `delimiter`.
+    ///
+    /// `$CYT` is the carrier rather than `$COM` because `$COM` is not a
+    /// recognized `StringKeyword` variant — `parse_string_keywords` returns
+    /// `None` for it and the reader drops it, so it could never round-trip
+    /// regardless of escaping. `$CYT` is FCS 1.0+, required from 3.2 on, and
+    /// real cytometer names ("BD LSRFortessa X-20") contain spaces, which is
+    /// exactly this bug's blast radius.
+    ///
+    /// Mirrors the fixture idiom of `write_fcs_header_and_text_data_offsets_agree`,
+    /// including `$PnE` — that test is the proof this keyword set satisfies
+    /// `enforce_conformance` for V3_1, since `serialize_metadata` synthesizes
+    /// `$PAR`/`$TOT`/`$BEGIN*`/`$END*` itself.
+    fn fixture(version: Version, delimiter: char, cyt_value: &str) -> (Fcs, tempfile::TempDir) {
+        let tmp = tempfile::TempDir::new().expect("tempdir");
+        let stub = tmp.path().join("src.tmp");
+        std::fs::write(&stub, b"x").expect("stub");
+
+        let df = DataFrame::new_infer_height(vec![Column::new("FSC-A".into(), vec![1.0f32])])
+            .expect("df");
+        let mut params = ParameterMap::default();
+        params.insert(
+            "FSC-A".into(),
+            Parameter::new(&1, "FSC-A", "FSC-A", &TransformType::Linear),
+        );
+
+        let mut metadata = Metadata::new();
+        metadata.delimiter = delimiter;
+        metadata.insert_string_keyword("$BYTEORD".into(), "1,2,3,4".into());
+        metadata.insert_string_keyword("$DATATYPE".into(), "F".into());
+        metadata.insert_string_keyword("$MODE".into(), "L".into());
+        metadata.insert_string_keyword("$NEXTDATA".into(), "0".into());
+        metadata.insert_string_keyword("$P1N".into(), "FSC-A".into());
+        metadata.insert_string_keyword("$CYT".into(), cyt_value.into());
+        metadata.keywords.insert("$P1B".into(), Keyword::Int(IntegerKeyword::PnB(32)));
+        metadata.keywords.insert("$P1R".into(), Keyword::Int(IntegerKeyword::PnR(262144)));
+        metadata.keywords.insert("$P1E".into(), Keyword::Mixed(MixedKeyword::PnE(0.0, 0.0)));
+
+        let mut header = Header::new();
+        header.version = version;
+
+        let fcs = Fcs::for_testing(
+            header,
+            metadata,
+            params,
+            Arc::new(df),
+            AccessWrapper::new(stub.to_str().expect("utf-8")).expect("access"),
+        );
+        (fcs, tmp)
+    }
+
+    /// `get_string_keyword` is an exact hashmap lookup with no `$`
+    /// normalization, and the reader stores keys verbatim — so the written
+    /// `$CYT` reads back under the key `$CYT`, not `CYT`.
+    fn read_cyt(fcs: &Fcs) -> String {
+        fcs.metadata
+            .get_string_keyword("$CYT")
+            .expect("$CYT present")
+            .get_str()
+            .into_owned()
+    }
+
+    #[test]
+    fn value_containing_the_space_delimiter_round_trips() {
+        let (fcs, tmp) = fixture(Version::V3_1, ' ', "BD LSRFortessa X-20");
+        let out = tmp.path().join("rt.fcs");
+        write_fcs_file(fcs, &out).expect("write");
+
+        let read_back = Fcs::open(out.to_str().expect("utf-8")).expect("reopen");
+        assert_eq!(
+            read_cyt(&read_back),
+            "BD LSRFortessa X-20",
+            "a value containing the active delimiter must survive the round trip intact"
+        );
+    }
+
+    #[test]
+    fn value_containing_the_comma_delimiter_round_trips() {
+        let (fcs, tmp) = fixture(Version::V3_1, ',', "a,b,c");
+        let out = tmp.path().join("rt.fcs");
+        write_fcs_file(fcs, &out).expect("write");
+
+        let read_back = Fcs::open(out.to_str().expect("utf-8")).expect("reopen");
+        assert_eq!(read_cyt(&read_back), "a,b,c");
+    }
+
+    #[test]
+    fn value_containing_the_form_feed_delimiter_round_trips() {
+        let (fcs, tmp) = fixture(Version::V3_1, '\u{000c}', "a\u{000c}b");
+        let out = tmp.path().join("rt.fcs");
+        write_fcs_file(fcs, &out).expect("write");
+
+        let read_back = Fcs::open(out.to_str().expect("utf-8")).expect("reopen");
+        assert_eq!(read_cyt(&read_back), "a\u{000c}b");
+    }
+
+    #[test]
+    fn keywords_after_an_escaped_value_are_not_shifted() {
+        // The whole point: a truncated value used to desynchronize everything
+        // after it. $CYT sorts before $DATATYPE, $MODE, $P1N and the rest, so
+        // a shift here corrupts every remaining keyword.
+        let (fcs, tmp) = fixture(Version::V3_1, ' ', "one two three four");
+        let out = tmp.path().join("rt.fcs");
+        write_fcs_file(fcs, &out).expect("write");
+
+        let read_back = Fcs::open(out.to_str().expect("utf-8")).expect("reopen");
+        assert_eq!(
+            read_back.metadata.get_string_keyword("$P1N").expect("$P1N").get_str(),
+            "FSC-A"
+        );
+        assert_eq!(*read_back.metadata.get_number_of_parameters().expect("$PAR"), 1);
+        assert_eq!(*read_back.metadata.get_number_of_events().expect("$TOT"), 1);
+    }
+
+    #[test]
+    fn empty_value_is_an_error_under_v3_1_and_names_the_keyword() {
+        let (fcs, tmp) = fixture(Version::V3_1, ' ', "");
+        let out = tmp.path().join("rt.fcs");
+        let err = write_fcs_file(fcs, &out).unwrap_err().to_string();
+        assert!(
+            err.contains("$CYT"),
+            "the error must name the offending keyword, got: {err}"
+        );
+        assert!(
+            err.contains("empty"),
+            "the error must say the value is empty, got: {err}"
+        );
+    }
+
+    #[test]
+    fn empty_value_is_allowed_under_v2_0() {
+        let (fcs, tmp) = fixture(Version::V2_0, ' ', "");
+        let out = tmp.path().join("rt.fcs");
+        write_fcs_file(fcs, &out).expect("FCS2.0 permits empty keyword values");
+    }
+
+    #[test]
+    fn out_of_range_delimiter_is_rejected() {
+        let (fcs, tmp) = fixture(Version::V3_1, '\u{0000}', "x");
+        let out = tmp.path().join("rt.fcs");
+        let err = write_fcs_file(fcs, &out).unwrap_err().to_string();
+        assert!(
+            err.contains("delimiter"),
+            "the error must name the delimiter, got: {err}"
+        );
     }
 }

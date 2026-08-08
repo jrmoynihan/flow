@@ -166,6 +166,7 @@ impl Fcs {
             n_events,
             n_params,
             data_segment.len(),
+            self.header.version,
         )
             .map_err(|e| anyhow!("resolve_layout: {e}"))?;
         let header = crate::write::build_header(
