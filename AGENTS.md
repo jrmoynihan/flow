@@ -64,10 +64,10 @@ After completing the code, ask the user if they want a playground link. Only cal
 
 ### Running tests
 
-- `cargo nextest run -p flow-fcs --lib` — 74 tests, all pass
-- `cargo nextest run -p flow-plots --lib` — 2 tests, all pass
-- `cargo nextest run -p flow-gates --lib` — 64 tests, all pass
-- `cargo nextest run -p flow-tru-ols --lib` — 13 tests, all pass
+- `cargo nextest run -p flow-fcs --lib` — 195 tests, all pass
+- `cargo nextest run -p flow-plots --lib` — 17 tests, all pass
+- `cargo nextest run -p flow-gates --lib` — 112 tests, all pass
+- `cargo nextest run -p flow-tru-ols --lib` — 42 tests, all pass
 - `cargo nextest run -p peacoqc-rs --lib` — some tests fail without GPU; non-GPU tests pass
 - Doctests are not covered by nextest: `cargo test --doc --workspace`
 - Demo example: `cargo run -p peacoqc-rs --no-default-features --features flow-fcs --example demo_qc_plot`
