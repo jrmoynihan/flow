@@ -81,117 +81,37 @@ impl Metadata {
         // Read the text content, SKIPping the first byte, which is the delimiter (used above)
         let text_slice = &mmap[(*text_range.start() + 1)..=*text_range.end()];
 
-        // Extract keyword value pairs using memchr for fast delimiter finding
         let mut keywords: KeywordMap = FxHashMap::default();
+        let mut fields = crate::text::TextFields::new(
+            text_slice,
+            delimiter,
+            crate::text::Escaping::None,
+        );
 
-        // Find all delimiter positions using SIMD-accelerated search
-        // This is 5-10x faster than manual iteration
-        let delimiter_positions: Vec<usize> = memchr::memchr_iter(delimiter, text_slice).collect();
-
-        // Parse keyword-value pairs
-        // FCS format: |KEY1|VALUE1|KEY2|VALUE2|...
-        // delimiter_positions gives us the split points
-        let mut prev_pos = 0;
-        let mut is_keyword = true;
-        let mut current_key = String::new();
-
-        for &pos in &delimiter_positions {
-            // Extract the slice between delimiters
-            let segment = &text_slice[prev_pos..pos];
-
-            // SAFETY: FCS spec requires TEXT segment to be ASCII/UTF-8
-            let text = std::str::from_utf8(segment).unwrap_or_default();
-
-            if is_keyword {
-                // This is a keyword
-                current_key = text.to_string();
-                is_keyword = false;
-            } else {
-                // This is a value - parse and store the keyword-value pair
-                if !current_key.is_empty() {
-                    // Preserve key as-is: FCS spec reserves $ for standard keywords only.
-                    // User-defined keywords (e.g. "Tissue") must not gain a $ prefix.
-                    let normalized_key = current_key.clone();
-
-                    match match_and_parse_keyword(&current_key, text) {
-                        KeywordCreationResult::Int(int_keyword) => {
-                            keywords.insert(normalized_key.clone(), Keyword::Int(int_keyword));
-                        }
-                        KeywordCreationResult::Float(float_keyword) => {
-                            keywords.insert(normalized_key.clone(), Keyword::Float(float_keyword));
-                        }
-                        KeywordCreationResult::String(string_keyword) => {
-                            keywords
-                                .insert(normalized_key.clone(), Keyword::String(string_keyword));
-                        }
-                        KeywordCreationResult::Byte(byte_keyword) => {
-                            keywords.insert(normalized_key.clone(), Keyword::Byte(byte_keyword));
-                        }
-                        KeywordCreationResult::Mixed(mixed_keyword) => {
-                            keywords.insert(normalized_key.clone(), Keyword::Mixed(mixed_keyword));
-                        }
-                        KeywordCreationResult::UnableToParse => {
-                            tracing::debug!(
-                                "Unable to parse keyword: {} with value: {}",
-                                current_key, text
-                            );
-                        }
-                    }
-                }
-                current_key.clear();
-                is_keyword = true;
+        while let Some(key) = fields.next() {
+            let Some(value) = fields.next() else {
+                // A keyword with no value at the end of TEXT. Invalid FCS, but
+                // observed; drop it as the previous implementation did.
+                tracing::debug!(
+                    "Warning: Keyword '{}' at end of text segment ({:?}) has no value",
+                    key, text_range
+                );
+                break;
+            };
+            if key.is_empty() {
+                continue;
             }
-
-            prev_pos = pos + 1;
-        }
-
-        // Handle the segment after the last delimiter (if any)
-        if prev_pos < text_slice.len() {
-            let segment = &text_slice[prev_pos..];
-            let text = std::str::from_utf8(segment).unwrap_or_default();
-
-            if !text.is_empty() {
-                if is_keyword {
-                    // This is a keyword without a value - shouldn't happen in valid FCS files
-                    tracing::debug!(
-                        "Warning: Keyword '{}' at end of text segment ({:?}) has no value",
-                        text, text_range
-                    );
-                } else {
-                    // This is a value - store the keyword-value pair
-                    if !current_key.is_empty() {
-                        let normalized_key = current_key.clone();
-
-                        match match_and_parse_keyword(&current_key, text) {
-                            KeywordCreationResult::Int(int_keyword) => {
-                                keywords.insert(normalized_key.clone(), Keyword::Int(int_keyword));
-                            }
-                            KeywordCreationResult::Float(float_keyword) => {
-                                keywords
-                                    .insert(normalized_key.clone(), Keyword::Float(float_keyword));
-                            }
-                            KeywordCreationResult::String(string_keyword) => {
-                                keywords.insert(
-                                    normalized_key.clone(),
-                                    Keyword::String(string_keyword),
-                                );
-                            }
-                            KeywordCreationResult::Byte(byte_keyword) => {
-                                keywords
-                                    .insert(normalized_key.clone(), Keyword::Byte(byte_keyword));
-                            }
-                            KeywordCreationResult::Mixed(mixed_keyword) => {
-                                keywords
-                                    .insert(normalized_key.clone(), Keyword::Mixed(mixed_keyword));
-                            }
-                            KeywordCreationResult::UnableToParse => {
-                                tracing::debug!(
-                                    "Unable to parse keyword: {} with value: {}",
-                                    current_key, text
-                                );
-                            }
-                        }
-                    }
+            // Preserve key as-is: FCS spec reserves $ for standard keywords only.
+            // User-defined keywords (e.g. "Tissue") must not gain a $ prefix.
+            let normalized_key = key.to_string();
+            match match_and_parse_keyword(&key, &value) {
+                KeywordCreationResult::Int(k) => { keywords.insert(normalized_key, Keyword::Int(k)); }
+                KeywordCreationResult::Float(k) => { keywords.insert(normalized_key, Keyword::Float(k)); }
+                KeywordCreationResult::String(k) => { keywords.insert(normalized_key, Keyword::String(k)); }
+                KeywordCreationResult::Byte(k) => { keywords.insert(normalized_key, Keyword::Byte(k)); }
+                KeywordCreationResult::Mixed(k) => { keywords.insert(normalized_key, Keyword::Mixed(k)); }
+                KeywordCreationResult::UnableToParse => {
+                    tracing::debug!("Unable to parse keyword: {} with value: {}", key, value);
                 }
             }
         }

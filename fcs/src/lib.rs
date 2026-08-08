@@ -35,6 +35,7 @@ pub mod matrix;
 pub mod metadata;
 pub mod parameter;
 mod tests;
+pub(crate) mod text;
 pub mod transform;
 pub mod upgrade;
 pub mod version;

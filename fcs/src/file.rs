@@ -884,10 +884,10 @@ impl Fcs {
     /// Scans a TEXT segment starting at `text_start`, stopping as soon as `$BEGINDATA`'s
     /// value is found, and returns that value.
     ///
-    /// Mirrors `Metadata::from_mmap`'s delimiter-tokenization exactly (same
-    /// keyword/value alternation), but stops at the first match instead of tokenizing
-    /// the whole segment, since the segment's end isn't known yet — that's the value
-    /// this function exists to find.
+    /// Shares `crate::text::TextFields` with `Metadata::from_text_segment`, so the two
+    /// cannot drift, but stops at the first match instead of tokenizing the whole
+    /// segment — the segment's end isn't known yet, which is the value this function
+    /// exists to find.
     ///
     /// # Errors
     /// Will return `Err` if `$BEGINDATA` is not found before the end of the mmap, or its
@@ -896,26 +896,19 @@ impl Fcs {
         let delimiter = mmap[text_start];
         let rest = &mmap[(text_start + 1)..];
 
-        let mut prev_pos = 0;
-        let mut is_keyword = true;
-        let mut current_key = String::new();
+        let mut fields = crate::text::TextFields::new(
+            rest,
+            delimiter,
+            crate::text::Escaping::None,
+        );
 
-        for pos in memchr::memchr_iter(delimiter, rest) {
-            let segment = &rest[prev_pos..pos];
-            let text = std::str::from_utf8(segment).unwrap_or_default();
-
-            if is_keyword {
-                current_key = text.to_string();
-            } else {
-                if current_key.eq_ignore_ascii_case("$BEGINDATA") {
-                    return text.trim().parse::<usize>().with_context(|| {
-                        format!("Invalid $BEGINDATA value '{text}' while scanning for next dataset's TEXT boundary")
-                    });
-                }
-                current_key.clear();
+        while let Some(key) = fields.next() {
+            let Some(value) = fields.next() else { break };
+            if key.eq_ignore_ascii_case("$BEGINDATA") {
+                return value.trim().parse::<usize>().with_context(|| {
+                    format!("Invalid $BEGINDATA value '{value}' while scanning for next dataset's TEXT boundary")
+                });
             }
-            is_keyword = !is_keyword;
-            prev_pos = pos + 1;
         }
 
         Err(anyhow!(
