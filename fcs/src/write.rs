@@ -647,6 +647,22 @@ pub(crate) fn serialize_metadata(
 
     // Required keywords (order matters for FCS compatibility)
     // Write these first, then metadata keywords will be added (some may overwrite these)
+    //
+    // Emitting this whole block of synthesized, digit-only keywords ahead of
+    // the user-keyword loop below is load-bearing, not just tidy:
+    // `Fcs::find_begindata_offset` scans a headerless data set's TEXT
+    // linearly and early-stops the instant it reads "$BEGINDATA", so placing
+    // $BEGINDATA (and its five siblings here) before any user keyword is
+    // what bounds how much user-controlled (and therefore possibly
+    // delimiter-escaped) text that scan ever has to tokenize. The order
+    // *among* these six calls does not matter for that guarantee — every
+    // value here is digit-only, so none of them can carry an escaped
+    // delimiter regardless of how they're arranged relative to each other.
+    // What must not change is that all six precede the user-keyword loop: a
+    // file produced by this writer can never itself exercise the case where
+    // an escaped value precedes $BEGINDATA — see `fcs/src/file.rs`'s
+    // `nextdata_escaping_tests` module for a hand-assembled TEXT segment that
+    // does.
     add_keyword("BEGINANALYSIS", "0");
     add_keyword("ENDANALYSIS", "0");
     add_keyword("BEGINSTEXT", "0");
@@ -1705,92 +1721,12 @@ mod offset_convergence_tests {
     fn open_all_traverses_nextdata_chain_across_two_datasets() {
         let tmp = std::env::temp_dir().join("flow_fcs_nextdata_chain.fcs");
 
-        fn build_dataset_metadata(nextdata: usize) -> Metadata {
-            let mut metadata = Metadata::new();
-            metadata.keywords.insert(
-                "$BYTEORD".to_string(),
-                Keyword::Byte(ByteKeyword::BYTEORD(ByteOrder::LittleEndian)),
-            );
-            metadata.keywords.insert(
-                "$DATATYPE".to_string(),
-                Keyword::Byte(ByteKeyword::DATATYPE(crate::datatype::FcsDataType::F)),
-            );
-            metadata.insert_string_keyword("$MODE".into(), "L".into());
-            metadata.insert_string_keyword("$NEXTDATA".into(), nextdata.to_string());
-            metadata.insert_string_keyword("$P1N".into(), "FSC-A".into());
-            metadata
-                .keywords
-                .insert("$P1B".to_string(), Keyword::Int(IntegerKeyword::PnB(32)));
-            metadata.keywords.insert(
-                "$P1R".to_string(),
-                Keyword::Int(IntegerKeyword::PnR(262_144)),
-            );
-            metadata
-                .keywords
-                .insert("$P1E".to_string(), Keyword::Mixed(MixedKeyword::PnE(0.0, 0.0)));
-            metadata
-        }
-
-        /// Converge TEXT/DATA offsets for a dataset whose TEXT starts at `text_start`.
-        /// Chained datasets do not start at [`HEADER_SIZE`] — the 58-byte primary
-        /// HEADER exists only once, at file start — which is why `resolve_layout`
-        /// takes `text_start` rather than assuming it.
-        fn build_dataset_bytes(
-            metadata: &Metadata,
-            text_start: usize,
-            n_events: usize,
-            n_params: usize,
-            data_bytes: &[u8],
-        ) -> (Vec<u8>, usize, usize, usize) {
-            let FcsLayout {
-                text_segment,
-                text_end,
-                data_start,
-                data_end,
-                ..
-            } = resolve_layout(metadata, text_start, n_events, n_params, data_bytes.len(), Version::V3_1)
-                .expect("layout");
-            (text_segment, text_end, data_start, data_end)
-        }
-
-        let n_events = 3usize;
+        // Fixture is shared with `file::nextdata_escaping_tests`
+        // (flow-crates-1xb) — see `crate::tests::write_two_dataset_fixture` for
+        // the exact layout and the fixed event values asserted below.
         let dataset1_values: [f32; 3] = [1.0, 2.0, 3.0];
         let dataset2_values: [f32; 3] = [10.0, 20.0, 30.0];
-        let data_bytes1 = serialize_f32_columns(&[&dataset1_values], true).expect("data1");
-        let data_bytes2 = serialize_f32_columns(&[&dataset2_values], true).expect("data2");
-
-        let text_start1 = 58usize;
-
-        // Converge dataset 1's own TEXT/DATA layout AND the file offset where dataset 2's
-        // TEXT begins ($NEXTDATA) together: changing $NEXTDATA's digit count changes
-        // dataset 1's TEXT length, which shifts where dataset 2 starts.
-        let mut next_data_guess = text_start1 + data_bytes1.len() * 2; // arbitrary seed
-        let (text_segment1, _text_end1, data_start1, data_end1) = loop {
-            let metadata1 = build_dataset_metadata(next_data_guess);
-            let (text_segment1, text_end1, data_start1, data_end1) =
-                build_dataset_bytes(&metadata1, text_start1, n_events, 1, &data_bytes1);
-            let actual_next_data = data_end1 + 1;
-            if actual_next_data == next_data_guess {
-                break (text_segment1, text_end1, data_start1, data_end1);
-            }
-            next_data_guess = actual_next_data;
-        };
-        let text_start2 = data_end1 + 1;
-
-        let metadata2 = build_dataset_metadata(0);
-        let (text_segment2, _text_end2, _data_start2, data_end2) =
-            build_dataset_bytes(&metadata2, text_start2, n_events, 1, &data_bytes2);
-
-        let header = build_header(&Version::V3_1, text_start1, data_start1 - 1, data_start1, data_end1)
-            .expect("header");
-
-        let mut bytes = header;
-        bytes.extend_from_slice(&text_segment1);
-        bytes.extend_from_slice(&data_bytes1);
-        bytes.extend_from_slice(&text_segment2);
-        bytes.extend_from_slice(&data_bytes2);
-        assert_eq!(bytes.len(), data_end2 + 1);
-        std::fs::write(&tmp, &bytes).expect("write fcs bytes");
+        crate::tests::write_two_dataset_fixture(&tmp, Version::V3_1, "test cytometer");
 
         // open() must still return only dataset 1 — the zero-cost, unchanged default.
         let first_only = Fcs::open(tmp.to_str().unwrap()).expect("open first dataset");

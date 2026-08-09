@@ -3157,3 +3157,258 @@ mod compensation_method_tests {
         }
     }
 }
+
+#[cfg(test)]
+mod nextdata_escaping_tests {
+    use crate::file::Fcs;
+    use crate::tests::write_two_dataset_fixture;
+    use crate::version::Version;
+
+    /// A two-data-set file whose *first* data set carries a `$CYT` containing
+    /// the active delimiter. This is an end-to-end round-trip check, not a
+    /// `find_begindata_offset` regression lock: data set 1 has a real HEADER,
+    /// so its TEXT is parsed by `Metadata::from_text_segment` and never
+    /// reaches `find_begindata_offset` at all — that function only ever scans
+    /// the *headerless* data set's own TEXT (see `header_for_dataset_at`,
+    /// which passes it that data set's own `dataset_start`). What this test
+    /// does confirm is that an escaped value in one data set of a
+    /// `$NEXTDATA` chain round-trips correctly and does not disturb reading
+    /// the data set(s) after it. For a test that actually pins
+    /// `find_begindata_offset`'s escaping policy, see
+    /// `begindata_scan_treats_a_legal_empty_value_as_none_escaped` below.
+    #[test]
+    fn nextdata_chain_survives_an_escaped_delimiter_in_dataset_one() {
+        use crate::keyword::StringableKeyword;
+
+        let tmp = tempfile::TempDir::new().expect("tempdir");
+        let path = tmp.path().join("chain.fcs");
+
+        // Build a two-data-set FCS3.1 file. Data set 1's $CYT contains the
+        // space delimiter; data set 2 is plain.
+        write_two_dataset_fixture(&path, Version::V3_1, "BD LSRFortessa X-20");
+
+        let datasets = Fcs::open_all(path.to_str().expect("utf-8")).expect("open_all");
+        assert_eq!(datasets.len(), 2, "both data sets must be reachable");
+
+        assert_eq!(
+            datasets[0]
+                .metadata
+                .get_string_keyword("$CYT")
+                .expect("$CYT")
+                .get_str(),
+            "BD LSRFortessa X-20",
+            "data set 1's escaped value must round-trip"
+        );
+        assert_eq!(
+            datasets[1]
+                .get_parameter_events_slice("FSC-A")
+                .expect("dataset 2 FSC-A column"),
+            [10.0f32, 20.0, 30.0].as_slice(),
+            "data set 2 must decode its actual DATA bytes — a wrong DATA \
+             offset (or padding/truncation) can still produce a frame of the \
+             right height, so the values themselves must be checked"
+        );
+    }
+
+    /// Pins `Fcs::find_begindata_offset`'s escaping policy directly, on the
+    /// *only* direction that can actually desynchronize its scan.
+    ///
+    /// A single mis-escaped *value* read in the "too permissive" direction —
+    /// correctly `Doubled` TEXT read as `None` — can never move `$BEGINDATA`
+    /// out of alignment. Under `escape_into`'s doubling scheme, every run of
+    /// consecutive delimiter bytes inside an escaped value is either:
+    ///   - **field-terminating**: a run that `Doubled` treats as N/2 escaped
+    ///     delimiters followed by one real field boundary is, by
+    ///     construction, odd in length (2k+1 bytes: k escaped pairs plus the
+    ///     terminating byte). Splitting that same odd-length run into
+    ///     one-byte boundaries under `None` produces (2k+1) boundaries where
+    ///     `Doubled` produced 1, i.e. 2k extra empty fields — always even; or
+    ///   - **internal (non-terminating)**: a run that `Doubled` treats as
+    ///     purely escaped delimiters with no field boundary at all is, by
+    ///     construction, even in length (2k bytes: k escaped pairs).
+    ///     Splitting that run under `None` produces 2k boundaries where
+    ///     `Doubled` produced 0, i.e. 2k extra empty fields — again always
+    ///     even.
+    /// In both cases the extra fields come in even-sized batches, so they
+    /// never change the parity of which slot (key vs. value) any later token
+    /// lands in. That argument covers escaped *values* only: `escape_into`
+    /// also escapes delimiters inside *keys*, and a key-side embedded
+    /// delimiter is not covered by this reasoning and is not claimed to be
+    /// safe here. Restricted to values, though, the conclusion follows
+    /// directly from `TextFields`' tokenization: a later linear scan for
+    /// `$BEGINDATA` still finds it, and finds its correct digit-only value,
+    /// since `$BEGINDATA`'s own value never itself needs escaping.
+    ///
+    /// The direction that *does* desynchronize the scan is the opposite one:
+    /// a legally-empty value — legal, and used in real corpus files, under
+    /// FCS versions before 3.1 — read with the "too aggressive" `Doubled`
+    /// policy instead of `None`. An empty value is spelled as two
+    /// back-to-back delimiter bytes (an even-length run, by construction
+    /// non-terminating under `Doubled`), so `Doubled` treats it as *one*
+    /// literal delimiter character embedded in an ongoing field instead of
+    /// as a completed empty field — merging the empty-valued key with
+    /// whatever key comes next into a single garbled token and shifting
+    /// every subsequent field by one. That shift is what can make a scan
+    /// miss `$BEGINDATA` (or read the wrong key/value pairing) entirely.
+    ///
+    /// This test hand-assembles data set 2's TEXT directly, bypassing
+    /// `serialize_metadata` (which always writes `$BEGINDATA` before any
+    /// user keyword, so a writer-produced file can never place an escapable
+    /// value ahead of it — see the comment above `add_keyword("BEGINANALYSIS"`
+    /// in `fcs/src/write.rs`). `$COM`, a real FCS keyword the reader does not
+    /// otherwise model, is given a legal empty value and placed *before*
+    /// `$BEGINDATA` in an FCS3.0 (pre-3.1) data set, so the correct policy is
+    /// `None` and a `Doubled` misread is the bug this guards against.
+    #[test]
+    fn begindata_scan_treats_a_legal_empty_value_as_none_escaped() {
+        use crate::keyword::{ByteKeyword, IntegerKeyword, Keyword, MixedKeyword};
+        use crate::metadata::Metadata;
+        use crate::write::{build_header, resolve_layout, serialize_f32_columns};
+
+        // `|` is the delimiter for both data sets here and appears in none of
+        // the values below — under V3_0 there is no escape mechanism at all,
+        // so a value containing the active delimiter would be unencodable
+        // (that gap is flow-crates-2s7, open and out of scope for this test).
+        let delimiter = b'|';
+
+        let dataset1_values: [f32; 3] = [1.0, 2.0, 3.0];
+        let dataset2_values: [f32; 3] = [10.0, 20.0, 30.0];
+        let data_bytes1 = serialize_f32_columns(&[&dataset1_values], true).expect("data1");
+        let data_bytes2 = serialize_f32_columns(&[&dataset2_values], true).expect("data2");
+
+        let text_start1 = 58usize;
+
+        // Data set 1: a normal, complete data set built through the real
+        // writer path. Its $NEXTDATA must land exactly on data set 2's TEXT
+        // start, which is only known once data set 1's own TEXT (whose
+        // length depends on $NEXTDATA's own digit count) has converged.
+        let build_dataset1_metadata = |nextdata: usize| -> Metadata {
+            let mut metadata = Metadata::new();
+            metadata.delimiter = delimiter as char;
+            metadata.keywords.insert(
+                "$BYTEORD".to_string(),
+                Keyword::Byte(ByteKeyword::BYTEORD(crate::byteorder::ByteOrder::LittleEndian)),
+            );
+            metadata.keywords.insert(
+                "$DATATYPE".to_string(),
+                Keyword::Byte(ByteKeyword::DATATYPE(crate::datatype::FcsDataType::F)),
+            );
+            metadata.insert_string_keyword("$MODE".into(), "L".into());
+            metadata.insert_string_keyword("$NEXTDATA".into(), nextdata.to_string());
+            metadata.insert_string_keyword("$P1N".into(), "FSC-A".into());
+            metadata
+                .keywords
+                .insert("$P1B".to_string(), Keyword::Int(IntegerKeyword::PnB(32)));
+            metadata.keywords.insert(
+                "$P1R".to_string(),
+                Keyword::Int(IntegerKeyword::PnR(262_144)),
+            );
+            metadata.keywords.insert(
+                "$P1E".to_string(),
+                Keyword::Mixed(MixedKeyword::PnE(0.0, 0.0)),
+            );
+            metadata
+        };
+
+        let mut next_data_guess = text_start1 + data_bytes1.len() * 2;
+        let (text_segment1, data_start1, data_end1) = loop {
+            let metadata1 = build_dataset1_metadata(next_data_guess);
+            let layout = resolve_layout(
+                &metadata1,
+                text_start1,
+                dataset1_values.len(),
+                1,
+                data_bytes1.len(),
+                Version::V3_0,
+            )
+            .expect("dataset1 layout");
+            let actual_next_data = layout.data_end + 1;
+            if actual_next_data == next_data_guess {
+                break (layout.text_segment, layout.data_start, layout.data_end);
+            }
+            next_data_guess = actual_next_data;
+        };
+        // Data set 2 starts right after data set 1's DATA ends (`data_end1 +
+        // 1`); it needs no separate name below because `$BEGINDATA`'s value
+        // is written data-set-relative, so its start offset never appears in
+        // the byte layout directly.
+
+        // Data set 2: hand-assembled TEXT, bypassing serialize_metadata
+        // entirely, so `$COM` (empty value) can sit ahead of `$BEGINDATA`.
+        // `$BEGINDATA`/`$ENDDATA` are written data-set-relative per §3.3.3 —
+        // `absolutize` rebases them onto `text_start2` on the read side.
+        fn push_kv(out: &mut Vec<u8>, delimiter: u8, key: &str, value: &str) {
+            out.extend_from_slice(key.as_bytes());
+            out.push(delimiter);
+            out.extend_from_slice(value.as_bytes());
+            out.push(delimiter);
+        }
+        fn assemble_text2(delimiter: u8, begin_rel: usize, end_rel: usize) -> Vec<u8> {
+            let mut text = vec![delimiter];
+            // $COM's value is legally empty: two back-to-back delimiter
+            // bytes, with no content between them. This is the exact shape
+            // that a too-aggressive `Doubled` read misinterprets as one
+            // literal embedded delimiter character instead of a completed
+            // empty field.
+            text.extend_from_slice(b"$COM");
+            text.push(delimiter);
+            text.push(delimiter);
+            push_kv(&mut text, delimiter, "$BEGINDATA", &begin_rel.to_string());
+            push_kv(&mut text, delimiter, "$ENDDATA", &end_rel.to_string());
+            push_kv(&mut text, delimiter, "$BEGINANALYSIS", "0");
+            push_kv(&mut text, delimiter, "$ENDANALYSIS", "0");
+            push_kv(&mut text, delimiter, "$BEGINSTEXT", "0");
+            push_kv(&mut text, delimiter, "$ENDSTEXT", "0");
+            push_kv(&mut text, delimiter, "$BYTEORD", "1,2,3,4");
+            push_kv(&mut text, delimiter, "$DATATYPE", "F");
+            push_kv(&mut text, delimiter, "$MODE", "L");
+            push_kv(&mut text, delimiter, "$NEXTDATA", "0");
+            push_kv(&mut text, delimiter, "$PAR", "1");
+            push_kv(&mut text, delimiter, "$TOT", "3");
+            push_kv(&mut text, delimiter, "$P1N", "FSC-A");
+            push_kv(&mut text, delimiter, "$P1B", "32");
+            push_kv(&mut text, delimiter, "$P1R", "262144");
+            push_kv(&mut text, delimiter, "$P1E", "0,0");
+            text
+        }
+
+        // $BEGINDATA's relative value is exactly TEXT2's own length (DATA
+        // starts the byte after TEXT2 ends), which is self-referential: fixed
+        // point on the digit width, same pattern as `resolve_layout`.
+        let mut begin_rel = data_bytes2.len(); // arbitrary seed
+        let text_segment2 = loop {
+            let end_rel = begin_rel + data_bytes2.len() - 1;
+            let candidate = assemble_text2(delimiter, begin_rel, end_rel);
+            if candidate.len() == begin_rel {
+                break candidate;
+            }
+            begin_rel = candidate.len();
+        };
+
+        let header = build_header(&Version::V3_0, text_start1, data_start1 - 1, data_start1, data_end1)
+            .expect("header");
+
+        let mut bytes = header;
+        bytes.extend_from_slice(&text_segment1);
+        bytes.extend_from_slice(&data_bytes1);
+        bytes.extend_from_slice(&text_segment2);
+        bytes.extend_from_slice(&data_bytes2);
+
+        let tmp = tempfile::TempDir::new().expect("tempdir");
+        let path = tmp.path().join("empty_value_chain.fcs");
+        std::fs::write(&path, &bytes).expect("write fcs bytes");
+
+        let datasets = Fcs::open_all(path.to_str().expect("utf-8")).expect("open_all");
+        assert_eq!(datasets.len(), 2, "both data sets must be reachable");
+        assert_eq!(
+            datasets[1]
+                .get_parameter_events_slice("FSC-A")
+                .expect("dataset 2 FSC-A column"),
+            dataset2_values.as_slice(),
+            "find_begindata_offset must locate data set 2's real DATA bytes \
+             despite the legally-empty $COM value ahead of $BEGINDATA — a row \
+             count alone would still match on a frame decoded from the wrong \
+             offset, so the actual values must be checked"
+        );
+    }
+}
