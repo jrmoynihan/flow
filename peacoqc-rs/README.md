@@ -28,9 +28,9 @@ Feature flags:
 
 | Flag | Description | Notes |
 | ---- | ----------- | ----- |
-| `flow-fcs` (default) | Enable integration with the `flow-fcs` crate for FCS file support |
-| `gpu` | Optional GPU path for some batched kernels; **not recommended** for full PeacoQC in 0.3.x (e2e slower than CPU — see Performance) |
-| `cubecl` | Enable cubeCL custom GPU kernels (requires `gpu` feature) |
+| `flow-fcs` (default) | Enable integration with the `flow-fcs` crate for FCS file support | |
+| `gpu` | Optional GPU path for some batched kernels | **Not recommended** in 0.3.x (e2e slower than CPU — see Performance) |
+| `cubecl` | Enable cubeCL custom GPU kernels | requires `gpu` feature |
 
 ## Installation
 
