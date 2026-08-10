@@ -69,7 +69,8 @@ Artifacts under `--out`:
 - **QC-core:** algorithm cost only (headline for vs-R claims).
 - **`--include-margins-doublets`:** times `RemoveMargins`/`remove_margins` + `RemoveDoublets`/`remove_doublets` + PeacoQC in one window (sensitivity; not the default publishable row). Synthetic fixtures include `FSC-H` for doublet ratio.
 - **`--e2e`:** secondary; for synthetic data, R e2e currently times `read.FCS` + PeacoQC on the same prepared file (no compensate/transform). Real-file prep parity can be extended later.
-- **`--gpu`:** optional Rust row; skipped with a reason when the binary lacks `gpu` or no adapter path is wired for full PeacoQC yet.
+- **`--gpu`:** optional Rust row using the GPU-enabled binary. CPU rows set `PEACOQC_FORCE_CPU=1` so Rayon/single-thread numbers stay CPU-only. On the 2026-08-10 Apple M5 Max sample, GPU QC-core was slower than CPU for 50k–1M events; record it as a secondary row, not the vs-R headline.
+- Real FCS: pass paths only via repeated `--fcs` CLI args. Reports use anonymous `real_01`, `real_02`, … ids — never embed source paths or original filenames in artifacts or docs.
 
 ## Refreshing README tables
 

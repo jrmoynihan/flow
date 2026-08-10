@@ -93,12 +93,13 @@ follow the Rust crate defaults when enabled at build time.
 
 Cross-language QC-core timings live with the Rust crate (bindings do not re-time R separately):
 
-| Case (events×FL) | R mean (s) | Rust Rayon (s) | Speedup vs R |
-|------------------|------------|----------------|--------------|
-| 50k × 15         | 2.13       | 0.15           | **14.2×**    |
-| 200k × 15        | 3.92       | 0.47           | **8.3×**     |
+| Case | R mean (s) | Rust Rayon (s) | Speedup vs R |
+|------|------------|----------------|--------------|
+| real ~215k×13 | 1.53 | 0.103 | **14.9×** |
+| real ~394k×13 | 1.78 | 0.114 | **15.7×** |
+| synth 1M×15 | 3.83 | 0.186 | **20.6×** |
 
-Full matrix, machine footer, and harness docs:
+Full matrix, GPU row (slower than CPU on this sample), and harness docs:
 [`../peacoqc-rs/docs/throughput_vs_r_sample.md`](../peacoqc-rs/docs/throughput_vs_r_sample.md),
 [`../peacoqc-rs/docs/comparison-with-r.md`](../peacoqc-rs/docs/comparison-with-r.md).
 

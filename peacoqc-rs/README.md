@@ -361,28 +361,33 @@ Full sample tables: [`docs/throughput_vs_r_sample.md`](docs/throughput_vs_r_samp
 
 Representative release results (Apple M5 Max, 2026-08-10; warmup=1, reps=3; PeacoQC 1.22.0 / flowCore 2.24.0 / peacoqc-rs 0.3.1):
 
-| Case (events×FL) | R mean (s) | Rust 1-thread (s) | Rust Rayon (s) | Speedup vs R (Rayon) |
-|------------------|------------|-------------------|----------------|----------------------|
-| 50k × 5          | 0.42       | 0.056             | 0.037          | **11.3×**            |
-| 50k × 15         | 2.13       | 0.20              | 0.15           | **14.2×**            |
-| 200k × 5         | 1.64       | 0.21              | 0.19           | **8.6×**             |
-| 200k × 15        | 3.92       | 0.66              | 0.47           | **8.3×**             |
+| Case | R mean (s) | Rust 1-thread (s) | Rust Rayon (s) | GPU (s) | Speedup vs R (Rayon) |
+|------|------------|-------------------|----------------|---------|----------------------|
+| real ~215k×13 | 1.53 | 0.222 | 0.103 | 12.6 | **14.9×** |
+| real ~263k×13 | 1.40 | 0.218 | 0.091 | 8.9 | **15.3×** |
+| real ~394k×13 | 1.78 | 0.275 | 0.114 | 10.9 | **15.7×** |
+| synth 200k×15 | 2.27 | 0.312 | 0.214 | 11.7 | **10.6×** |
+| synth 1M×15 | 3.83 | 0.400 | 0.186 | 13.9 | **20.6×** |
+| synth 1M×30 | 7.32 | 0.904 | 0.399 | 29.8 | **18.3×** |
 
-Rust single-thread is already ~6–11× faster than R on these cases; default Rayon adds about 1.1–1.5× on top of single-thread. GPU end-to-end PeacoQC row was not measured in this sample (optional `--features gpu`).
+On these sizes, default Rayon is about **15×** faster than R on real stained FCS and about **10–20×** on the synthetic grid. Single-thread Rust is already ~6–10× vs R. The optional GPU PeacoQC path was **slower** than CPU here (transfer/launch overhead); do not use GPU as the vs-R headline.
 
 Internal notes (not vs R):
 
-- **Parallel Processing**: `rayon` over channels/bins
-- **GPU Acceleration** (optional): batched multi-channel kernels; see `DEV_NOTES.md` / `bench_results/`
+- **Parallel Processing**: `rayon` over channels/bins; harness forces `PEACOQC_FORCE_CPU=1` on CPU rows when the binary also has GPU
+- **GPU Acceleration** (optional): batched kernels; beneficial only for some multi-channel batched ops — see `DEV_NOTES.md` / `bench_results/`
 - Criterion microbenches / alloc A/B: `cargo bench`, [`docs/PERF_AB.md`](docs/PERF_AB.md)
 
 ### Benchmarks
 
-Cross-language harness:
+Cross-language harness (pass real FCS only via `--fcs`; do not commit clinical paths):
 
 ```bash
-cargo run -p peacoqc-rs --release --no-default-features --features flow-fcs --example compare_with_r -- \
-  --out target/peacoqc-r-compare/run --events 50000,200000 --channels 5,15 --warmup 1 --reps 5
+cargo run -p peacoqc-rs --release --no-default-features --features flow-fcs,gpu --example compare_with_r -- \
+  --out target/peacoqc-r-compare/run \
+  --events 50000,200000,1000000 --channels 5,15,30 \
+  --warmup 1 --reps 3 --gpu \
+  --fcs /path/to/a.fcs --fcs /path/to/b.fcs
 ```
 
 Criterion (Rust-only):
