@@ -69,6 +69,10 @@ harness=false
 name   ="peaks_alloc_micro"
 harness=false
 
+[[example]]
+name = "compare_with_r"
+required-features = ["flow-fcs"]
+
 [package.metadata.scripts]
 test       ="cargo test"
 dry-release="cargo smart-release peacoqc-rs --update-crates-index"
