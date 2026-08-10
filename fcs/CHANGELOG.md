@@ -5,6 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+### Added
+
+- **Lazy column accessors**: `Fcs::column`, `Fcs::columns`, and `Fcs::events` with
+  cached layouts via `ColumnLayout` / `extract_columns` for row-major materialization.
+- **`Fcs::open_all()`**: walk `$NEXTDATA` chains for multi-dataset FCS (e.g. Beckman `.lmd`).
+- **`Fcs::for_testing`**: public test-fixture constructor (feature-gated) for out-of-crate tests.
+- **FCS 3.2 conformance work**: CRC, datetime/keyword handling, and related rules.
+
+### Fixed
+
+- **`$PnR` masking** for integer parameters; **bit-packed `$PnB` stride** calculation;
+  **data-set-relative offsets** (HEADER / `$BEGIN*` / `$NEXTDATA`) with vendor-absolute disambiguation.
+- OTHER-segment offset scan bounded at the first segment; cache emptiness / bounds hardening
+  for derived `Fcs` values.
+
+### Changed
+
+- Manifest version **0.5.1** (includes `test-util` availability for dependents).
+
 ## 0.4.1 (2026-07-19)
 
 ### New Features
