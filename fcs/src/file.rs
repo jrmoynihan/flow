@@ -3382,6 +3382,39 @@ mod nextdata_escaping_tests {
         );
     }
 
+    /// C1, `find_begindata_offset`'s half: an empty value immediately ahead of
+    /// `$BEGINDATA` welds the two keys into `$COM|$BEGINDATA`, which the scan's
+    /// `eq_ignore_ascii_case("$BEGINDATA")` does not match — so without the
+    /// non-conformant-writer fallback the scan walks off the end of the file
+    /// and errors on a data set whose TEXT is perfectly recoverable. Hand
+    /// assembled, because `serialize_metadata` can produce neither the empty
+    /// value (it errors at V3_1+) nor a keyword ahead of `$BEGINDATA`.
+    #[test]
+    fn begindata_scan_recovers_from_a_non_conformant_3_1_empty_value() {
+        use std::io::Write;
+
+        let mut text: Vec<u8> = Vec::new();
+        text.extend_from_slice(b"|$COM||$BEGINDATA|4096|$ENDDATA|8191|$PAR|1|$TOT|3|");
+
+        let mut file = tempfile::NamedTempFile::new().expect("temp file");
+        file.write_all(&text).expect("write");
+        file.flush().expect("flush");
+        // SAFETY: exclusively owned by this test and not mutated after the
+        // write above.
+        let mmap = unsafe { memmap3::Mmap::map(file.as_file()) }.expect("mmap");
+
+        assert_eq!(
+            Fcs::find_begindata_offset(&mmap, 0, Version::V3_1)
+                .expect("the fallback must recover $BEGINDATA"),
+            4096
+        );
+        // The same bytes at V3_0 are simply legal and never reach the fallback.
+        assert_eq!(
+            Fcs::find_begindata_offset(&mmap, 0, Version::V3_0).expect("V3_0 scan"),
+            4096
+        );
+    }
+
     /// The write half of I1: a user keyword whose *name* contains the active
     /// delimiter survives `write_fcs_file` at V3_1 and reads back under that
     /// same name.
