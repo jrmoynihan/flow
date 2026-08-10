@@ -47,6 +47,7 @@ struct CliArgs {
     smoke: bool,
     rust_only: bool,
     gpu: bool,
+    e2e: bool,
     out: Option<PathBuf>,
     config: Option<String>,
     case_dir: Option<PathBuf>,
@@ -60,6 +61,7 @@ impl Default for CliArgs {
             smoke: false,
             rust_only: false,
             gpu: false,
+            e2e: false,
             out: None,
             config: None,
             case_dir: None,
@@ -166,6 +168,7 @@ fn parse_args(args: &[String]) -> Result<CliArgs> {
             "--smoke" => parsed.smoke = true,
             "--rust-only" => parsed.rust_only = true,
             "--gpu" => parsed.gpu = true,
+            "--e2e" => parsed.e2e = true,
             "--out" => {
                 i += 1;
                 if i >= args.len() {
@@ -414,7 +417,99 @@ fn spawn_worker(config: &str, case_dir: &Path, warmup: usize, reps: usize) -> Re
     Ok(())
 }
 
-fn run_smoke(out: &Path, warmup: usize, reps: usize, gpu: bool, rust_only: bool) -> Result<()> {
+fn r_script_path() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("examples/compare_with_r.R")
+}
+
+fn find_rscript() -> Option<PathBuf> {
+    which_binary("Rscript")
+}
+
+fn which_binary(name: &str) -> Option<PathBuf> {
+    let output = Command::new("which").arg(name).output().ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    if path.is_empty() {
+        None
+    } else {
+        Some(PathBuf::from(path))
+    }
+}
+
+fn fluorescence_channels(fcs: &Fcs) -> Vec<String> {
+    fcs.channel_names()
+        .into_iter()
+        .filter(|name| is_fl_channel(name))
+        .collect()
+}
+
+fn spawn_r_worker(case_dir: &Path, warmup: usize, reps: usize, phase: &str) -> Result<()> {
+    let rscript = find_rscript().context(
+        "Rscript not found on PATH; install R or pass --rust-only to skip the R baseline",
+    )?;
+    let script = r_script_path();
+    anyhow::ensure!(
+        script.is_file(),
+        "R companion script missing at {}",
+        script.display()
+    );
+
+    let prepared = case_dir.join("prepared.fcs");
+    let fcs = open_fcs(&prepared)?;
+    let channels = fluorescence_channels(&fcs);
+    anyhow::ensure!(
+        !channels.is_empty(),
+        "prepared FCS has no FL{{n}}-A channels for R PeacoQC"
+    );
+    let out_json = case_dir.join(if phase == "e2e" {
+        "throughput_r_e2e.json"
+    } else {
+        "throughput_r.json"
+    });
+
+    let status = Command::new(&rscript)
+        .arg(&script)
+        .arg("--case-dir")
+        .arg(case_dir)
+        .arg("--warmup")
+        .arg(warmup.to_string())
+        .arg("--reps")
+        .arg(reps.to_string())
+        .arg("--channels")
+        .arg(channels.join(","))
+        .arg("--out-json")
+        .arg(&out_json)
+        .arg("--phase")
+        .arg(phase)
+        .status()
+        .context("spawn Rscript PeacoQC companion")?;
+    if !status.success() {
+        let code = status.code().unwrap_or(-1);
+        if code == 2 {
+            anyhow::bail!(
+                "R companion exited 2 (missing PeacoQC/flowCore). Install with BiocManager::install('PeacoQC') or use --rust-only"
+            );
+        }
+        anyhow::bail!("R companion failed with {status}");
+    }
+    anyhow::ensure!(
+        out_json.is_file(),
+        "R companion did not write {}",
+        out_json.display()
+    );
+    Ok(())
+}
+
+fn run_smoke(
+    out: &Path,
+    warmup: usize,
+    reps: usize,
+    gpu: bool,
+    rust_only: bool,
+    e2e: bool,
+) -> Result<()> {
     let case = CaseSpec {
         id: "smoke_10k_x5".to_string(),
         n_events: 10_000,
@@ -441,8 +536,14 @@ fn run_smoke(out: &Path, warmup: usize, reps: usize, gpu: bool, rust_only: bool)
     if gpu {
         spawn_worker("rust-gpu", case_dir, warmup, reps)?;
     }
-    if !rust_only {
-        eprintln!("R comparison is not implemented until Task 3; Rust results were written");
+    if rust_only {
+        eprintln!("--rust-only: skipped R PeacoQC baseline");
+    } else {
+        spawn_r_worker(case_dir, warmup, reps, "qc_core")?;
+        if e2e {
+            // Synthetic fixtures are already in analysis space; e2e times read.FCS + PeacoQC.
+            spawn_r_worker(case_dir, warmup, reps, "e2e")?;
+        }
     }
     println!("{}: {}", case.id, case.prepared_fcs.display());
     Ok(())
@@ -479,6 +580,7 @@ fn main() -> Result<()> {
             parsed.reps,
             parsed.gpu,
             parsed.rust_only,
+            parsed.e2e,
         )?;
         return Ok(());
     }
