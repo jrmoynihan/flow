@@ -450,24 +450,31 @@ fn run_worker(
         "unknown Rust worker config: {config_name}"
     );
     if config_name == "rust-gpu" {
-        let reason = if cfg!(feature = "gpu") {
-            "GPU QC-core timing is not available through the peacoqc API yet"
-        } else {
-            "peacoqc-rs was built without the gpu feature"
-        };
-        return skipped_gpu_result(case_dir, reason);
+        if !cfg!(feature = "gpu") {
+            return skipped_gpu_result(
+                case_dir,
+                "peacoqc-rs was built without the gpu feature",
+            );
+        }
+        #[cfg(feature = "gpu")]
+        {
+            // Ensure FORCE_CPU is not inherited for this worker.
+            // SAFETY: first env mutation in this worker process before peacoqc/GPU init.
+            unsafe {
+                std::env::remove_var("PEACOQC_FORCE_CPU");
+            }
+            if !peacoqc_rs::gpu::is_gpu_available() {
+                return skipped_gpu_result(case_dir, "no GPU adapter available at runtime");
+            }
+        }
     }
 
     let prepared_fcs = case_dir.join("prepared.fcs");
     let fcs = open_fcs(&prepared_fcs)?;
-    let channels: Vec<String> = fcs
-        .channel_names()
-        .into_iter()
-        .filter(|name| is_fl_channel(name))
-        .collect();
+    let channels = fluorescence_channels(&fcs);
     anyhow::ensure!(
         !channels.is_empty(),
-        "prepared FCS has no FL{{n}}-A fluorescence channels"
+        "prepared FCS has no fluorescence channels for PeacoQC"
     );
     let peacoqc_config = PeacoQCConfig {
         channels,
@@ -538,8 +545,12 @@ fn spawn_worker(
     }
     if config == "rust-cpu-1" {
         child.env("RAYON_NUM_THREADS", "1");
+        child.env("PEACOQC_FORCE_CPU", "1");
     } else if config == "rust-cpu" {
         child.env_remove("RAYON_NUM_THREADS");
+        child.env("PEACOQC_FORCE_CPU", "1");
+    } else if config == "rust-gpu" {
+        child.env_remove("PEACOQC_FORCE_CPU");
     }
     let status = child
         .status()
@@ -573,10 +584,18 @@ fn which_binary(name: &str) -> Option<PathBuf> {
 }
 
 fn fluorescence_channels(fcs: &Fcs) -> Vec<String> {
-    fcs.channel_names()
+    // Prefer FL{n}-A when present (synthetic fixtures); otherwise use PeacoQCData
+    // fluorescence detection so real spectral/unmixed names work.
+    let fl_named: Vec<String> = fcs
+        .channel_names()
         .into_iter()
         .filter(|name| is_fl_channel(name))
-        .collect()
+        .collect();
+    if !fl_named.is_empty() {
+        fl_named
+    } else {
+        fcs.get_fluorescence_channels()
+    }
 }
 
 fn spawn_r_worker(case_dir: &Path, warmup: usize, reps: usize, phase: &str) -> Result<()> {
