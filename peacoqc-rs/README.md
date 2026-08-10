@@ -42,7 +42,7 @@ Add this to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-peacoqc-rs = { path = "../peacoqc-rs", version = "0.3.1", features = ["flow-fcs"] }
+peacoqc-rs = { path = "../peacoqc-rs", version = "0.3.2", features = ["flow-fcs"] }
 ```
 
 ## How it works
@@ -359,7 +359,7 @@ Headline comparison is **QC-core wall time** versus Bioconductor PeacoQC (load e
 same defaults). Method and fairness notes: [`docs/comparison-with-r.md`](docs/comparison-with-r.md).
 Full sample tables: [`docs/throughput_vs_r_sample.md`](docs/throughput_vs_r_sample.md).
 
-Representative release results (Apple M5 Max, 2026-08-10; warmup=1, reps=3; PeacoQC 1.22.0 / flowCore 2.24.0 / peacoqc-rs 0.3.1):
+Representative release results (Apple M5 Max, 2026-08-10; warmup=1, reps=3; PeacoQC 1.22.0 / flowCore 2.24.0 / peacoqc-rs 0.3.2):
 
 | Case | R mean (s) | Rust 1-thread (s) | Rust Rayon (s) | Speedup vs R (Rayon) |
 |------|------------|-------------------|----------------|----------------------|

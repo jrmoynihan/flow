@@ -5,6 +5,30 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+### Added
+
+- **Rust vs R throughput harness** (`examples/compare_with_r.rs` + `compare_with_r.R`):
+  shared prepared FCS fixtures, QC-core timing (load excluded), separate Rust
+  processes for single-thread / Rayon / optional GPU rows, JSON + markdown reports.
+- Sample publishable results and fairness notes under `docs/comparison-with-r.md`
+  and `docs/throughput_vs_r_sample.md`; README Performance tables for peacoqc-rs
+  and peacoqc-py.
+
+### Changed
+
+- Document that the optional `gpu` feature is **not recommended** for full
+  PeacoQC in 0.3.x (end-to-end slower than Rayon CPU on measured sizes); keep
+  CPU Rayon as the vs-R headline and report R↔Rust `% removed` agreement on
+  real FCS.
+
+### Fixed
+
+- `compare_with_r`: anonymize real FCS case ids in reports; keep synthetic grid
+  on by default when `--fcs` is also passed; force `PEACOQC_FORCE_CPU=1` on CPU
+  rows when the binary also has GPU.
+
 ## 0.3.1 (2026-07-19)
 
 ### Fixed
