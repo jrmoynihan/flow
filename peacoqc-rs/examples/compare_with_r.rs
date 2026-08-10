@@ -968,20 +968,26 @@ fn run_synthetic_grid(args: &CliArgs, out: &Path) -> Result<Vec<TimingRow>> {
 
 fn run_real_fcs_cases(args: &CliArgs, out: &Path) -> Result<Vec<TimingRow>> {
     let mut all_rows = Vec::new();
-    for path in &args.fcs_paths {
-        let stem = path
-            .file_stem()
-            .and_then(|s| s.to_str())
-            .unwrap_or("real_fcs");
-        let case_id = format!("real_{stem}");
+    for (idx, path) in args.fcs_paths.iter().enumerate() {
+        // Anonymous case ids only — never embed source path or original filename in artifacts.
+        let case_id = format!("real_{:02}", idx + 1);
         let case_dir = out.join("cases").join(&case_id);
         std::fs::create_dir_all(&case_dir)
             .with_context(|| format!("create {}", case_dir.display()))?;
         let prepared = case_dir.join("prepared.fcs");
         // For now, treat caller-supplied FCS as already prepared (analysis space).
-        std::fs::copy(path, &prepared)
-            .with_context(|| format!("copy {} -> {}", path.display(), prepared.display()))?;
-        eprintln!("running real case {case_id} from {}…", path.display());
+        std::fs::copy(path, &prepared).with_context(|| {
+            format!(
+                "copy input FCS #{} -> {}",
+                idx + 1,
+                prepared.display()
+            )
+        })?;
+        eprintln!(
+            "running real case {case_id} (input #{}, {} bytes)…",
+            idx + 1,
+            std::fs::metadata(path).map(|m| m.len()).unwrap_or(0)
+        );
         match run_case_workers(
             &case_dir,
             args.warmup,
