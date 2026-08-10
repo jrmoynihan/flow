@@ -186,7 +186,6 @@ impl UnmixProvenance {
     /// metrics that the trait path cannot) and must not churn the identity that
     /// the first pass minted.
     pub fn write_to(&self, fcs: &mut Fcs) {
-        ensure_delimiter_survives_provenance(fcs);
         let keywords = &mut fcs.metadata.keywords;
 
         if self.is_shape_consistent() {
@@ -312,35 +311,11 @@ pub use crate::fcs_integration::UNMIXED_KEYWORD;
 /// Value of `$ORIGINALITY` for a file whose DATA segment has been recomputed.
 pub const ORIGINALITY_DATA_MODIFIED: &str = "DataModified";
 
-/// `name/version`, deliberately with no space in it - see
-/// [`ensure_delimiter_survives_provenance`].
+/// `name/version` tag for the software that performed unmixing.
 fn default_software_tag() -> String {
     format!("{}/{}", env!("CARGO_PKG_NAME"), env!("CARGO_PKG_VERSION"))
 }
 
-/// TEXT delimiter used when a file's own delimiter would corrupt provenance.
-///
-/// Form feed, which is what Cytek and most FCS 3.1 writers use and what every
-/// writer test in `flow-fcs` already sets.
-pub const SAFE_TEXT_DELIMITER: char = '\u{000c}';
-
-/// Moves the file off a space (or NUL) TEXT delimiter before provenance is written.
-///
-/// The writer does not escape the delimiter inside values (`flow-crates-1xb`),
-/// so a value containing it truncates and desynchronizes the entire rest of
-/// TEXT on reopen. Provenance is the first thing this crate writes that
-/// routinely contains spaces - `$UNSTAINEDINFO` is free text by definition -
-/// so a space-delimited source file would lose every keyword after the first
-/// provenance value, `$PnN` included.
-///
-/// This is a containment measure, not the fix: a free-text value can contain a
-/// form feed too. It is applied here because provenance is where the exposure
-/// starts.
-fn ensure_delimiter_survives_provenance(fcs: &mut Fcs) {
-    if fcs.metadata.delimiter == ' ' || fcs.metadata.delimiter == '\0' {
-        fcs.metadata.delimiter = SAFE_TEXT_DELIMITER;
-    }
-}
 
 /// Stable TEXT spelling of a strategy.
 ///
@@ -552,30 +527,34 @@ mod tests {
 
     /// Regression for the failure that surfaced when this module was written:
     /// `$UNSTAINEDINFO` is free text and `$LAST_MODIFIER` carries a version, so
-    /// on a space-delimited file the unescaped delimiter truncated the value
-    /// and desynchronized every keyword after it - `Fcs::open` then failed with
-    /// "No $P1N keyword stored". See `flow-crates-1xb` for the underlying
-    /// writer bug this contains.
+    /// Verifies that provenance keywords containing spaces round-trip correctly
+    /// on a space-delimited file, relying on flow-crates-1xb's delimiter
+    /// escaping to preserve the TEXT segment integrity. Before 1xb, the
+    /// unescaped delimiter in values like `$UNSTAINEDINFO` would truncate and
+    /// desynchronize subsequent keywords, causing `Fcs::open` to fail with
+    /// "No $P1N keyword stored".
     #[test]
-    fn a_space_delimited_source_still_reopens_after_stamping() {
+    fn a_space_delimited_source_keeps_its_delimiter_after_stamping() {
         let path = std::env::temp_dir().join("truols-prov-space-delim.fcs");
         let mut fcs = minimal_fcs(&path);
+        let original_delimiter = fcs.metadata.delimiter;
         assert_eq!(
-            fcs.metadata.delimiter, ' ',
-            "fixture must start on the delimiter that triggers the bug"
+            original_delimiter, ' ',
+            "fixture must start on the delimiter that triggers escaping"
         );
 
         let mut prov = fully_populated();
         prov.unstained_info = Some("AF from unstained control, 99.5th percentile".to_string());
         prov.write_to(&mut fcs);
-        assert_eq!(fcs.metadata.delimiter, SAFE_TEXT_DELIMITER);
+        // After stamping, the delimiter should remain unchanged (unlike the old workaround).
+        assert_eq!(fcs.metadata.delimiter, original_delimiter);
 
         flow_fcs::write_fcs_file(fcs, &path).expect("write fixture");
         let reopened =
             Fcs::open(path.to_str().expect("utf-8 temp path")).expect("reopen fixture");
 
         // The parameter keywords are the canary: they sort after `$LAST_MODIFIER`
-        // and so were the first casualties of the desync.
+        // and they survive because flow-fcs now escapes delimiters in values.
         assert!(reopened.metadata.keywords.contains_key("$P1N"));
         let read = UnmixProvenance::read_from(&reopened).expect("provenance recoverable");
         assert_eq!(

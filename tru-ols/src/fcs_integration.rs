@@ -1452,8 +1452,6 @@ mod tests {
             AccessWrapper::new(src_path.to_str().unwrap_or(""))
                 .expect("AccessWrapper"),
         );
-        // Space delimiter corrupts keywords whose values contain spaces ($PROJ, …).
-        stained_fcs.metadata.delimiter = '\u{000c}';
         // Seed sample metadata that must survive export (regression: `$P` strip dropped these).
         {
             use flow_fcs::keyword::{Keyword, MixedKeyword, StringKeyword};
