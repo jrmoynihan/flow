@@ -9,6 +9,7 @@ use crate::byteorder::ByteOrder;
 use crate::datatype::FcsDataType;
 use crate::metadata::Metadata;
 use anyhow::Result;
+use rayon::prelude::*;
 
 /// Byte count above which `extract_columns` decodes in parallel.
 ///
@@ -184,6 +185,11 @@ fn fill_events(
     }
 }
 
+/// Events per parallel task. Large enough that per-task overhead is
+/// negligible against 8 KiB-plus of decoding, small enough that a 20-column
+/// request still produces enough tasks for rayon to balance across cores.
+const EVENTS_PER_CHUNK: usize = 8_192;
+
 /// Split out so tests can pin either branch deterministically instead of
 /// relying on a fixture large enough to cross the threshold.
 fn extract_columns_inner(
@@ -193,9 +199,44 @@ fn extract_columns_inner(
     columns: &mut [Vec<f32>],
     parallel: bool,
 ) {
-    let _ = parallel; // Task 10 wires up the parallel branch.
-    let mut outs: Vec<&mut [f32]> = columns.iter_mut().map(Vec::as_mut_slice).collect();
-    fill_events(event_bytes, bytes_per_event, plans, &mut outs);
+    if !parallel {
+        let mut outs: Vec<&mut [f32]> = columns.iter_mut().map(Vec::as_mut_slice).collect();
+        fill_events(event_bytes, bytes_per_event, plans, &mut outs);
+        return;
+    }
+
+    // Peel chunk-sized `&mut` sub-slices off every output column in lockstep
+    // with the event bytes. `split_at_mut` is what makes this safe Rust: each
+    // task owns a disjoint window of every column, proven by the borrow
+    // checker rather than asserted. Allocation is O(chunks * columns)
+    // references — nothing proportional to events, which is the whole point.
+    let mut tasks: Vec<(&[u8], Vec<&mut [f32]>)> = Vec::new();
+    let mut rest_bytes = event_bytes;
+    let mut rest_outs: Vec<&mut [f32]> = columns.iter_mut().map(Vec::as_mut_slice).collect();
+
+    while !rest_bytes.is_empty() {
+        let take = EVENTS_PER_CHUNK.min(rest_bytes.len() / bytes_per_event);
+        if take == 0 {
+            break;
+        }
+        let (chunk_bytes, tail_bytes) = rest_bytes.split_at(take * bytes_per_event);
+
+        let mut chunk_outs = Vec::with_capacity(rest_outs.len());
+        let mut tail_outs = Vec::with_capacity(rest_outs.len());
+        for out in rest_outs.drain(..) {
+            let (head, tail) = out.split_at_mut(take);
+            chunk_outs.push(head);
+            tail_outs.push(tail);
+        }
+
+        tasks.push((chunk_bytes, chunk_outs));
+        rest_bytes = tail_bytes;
+        rest_outs = tail_outs;
+    }
+
+    tasks.into_par_iter().for_each(|(bytes, mut outs)| {
+        fill_events(bytes, bytes_per_event, plans, &mut outs);
+    });
 }
 
 /// Decode the requested parameter indices from row-major FCS event bytes in
@@ -531,5 +572,105 @@ mod tests {
             assert_eq!(columns[0][e], e as f32, "column 0, event {e}");
             assert_eq!(columns[1][e], e as f32 + 10_000.0, "column 1, event {e}");
         }
+    }
+
+    #[test]
+    fn both_branches_produce_identical_output() {
+        let mut metadata = synthetic_metadata_2f32();
+        metadata.keywords.insert("$TOT".to_string(), Keyword::Int(IntegerKeyword::TOT(5_000)));
+        let layout = super::ColumnLayout::from_metadata(&metadata).expect("layout");
+
+        let mut data_bytes = Vec::with_capacity(5_000 * 8);
+        for e in 0..5_000u32 {
+            data_bytes.extend_from_slice(&(e as f32).to_le_bytes());
+            data_bytes.extend_from_slice(&(e as f32 * -2.0).to_le_bytes());
+        }
+        let plans = super::build_plans(&layout, &[0, 1]).expect("plans");
+
+        let run = |parallel: bool| {
+            let mut columns: Vec<Vec<f32>> = vec![vec![0.0f32; 5_000]; 2];
+            super::extract_columns_inner(
+                &data_bytes,
+                layout.bytes_per_event,
+                &plans,
+                &mut columns,
+                parallel,
+            );
+            columns
+        };
+
+        assert_eq!(
+            run(false),
+            run(true),
+            "the parallel branch must produce byte-identical output to the sequential one"
+        );
+    }
+
+    #[test]
+    fn crossing_the_byte_threshold_selects_the_parallel_branch_and_stays_correct() {
+        // PARALLEL_BYTE_THRESHOLD is 1 MiB; 2 params x 4 bytes = 8 bytes/event,
+        // so 200_000 events is 1.6 MB — comfortably over, and small enough to
+        // stay a fast test.
+        const EVENTS: usize = 200_000;
+        let mut metadata = synthetic_metadata_2f32();
+        metadata
+            .keywords
+            .insert("$TOT".to_string(), Keyword::Int(IntegerKeyword::TOT(EVENTS)));
+        let layout = super::ColumnLayout::from_metadata(&metadata).expect("layout");
+        assert!(
+            EVENTS * layout.bytes_per_event >= super::PARALLEL_BYTE_THRESHOLD,
+            "fixture must actually cross the threshold, or this test proves nothing"
+        );
+
+        let mut data_bytes = Vec::with_capacity(EVENTS * 8);
+        for e in 0..EVENTS {
+            data_bytes.extend_from_slice(&(e as f32).to_le_bytes());
+            data_bytes.extend_from_slice(&(e as f32 + 0.5).to_le_bytes());
+        }
+
+        let columns = super::extract_columns(&data_bytes, &layout, &[0, 1]).expect("extract");
+        assert_eq!(columns[0].len(), EVENTS);
+        // Spot-check the two chunk boundaries most likely to be wrong: the
+        // first event of the second chunk, and the last event overall.
+        assert_eq!(columns[0][0], 0.0);
+        assert_eq!(columns[1][0], 0.5);
+        assert_eq!(columns[0][8_192], 8_192.0, "first event of the second chunk");
+        assert_eq!(columns[1][8_192], 8_192.5, "first event of the second chunk");
+        assert_eq!(columns[0][EVENTS - 1], (EVENTS - 1) as f32, "last event");
+        assert_eq!(columns[1][EVENTS - 1], (EVENTS - 1) as f32 + 0.5, "last event");
+    }
+
+    #[test]
+    fn a_ragged_final_chunk_is_still_decoded() {
+        // EVENTS_PER_CHUNK is 8_192; one more event than that leaves a
+        // 1-event tail, which is the shape most likely to be dropped by an
+        // off-by-one in the split_at_mut walk.
+        const EVENTS: usize = super::EVENTS_PER_CHUNK + 1;
+        let mut metadata = synthetic_metadata_2f32();
+        metadata
+            .keywords
+            .insert("$TOT".to_string(), Keyword::Int(IntegerKeyword::TOT(EVENTS)));
+        let layout = super::ColumnLayout::from_metadata(&metadata).expect("layout");
+
+        let mut data_bytes = Vec::with_capacity(EVENTS * 8);
+        for e in 0..EVENTS {
+            data_bytes.extend_from_slice(&(e as f32).to_le_bytes());
+            data_bytes.extend_from_slice(&(e as f32).to_le_bytes());
+        }
+        let plans = super::build_plans(&layout, &[0]).expect("plans");
+        let mut columns: Vec<Vec<f32>> = vec![vec![f32::NAN; EVENTS]];
+        super::extract_columns_inner(
+            &data_bytes,
+            layout.bytes_per_event,
+            &plans,
+            &mut columns,
+            true,
+        );
+
+        assert_eq!(columns[0][EVENTS - 1], (EVENTS - 1) as f32, "ragged tail event");
+        assert!(
+            columns[0].iter().all(|v| !v.is_nan()),
+            "every slot must have been written; a NaN means a chunk was skipped"
+        );
     }
 }
