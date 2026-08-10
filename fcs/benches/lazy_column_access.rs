@@ -144,12 +144,28 @@ fn bench_two_column_access(c: &mut Criterion) {
     group.finish();
 }
 
-/// Baseline recorded (Task 7, pre-rewrite) in `flow-crates-3si`'s notes and in
-/// `target/criterion/` on disk. `iter_batched` excludes setup-closure time
-/// from the measurement, so `events_uncached` running slower than
-/// `open_eager_baseline` reflects `extract_columns`'s own decode cost, not
-/// `open()`'s parse. See the Phase 4 spec for the rewrite this baseline is
-/// meant to be compared against.
+/// Measured for `flow-crates-3si`. The pre-rewrite `events_uncached` ran ~8x
+/// slower than `open_eager_baseline`, and the explanation recorded at the time
+/// — "it pays for open()'s parse too" — was wrong: criterion's `iter_batched`
+/// excludes setup-closure time. The real causes were one `Vec` allocation per
+/// event, a `Result` per value, and a `#[cold]` call per value. See
+/// `docs/superpowers/specs/2026-08-08-fcs-column-decode-and-delimiter-escaping-design.md`.
+///
+/// After the rewrite, measured as a criterion paired A/B (`2c8f09f`
+/// `--save-baseline pre` vs. HEAD `--baseline pre`; this file is byte-identical
+/// at both commits, so only `extract_columns` differs). Apple M5 Max, 18 cores:
+///
+/// | benchmark                                | before    | after     | criterion change   |
+/// |------------------------------------------|-----------|-----------|--------------------|
+/// | `two_column_access/lazy_columns_uncached`| 251.9 µs  | 28.67 µs  | −88.24% (p = 0.00) |
+/// | `full_materialization/events_uncached`   | 640.5 µs  | 77.64 µs  | −87.87% (p = 0.00) |
+/// | `synthetic_1Mx20/one_column_of_twenty`   | 11.06 ms  | 1.121 ms  | −89.81% (p = 0.00) |
+/// | `synthetic_1Mx20/all_twenty_columns`     | 110.7 ms  | 5.449 ms  | −95.17% (p = 0.00) |
+///
+/// `events_uncached` no longer costs 8x `open_eager_baseline`; the two are now
+/// within noise of each other (77.6 µs vs. 83.8 µs). `open_eager_baseline` and
+/// `eager_data_frame_two_columns` are untouched by the rewrite and act as
+/// controls: both stayed within ±2.5% across the paired runs.
 fn bench_full_materialization(c: &mut Criterion) {
     let mut group = c.benchmark_group("full_materialization");
     group.warm_up_time(Duration::from_millis(300));
@@ -173,14 +189,16 @@ fn bench_full_materialization(c: &mut Criterion) {
     group.finish();
 }
 
-/// The corpus tops out at 50,000 x 8 (`fcs2_int16_50000ev_8par_random.fcs`,
-/// used below), nothing like the multi-million-event, 20-parameter,
-/// `$DATATYPE F` file Stage B targets. `fcs2_int16_50000ev_8par_random.fcs`
-/// stays in the mix precisely because it is awkward: `$BYTEORD 4,3,2,1` with
-/// `$P1B 16` / `$P1R 1024` forces both a byte swap and a range mask, so it
-/// exercises the general decode path rather than any zero-copy shortcut, and
-/// 50,000 x 8 = 400,000 values sits exactly on the current fast-path
-/// threshold.
+/// The corpus tops out at 50,000 x 8, nothing like the multi-million-event,
+/// 20-parameter, `$DATATYPE F` file Stage B targets, hence this generated
+/// fixture.
+///
+/// Note for anyone re-tuning `columns::PARALLEL_BYTE_THRESHOLD`: this
+/// fixture's DATA segment is 1,000,000 x 20 x 4 = 76.3 MiB and the corpus
+/// fixture used by the other two groups is 234 KiB, so every candidate
+/// threshold between those two sizes produces identical behaviour on this
+/// suite. A fixture in the 256 KiB - 4 MiB band would be needed to locate the
+/// crossover, and none exists here.
 fn bench_synthetic_column_access(c: &mut Criterion) {
     let dir = tempfile::TempDir::new().expect("tempdir");
     const EVENTS: usize = 1_000_000;
@@ -194,15 +212,20 @@ fn bench_synthetic_column_access(c: &mut Criterion) {
     group.measurement_time(Duration::from_secs(10));
     group.sample_size(10);
 
-    // One column of twenty: the Stage B case. `Fcs::columns()` already limits
+    // One column of twenty: the Stage B case. `Fcs::columns()` limits
     // decoding to the requested indices, so this does not decode-then-discard
-    // the other nineteen — `wanted.len() == 1` here, and the per-row
-    // intermediate is already 1-wide, not 20-wide. What Phase 4 targets is
-    // the per-event allocation this still pays: `extract_columns` builds one
-    // heap-allocated `Vec<f32>` per row (1,000,000 short-lived allocations
-    // for one column) and then transposes row-major into column-major
-    // (`columns.rs:176-180`). Decoding straight into pre-allocated column
-    // buffers removes both the per-row `Vec` and the transpose.
+    // the other nineteen. Post-rewrite there is no per-row `Vec` and no
+    // row-major-to-column-major transpose either: `extract_columns` decodes
+    // straight into pre-allocated column buffers. This still walks all
+    // 76.3 MiB of DATA — `wanted.len()` changes how many values are stored
+    // per event, not how many bytes are stepped over — which is why it lands
+    // at ~1.1 ms against ~5.4 ms for all twenty rather than one twentieth.
+    //
+    // `black_box(column.len())` looks like it might not force the decode. It
+    // does: the decode's result is installed in the `OnceCell` cache inside
+    // `Fcs::columns` (`fcs/src/file.rs`), a side effect the optimizer cannot
+    // drop. The pre-rewrite binary running the identical line at 11.06 ms
+    // confirms it empirically.
     group.bench_function("one_column_of_twenty", |bencher| {
         bencher.iter_batched(
             || Fcs::open(&path).expect("reopen for cold cache"),

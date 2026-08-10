@@ -21,8 +21,20 @@ use rayon::prelude::*;
 /// 40-parameter file scores 300,000 under the value-count predicate, stays
 /// sequential, and still walks 48 MB.
 ///
-/// Initial value; confirmed against `benches/lazy_column_access.rs` in
-/// `flow-crates-3si`.
+/// Swept over 256 KiB / 1 MiB / 4 MiB against `benches/lazy_column_access.rs`
+/// in `flow-crates-3si`: **no measurable difference across that range**, and
+/// none was possible, because neither bench fixture lands inside the swept
+/// window. The corpus fixture (`int-10000_events_random.fcs`, 10,000 events x
+/// 6 parameters x 4 bytes) has a 234 KiB DATA segment and stays sequential at
+/// all three; the synthetic fixture (1,000,000 x 20 `$DATATYPE F`) has a
+/// 76.3 MiB DATA segment and goes parallel at all three. The apparent
+/// per-value deltas across the sweep were noise — the untouched control
+/// benchmark `eager_data_frame_two_columns` moved by a comparable amount over
+/// the same runs.
+///
+/// So 1 MiB is retained as an unfalsified default, not as a measured
+/// crossover. Anyone re-tuning it needs a fixture whose DATA segment lands
+/// between 256 KiB and 4 MiB; this bench suite has none.
 const PARALLEL_BYTE_THRESHOLD: usize = 1 << 20; // 1 MiB
 
 /// Precomputed per-parameter byte layout for one FCS file's DATA segment,
