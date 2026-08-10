@@ -3103,24 +3103,45 @@ mod lazy_column_tests {
         let mut checked = 0usize;
         for path in crate::corpus::files() {
             let name = path.file_name().unwrap_or_default().to_string_lossy().to_string();
-            let Ok(fcs) = Fcs::open(path.to_str().expect("utf-8 path")) else {
-                // Some corpus files exist to exercise reader errors.
-                continue;
+            // No skips. `every_corpus_file_parses_without_field_shift` already
+            // hard-panics on open failure for all ten corpus files, so a
+            // `continue` here is dead code that can only ever come alive as
+            // silent coverage loss.
+            let fcs = Fcs::open(path.to_str().expect("utf-8 path"))
+                .unwrap_or_else(|e| panic!("{name}: every corpus file must open: {e}"));
+
+            // I2: the same bytes, decoded through the parallel branch. Every
+            // corpus DATA segment is below `PARALLEL_BYTE_THRESHOLD` (largest
+            // is 781.25 KiB against 1 MiB), so without forcing it the only
+            // real-data comparison against the Polars oracle would exercise
+            // the sequential branch exclusively — leaving parallel x
+            // big-endian x integer x `$PnR` mask x mixed widths uncovered,
+            // even though each factor is covered on its own.
+            let layout =
+                crate::columns::ColumnLayout::from_metadata(&fcs.metadata).expect("layout");
+            let forced_parallel: Option<Vec<Box<[f32]>>> = if layout.is_bit_packed {
+                None
+            } else {
+                let all: Vec<usize> = (0..layout.bytes_per_parameter.len()).collect();
+                let data_bytes = fcs.data_bytes().expect("data bytes");
+                Some(
+                    crate::columns::extract_columns_forced_parallel(data_bytes, &layout, &all)
+                        .unwrap_or_else(|e| panic!("{name}: forced-parallel decode: {e}")),
+                )
             };
 
             for channel in fcs.get_parameter_names_from_dataframe() {
-                let Ok(eager) = fcs.get_parameter_events_slice(&channel) else { continue };
-                let lazy = match fcs.column(&channel) {
-                    Ok(lazy) => lazy,
-                    Err(e) => {
-                        // Bit-packed files legitimately refuse the lazy path.
-                        assert!(
-                            e.to_string().contains("bit-packed"),
-                            "{name}/{channel}: column() failed for an unexpected reason: {e}"
-                        );
-                        continue;
-                    }
-                };
+                let eager = fcs
+                    .get_parameter_events_slice(&channel)
+                    .unwrap_or_else(|e| panic!("{name}/{channel}: eager decode must succeed: {e}"));
+                // No corpus file is bit-packed, so `column()` never refuses
+                // here. The refusal itself is covered properly by
+                // `columns::tests::extract_columns_rejects_bit_packed_layout`;
+                // a branch in this loop for it would be unreachable code that
+                // reads as coverage.
+                let lazy = fcs
+                    .column(&channel)
+                    .unwrap_or_else(|e| panic!("{name}/{channel}: column() must succeed: {e}"));
 
                 assert_eq!(
                     lazy.len(), eager.len(),
@@ -3132,19 +3153,37 @@ mod lazy_column_tests {
                         "{name}/{channel}/event {event}: lazy {l} != eager {e}"
                     );
                 }
+
+                let index = fcs.find_parameter(&channel).expect("parameter").parameter_number - 1;
+                let parallel = &forced_parallel.as_ref().unwrap_or_else(|| {
+                    panic!(
+                        "{name} is bit-packed, which no corpus file is; if that changed, \
+                         give this test a bit-packed arm instead of removing the parallel check"
+                    )
+                })[index];
+                assert_eq!(
+                    parallel.len(), eager.len(),
+                    "{name}/{channel}: forced-parallel and eager lengths differ"
+                );
+                for (event, (p, e)) in parallel.iter().zip(eager.iter()).enumerate() {
+                    assert_eq!(
+                        p.to_bits(), e.to_bits(),
+                        "{name}/{channel}/event {event}: parallel {p} != eager {e}"
+                    );
+                }
                 checked += 1;
             }
         }
 
-        // Observed on the 10-file corpus: 54 channels checked, zero skips of
-        // any kind (no open failures, no eager-decode failures, no
-        // bit-packed refusals). The floor is set well below that so the
-        // test tolerates minor corpus additions/removals, but far above the
-        // original 8 so a regression that pushed most files back into a
-        // skip path would still fail loudly.
-        assert!(
-            checked >= 45,
-            "the oracle must actually compare something; only {checked} channels were checked"
+        // The 10-file corpus yields exactly 54 channels, each compared twice
+        // (sequential and forced-parallel) against the Polars oracle. Pinned
+        // as equality, not a floor: this is the only real-data verification
+        // that the column path and the eager path agree, and a test whose
+        // failure mode is "silently checks less" is not acceptable there. If
+        // the corpus changes, update this number deliberately.
+        assert_eq!(
+            checked, 54,
+            "the oracle must compare every corpus channel; {checked} were checked"
         );
     }
 

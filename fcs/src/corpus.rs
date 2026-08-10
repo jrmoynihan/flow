@@ -6,6 +6,13 @@
 //! FCS reader is validated against. Hardcoding absolute paths made the
 //! equivalence tests machine-local: `Fcs::open` returned `Err` elsewhere and
 //! the `.expect()` failed rather than skipped.
+//!
+//! In *this* repository the corpus is a hard requirement — it is checked in,
+//! so its absence means a broken checkout and should fail loudly, which is
+//! why this module's own tests assert it is present rather than skipping.
+//! The skip affordance ([`is_available`], and [`files`] returning empty) exists
+//! for downstream consumers that depend on `flow-fcs` without vendoring the
+//! corpus.
 
 use std::path::{Path, PathBuf};
 

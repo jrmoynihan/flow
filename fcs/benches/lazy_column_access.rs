@@ -221,6 +221,13 @@ fn bench_synthetic_column_access(c: &mut Criterion) {
     let mut group = c.benchmark_group("synthetic_1Mx20");
     group.warm_up_time(Duration::from_millis(500));
     group.measurement_time(Duration::from_secs(10));
+    // Ten samples, each opening and decoding a 76.3 MiB fixture, resolves
+    // effects of roughly 15% at best. That is entirely adequate for what this
+    // group was built to measure (-89.8% and -95.2%), and a larger `n` costs
+    // real wall-clock on every bench run — but it means this group must not be
+    // used to chase small changes. Anything under ~15% measured here is noise;
+    // raise `sample_size` (and expect the run to get much slower) or build a
+    // smaller fixture before trusting such a number.
     group.sample_size(10);
 
     // One column of twenty: the Stage B case. `Fcs::columns()` limits

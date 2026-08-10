@@ -165,9 +165,11 @@ struct ColumnPlan {
 
 /// Resolve one plan per requested parameter index.
 ///
-/// This is where every error in the column path now lives: it runs
+/// This is where all per-column decoder fallibility now lives: it runs
 /// `wanted.len()` times, not `num_events * wanted.len()` times, so the decode
-/// loop below carries no `Result` at all.
+/// loop below carries no `Result` at all. `extract_columns` retains the
+/// whole-segment guards (bit-packed layout, DATA length), which are properties
+/// of the file rather than of any one column.
 ///
 /// # Errors
 /// Returns `Err` if an index is out of range for the layout, or if a
@@ -211,6 +213,11 @@ fn fill_events(
 /// Events per parallel task. Large enough that per-task overhead is
 /// negligible against 8 KiB-plus of decoding, small enough that a 20-column
 /// request still produces enough tasks for rayon to balance across cores.
+///
+/// Unlike [`PARALLEL_BYTE_THRESHOLD`] directly above, this value was **chosen
+/// as a reasonable default and never measured** — no sweep, no p-values. The
+/// argument above is plausibility, not evidence. Treat it as unpinned: it is
+/// free to move if anyone actually benchmarks it.
 const EVENTS_PER_CHUNK: usize = 8_192;
 
 /// Split out so tests can pin either branch deterministically instead of
@@ -233,7 +240,9 @@ fn extract_columns_inner(
     // task owns a disjoint window of every column, proven by the borrow
     // checker rather than asserted. Allocation is O(chunks * columns)
     // references — nothing proportional to events, which is the whole point.
-    let mut tasks: Vec<(&[u8], Vec<&mut [f32]>)> = Vec::new();
+    let chunk_stride = bytes_per_event.saturating_mul(EVENTS_PER_CHUNK);
+    let expected_chunks = event_bytes.len().checked_div(chunk_stride).unwrap_or(0) + 1;
+    let mut tasks: Vec<(&[u8], Vec<&mut [f32]>)> = Vec::with_capacity(expected_chunks);
     let mut rest_bytes = event_bytes;
     let mut rest_outs: Vec<&mut [f32]> = columns.iter_mut().map(Vec::as_mut_slice).collect();
 
@@ -280,6 +289,34 @@ pub(crate) fn extract_columns(
     layout: &ColumnLayout,
     wanted: &[usize],
 ) -> Result<Vec<Box<[f32]>>> {
+    extract_columns_impl(data_bytes, layout, wanted, false)
+}
+
+/// As [`extract_columns`], but takes the parallel branch regardless of size.
+///
+/// Test-only. Every corpus DATA segment is smaller than
+/// [`PARALLEL_BYTE_THRESHOLD`] (the largest is 781.25 KiB against a 1 MiB
+/// threshold), so without this the real-data lazy/eager oracle in `file.rs`
+/// only ever exercises the sequential branch — see
+/// `column_matches_data_frame_oracle`.
+///
+/// # Errors
+/// Same as [`extract_columns`].
+#[cfg(test)]
+pub(crate) fn extract_columns_forced_parallel(
+    data_bytes: &[u8],
+    layout: &ColumnLayout,
+    wanted: &[usize],
+) -> Result<Vec<Box<[f32]>>> {
+    extract_columns_impl(data_bytes, layout, wanted, true)
+}
+
+fn extract_columns_impl(
+    data_bytes: &[u8],
+    layout: &ColumnLayout,
+    wanted: &[usize],
+    force_parallel: bool,
+) -> Result<Vec<Box<[f32]>>> {
     if layout.is_bit_packed {
         return Err(anyhow!(
             "bit-packed FCS records don't support lazy single-column access; call events() instead"
@@ -310,7 +347,7 @@ pub(crate) fn extract_columns(
         layout.bytes_per_event,
         &plans,
         &mut columns,
-        total_event_bytes >= PARALLEL_BYTE_THRESHOLD,
+        force_parallel || total_event_bytes >= PARALLEL_BYTE_THRESHOLD,
     );
 
     Ok(columns.into_iter().map(Vec::into_boxed_slice).collect())

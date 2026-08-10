@@ -171,29 +171,60 @@ mod tests {
 
     /// The rewrite must be bit-exact against the function it replaces, or
     /// every downstream analysis silently shifts.
+    ///
+    /// The patterns below are chosen so the comparison is not just of ordinary
+    /// finite values: the `f64 -> f32` narrowing in `F64Le`/`F64Be` is where a
+    /// hand-rolled decoder would most plausibly diverge, because overflow to
+    /// infinity, subnormal flushing, NaN payload truncation and the sign of
+    /// zero are all decided by that one cast. `to_bits()` comparison sees all
+    /// four; it simply had nothing to see with one ordinary pattern.
     #[test]
     fn matches_parse_parameter_value_to_f32_bit_for_bit() {
         use crate::file::Fcs;
-        let bytes: [u8; 8] = [0x01, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd, 0xef];
+        let patterns: [[u8; 8]; 9] = [
+            // An ordinary, arbitrary bit pattern (the original case).
+            [0x01, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd, 0xef],
+            // -0.0: as f64, as f32 in the low four bytes, and all-zero.
+            (-0.0f64).to_le_bytes(),
+            [0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00],
+            // Smallest positive subnormal f64 — narrows to +0.0 in f32.
+            f64::from_bits(1).to_le_bytes(),
+            // Smallest positive subnormal f32, in f32 and f64 spellings.
+            f64::from(f32::from_bits(1)).to_le_bytes(),
+            // f64::MAX: overflows f32, must become +inf.
+            f64::MAX.to_le_bytes(),
+            f64::NEG_INFINITY.to_le_bytes(),
+            // Signalling-ish NaN with a payload, to catch payload mangling.
+            f64::from_bits(0x7ff4_0000_0000_0001).to_le_bytes(),
+            // All-ones: NaN as f64, NaN as f32, u16/u32 max as integers.
+            [0xff; 8],
+        ];
         let cases = [
             (FcsDataType::I, 2usize),
             (FcsDataType::I, 4),
             (FcsDataType::F, 4),
             (FcsDataType::D, 8),
         ];
-        for order in [ByteOrder::LittleEndian, ByteOrder::BigEndian] {
-            for (data_type, width) in cases {
-                let expected =
-                    Fcs::parse_parameter_value_to_f32(&bytes[..width], width, &data_type, &order)
-                        .expect("reference decode");
-                let got = Decoder::resolve(data_type, width, &order)
-                    .expect("resolve")
-                    .read(&bytes[..width]);
-                assert_eq!(
-                    got.to_bits(),
-                    expected.to_bits(),
-                    "{data_type:?}/{width}/{order:?} must match the reference bit-for-bit"
-                );
+        for bytes in patterns {
+            for order in [ByteOrder::LittleEndian, ByteOrder::BigEndian] {
+                for (data_type, width) in cases {
+                    let expected = Fcs::parse_parameter_value_to_f32(
+                        &bytes[..width],
+                        width,
+                        &data_type,
+                        &order,
+                    )
+                    .expect("reference decode");
+                    let got = Decoder::resolve(data_type, width, &order)
+                        .expect("resolve")
+                        .read(&bytes[..width]);
+                    assert_eq!(
+                        got.to_bits(),
+                        expected.to_bits(),
+                        "{data_type:?}/{width}/{order:?} on {bytes:02x?} must match the \
+                         reference bit-for-bit"
+                    );
+                }
             }
         }
     }
