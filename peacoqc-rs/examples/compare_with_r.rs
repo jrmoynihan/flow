@@ -6,7 +6,10 @@ use flow_fcs::keyword::{IntegerKeyword, Keyword, MixedKeyword};
 use flow_fcs::metadata::Metadata;
 use flow_fcs::version::Version;
 use flow_fcs::write::write_fcs_file;
-use peacoqc_rs::{PeacoQCConfig, PeacoQCData, QCMode, peacoqc};
+use peacoqc_rs::{
+    DoubletConfig, MarginConfig, PeacoQCConfig, PeacoQCData, QCMode, peacoqc, remove_doublets,
+    remove_margins,
+};
 use polars::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
@@ -49,6 +52,7 @@ struct CliArgs {
     rust_only: bool,
     gpu: bool,
     e2e: bool,
+    include_margins_doublets: bool,
     synthetic: bool,
     no_synthetic: bool,
     out: Option<PathBuf>,
@@ -68,6 +72,7 @@ impl Default for CliArgs {
             rust_only: false,
             gpu: false,
             e2e: false,
+            include_margins_doublets: false,
             synthetic: false,
             no_synthetic: false,
             out: None,
@@ -142,6 +147,10 @@ fn write_synthetic_prepared_fcs(path: &Path, n_events: usize, n_fl_channels: usi
     let fsc_a: Vec<f32> = (0..n_events)
         .map(|e| (e as f32).mul_add(0.01, 500.0))
         .collect();
+    let fsc_h: Vec<f32> = fsc_a
+        .iter()
+        .map(|&area| area * 0.85 + 10.0)
+        .collect();
     let ssc_a: Vec<f32> = (0..n_events)
         .map(|e| (e as f32).mul_add(0.01, 300.0))
         .collect();
@@ -149,6 +158,7 @@ fn write_synthetic_prepared_fcs(path: &Path, n_events: usize, n_fl_channels: usi
     let mut columns = vec![
         Column::new("Time".into(), time),
         Column::new("FSC-A".into(), fsc_a),
+        Column::new("FSC-H".into(), fsc_h),
         Column::new("SSC-A".into(), ssc_a),
     ];
 
@@ -210,6 +220,7 @@ fn parse_args(args: &[String]) -> Result<CliArgs> {
             "--rust-only" => parsed.rust_only = true,
             "--gpu" => parsed.gpu = true,
             "--e2e" => parsed.e2e = true,
+            "--include-margins-doublets" => parsed.include_margins_doublets = true,
             "--synthetic" => parsed.synthetic = true,
             "--no-synthetic" => parsed.no_synthetic = true,
             "--out" => {
@@ -336,18 +347,38 @@ fn time_qc_core(
     config: &PeacoQCConfig,
     warmup: usize,
     reps: usize,
+    include_margins_doublets: bool,
 ) -> Result<TimingStats> {
+    let margin_channels: Vec<String> = fcs
+        .channel_names()
+        .into_iter()
+        .filter(|name| name == "FSC-A" || name == "SSC-A" || is_fl_channel(name))
+        .collect();
+    let margin_config = MarginConfig {
+        channels: margin_channels,
+        ..Default::default()
+    };
+    let doublet_config = DoubletConfig::default();
+
+    let run_once = || -> Result<f64> {
+        if include_margins_doublets {
+            let _ = remove_margins(fcs, &margin_config).context("remove_margins")?;
+            let _ = remove_doublets(fcs, &doublet_config).context("remove_doublets")?;
+        }
+        let result = peacoqc(fcs, config).context("peacoqc")?;
+        Ok(result.percentage_removed)
+    };
+
     for _ in 0..warmup {
-        let _ = peacoqc(fcs, config).context("run QC-core warmup")?;
+        let _ = run_once()?;
     }
 
     let mut times = Vec::with_capacity(reps);
     let mut last_pct = 0.0;
     for _ in 0..reps {
         let started = Instant::now();
-        let result = peacoqc(fcs, config).context("run timed QC-core repetition")?;
+        last_pct = run_once()?;
         times.push(started.elapsed().as_secs_f64());
-        last_pct = result.percentage_removed;
     }
     summarize_times(&times, fcs.n_events(), last_pct)
 }
@@ -407,7 +438,13 @@ fn skipped_gpu_result(case_dir: &Path, reason: &str) -> Result<()> {
     write_worker_result(case_dir, "rust-gpu", &result)
 }
 
-fn run_worker(config_name: &str, case_dir: &Path, warmup: usize, reps: usize) -> Result<()> {
+fn run_worker(
+    config_name: &str,
+    case_dir: &Path,
+    warmup: usize,
+    reps: usize,
+    include_margins_doublets: bool,
+) -> Result<()> {
     anyhow::ensure!(
         matches!(config_name, "rust-cpu-1" | "rust-cpu" | "rust-gpu"),
         "unknown Rust worker config: {config_name}"
@@ -441,15 +478,26 @@ fn run_worker(config_name: &str, case_dir: &Path, warmup: usize, reps: usize) ->
         remove_zeros: false,
         ..Default::default()
     };
-    let stats = time_qc_core(&fcs, &peacoqc_config, warmup, reps)?;
+    let stats = time_qc_core(
+        &fcs,
+        &peacoqc_config,
+        warmup,
+        reps,
+        include_margins_doublets,
+    )?;
     let case_id = case_dir
         .file_name()
         .and_then(|name| name.to_str())
         .context("case directory must end in a valid UTF-8 case id")?;
+    let phase = if include_margins_doublets {
+        "qc_core_margins_doublets"
+    } else {
+        "qc_core"
+    };
     let result = WorkerResult {
         config: config_name.to_string(),
         case_id: case_id.to_string(),
-        phase: "qc_core",
+        phase,
         mean_s: stats.mean_s,
         std_s: stats.std_s,
         events: fcs.n_events(),
@@ -467,7 +515,13 @@ fn run_worker(config_name: &str, case_dir: &Path, warmup: usize, reps: usize) ->
     write_worker_result(case_dir, config_name, &result)
 }
 
-fn spawn_worker(config: &str, case_dir: &Path, warmup: usize, reps: usize) -> Result<()> {
+fn spawn_worker(
+    config: &str,
+    case_dir: &Path,
+    warmup: usize,
+    reps: usize,
+    include_margins_doublets: bool,
+) -> Result<()> {
     let executable = std::env::current_exe().context("locate compare_with_r executable")?;
     let mut child = Command::new(&executable);
     child
@@ -479,6 +533,9 @@ fn spawn_worker(config: &str, case_dir: &Path, warmup: usize, reps: usize) -> Re
         .arg(warmup.to_string())
         .arg("--reps")
         .arg(reps.to_string());
+    if include_margins_doublets {
+        child.arg("--include-margins-doublets");
+    }
     if config == "rust-cpu-1" {
         child.env("RAYON_NUM_THREADS", "1");
     } else if config == "rust-cpu" {
@@ -546,8 +603,8 @@ fn spawn_r_worker(case_dir: &Path, warmup: usize, reps: usize, phase: &str) -> R
         "throughput_r.json"
     });
 
-    let status = Command::new(&rscript)
-        .arg(&script)
+    let mut cmd = Command::new(&rscript);
+    cmd.arg(&script)
         .arg("--case-dir")
         .arg(case_dir)
         .arg("--warmup")
@@ -559,9 +616,11 @@ fn spawn_r_worker(case_dir: &Path, warmup: usize, reps: usize, phase: &str) -> R
         .arg("--out-json")
         .arg(&out_json)
         .arg("--phase")
-        .arg(phase)
-        .status()
-        .context("spawn Rscript PeacoQC companion")?;
+        .arg(phase);
+    if phase == "qc_core_margins_doublets" {
+        cmd.arg("--include-margins-doublets");
+    }
+    let status = cmd.status().context("spawn Rscript PeacoQC companion")?;
     if !status.success() {
         let code = status.code().unwrap_or(-1);
         if code == 2 {
@@ -586,6 +645,7 @@ fn run_smoke(
     gpu: bool,
     rust_only: bool,
     e2e: bool,
+    include_margins_doublets: bool,
 ) -> Result<()> {
     let case = CaseSpec {
         id: "smoke_10k_x5".to_string(),
@@ -608,7 +668,15 @@ fn run_smoke(
         .prepared_fcs
         .parent()
         .context("prepared FCS must have a case directory")?;
-    run_case_workers(case_dir, warmup, reps, gpu, rust_only, e2e)?;
+    run_case_workers(
+        case_dir,
+        warmup,
+        reps,
+        gpu,
+        rust_only,
+        e2e,
+        include_margins_doublets,
+    )?;
     let rows = collect_case_rows(case_dir)?;
     write_report(out, &rows, warmup, reps, rust_only, gpu)?;
     println!("{}: {}", case.id, case.prepared_fcs.display());
@@ -622,16 +690,31 @@ fn run_case_workers(
     gpu: bool,
     rust_only: bool,
     e2e: bool,
+    include_margins_doublets: bool,
 ) -> Result<()> {
-    spawn_worker("rust-cpu-1", case_dir, warmup, reps)?;
-    spawn_worker("rust-cpu", case_dir, warmup, reps)?;
+    spawn_worker(
+        "rust-cpu-1",
+        case_dir,
+        warmup,
+        reps,
+        include_margins_doublets,
+    )?;
+    spawn_worker("rust-cpu", case_dir, warmup, reps, include_margins_doublets)?;
     if gpu {
-        spawn_worker("rust-gpu", case_dir, warmup, reps)?;
+        spawn_worker("rust-gpu", case_dir, warmup, reps, include_margins_doublets)?;
     }
     if rust_only {
-        eprintln!("--rust-only: skipped R PeacoQC baseline for {}", case_dir.display());
+        eprintln!(
+            "--rust-only: skipped R PeacoQC baseline for {}",
+            case_dir.display()
+        );
     } else {
-        spawn_r_worker(case_dir, warmup, reps, "qc_core")?;
+        let phase = if include_margins_doublets {
+            "qc_core_margins_doublets"
+        } else {
+            "qc_core"
+        };
+        spawn_r_worker(case_dir, warmup, reps, phase)?;
         if e2e {
             spawn_r_worker(case_dir, warmup, reps, "e2e")?;
         }
@@ -744,7 +827,7 @@ fn write_report(
         let qc_rows: Vec<&TimingRow> = case_rows
             .iter()
             .copied()
-            .filter(|r| r.phase == "qc_core")
+            .filter(|r| r.phase == "qc_core" || r.phase == "qc_core_margins_doublets")
             .collect();
         if qc_rows.is_empty() {
             continue;
@@ -856,6 +939,7 @@ fn run_synthetic_grid(args: &CliArgs, out: &Path) -> Result<Vec<TimingRow>> {
                 args.gpu,
                 args.rust_only,
                 args.e2e,
+                args.include_margins_doublets,
             )?;
             all_rows.extend(collect_case_rows(&case_dir)?);
         }
@@ -886,6 +970,7 @@ fn run_real_fcs_cases(args: &CliArgs, out: &Path) -> Result<Vec<TimingRow>> {
             args.gpu,
             args.rust_only,
             args.e2e,
+            args.include_margins_doublets,
         ) {
             Ok(()) => all_rows.extend(collect_case_rows(&case_dir)?),
             Err(err) => {
@@ -942,7 +1027,13 @@ fn main() -> Result<()> {
             .case_dir
             .as_deref()
             .context("--config requires --case-dir <dir>")?;
-        run_worker(config, case_dir, parsed.warmup, parsed.reps)?;
+        run_worker(
+            config,
+            case_dir,
+            parsed.warmup,
+            parsed.reps,
+            parsed.include_margins_doublets,
+        )?;
         return Ok(());
     }
 
@@ -955,6 +1046,7 @@ fn main() -> Result<()> {
             parsed.gpu,
             parsed.rust_only,
             parsed.e2e,
+            parsed.include_margins_doublets,
         )?;
         return Ok(());
     }

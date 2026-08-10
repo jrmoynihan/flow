@@ -39,6 +39,9 @@ parse_args <- function(argv) {
     } else if (flag == "--phase") {
       i <- i + 1L
       out$phase <- argv[[i]]
+    } else if (flag == "--include-margins-doublets") {
+      # Accepted for CLI symmetry; phase name also encodes this mode.
+      NULL
     } else {
       stop(sprintf("unknown argument: %s", flag), call. = FALSE)
     }
@@ -88,9 +91,14 @@ write_throughput_json <- function(path, payload) {
   writeLines(lines, path, useBytes = TRUE)
 }
 
-run_peacoqc_once <- function(ff, channels, outdir) {
+run_peacoqc_once <- function(ff, channels, outdir, include_margins_doublets) {
+  working <- ff
+  if (isTRUE(include_margins_doublets)) {
+    working <- PeacoQC::RemoveMargins(working, channels = c("FSC-A", "SSC-A"))
+    working <- PeacoQC::RemoveDoublets(working)
+  }
   PeacoQC::PeacoQC(
-    ff,
+    working,
     channels = channels,
     determine_good_cells = "all",
     plot = FALSE,
@@ -154,7 +162,8 @@ main <- function() {
     } else {
       ff <- ff_preload
     }
-    run_peacoqc_once(ff, channels, outdir)
+    include_md <- identical(args$phase, "qc_core_margins_doublets")
+    run_peacoqc_once(ff, channels, outdir, include_md)
   }
 
   if (args$warmup > 0L) {
