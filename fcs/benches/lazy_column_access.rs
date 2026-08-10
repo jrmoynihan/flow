@@ -18,6 +18,14 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
 
+/// `$CYT` value written into the synthetic fixture. Contains three literal
+/// spaces, which collide with `Metadata::new()`'s default space delimiter —
+/// that collision is what makes writing this fixture at V3_1 exercise the
+/// doubled-delimiter escaping path rather than passing vacuously. Shared as a
+/// `const` so the generator and `assert_fixture_shape`'s read-back check
+/// cannot drift apart.
+const SYNTHETIC_CYT: &str = "flow-crates synthetic bench fixture";
+
 fn compliance_fcs() -> String {
     flow_fcs::corpus::path("int-10000_events_random.fcs")
         .to_str()
@@ -65,7 +73,7 @@ fn synthetic_fcs(dir: &Path, n_events: usize, n_params: usize) -> PathBuf {
     metadata.insert_string_keyword("$DATATYPE".into(), "F".into());
     metadata.insert_string_keyword("$MODE".into(), "L".into());
     metadata.insert_string_keyword("$NEXTDATA".into(), "0".into());
-    metadata.insert_string_keyword("$CYT".into(), "flow-crates synthetic bench fixture".into());
+    metadata.insert_string_keyword("$CYT".into(), SYNTHETIC_CYT.into());
     for p in 1..=n_params {
         metadata.insert_string_keyword(format!("$P{p}N"), format!("P{p}"));
         metadata.keywords.insert(format!("$P{p}B"), Keyword::Int(IntegerKeyword::PnB(32)));
@@ -82,10 +90,22 @@ fn synthetic_fcs(dir: &Path, n_events: usize, n_params: usize) -> PathBuf {
 
 /// A benchmark against a malformed fixture measures nothing. Check the file
 /// reopens with the shape we asked for before timing anything.
+///
+/// `height()`/`width()` come from `$PAR`/`$TOT`/`$PnB`, which say nothing
+/// about whether TEXT itself round-tripped correctly — a corrupted `$CYT`
+/// would leave those checks green. `$CYT` is read back and compared against
+/// `SYNTHETIC_CYT` (the same value the generator wrote) specifically because
+/// it is the keyword whose embedded spaces depend on the V3_1
+/// doubled-delimiter escaping this fixture exists to exercise.
 fn assert_fixture_shape(path: &Path, n_events: usize, n_params: usize) {
     let fcs = Fcs::open(path.to_str().expect("utf-8")).expect("reopen synthetic fixture");
     assert_eq!(fcs.data_frame.height(), n_events, "synthetic fixture event count");
     assert_eq!(fcs.data_frame.width(), n_params, "synthetic fixture parameter count");
+    assert_eq!(
+        fcs.get_keyword_string_value("$CYT").expect("$CYT round-trips"),
+        SYNTHETIC_CYT,
+        "synthetic fixture $CYT survived the escaping round trip"
+    );
 }
 
 fn bench_two_column_access(c: &mut Criterion) {
@@ -174,8 +194,15 @@ fn bench_synthetic_column_access(c: &mut Criterion) {
     group.measurement_time(Duration::from_secs(10));
     group.sample_size(10);
 
-    // One column of twenty: the Stage B case. The Vec<Vec<f32>> intermediate
-    // is 20x the size of the output here, which is the cost being removed.
+    // One column of twenty: the Stage B case. `Fcs::columns()` already limits
+    // decoding to the requested indices, so this does not decode-then-discard
+    // the other nineteen — `wanted.len() == 1` here, and the per-row
+    // intermediate is already 1-wide, not 20-wide. What Phase 4 targets is
+    // the per-event allocation this still pays: `extract_columns` builds one
+    // heap-allocated `Vec<f32>` per row (1,000,000 short-lived allocations
+    // for one column) and then transposes row-major into column-major
+    // (`columns.rs:176-180`). Decoding straight into pre-allocated column
+    // buffers removes both the per-row `Vec` and the transpose.
     group.bench_function("one_column_of_twenty", |bencher| {
         bencher.iter_batched(
             || Fcs::open(&path).expect("reopen for cold cache"),
@@ -187,12 +214,17 @@ fn bench_synthetic_column_access(c: &mut Criterion) {
         );
     });
 
+    // The requested column set is invariant across iterations, so it is built
+    // once here rather than inside the timed closure — building it per
+    // iteration would charge every sample for 20 `format!` allocations plus a
+    // `Vec<&str>` build that has nothing to do with the decode path under
+    // test.
+    let names: Vec<String> = (1..=PARAMS).map(|p| format!("P{p}")).collect();
+    let refs: Vec<&str> = names.iter().map(String::as_str).collect();
     group.bench_function("all_twenty_columns", |bencher| {
         bencher.iter_batched(
             || Fcs::open(&path).expect("reopen for cold cache"),
             |fresh| {
-                let names: Vec<String> = (1..=PARAMS).map(|p| format!("P{p}")).collect();
-                let refs: Vec<&str> = names.iter().map(String::as_str).collect();
                 let cols = fresh.columns(&refs).expect("columns");
                 black_box(cols.len());
             },
