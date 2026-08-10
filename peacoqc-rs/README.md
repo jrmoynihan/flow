@@ -359,24 +359,24 @@ Headline comparison is **QC-core wall time** versus Bioconductor PeacoQC (load e
 same defaults). Method and fairness notes: [`docs/comparison-with-r.md`](docs/comparison-with-r.md).
 Full sample tables: [`docs/throughput_vs_r_sample.md`](docs/throughput_vs_r_sample.md).
 
-Representative release results (Apple M5 Max, 2026-08-10; warmup=1, reps=3; PeacoQC 1.22.0 / flowCore 2.24.0 / peacoqc-rs 0.3.2):
+Representative release results (Apple M5 Max, 2026-08-10; warmup=1, reps=3; PeacoQC 1.22.0 / flowCore 2.24.0 / peacoqc-rs 0.3.2; Gaussian synthetic fixtures):
 
 | Case | R mean (s) | Rust 1-thread (s) | Rust Rayon (s) | Speedup vs R (Rayon) |
 |------|------------|-------------------|----------------|----------------------|
-| real ~215k×13 | 1.53 | 0.222 | 0.103 | **14.9×** |
-| real ~263k×13 | 1.40 | 0.218 | 0.091 | **15.3×** |
-| real ~394k×13 | 1.78 | 0.275 | 0.114 | **15.7×** |
-| synth 200k×15 | 2.27 | 0.312 | 0.214 | **10.6×** |
-| synth 1M×15 | 3.83 | 0.400 | 0.186 | **20.6×** |
-| synth 1M×30 | 7.32 | 0.904 | 0.399 | **18.3×** |
+| real ~215k×13 | 1.55 | 0.225 | 0.109 | **14.2×** |
+| real ~263k×13 | 1.36 | 0.222 | 0.093 | **14.5×** |
+| real ~394k×13 | 1.61 | 0.274 | 0.107 | **15.1×** |
+| synth 200k×15 | 1.63 | 0.223 | 0.098 | **16.7×** |
+| synth 1M×15 | 2.98 | 0.581 | 0.182 | **16.4×** |
+| synth 1M×30 | 5.57 | 1.156 | 0.359 | **15.5×** |
 
-On these sizes, default Rayon is about **15×** faster than R on real stained FCS and about **10–20×** on the synthetic grid. Single-thread Rust is already ~6–10× vs R.
+On these sizes, default Rayon is about **14–15×** faster than R on real stained FCS and about **15–19×** on the synthetic grid. Single-thread Rust is already ~5–9× vs R.
 
-**Do not enable `gpu` for full PeacoQC in this version** — on the same sample it was far slower than Rayon CPU on every size (investigation: beads `flow-crates-aww`). Leave GPU off unless you are profiling that path.
+**Do not enable `gpu` for full PeacoQC in this version** — earlier `--gpu` runs were far slower than Rayon CPU on every size (investigation: beads `flow-crates-aww`). Leave GPU off unless you are profiling that path.
 
 ### Result agreement (R vs Rust)
 
-On the three real FCS cases, `% removed` agreed closely (|Δ| ≈ 0.3 pp on two samples; +2.1 pp on one). Synthetic fixtures are for timing scale and can diverge; see [`docs/throughput_vs_r_sample.md`](docs/throughput_vs_r_sample.md). Dedicated R-parity tests remain the source of truth for algorithmic fidelity.
+On the three real FCS cases, `% removed` agreed closely (|Δ| ≈ 0.3 pp on two samples; +2.1 pp on one). Large synthetic cases (1M events) also track R (|Δ| ≲ 1.1 pp); smaller synthetic grids can still diverge near decision boundaries — see [`docs/throughput_vs_r_sample.md`](docs/throughput_vs_r_sample.md). Dedicated R-parity tests remain the source of truth for algorithmic fidelity.
 
 Internal notes (not vs R):
 

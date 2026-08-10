@@ -1,34 +1,31 @@
 # Sample: PeacoQC Rust vs R throughput
 
-**Status:** checked-in sample from a release `compare_with_r` run (2026-08-10).
+**Status:** checked-in sample from a release `compare_with_r` run (2026-08-10, Gaussian synthetic fixtures).
 
-- Synthetic grid: events ∈ {50k, 200k, 1M} × FL channels ∈ {5, 15, 30}
-- Real FCS: three anonymized stained samples (`real_01`…`real_03`, ~215k–394k events × 13 FL); source paths were passed only on the CLI and are not recorded here
-- Warmup=1, reps=3; QC-core (load excluded)
-- Machine: Apple M5 Max, macOS; PeacoQC 1.22.0 / flowCore 2.24.0 / peacoqc-rs 0.3.1 / rustc 1.95.0
-- Rust CPU rows forced with `PEACOQC_FORCE_CPU=1`; an optional GPU row was also measured (see below) but is **not** a recommended configuration for this release
+- Synthetic grid: `flow_fcs::synthetic` Gaussian mixtures + mild mid-run FL intensity drop; events ∈ {50k, 200k, 1M} × FL ∈ {5, 15, 30}
+- Real FCS: three anonymized stained samples (`real_01`…`real_03`, ~215k–394k events × 13 FL); source paths CLI-only
+- Warmup=1, reps=3; QC-core (load excluded); CPU only (no `--gpu`)
+- Machine: Apple M5 Max, macOS; PeacoQC 1.22.0 / flowCore 2.24.0 / peacoqc-rs 0.3.2 / rustc 1.95.0
 
 ## Headline (Rust vs R, means)
 
 | Case | R | Rust single-thread | Rust multi-threaded (`rayon`) | Speedup vs R |
 | ---- | - | ------------------ | ----------------------------- | ------------ |
-| real_01 (215k×13) | 1.53s | 0.222s | 0.103s | **14.9×** |
-| real_02 (263k×13) | 1.40s | 0.218s | 0.091s | **15.3×** |
-| real_03 (394k×13) | 1.78s | 0.275s | 0.114s | **15.7×** |
-| synth 50k×15 | 0.91s | 0.134s | 0.101s | **9.1×** |
-| synth 200k×15 | 2.27s | 0.312s | 0.214s | **10.6×** |
-| synth 1M×15 | 3.83s | 0.400s | 0.186s | **20.6×** |
-| synth 1M×30 | 7.32s | 0.904s | 0.399s | **18.3×** |
+| real_01 (215k×13) | 1.55s | 0.225s | 0.109s | **14.2×** |
+| real_02 (263k×13) | 1.36s | 0.222s | 0.093s | **14.5×** |
+| real_03 (394k×13) | 1.61s | 0.274s | 0.107s | **15.1×** |
+| synth 50k×15 | 0.83s | 0.087s | 0.044s | **18.9×** |
+| synth 200k×15 | 1.63s | 0.223s | 0.098s | **16.7×** |
+| synth 1M×15 | 2.98s | 0.581s | 0.182s | **16.4×** |
+| synth 1M×30 | 5.57s | 1.156s | 0.359s | **15.5×** |
 
 ### Do not use GPU for full PeacoQC (this version)
 
-On every measured size above, the optional GPU QC-core path was **much slower** than Rayon CPU (often ~50–100× behind; e.g. real_01 12.6s GPU vs 0.10s Rayon). **Recommendation:** leave the `gpu` feature off for end-to-end PeacoQC in 0.3.x; prefer default Rayon CPU.
-
-Batched KDE microbenches elsewhere still show large GPU wins when transfer is amortized; that does **not** carry through to full PeacoQC wall time yet. Tracking investigation/improvement: beads `flow-crates-aww`.
+Earlier publishable runs with `--gpu` showed the optional GPU QC-core path **much slower** than Rayon CPU on every size (often ~50–100× behind). **Recommendation:** leave the `gpu` feature off for end-to-end PeacoQC in 0.3.x. Batched KDE microbenches (`bench_results/`) can still win in isolation — see beads `flow-crates-aww` / `flow-crates-g1b`.
 
 ## Result agreement (R vs Rust, `% removed`)
 
-Same QC-core runs; Coarse agreement metric only (not a substitute for the dedicated R-parity tests).
+Same QC-core runs; coarse metric only (not a substitute for dedicated R-parity tests).
 
 ### Real FCS (publishable agreement)
 
@@ -38,147 +35,129 @@ Same QC-core runs; Coarse agreement metric only (not a substitute for the dedica
 | real_02 (263k×13) | 1.71% | 1.42% | −0.28% |
 | real_03 (394k×13) | 10.92% | 10.63% | −0.29% |
 
-On these stained files, Rust and R remove nearly the same fraction of events (|Δ| ≈ 0.3% on two samples; ~2% on one).
-
-### Synthetic grid (throughput fixtures — not parity targets)
+### Synthetic grid (`flow_fcs::synthetic` + mild timed FL artifact)
 
 | Case | R removed | Rust removed | Δ |
-| ---- | ----------- | ---------- | - |
-| synth 50k×5 | 57.00% | 56.00% | −1.00% |
-| synth 50k×15 | 57.00% | 57.50% | +0.50% |
-| synth 50k×30 | 57.00% | 57.50% | +0.50% |
-| synth 200k×5 | 0.00% | 63.00% | +63.00% |
-| synth 200k×15 | 60.25% | 63.00% | +2.75% |
-| synth 200k×30 | 60.25% | 63.00% | +2.75% |
-| synth 1M×5 | 0.00% | 0.00% | 0.00% |
-| synth 1M×15 | 28.68% | 0.00% | −28.68% |
-| synth 1M×30 | 60.40% | 30.02% | −30.38% |
+| ---- | --------- | ------------ | - |
+| synth 50k×5 | 25.00% | 39.50% | +14.50% |
+| synth 50k×15 | 26.00% | 77.00% | +51.00% |
+| synth 50k×30 | 26.50% | 87.00% | +60.50% |
+| synth 200k×5 | 20.50% | 20.50% | 0.00% |
+| synth 200k×15 | 25.00% | 31.00% | +6.00% |
+| synth 200k×30 | 25.50% | 47.00% | +21.50% |
+| synth 1M×5 | 21.38% | 20.25% | −1.12% |
+| synth 1M×15 | 24.52% | 24.30% | −0.22% |
+| synth 1M×30 | 24.52% | 24.98% | +0.45% |
 
-Synthetic cases use `flow_fcs::synthetic` Gaussian mixtures plus a mild mid-run FL
-intensity drop (PeacoQC-specific). Prefer **real FCS** rows above when judging
-R↔Rust agreement; use unit/parity tests for algorithmic fidelity.
+Large synthetic cases (1M) now track R closely (|Δ| ≲ 1.1%). Smaller grids can still diverge when the timed artifact sits near PeacoQC binning thresholds — prefer **real FCS** for publishable agreement; use unit/parity tests for fidelity.
 
-## PeacoQC Rust vs R throughput report
-
-- Date (UTC): 2026-08-10T16:19:01Z
+- Date (UTC): 2026-08-10T18:01:05Z
 - CPU: Apple M5 Max
 - OS: macos
 - Warmup / reps: 1 / 3
-- Modes: rust_only=false, gpu_requested=true
+- Modes: rust_only=false, gpu_requested=false
 - Headline phase: `qc_core` (PeacoQC only; load excluded)
 
-### Case `real_01` (215481 events × 13 FL channels)
+## Case `real_01` (215481 events × 13 FL channels)
 
-| Config | Mean | Std | Events/s | % removed | vs R | vs Rust (single-thread) |
-| ----- | ---- | --- | -------- | --------- | ---- | ----------------------- |
-| r | 1.5337s | 0.0270s | 140501 | 13.69 | 1.00× | 0.14× |
-| rust-cpu-single-thread | 0.2220s | 0.0014s | 970775 | 15.78 | 6.91× | 1.00× |
-| rust-cpu-multi-thread | 0.1032s | 0.0028s | 2087741 | 15.78 | 14.86× | 2.15× |
-| rust-gpu | 12.6326s | 0.1382s | 17058 | 15.78 | 0.12× | 0.02× |
+| Config | Mean (s) | Std (s) | Events/s | % removed | vs R | vs Rust-1 |
+|---|---:|---:|---:|---:|---:|---:|
+| r | 1.5483 | 0.0423 | 139170 | 13.69 | 1.00× | 0.15× |
+| rust-cpu-1 | 0.2251 | 0.0009 | 957230 | 15.78 | 6.88× | 1.00× |
+| rust-cpu | 0.1087 | 0.0046 | 1983057 | 15.78 | 14.25× | 2.07× |
 
-### Case `real_02` (263319 events × 13 FL channels)
+## Case `real_02` (263319 events × 13 FL channels)
 
-| Config | Mean | Std | Events/s | % removed | vs R | vs Rust (single-thread) |
-| ----- | ---- | --- | -------- | --------- | ---- | ----------------------- |
-| r | 1.3967s | 0.0086s | 188534 | 1.71 | 1.00× | 0.16× |
-| rust-cpu-single-thread | 0.2178s | 0.0011s | 1208931 | 1.42 | 6.41× | 1.00× |
-| rust-cpu-multi-thread | 0.0912s | 0.0009s | 2887354 | 1.42 | 15.31× | 2.39× |
-| rust-gpu | 8.9375s | 0.6111s | 29462 | 40.16 | 0.16× | 0.02× |
+| Config | Mean (s) | Std (s) | Events/s | % removed | vs R | vs Rust-1 |
+|---|---:|---:|---:|---:|---:|---:|
+| r | 1.3560 | 0.0122 | 194188 | 1.71 | 1.00× | 0.16× |
+| rust-cpu-1 | 0.2219 | 0.0015 | 1186731 | 1.42 | 6.11× | 1.00× |
+| rust-cpu | 0.0934 | 0.0022 | 2817825 | 1.42 | 14.51× | 2.37× |
 
 ## Case `real_03` (393849 events × 13 FL channels)
 
-| Config | Mean | Std | Events/s | % removed | vs R | vs Rust (single-thread) |
-| ----- | ---- | --- | -------- | --------- | ---- | ----------------------- |
-| r | 1.7827s | 0.0878s | 220932 | 10.92 | 1.00× | 0.15× |
-| rust-cpu-single-thread | 0.2753s | 0.0014s | 1430483 | 10.63 | 6.47× | 1.00× |
-| rust-cpu-multi-thread | 0.1137s | 0.0058s | 3464555 | 10.63 | 15.68× | 2.42× |
-| rust-gpu | 10.8773s | 1.2825s | 36208 | 1.27 | 0.16× | 0.03× |
+| Config | Mean (s) | Std (s) | Events/s | % removed | vs R | vs Rust-1 |
+|---|---:|---:|---:|---:|---:|---:|
+| r | 1.6093 | 0.0471 | 244728 | 10.92 | 1.00× | 0.17× |
+| rust-cpu-1 | 0.2738 | 0.0030 | 1438621 | 10.63 | 5.88× | 1.00× |
+| rust-cpu | 0.1066 | 0.0029 | 3693652 | 10.63 | 15.09× | 2.57× |
 
 ## Case `synth_1000000_x15` (1000000 events × 15 FL channels)
 
-| Config | Mean | Std | Events/s | % removed | vs R | vs Rust (single-thread) |
-| ----- | ---- | --- | -------- | --------- | ---- | ----------------------- |
-| r | 3.8290s | 0.1973s | 261165 | 28.68 | 1.00× | 0.10× |
-| rust-cpu-single-thread | 0.3999s | 0.0032s | 2500380 | 0.00 | 9.57× | 1.00× |
-| rust-cpu-multi-thread | 0.1864s | 0.0049s | 5365643 | 0.00 | 20.55× | 2.15× |
-| rust-gpu | 13.9139s | 0.8908s | 71871 | 0.00 | 0.28× | 0.03× |
+| Config | Mean (s) | Std (s) | Events/s | % removed | vs R | vs Rust-1 |
+|---|---:|---:|---:|---:|---:|---:|
+| r | 2.9843 | 0.0734 | 335083 | 24.52 | 1.00× | 0.19× |
+| rust-cpu-1 | 0.5813 | 0.0052 | 1720344 | 24.30 | 5.13× | 1.00× |
+| rust-cpu | 0.1822 | 0.0007 | 5489247 | 24.30 | 16.38× | 3.19× |
 
 ## Case `synth_1000000_x30` (1000000 events × 30 FL channels)
 
-| Config | Mean | Std | Events/s | % removed | vs R | vs Rust (single-thread) |
-| ----- | ---- | --- | -------- | --------- | ---- | ----------------------- |
-| r | 7.3187s | 0.0209s | 136637 | 60.40 | 1.00× | 0.12× |
-| rust-cpu-single-thread | 0.9041s | 0.0465s | 1106033 | 30.02 | 8.09× | 1.00× |
-| rust-cpu-multi-thread | 0.3993s | 0.0040s | 2504316 | 30.02 | 18.33× | 2.26× |
-| rust-gpu | 29.7626s | 0.5969s | 33599 | 30.02 | 0.25× | 0.03× |
+| Config | Mean (s) | Std (s) | Events/s | % removed | vs R | vs Rust-1 |
+|---|---:|---:|---:|---:|---:|---:|
+| r | 5.5670 | 0.1336 | 179630 | 24.52 | 1.00× | 0.21× |
+| rust-cpu-1 | 1.1562 | 0.0047 | 864883 | 24.98 | 4.81× | 1.00× |
+| rust-cpu | 0.3588 | 0.0057 | 2786906 | 24.98 | 15.51× | 3.22× |
 
 ## Case `synth_1000000_x5` (1000000 events × 5 FL channels)
 
-| Config | Mean | Std | Events/s | % removed | vs R | vs Rust (single-thread) |
-| ----- | ---- | --- | -------- | --------- | ---- | ----------------------- |
-| r | 1.0357s | 0.0519s | 965562 | 0.00 | 1.00× | 0.13× |
-| rust-cpu-single-thread | 0.1359s | 0.0030s | 7357574 | 0.00 | 7.62× | 1.00× |
-| rust-cpu-multi-thread | 0.0618s | 0.0013s | 16170044 | 0.00 | 16.75× | 2.20× |
-| rust-gpu | 4.5259s | 0.2087s | 220953 | 0.00 | 0.23× | 0.03× |
+| Config | Mean (s) | Std (s) | Events/s | % removed | vs R | vs Rust-1 |
+|---|---:|---:|---:|---:|---:|---:|
+| r | 1.1657 | 0.0838 | 857878 | 21.38 | 1.00× | 0.18× |
+| rust-cpu-1 | 0.2074 | 0.0045 | 4820959 | 20.25 | 5.62× | 1.00× |
+| rust-cpu | 0.0792 | 0.0065 | 12630170 | 20.25 | 14.72× | 2.62× |
 
 ## Case `synth_200000_x15` (200000 events × 15 FL channels)
 
-| Config | Mean | Std | Events/s | % removed | vs R | vs Rust (single-thread) |
-| ----- | ---- | --- | -------- | --------- | ---- | ----------------------- |
-| r | 2.2727s | 0.0742s | 88002 | 60.25 | 1.00× | 0.14× |
-| rust-cpu-single-thread | 0.3116s | 0.0012s | 641827 | 63.00 | 7.29× | 1.00× |
-| rust-cpu-multi-thread | 0.2142s | 0.0036s | 933808 | 63.00 | 10.61× | 1.45× |
-| rust-gpu | 11.7061s | 0.7439s | 17085 | 63.00 | 0.19× | 0.03× |
+| Config | Mean (s) | Std (s) | Events/s | % removed | vs R | vs Rust-1 |
+|---|---:|---:|---:|---:|---:|---:|
+| r | 1.6313 | 0.0451 | 122599 | 25.00 | 1.00× | 0.14× |
+| rust-cpu-1 | 0.2232 | 0.0037 | 896126 | 31.00 | 7.31× | 1.00× |
+| rust-cpu | 0.0976 | 0.0003 | 2049098 | 31.00 | 16.71× | 2.29× |
 
 ## Case `synth_200000_x30` (200000 events × 30 FL channels)
 
-| Config | Mean | Std | Events/s | % removed | vs R | vs Rust (single-thread) |
-| ----- | ---- | --- | -------- | --------- | ---- | ----------------------- |
-| r | 4.5573s | 0.0715s | 43885 | 60.25 | 1.00× | 0.10× |
-| rust-cpu-single-thread | 0.4766s | 0.0037s | 419652 | 63.00 | 9.56× | 1.00× |
-| rust-cpu-multi-thread | 0.3072s | 0.0040s | 651006 | 63.00 | 14.83× | 1.55× |
-| rust-gpu | 26.0450s | 0.0964s | 7679 | 63.00 | 0.17× | 0.02× |
+| Config | Mean (s) | Std (s) | Events/s | % removed | vs R | vs Rust-1 |
+|---|---:|---:|---:|---:|---:|---:|
+| r | 3.3090 | 0.1267 | 60441 | 25.50 | 1.00× | 0.13× |
+| rust-cpu-1 | 0.4345 | 0.0029 | 460326 | 47.00 | 7.62× | 1.00× |
+| rust-cpu | 0.1968 | 0.0044 | 1016350 | 47.00 | 16.82× | 2.21× |
 
 ## Case `synth_200000_x5` (200000 events × 5 FL channels)
 
-| Config | Mean | Std | Events/s | % removed | vs R | vs Rust (single-thread) |
-| ----- | ---- | --- | -------- | --------- | ---- | ----------------------- |
-| r | 0.8063s | 0.0706s | 248036 | 0.00 | 1.00× | 0.13× |
-| rust-cpu-single-thread | 0.1047s | 0.0013s | 1910774 | 63.00 | 7.70× | 1.00× |
-| rust-cpu-multi-thread | 0.0735s | 0.0024s | 2722704 | 63.00 | 10.98× | 1.42× |
-| rust-gpu | 4.0476s | 0.1503s | 49412 | 63.00 | 0.20× | 0.03× |
+| Config | Mean (s) | Std (s) | Events/s | % removed | vs R | vs Rust-1 |
+|---|---:|---:|---:|---:|---:|---:|
+| r | 0.5933 | 0.0031 | 337079 | 20.50 | 1.00× | 0.13× |
+| rust-cpu-1 | 0.0756 | 0.0005 | 2647143 | 20.50 | 7.85× | 1.00× |
+| rust-cpu | 0.0354 | 0.0002 | 5642777 | 20.50 | 16.74× | 2.13× |
 
 ## Case `synth_50000_x15` (50000 events × 15 FL channels)
 
-| Config | Mean | Std | Events/s | % removed | vs R | vs Rust (single-thread) |
-| ----- | ---- | --- | -------- | --------- | ---- | ----------------------- |
-| r | 0.9103s | 0.0273s | 54925 | 57.00 | 1.00× | 0.15× |
-| rust-cpu-single-thread | 0.1338s | 0.0004s | 373647 | 57.50 | 6.80× | 1.00× |
-| rust-cpu-multi-thread | 0.1006s | 0.0018s | 496945 | 57.50 | 9.05× | 1.33× |
-| rust-gpu | 6.4073s | 0.1006s | 7804 | 57.50 | 0.14× | 0.02× |
+| Config | Mean (s) | Std (s) | Events/s | % removed | vs R | vs Rust-1 |
+|---|---:|---:|---:|---:|---:|---:|
+| r | 0.8323 | 0.0986 | 60072 | 26.00 | 1.00× | 0.10× |
+| rust-cpu-1 | 0.0872 | 0.0002 | 573659 | 77.00 | 9.55× | 1.00× |
+| rust-cpu | 0.0440 | 0.0003 | 1135111 | 77.00 | 18.90× | 1.98× |
 
 ## Case `synth_50000_x30` (50000 events × 30 FL channels)
 
-| Config | Mean | Std | Events/s | % removed | vs R | vs Rust (single-thread) |
-| ----- | ---- | --- | -------- | --------- | ---- | ----------------------- |
-| r | 2.0833s | 0.1891s | 24000 | 57.00 | 1.00× | 0.11× |
-| rust-cpu-single-thread | 0.2334s | 0.0018s | 214229 | 57.50 | 8.93× | 1.00× |
-| rust-cpu-multi-thread | 0.1630s | 0.0019s | 306791 | 57.50 | 12.78× | 1.43× |
-| rust-gpu | 13.1170s | 0.1977s | 3812 | 57.50 | 0.16× | 0.02× |
+| Config | Mean (s) | Std (s) | Events/s | % removed | vs R | vs Rust-1 |
+|---|---:|---:|---:|---:|---:|---:|
+| r | 1.4563 | 0.0298 | 34333 | 26.50 | 1.00× | 0.12× |
+| rust-cpu-1 | 0.1697 | 0.0042 | 294629 | 87.00 | 8.58× | 1.00× |
+| rust-cpu | 0.0753 | 0.0005 | 663833 | 87.00 | 19.34× | 2.25× |
 
 ## Case `synth_50000_x5` (50000 events × 5 FL channels)
 
-| Config | Mean | Std | Events/s | % removed | vs R | vs Rust (single-thread) |
-| ----- | ---- | --- | -------- | --------- | ---- | ----------------------- |
-| r | 0.3207s | 0.0342s | 155925 | 57.00 | 1.00× | 0.12× |
-| rust-cpu-single-thread | 0.0369s | 0.0002s | 1353331 | 56.00 | 8.68× | 1.00× |
-| rust-cpu-multi-thread | 0.0252s | 0.0001s | 1980336 | 56.00 | 12.70× | 1.46× |
-| rust-gpu | 2.1481s | 0.1770s | 23277 | 56.00 | 0.15× | 0.02× |
+| Config | Mean (s) | Std (s) | Events/s | % removed | vs R | vs Rust-1 |
+|---|---:|---:|---:|---:|---:|---:|
+| r | 0.2650 | 0.0320 | 188679 | 25.00 | 1.00× | 0.11× |
+| rust-cpu-1 | 0.0299 | 0.0003 | 1671427 | 39.50 | 8.86× | 1.00× |
+| rust-cpu | 0.0156 | 0.0001 | 3212588 | 39.50 | 17.03× | 1.92× |
 
 - R: R version 4.6.0 (2026-04-24)
 - PeacoQC: 1.22.0
 - flowCore: 2.24.0
 - rustc: rustc 1.95.0 (59807616e 2026-04-14)
-- peacoqc-rs: 0.3.1
+- peacoqc-rs: 0.3.2
 
-See also [`comparison-with-r.md`](comparison-with-r.md) for fairness notes.
+See also `docs/comparison-with-r.md` for fairness notes.
