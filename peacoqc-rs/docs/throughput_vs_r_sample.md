@@ -28,31 +28,31 @@ Batched KDE microbenches elsewhere still show large GPU wins when transfer is am
 
 ## Result agreement (R vs Rust, `% removed`)
 
-Same QC-core runs; Rust `% removed` is identical across single-thread / Rayon / GPU for a given case. Coarse agreement metric only (not a substitute for the dedicated R-parity tests).
+Same QC-core runs; Coarse agreement metric only (not a substitute for the dedicated R-parity tests).
 
 ### Real FCS (publishable agreement)
 
-| Case | R % removed | Rust % removed | Δ (pp) |
-| ---- | ----------- | -------------- | ------ |
-| real_01 (215k×13) | 13.69 | 15.78 | +2.09 |
-| real_02 (263k×13) | 1.71 | 1.42 | −0.28 |
-| real_03 (394k×13) | 10.92 | 10.63 | −0.29 |
+| Case | R removed | Rust removed | Δ |
+| ---- | --------- | ------------ | - |
+| real_01 (215k×13) | 13.69% | 15.78% | +2.09% |
+| real_02 (263k×13) | 1.71% | 1.42% | −0.28% |
+| real_03 (394k×13) | 10.92% | 10.63% | −0.29% |
 
-On these stained files, Rust and R remove nearly the same fraction of events (|Δ| ≈ 0.3 pp on two samples; ~2 pp on one).
+On these stained files, Rust and R remove nearly the same fraction of events (|Δ| ≈ 0.3% on two samples; ~2% on one).
 
 ### Synthetic grid (throughput fixtures — not parity targets)
 
-| Case | R % removed | Rust % removed | Δ (pp) |
-| ---- | ----------- | -------------- | ------ |
-| synth 50k×5 | 57.00 | 56.00 | −1.00 |
-| synth 50k×15 | 57.00 | 57.50 | +0.50 |
-| synth 50k×30 | 57.00 | 57.50 | +0.50 |
-| synth 200k×5 | 0.00 | 63.00 | +63.00 |
-| synth 200k×15 | 60.25 | 63.00 | +2.75 |
-| synth 200k×30 | 60.25 | 63.00 | +2.75 |
-| synth 1M×5 | 0.00 | 0.00 | 0.00 |
-| synth 1M×15 | 28.68 | 0.00 | −28.68 |
-| synth 1M×30 | 60.40 | 30.02 | −30.38 |
+| Case | R removed | Rust removed | Δ |
+| ---- | ----------- | ---------- | - |
+| synth 50k×5 | 57.00% | 56.00% | −1.00% |
+| synth 50k×15 | 57.00% | 57.50% | +0.50% |
+| synth 50k×30 | 57.00% | 57.50% | +0.50% |
+| synth 200k×5 | 0.00% | 63.00% | +63.00% |
+| synth 200k×15 | 60.25% | 63.00% | +2.75% |
+| synth 200k×30 | 60.25% | 63.00% | +2.75% |
+| synth 1M×5 | 0.00% | 0.00% | 0.00% |
+| synth 1M×15 | 28.68% | 0.00% | −28.68% |
+| synth 1M×30 | 60.40% | 30.02% | −30.38% |
 
 Synthetic cases exist to scale wall time; several diverge sharply because the fixture (linear trends / channel layout) sits near decision boundaries. Prefer **real FCS** rows above when judging R↔Rust agreement; use unit/parity tests for algorithmic fidelity.
 
