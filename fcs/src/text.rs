@@ -186,13 +186,20 @@ impl<'a> Iterator for TextFields<'a> {
 /// There is **no byte-level signature** that separates that from a conformant
 /// escaped delimiter: `a<d><d>b` inside a value and `$A<d><d>$B` across an
 /// empty value are the same bytes in the same position. The only usable
-/// signature is semantic, and this is it: a key that contains a literal
-/// delimiter *and* whose text after that delimiter begins with `$`. `$` is
-/// reserved for standard keywords, so `…<d>$…` inside a single key means two
-/// standard keywords were welded together. A conformant key that genuinely
-/// contains the delimiter (`MY KEY` under the default space delimiter, which
-/// `escape_into` escapes on write and this tokenizer un-doubles on read) does
-/// not match, and must not: falling back for it would corrupt a legal file.
+/// signature is semantic, and this is it: a key that *begins* with `$`,
+/// contains a literal delimiter, and whose text after that delimiter also
+/// begins with `$`. `$` is reserved for standard keywords, so `$…<d>$…` inside
+/// a single key means two standard keywords were welded together.
+///
+/// Both halves must look standard, not just the second. A conformant *user*
+/// keyword can never begin with `$` — the prefix is reserved — so the leading
+/// test excludes every legal user keyword by construction, including one whose
+/// name happens to contain `<d>$` (`COST<d>$USD`). Without it that key would be
+/// flagged and the whole segment silently re-parsed under the wrong policy,
+/// which is the same class of silent corruption this guard exists to prevent.
+/// A conformant key that genuinely contains the delimiter (`MY KEY` under the
+/// default space delimiter, which `escape_into` escapes on write and this
+/// tokenizer un-doubles on read) does not match either, and must not.
 ///
 /// The cost of the check is one `Cow` discriminant test on the common path —
 /// callers only reach it for keys that actually un-doubled, which a conformant
@@ -206,10 +213,11 @@ impl<'a> Iterator for TextFields<'a> {
 /// and widening the predicate to "any literal delimiter in a key" would
 /// misfire on the legal `MY KEY` case above.
 pub(crate) fn looks_like_merged_keywords(field: &str, delimiter: u8) -> bool {
-    field
-        .split(delimiter as char)
-        .skip(1)
-        .any(|part| part.starts_with('$'))
+    field.starts_with('$')
+        && field
+            .split(delimiter as char)
+            .skip(1)
+            .any(|part| part.starts_with('$'))
 }
 
 /// Append `text` to `out`, doubling any occurrence of `delimiter` when the
@@ -397,6 +405,12 @@ mod tests {
         // not be flagged — falling back for it would corrupt a legal file.
         assert!(!looks_like_merged_keywords("MY KEY", b' '));
         assert!(!looks_like_merged_keywords("$MY KEY", b' '));
+        // A user keyword whose name contains `<delimiter>$`. Legal: the `$`
+        // prefix is reserved, so a conformant user keyword never starts with
+        // one, and the leading-`$` test is what keeps this from being flagged.
+        // Flagging it would silently re-parse a valid segment under `None`.
+        assert!(!looks_like_merged_keywords("COST $USD", b' '));
+        assert!(!looks_like_merged_keywords("COST|$USD", b'|'));
         // No delimiter at all: the overwhelmingly common case.
         assert!(!looks_like_merged_keywords("$TOT", b'|'));
         assert!(!looks_like_merged_keywords("", b'|'));
