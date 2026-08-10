@@ -126,8 +126,10 @@ use crate::decode::Decoder;
 use anyhow::anyhow;
 
 /// Everything the inner decode loop needs for one requested column,
-/// precomputed. `Copy` so a slice of these can cross into a rayon closure
-/// without a clone.
+/// precomputed. `Copy` because every field is `Copy` (including `Decoder`,
+/// which `fill_events` reads by value via `plan.decoder.read(..)`), so the
+/// derive costs nothing and lets plans be handled by value without threading
+/// lifetimes through call sites that don't need a borrow.
 #[derive(Debug, Clone, Copy)]
 struct ColumnPlan {
     /// Byte offset of this parameter within one event record.
@@ -576,19 +578,24 @@ mod tests {
 
     #[test]
     fn both_branches_produce_identical_output() {
+        // Two full chunks plus a ragged remainder, derived from the constant
+        // rather than hardcoded, so the parallel branch under test actually
+        // builds more than one task and exercises the cross-chunk walk this
+        // test exists to pin.
+        const EVENTS: usize = super::EVENTS_PER_CHUNK * 2 + 37;
         let mut metadata = synthetic_metadata_2f32();
-        metadata.keywords.insert("$TOT".to_string(), Keyword::Int(IntegerKeyword::TOT(5_000)));
+        metadata.keywords.insert("$TOT".to_string(), Keyword::Int(IntegerKeyword::TOT(EVENTS)));
         let layout = super::ColumnLayout::from_metadata(&metadata).expect("layout");
 
-        let mut data_bytes = Vec::with_capacity(5_000 * 8);
-        for e in 0..5_000u32 {
+        let mut data_bytes = Vec::with_capacity(EVENTS * 8);
+        for e in 0..EVENTS as u32 {
             data_bytes.extend_from_slice(&(e as f32).to_le_bytes());
             data_bytes.extend_from_slice(&(e as f32 * -2.0).to_le_bytes());
         }
         let plans = super::build_plans(&layout, &[0, 1]).expect("plans");
 
         let run = |parallel: bool| {
-            let mut columns: Vec<Vec<f32>> = vec![vec![0.0f32; 5_000]; 2];
+            let mut columns: Vec<Vec<f32>> = vec![vec![0.0f32; EVENTS]; 2];
             super::extract_columns_inner(
                 &data_bytes,
                 layout.bytes_per_event,
@@ -631,11 +638,22 @@ mod tests {
         let columns = super::extract_columns(&data_bytes, &layout, &[0, 1]).expect("extract");
         assert_eq!(columns[0].len(), EVENTS);
         // Spot-check the two chunk boundaries most likely to be wrong: the
-        // first event of the second chunk, and the last event overall.
+        // first event of the second chunk, and the last event overall. The
+        // boundary index is derived from EVENTS_PER_CHUNK rather than
+        // hardcoded, so retuning the constant can't silently turn this into
+        // a non-boundary (or out-of-range) assertion that stays green.
         assert_eq!(columns[0][0], 0.0);
         assert_eq!(columns[1][0], 0.5);
-        assert_eq!(columns[0][8_192], 8_192.0, "first event of the second chunk");
-        assert_eq!(columns[1][8_192], 8_192.5, "first event of the second chunk");
+        assert_eq!(
+            columns[0][super::EVENTS_PER_CHUNK],
+            super::EVENTS_PER_CHUNK as f32,
+            "first event of the second chunk"
+        );
+        assert_eq!(
+            columns[1][super::EVENTS_PER_CHUNK],
+            super::EVENTS_PER_CHUNK as f32 + 0.5,
+            "first event of the second chunk"
+        );
         assert_eq!(columns[0][EVENTS - 1], (EVENTS - 1) as f32, "last event");
         assert_eq!(columns[1][EVENTS - 1], (EVENTS - 1) as f32 + 0.5, "last event");
     }
