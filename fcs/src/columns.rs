@@ -22,19 +22,28 @@ use rayon::prelude::*;
 /// sequential, and still walks 48 MB.
 ///
 /// Swept over 256 KiB / 1 MiB / 4 MiB against `benches/lazy_column_access.rs`
-/// in `flow-crates-3si`: **no measurable difference across that range**, and
-/// none was possible, because neither bench fixture lands inside the swept
-/// window. The corpus fixture (`int-10000_events_random.fcs`, 10,000 events x
-/// 6 parameters x 4 bytes) has a 234 KiB DATA segment and stays sequential at
-/// all three; the synthetic fixture (1,000,000 x 20 `$DATATYPE F`) has a
-/// 76.3 MiB DATA segment and goes parallel at all three. The apparent
-/// per-value deltas across the sweep were noise — the untouched control
-/// benchmark `eager_data_frame_two_columns` moved by a comparable amount over
-/// the same runs.
+/// in `flow-crates-3si`. The two committed bench fixtures showed no difference
+/// across that range, and could not have: the corpus fixture
+/// (`int-10000_events_random.fcs`, 10,000 events x 6 parameters x 4 bytes) has
+/// a 234 KiB DATA segment and stays sequential at all three, while the
+/// synthetic fixture (1,000,000 x 20 `$DATATYPE F`) has a 76.3 MiB DATA
+/// segment and goes parallel at all three. All three configurations therefore
+/// execute identical machine code on this suite, so the spread between them is
+/// noise by construction.
 ///
-/// So 1 MiB is retained as an unfalsified default, not as a measured
-/// crossover. Anyone re-tuning it needs a fixture whose DATA segment lands
-/// between 256 KiB and 4 MiB; this bench suite has none.
+/// The crossover was then probed directly, on the one corpus file that *does*
+/// land inside the window: `fcs2_int16_50000ev_8par_random.fcs`, whose DATA
+/// segment is 50,000 x 8 x 2 = 781.25 KiB — parallel at 256 KiB, sequential at
+/// 1 MiB and 4 MiB. Pointing the two-column group at it and running criterion
+/// interleaved (1 MiB `--save-baseline`, 256 KiB `--baseline`, twice):
+/// **parallel is 31.5% and 43.8% *slower* than sequential** (p = 0.00 both
+/// cycles; 139.6 µs sequential vs. 220.9 µs parallel on the second), against an
+/// untouched control that moved 4.4%. At this size rayon's fan-out costs more
+/// than the decode it splits.
+///
+/// So 256 KiB is positively ruled out, not merely unsupported, and 1 MiB
+/// stands. The 1 MiB - 4 MiB region is still unprobed for want of a fixture in
+/// it; a re-tune wanting to move the constant *up* would have to generate one.
 const PARALLEL_BYTE_THRESHOLD: usize = 1 << 20; // 1 MiB
 
 /// Precomputed per-parameter byte layout for one FCS file's DATA segment,

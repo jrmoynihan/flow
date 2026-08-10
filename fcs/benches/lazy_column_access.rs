@@ -165,7 +165,13 @@ fn bench_two_column_access(c: &mut Criterion) {
 /// `events_uncached` no longer costs 8x `open_eager_baseline`; the two are now
 /// within noise of each other (77.6 µs vs. 83.8 µs). `open_eager_baseline` and
 /// `eager_data_frame_two_columns` are untouched by the rewrite and act as
-/// controls: both stayed within ±2.5% across the paired runs.
+/// controls: both stayed within ±2.5% across the paired runs — **but only once
+/// the two binaries were interleaved** (before, HEAD, before, HEAD, back to
+/// back). Collecting all the "before" samples first and all the "after"
+/// samples afterwards made `open_eager_baseline` — code this rewrite does not
+/// touch — report "Performance has regressed" at +8.8% and then +21.7%, both
+/// at p = 0.00. That is machine drift over a long session, and criterion
+/// cannot detect it, because each side is internally consistent. Interleave.
 fn bench_full_materialization(c: &mut Criterion) {
     let mut group = c.benchmark_group("full_materialization");
     group.warm_up_time(Duration::from_millis(300));
@@ -196,9 +202,14 @@ fn bench_full_materialization(c: &mut Criterion) {
 /// Note for anyone re-tuning `columns::PARALLEL_BYTE_THRESHOLD`: this
 /// fixture's DATA segment is 1,000,000 x 20 x 4 = 76.3 MiB and the corpus
 /// fixture used by the other two groups is 234 KiB, so every candidate
-/// threshold between those two sizes produces identical behaviour on this
-/// suite. A fixture in the 256 KiB - 4 MiB band would be needed to locate the
-/// crossover, and none exists here.
+/// threshold between those two sizes produces identical behaviour on the
+/// benchmarks as committed. To exercise the crossover, temporarily point
+/// `compliance_fcs()` at `fcs2_int16_50000ev_8par_random.fcs` (50,000 x 8 x 2
+/// = 781.25 KiB of DATA, byte-aligned, already covered by the lazy/eager
+/// oracle) and run the `two_column_access` group. That probe is what ruled out
+/// a 256 KiB threshold — see `columns::PARALLEL_BYTE_THRESHOLD`. Keep the
+/// change as scaffolding; the committed bench must open
+/// `int-10000_events_random.fcs`.
 fn bench_synthetic_column_access(c: &mut Criterion) {
     let dir = tempfile::TempDir::new().expect("tempdir");
     const EVENTS: usize = 1_000_000;
