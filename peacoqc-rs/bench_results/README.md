@@ -1,5 +1,11 @@
 # PeacoQC GPU vs CPU (Criterion `gpu_bench`, 2026-07-24)
 
+These numbers are **batched / single-channel KDE microbenches**, not full PeacoQC
+wall time. For QC-core vs R (and the recommendation to leave `gpu` off for e2e
+PeacoQC in 0.3.x), see `docs/throughput_vs_r_sample.md`.
+
+Moving shared KDE GPU into `flow-density` is tracked as beads `flow-crates-g1b`.
+
 ## Single-channel KDE (`KernelDensity::estimate`)
 
 CPU ≈ GPU through 2M points (~3.5–45 ms). The GPU arm currently shares most of the

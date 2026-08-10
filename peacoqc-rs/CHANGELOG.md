@@ -5,6 +5,30 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.3.2 (2026-08-10)
+
+### Added
+
+- **Rust vs R throughput harness** (`examples/compare_with_r.rs` + `compare_with_r.R`):
+  shared prepared FCS fixtures, QC-core timing (load excluded), separate Rust
+  processes for single-thread / Rayon / optional GPU rows, JSON + markdown reports.
+- Sample publishable results and fairness notes under `docs/comparison-with-r.md`
+  and `docs/throughput_vs_r_sample.md`; README Performance tables for peacoqc-rs
+  and peacoqc-py.
+
+### Changed
+
+- Document that the optional `gpu` feature is **not recommended** for full
+  PeacoQC in 0.3.x (end-to-end slower than Rayon CPU on measured sizes); keep
+  CPU Rayon as the vs-R headline and report R↔Rust `% removed` agreement on
+  real FCS.
+
+### Fixed
+
+- `compare_with_r`: anonymize real FCS case ids in reports; keep synthetic grid
+  on by default when `--fcs` is also passed; force `PEACOQC_FORCE_CPU=1` on CPU
+  rows when the binary also has GPU.
+
 ## 0.3.1 (2026-07-19)
 
 ### Fixed
@@ -21,7 +45,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 <csr-read-only-do-not-edit/>
 
- - 1 commit contributed to the release.
+ - 3 commits contributed to the release.
  - 4 days passed between releases.
  - 1 commit was understood as [conventional](https://www.conventionalcommits.org).
  - 0 issues like '(#ID)' were seen in commit messages
@@ -33,10 +57,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 <details><summary>view details</summary>
 
  * **Uncategorized**
+    - Release flow-fcs v0.4.1 ([`597f21b`](https://github.com/jrmoynihan/flow/commit/597f21bef7ea787437071685fc3cce9d2269270f))
+    - Release peacoqc-rs v0.3.1 ([`5b5e6fd`](https://github.com/jrmoynihan/flow/commit/5b5e6fdb3e1dee945cae3014f84de5baca57f43d))
     - R-compatible smooth.spline for MAD parity ([`576c416`](https://github.com/jrmoynihan/flow/commit/576c416c455e0d820fa5fb2748da56df88a746e6))
 </details>
 
 ## 0.3.0 (2026-07-14)
+
+<csr-id-f179bb3fb82f79a0f64667577b7ebd5340ba479c/>
+<csr-id-af6fc1e03ddb258ad2c692904dfce3c54097e4c6/>
+<csr-id-74956f94c544d1fa83f6fffbb18e2d4f5e6072ff/>
 
 ### Added
 
@@ -85,13 +115,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
    spectral cytometer data clipped at $PnR (e.g. 4.2e6):
    
    1. `get_channel_range` looked up `$PnR` via `get_float_keyword`, but $PnR
-      is stored as `IntegerKeyword::PnR`, so the call always returned `None`
-      and the margin code fell back to `data_max.max(262144)` — effectively
-      `data_max`, yielding no upper-margin removal.
+   is stored as `IntegerKeyword::PnR`, so the call always returned `None`
+   and the margin code fell back to `data_max.max(262144)` — effectively
+   `data_max`, yielding no upper-margin removal.
    2. The upper-margin comparison used `v > threshold`. When `data_max ==
-      max_range`, events exactly at the saturation ceiling slip through. R's
-      original PeacoQC has the same asymmetry but happened to work because
-      some cytometers store saturation slightly above the ceiling.
+   max_range`, events exactly at the saturation ceiling slip through. R's
+   original PeacoQC has the same asymmetry but happened to work because
+   some cytometers store saturation slightly above the ceiling.
    
    Switch to `get_parameter_numeric_metadata(.., "R")` + `IntegerKeyword::PnR`
    match, and use `>=` for the upper bound. Existing test still passes
@@ -105,9 +135,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  - <csr-id-6f4cf41fe6ac01608fcf5fd6ee36d975b250877e/> add KDE tuning parameters with builder pattern
    - Add derive_builder dependency for ergonomic configuration
    - Add three new parameters to PeakDetectionConfig and PeacoQCConfig:
-     - kde_bandwidth_adjust: Scale KDE bandwidth (default: 1.0)
-     - kde_grid_points: Configure KDE grid resolution (default: 512)
-     - cluster_distance_threshold: Threshold for peak-to-cluster assignment (default: None)
+   - kde_bandwidth_adjust: Scale KDE bandwidth (default: 1.0)
+   - kde_grid_points: Configure KDE grid resolution (default: 512)
+   - cluster_distance_threshold: Threshold for peak-to-cluster assignment (default: None)
    - Update KernelDensity::estimate() to use configurable parameters
    - Implement cluster distance threshold in peak assignment logic
    - Add builder pattern support to both config structs (#[derive(Builder)])

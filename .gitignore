@@ -1,6 +1,9 @@
 # Rust build artifacts
 target/
 **/target/
+# Alternate CARGO_TARGET_DIR used for A/B baselines (PERF_AB / Criterion)
+target-baseline/
+**/target-baseline/
 
 # Node.js
 node_modules/

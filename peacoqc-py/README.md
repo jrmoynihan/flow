@@ -88,8 +88,21 @@ print(peacoqc.__peacoqc_rs_version__)  # peacoqc-rs algorithm version baked into
 
 ## Performance
 
-Same algorithmic costs as `peacoqc-rs`; Python overhead is binding/conversion only. GPU features
-follow the Rust crate defaults when enabled at build time.
+Same algorithmic costs as `peacoqc-rs`; Python overhead is binding/conversion only.
+
+Cross-language QC-core timings live with the Rust crate (bindings do not re-time R separately):
+
+| Case | R | Rust | Speedup vs R |
+| ---- | ---------- | -------------- | ------------ |
+| real ~215k×13 | 1.55 | 0.109 | **14.2×** |
+| real ~394k×13 | 1.61 | 0.107 | **15.1×** |
+| synth 1M×15 | 2.98 | 0.182 | **16.4×** |
+
+**Do not enable the Rust `gpu` feature for full PeacoQC in this version** — e2e GPU was much slower than CPU on every measured size.
+
+On the three real FCS cases in the sample, R and Rust `% removed` agreed closely (|Δ| ≈ 0.3–2%). Large synthetic (1M) cases also track R; full tables:
+[`../peacoqc-rs/docs/throughput_vs_r_sample.md`](../peacoqc-rs/docs/throughput_vs_r_sample.md),
+[`../peacoqc-rs/docs/comparison-with-r.md`](../peacoqc-rs/docs/comparison-with-r.md).
 
 ## Building from source
 

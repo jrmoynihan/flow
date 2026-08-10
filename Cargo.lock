@@ -3242,6 +3242,7 @@ dependencies = [
  "ndarray-linalg",
  "polars",
  "rand 0.10.2",
+ "rand_distr 0.6.0",
  "rayon",
  "regex",
  "rustc-hash 2.1.3",
@@ -6190,7 +6191,7 @@ dependencies = [
 
 [[package]]
 name = "peacoqc-rs"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "anyhow",
  "approx",

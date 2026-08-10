@@ -1,6 +1,6 @@
 [package]
 name="peacoqc-rs"
-version= "0.3.1"
+version= "0.3.2"
 edition.workspace=true
 authors.workspace=true
 license.workspace=true
@@ -16,7 +16,7 @@ categories=["science", "algorithms"]
 
 [features]
 default =["flow-fcs", "gpu", "plots"]
-flow-fcs=["dep:flow-fcs", "dep:polars"]
+flow-fcs=["dep:flow-fcs", "dep:polars", "flow-fcs/synthetic"]
 gpu = ["dep:burn"]
 cubecl = ["dep:cubecl", "dep:bytemuck", "gpu"]
 # QC plot rendering (src/qc/plots.rs). Pulls in plotters, which on Linux
@@ -68,6 +68,10 @@ harness=false
 [[bench]]
 name   ="peaks_alloc_micro"
 harness=false
+
+[[example]]
+name = "compare_with_r"
+required-features = ["flow-fcs"]
 
 [package.metadata.scripts]
 test       ="cargo nextest run"

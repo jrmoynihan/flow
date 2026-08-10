@@ -5,6 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.5.1 (2026-08-10)
+
+### Added
+
+- **Lazy column accessors**: `Fcs::column`, `Fcs::columns`, and `Fcs::events` with
+  cached layouts via `ColumnLayout` / `extract_columns` for row-major materialization.
+- **`Fcs::open_all()`**: walk `$NEXTDATA` chains for multi-dataset FCS (e.g. Beckman `.lmd`).
+- **`Fcs::for_testing`**: public test-fixture constructor (feature-gated) for out-of-crate tests.
+- **FCS 3.2 conformance work**: CRC, datetime/keyword handling, and related rules.
+
+### Fixed
+
+- **`$PnR` masking** for integer parameters; **bit-packed `$PnB` stride** calculation;
+  **data-set-relative offsets** (HEADER / `$BEGIN*` / `$NEXTDATA`) with vendor-absolute disambiguation.
+- OTHER-segment offset scan bounded at the first segment; cache emptiness / bounds hardening
+  for derived `Fcs` values.
+
+### Changed
+
+- Manifest version **0.5.1** (includes `test-util` availability for dependents).
+
 ## 0.4.1 (2026-07-19)
 
 ### New Features
@@ -22,7 +43,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 <csr-read-only-do-not-edit/>
 
- - 5 commits contributed to the release over the course of 69 calendar days.
+ - 6 commits contributed to the release over the course of 69 calendar days.
  - 69 days passed between releases.
  - 1 commit was understood as [conventional](https://www.conventionalcommits.org).
  - 0 issues like '(#ID)' were seen in commit messages
@@ -34,6 +55,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 <details><summary>view details</summary>
 
  * **Uncategorized**
+    - Release flow-fcs v0.4.1 ([`597f21b`](https://github.com/jrmoynihan/flow/commit/597f21bef7ea787437071685fc3cce9d2269270f))
     - Specta derives, matrix-context gate fields, Polars 0.54 ([`cf0df0a`](https://github.com/jrmoynihan/flow/commit/cf0df0a44cf8ea82aab571f4bfe3684d99aaf213))
     - Release flow-fcs-compress v0.1.2 ([`0eb992c`](https://github.com/jrmoynihan/flow/commit/0eb992c3d8e97e305a0a957d0a8bbbecb6e56467))
     - Release flow-linalg v0.1.1, flow-density v0.1.1, flow-clustering v0.1.1, flow-fcs-compress v0.1.1 ([`966d22a`](https://github.com/jrmoynihan/flow/commit/966d22ae4fbdd6114dc3862d45648fce7ebf53cc))

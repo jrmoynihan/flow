@@ -28,9 +28,9 @@ Feature flags:
 
 | Flag | Description | Notes |
 | ---- | ----------- | ----- |
-| `flow-fcs` (default) | Enable integration with the `flow-fcs` crate for FCS file support |
-| `gpu` | Enable GPU acceleration for multi-channel datasets (20-32x speedup for batched operations) |
-| `cubecl` | Enable cubeCL custom GPU kernels (requires `gpu` feature) |
+| `flow-fcs` (default) | Enable integration with the `flow-fcs` crate for FCS file support | |
+| `gpu` | Optional GPU path for some batched kernels | **Not recommended** in 0.3.x (e2e slower than CPU — see Performance) |
+| `cubecl` | Enable cubeCL custom GPU kernels | requires `gpu` feature |
 
 ## Installation
 
@@ -42,7 +42,7 @@ Add this to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-peacoqc-rs = { path = "../peacoqc-rs", version = "0.3.1", features = ["flow-fcs"] }
+peacoqc-rs = { path = "../peacoqc-rs", version = "0.3.2", features = ["flow-fcs"] }
 ```
 
 ## How it works
@@ -355,29 +355,54 @@ Uses kernel smoothing (matching R's `stats::ksmooth` with bandwidth=50) to smoot
 
 ## Performance
 
-PeacoQC-RS is optimized for performance:
+Headline comparison is **QC-core wall time** versus Bioconductor PeacoQC (load excluded;
+same defaults). Method and fairness notes: [`docs/comparison-with-r.md`](docs/comparison-with-r.md).
+Full sample tables: [`docs/throughput_vs_r_sample.md`](docs/throughput_vs_r_sample.md).
 
-- **Parallel Processing**: Uses `rayon` for parallel computation:
-  - **Multiple channels** processed in parallel (all channels simultaneously)
-  - **Multiple bins** within each channel processed in parallel
-  - Provides significant speedup on multi-core systems (typically 2-8x depending on core count)
-- **GPU Acceleration** (optional, `--features gpu`): Provides 20-32x speedup for batched multi-channel operations
-  - Automatically used when GPU is available
-  - Batched operations amortize GPU overhead across multiple channels
-  - See `DEV_NOTES.md` for detailed performance results
-- **Efficient Data Structures**: Uses Polars DataFrames (via `flow-fcs` feature flag) for columnar storage
-- **Minimal Allocations**: Optimized to reduce memory allocations
-- **SIMD Support**: Leverages Polars' SIMD operations for fast numeric computations
+Representative release results (Apple M5 Max, 2026-08-10; warmup=1, reps=3; PeacoQC 1.22.0 / flowCore 2.24.0 / peacoqc-rs 0.3.2; Gaussian synthetic fixtures):
+
+| Case | R mean (s) | Rust 1-thread (s) | Rust Rayon (s) | Speedup vs R (Rayon) |
+|------|------------|-------------------|----------------|----------------------|
+| real ~215k×13 | 1.55 | 0.225 | 0.109 | **14.2×** |
+| real ~263k×13 | 1.36 | 0.222 | 0.093 | **14.5×** |
+| real ~394k×13 | 1.61 | 0.274 | 0.107 | **15.1×** |
+| synth 200k×15 | 1.63 | 0.223 | 0.098 | **16.7×** |
+| synth 1M×15 | 2.98 | 0.581 | 0.182 | **16.4×** |
+| synth 1M×30 | 5.57 | 1.156 | 0.359 | **15.5×** |
+
+On these sizes, default Rayon is about **14–15×** faster than R on real stained FCS and about **15–19×** on the synthetic grid. Single-thread Rust is already ~5–9× vs R.
+
+**Do not enable `gpu` for full PeacoQC in this version** — earlier `--gpu` runs were far slower than Rayon CPU on every size (investigation: beads `flow-crates-aww`). Leave GPU off unless you are profiling that path.
+
+### Result agreement (R vs Rust)
+
+On the three real FCS cases, `% removed` agreed closely (|Δ| ≈ 0.3 pp on two samples; +2.1 pp on one). Large synthetic cases (1M events) also track R (|Δ| ≲ 1.1 pp); smaller synthetic grids can still diverge near decision boundaries — see [`docs/throughput_vs_r_sample.md`](docs/throughput_vs_r_sample.md). Dedicated R-parity tests remain the source of truth for algorithmic fidelity.
+
+Internal notes (not vs R):
+
+- **Parallel Processing**: `rayon` over channels/bins
+- **GPU** (optional, not recommended for e2e PeacoQC yet): microbench wins on batched KDE do not currently translate to full-pipeline wall time — `DEV_NOTES.md`, beads `flow-crates-aww`
+- Criterion microbenches / alloc A/B: `cargo bench`, [`docs/PERF_AB.md`](docs/PERF_AB.md)
 
 ### Benchmarks
 
-Run benchmarks with:
+Cross-language harness (pass real FCS only via `--fcs`; do not commit clinical paths):
+
+```bash
+cargo run -p peacoqc-rs --release --no-default-features --features flow-fcs --example compare_with_r -- \
+  --out target/peacoqc-r-compare/run \
+  --events 50000,200000,1000000 --channels 5,15,30 \
+  --warmup 1 --reps 3 \
+  --fcs /path/to/a.fcs --fcs /path/to/b.fcs
+```
+
+(Optional GPU row for investigation only: build with `--features flow-fcs,gpu` and pass `--gpu`. Not recommended for production timings.)
+
+Criterion (Rust-only):
 
 ```bash
 cargo bench --bench peacoqc_bench
 ```
-
-GPU paths need a suitable adapter; without one, prefer `--no-default-features --features flow-fcs`. Micro-opt notes: [`docs/PERF_AB.md`](docs/PERF_AB.md).
 
 ## Testing
 
