@@ -835,6 +835,13 @@ pub(crate) fn serialize_metadata(
 
     let mut text_segment = Vec::new();
     for (key, value) in &pairs {
+        // Deliberately asymmetric with the read side. `Metadata::from_text_segment`
+        // now *tolerates* this shape on read: it fingerprints the resulting
+        // welded keys and re-tokenizes the segment unescaped (see the
+        // `merged_keywords` fallback there). Writing it stays a hard error
+        // anyway, so a read-modify-write pipeline can load a file it cannot
+        // save. That is the intended trade: we read the non-conformant files
+        // that already exist, and we do not produce any more of them.
         if escaping == crate::text::Escaping::Doubled && value.is_empty() {
             return Err(anyhow!(
                 "FCS {version} forbids empty keyword values, but {key} has one. \

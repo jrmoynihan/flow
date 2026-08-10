@@ -388,6 +388,18 @@ impl<'a> BitReader<'a> {
     }
 }
 
+/// Outcome of one `$BEGINDATA` scan pass over a data set's TEXT segment.
+///
+/// `MergedKeywords` is not an error: it reports that the segment carries the
+/// non-conformant-3.1+-writer fingerprint (see
+/// `crate::text::looks_like_merged_keywords`), so the caller should rescan
+/// under `Escaping::None` rather than trust — or give up on — this pass.
+enum BegindataScan {
+    Found(String),
+    MergedKeywords,
+    Exhausted,
+}
+
 impl Fcs {
     /// Creates a new Fcs file struct
     /// # Errors
@@ -894,9 +906,14 @@ impl Fcs {
     /// for this data set, so a doubled delimiter is interpreted identically whichever
     /// function encounters it first.
     ///
+    /// A segment carrying the non-conformant-3.1+-writer fingerprint is rescanned
+    /// under `Escaping::None`, matching `Metadata::from_text_segment`'s fallback —
+    /// see the `BegindataScan::MergedKeywords` arm below for why this consumer
+    /// needs it too.
+    ///
     /// # Errors
-    /// Will return `Err` if `$BEGINDATA` is not found before the end of the mmap, or its
-    /// value is not a valid unsigned integer.
+    /// Will return `Err` if `$BEGINDATA` is not found before the end of the mmap under
+    /// either escaping policy, or its value is not a valid unsigned integer.
     fn find_begindata_offset(
         mmap: &Mmap,
         text_start: usize,
@@ -904,25 +921,68 @@ impl Fcs {
     ) -> Result<usize> {
         let delimiter = mmap[text_start];
         let rest = &mmap[(text_start + 1)..];
+        let escaping = crate::text::Escaping::for_version(version);
 
-        let mut fields = crate::text::TextFields::new(
-            rest,
-            delimiter,
-            crate::text::Escaping::for_version(version),
-        );
-
-        while let Some(key) = fields.next() {
-            let Some(value) = fields.next() else { break };
-            if key.eq_ignore_ascii_case("$BEGINDATA") {
-                return value.trim().parse::<usize>().with_context(|| {
-                    format!("Invalid $BEGINDATA value '{value}' while scanning for next dataset's TEXT boundary")
-                });
+        match Self::scan_for_begindata(rest, delimiter, escaping) {
+            BegindataScan::Found(value) => return value.trim().parse::<usize>().with_context(|| {
+                format!("Invalid $BEGINDATA value '{value}' while scanning for next dataset's TEXT boundary")
+            }),
+            BegindataScan::Exhausted => {}
+            // This consumer gets the same non-conformant-writer fallback as
+            // `Metadata::from_text_segment`, and it needs it for a reason of
+            // its own: an empty value immediately ahead of `$BEGINDATA` welds
+            // the two keys into `$SOMETHING<d>$BEGINDATA`, which
+            // `eq_ignore_ascii_case("$BEGINDATA")` does not match — so the
+            // scan walks past the offset it exists to find and fails on a
+            // file whose TEXT is perfectly recoverable. Keeping the two
+            // consumers' policies identical is also the whole point of
+            // sharing one tokenizer; letting only one of them fall back would
+            // reintroduce the drift by the back door.
+            BegindataScan::MergedKeywords => {
+                tracing::warn!(
+                    "FCS {version} data set at offset {text_start} contains an empty keyword \
+                     value, which FCS 3.1 and later forbid: this file was written by a \
+                     non-conformant 3.1+ writer. Rescanning for $BEGINDATA without delimiter \
+                     un-escaping."
+                );
+                if let BegindataScan::Found(value) =
+                    Self::scan_for_begindata(rest, delimiter, crate::text::Escaping::None)
+                {
+                    return value.trim().parse::<usize>().with_context(|| {
+                        format!("Invalid $BEGINDATA value '{value}' while scanning for next dataset's TEXT boundary")
+                    });
+                }
             }
         }
 
         Err(anyhow!(
             "Reached end of file while scanning for $BEGINDATA in dataset TEXT segment starting at offset {text_start}"
         ))
+    }
+
+    /// One pass of the `$BEGINDATA` scan under a fixed escaping policy.
+    fn scan_for_begindata(
+        rest: &[u8],
+        delimiter: u8,
+        escaping: crate::text::Escaping,
+    ) -> BegindataScan {
+        let mut fields = crate::text::TextFields::new(rest, delimiter, escaping);
+
+        while let Some(key) = fields.next() {
+            // Same O(1) `Cow` discriminant guard as the metadata parse: only
+            // a key that actually un-doubled can carry the fingerprint.
+            if matches!(key, std::borrow::Cow::Owned(_))
+                && crate::text::looks_like_merged_keywords(&key, delimiter)
+            {
+                return BegindataScan::MergedKeywords;
+            }
+            let Some(value) = fields.next() else { break };
+            if key.eq_ignore_ascii_case("$BEGINDATA") {
+                return BegindataScan::Found(value.into_owned());
+            }
+        }
+
+        BegindataScan::Exhausted
     }
 
     /// Validates that the file extension is `.fcs`

@@ -91,13 +91,66 @@ impl Metadata {
         // Read the text content, SKIPping the first byte, which is the delimiter (used above)
         let text_slice = &mmap[(*text_range.start() + 1)..=*text_range.end()];
 
+        let escaping = crate::text::Escaping::for_version(version);
+        let (keywords, merged_keywords) = Self::collect_keywords(text_slice, delimiter, escaping, text_range);
+
+        // Non-conformant 3.1+ writer: detect, warn, retry unescaped.
+        //
+        // FCS 3.1+ forbids empty keyword values, and `Escaping::Doubled` is
+        // only invertible because of that guarantee. A writer that emits one
+        // anyway (flow-crates itself did, for `$PnS`, until commits 2ea7957
+        // and 4ebc3c3 on this branch) writes the exact byte sequence
+        // `Doubled` reads as an escaped literal, silently welding two
+        // keywords into one. `looks_like_merged_keywords` documents why the
+        // fingerprint has to be semantic rather than byte-level.
+        //
+        // Deliberate asymmetry with the write side: `write.rs`'s
+        // `serialize_metadata` still *refuses* to write an empty value at
+        // V3_1+ (see the error next to `escaping == Escaping::Doubled &&
+        // value.is_empty()` there). So after this fallback we can read a file
+        // we would decline to write back out, and a read-modify-write
+        // pipeline can load a file it cannot save. That was accepted
+        // knowingly: reading a real file correctly is worth more than
+        // symmetry, and continuing to reject the malformed shape on write is
+        // what stops us from creating more of them.
+        if merged_keywords {
+            tracing::warn!(
+                "FCS {version} TEXT segment contains an empty keyword value, which \
+                 FCS 3.1 and later forbid: this file was written by a non-conformant \
+                 3.1+ writer. Re-reading its TEXT without delimiter un-escaping; a \
+                 value that legitimately contained a doubled delimiter would be read \
+                 as an empty value instead."
+            );
+            let (keywords, _) = Self::collect_keywords(
+                text_slice,
+                delimiter,
+                crate::text::Escaping::None,
+                text_range,
+            );
+            return Self { keywords, delimiter: delimiter as char };
+        }
+
+        Self {
+            keywords,
+            delimiter: delimiter as char,
+        }
+    }
+
+    /// Tokenize and parse one TEXT body under a fixed escaping policy.
+    ///
+    /// Returns the keyword map plus whether the tokenization tripped the
+    /// non-conformant-writer fingerprint (always `false` under
+    /// [`crate::text::Escaping::None`], which cannot produce it). On a trip
+    /// the walk stops early: the caller is going to discard this parse and
+    /// redo it, so finishing it would be wasted work.
+    fn collect_keywords(
+        text_slice: &[u8],
+        delimiter: u8,
+        escaping: crate::text::Escaping,
+        text_range: &std::ops::RangeInclusive<usize>,
+    ) -> (KeywordMap, bool) {
         let mut keywords: KeywordMap = FxHashMap::default();
-        let mut fields = crate::text::TextFields::new(
-            text_slice,
-            delimiter,
-            crate::text::Escaping::for_version(version),
-        )
-        .peekable();
+        let mut fields = crate::text::TextFields::new(text_slice, delimiter, escaping).peekable();
 
         // TEXT need not end on the delimiter (some writers omit the final
         // one). When it doesn't, `TextFields`' last field is an *unterminated*
@@ -114,6 +167,14 @@ impl Metadata {
         while let Some(key) = fields.next() {
             if fields.peek().is_none() && unterminated_tail && key.is_empty() {
                 break;
+            }
+            // `Cow::Owned` under `Doubled` means, and only means, that this
+            // key un-doubled at least one delimiter — so the O(1) discriminant
+            // test keeps the fingerprint check off the common path entirely.
+            if matches!(key, std::borrow::Cow::Owned(_))
+                && crate::text::looks_like_merged_keywords(&key, delimiter)
+            {
+                return (keywords, true);
             }
             let Some(value) = fields.next() else {
                 // A keyword with no value at the end of TEXT. Invalid FCS, but
@@ -145,10 +206,7 @@ impl Metadata {
             }
         }
 
-        Self {
-            keywords,
-            delimiter: delimiter as char,
-        }
+        (keywords, false)
     }
 
     /// Check that required keys are present in the TEXT segment of the metadata
@@ -808,5 +866,110 @@ mod delimiter_escaping_read_tests {
                 "{name}: decoded column count must match $PAR"
             );
         }
+    }
+}
+
+/// C1: the FCS 3.1+ read path against TEXT segments no writer in this
+/// repository can produce.
+///
+/// The compliance corpus is five FCS2.0 files and five FCS3.0 files — not one
+/// 3.1+ file — so `Escaping::Doubled`'s read side has no real-file coverage at
+/// all, and `write_fcs_file` now hard-refuses the empty value that breaks it.
+/// Every fixture here is therefore assembled byte by byte, following
+/// `file.rs`'s `begindata_scan_treats_a_legal_empty_value_as_none_escaped`.
+#[cfg(test)]
+mod non_conformant_3_1_read_tests {
+    use super::Metadata;
+    use crate::version::Version;
+    use std::io::Write;
+
+    /// Parse `text_body` (leading delimiter byte included, exactly as
+    /// `Header::text_offset` would point at it) under `version`.
+    fn parse(text_body: &[u8], version: Version) -> Metadata {
+        let mut file = tempfile::NamedTempFile::new().expect("temp file");
+        file.write_all(text_body).expect("write temp file");
+        file.flush().expect("flush temp file");
+        // SAFETY: file is exclusively owned by this test and not mutated
+        // after the write above; same convention `Fcs::open` uses.
+        let mmap = unsafe { memmap3::Mmap::map(file.as_file()) }.expect("mmap temp file");
+        Metadata::from_text_segment(&mmap, &(0..=(text_body.len() - 1)), version)
+    }
+
+    fn string_value(metadata: &Metadata, key: &str) -> String {
+        use crate::keyword::StringableKeyword;
+        metadata
+            .get_string_keyword(key)
+            .unwrap_or_else(|e| panic!("{key} must be present: {e}; got {:?}", metadata.keywords))
+            .get_str()
+            .into_owned()
+    }
+
+    /// A 3.2 file with an empty `$P1S` — the shape flow-crates itself wrote
+    /// before commits 2ea7957/4ebc3c3 — must come back whole, not garbled.
+    ///
+    /// Without the fallback, `$P1S` and `$P2N` weld into the single key
+    /// `$P1S|$P2N`, `$P1S` disappears, and `$P2N`'s value is attributed to a
+    /// key nothing will ever look up. `Fcs::open` would still succeed, because
+    /// `$PAR`/`$TOT` are unaffected — which is exactly what makes it silent.
+    #[test]
+    fn an_empty_value_from_a_non_conformant_3_1_writer_does_not_garble_later_keywords() {
+        let body = b"|$PAR|2|$TOT|3|$P1N|FSC-A|$P1S||$P2N|SSC-A|$P2S|Side scatter|$CYT|Aurora|";
+        let metadata = parse(body, Version::V3_2);
+
+        assert_eq!(*metadata.get_number_of_parameters().expect("$PAR"), 2);
+        assert_eq!(*metadata.get_number_of_events().expect("$TOT"), 3);
+        // Every keyword after the empty value, recovered under its own key.
+        assert_eq!(string_value(&metadata, "$P2N"), "SSC-A");
+        assert_eq!(string_value(&metadata, "$P2S"), "Side scatter");
+        assert_eq!(string_value(&metadata, "$CYT"), "Aurora");
+        // And the empty-valued keyword itself, plus the one before it.
+        assert_eq!(string_value(&metadata, "$P1N"), "FSC-A");
+        assert_eq!(string_value(&metadata, "$P1S"), "");
+        // No welded key survives anywhere in the map.
+        assert!(
+            !metadata.keywords.keys().any(|key| key.contains('|')),
+            "no key may contain the delimiter after the fallback: {:?}",
+            metadata.keywords
+        );
+    }
+
+    /// The mirror: a *conformant* 3.1 segment whose value genuinely contains
+    /// an escaped delimiter must still un-double, and must not trip the
+    /// fallback. Under `Escaping::None` this same input reads `$CYT` as
+    /// `"BD"`, so the assertion below fails loudly if the fallback misfires.
+    #[test]
+    fn a_conformant_escaped_delimiter_still_un_doubles_and_does_not_trip_the_fallback() {
+        // `$CYT` = "BD LSRFortessa X-20" with the default space delimiter,
+        // escaped by doubling each embedded space.
+        let body = b" $PAR 2 $TOT 3 $CYT BD  LSRFortessa  X-20 $P1N FSC-A ";
+        let metadata = parse(body, Version::V3_1);
+
+        assert_eq!(string_value(&metadata, "$CYT"), "BD LSRFortessa X-20");
+        assert_eq!(string_value(&metadata, "$P1N"), "FSC-A");
+        assert_eq!(*metadata.get_number_of_parameters().expect("$PAR"), 2);
+    }
+
+    /// A conformant user keyword whose *name* carries the delimiter also must
+    /// not trip the fallback — the fingerprint is "welded standard keywords",
+    /// not "any escaped key". Companion to `I1`'s round-trip test in
+    /// `file.rs`.
+    #[test]
+    fn a_conformant_escaped_key_does_not_trip_the_fallback() {
+        let body = b" $PAR 2 $TOT 3 $MY  KEY value $P1N FSC-A ";
+        let metadata = parse(body, Version::V3_1);
+
+        assert_eq!(string_value(&metadata, "$MY KEY"), "value");
+        assert_eq!(string_value(&metadata, "$P1N"), "FSC-A");
+    }
+
+    /// Pre-3.1 files are untouched by any of this: `Escaping::None` cannot
+    /// produce the fingerprint, so the same empty value parses directly.
+    #[test]
+    fn a_legal_empty_value_under_v3_0_never_reaches_the_fallback() {
+        let body = b"|$PAR|2|$TOT|3|$P1S||$P2N|SSC-A|";
+        let metadata = parse(body, Version::V3_0);
+
+        assert_eq!(string_value(&metadata, "$P2N"), "SSC-A");
+        assert_eq!(string_value(&metadata, "$P1S"), "");
     }
 }

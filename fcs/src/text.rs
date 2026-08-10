@@ -69,6 +69,19 @@ impl<'a> TextFields<'a> {
 /// FCS requires TEXT to be ASCII. Invalid UTF-8 degrades to an empty field
 /// rather than erroring, matching the pre-existing `unwrap_or_default()`
 /// behaviour of both tokenizers this replaced.
+///
+/// The granularity of that degradation differs between the two policies, and
+/// deliberately so — it falls out of where the function is called. Under
+/// [`Escaping::None`] (and under [`Escaping::Doubled`]'s no-escape fast path)
+/// it is applied to the whole field, so one bad byte empties the field. Under
+/// `Doubled`'s escaped path it is applied to each sub-slice *between*
+/// delimiter runs, so a field that contains both an escaped delimiter and an
+/// invalid byte yields the still-valid sub-slices concatenated rather than "".
+/// The same bytes therefore decode to a partial string one way and an empty
+/// string the other. The lossy-UTF-8 policy as a whole is tracked separately
+/// (bead `flow-crates-gpc`); this note exists so the asymmetry is not
+/// mistaken for an accident. Note that `metadata.rs`'s `unterminated_tail`
+/// guard keys off exactly this emptiness.
 fn as_str(bytes: &[u8]) -> &str {
     std::str::from_utf8(bytes).unwrap_or_default()
 }
@@ -152,6 +165,51 @@ impl<'a> Iterator for TextFields<'a> {
             }
         }
     }
+}
+
+/// True if `field` — a token that landed in a **key** position while
+/// tokenizing under [`Escaping::Doubled`] — carries the fingerprint of two
+/// standard keywords that a non-conformant empty value merged into one.
+///
+/// # Why this shape, and why only this shape
+///
+/// FCS 3.1+ forbids empty keyword values precisely because an empty value is
+/// spelled as two back-to-back delimiter bytes, which is byte-for-byte
+/// identical to one escaped literal delimiter. A writer that emits
+/// `<d>$P1S<d><d>$P2S<d>value<d>` anyway produces a run of two that `Doubled`
+/// folds into the ongoing field, yielding the single key `$P1S<d>$P2S` and
+/// attributing `value` to it: `$P1S` is lost outright and `$P2S` is
+/// unreachable. (The damage is local, not a cascading shift — each empty value
+/// removes exactly two fields, so key/value parity is preserved for everything
+/// after it. It is still silent data loss.)
+///
+/// There is **no byte-level signature** that separates that from a conformant
+/// escaped delimiter: `a<d><d>b` inside a value and `$A<d><d>$B` across an
+/// empty value are the same bytes in the same position. The only usable
+/// signature is semantic, and this is it: a key that contains a literal
+/// delimiter *and* whose text after that delimiter begins with `$`. `$` is
+/// reserved for standard keywords, so `…<d>$…` inside a single key means two
+/// standard keywords were welded together. A conformant key that genuinely
+/// contains the delimiter (`MY KEY` under the default space delimiter, which
+/// `escape_into` escapes on write and this tokenizer un-doubles on read) does
+/// not match, and must not: falling back for it would corrupt a legal file.
+///
+/// The cost of the check is one `Cow` discriminant test on the common path —
+/// callers only reach it for keys that actually un-doubled, which a conformant
+/// file essentially never has.
+///
+/// # Known limits
+///
+/// A non-conformant empty value between two *user* keywords (neither
+/// `$`-prefixed) is not detected. The regression this guards is flow-crates'
+/// own former output — empty `$PnS` in FCS 3.2 files, all standard keywords —
+/// and widening the predicate to "any literal delimiter in a key" would
+/// misfire on the legal `MY KEY` case above.
+pub(crate) fn looks_like_merged_keywords(field: &str, delimiter: u8) -> bool {
+    field
+        .split(delimiter as char)
+        .skip(1)
+        .any(|part| part.starts_with('$'))
 }
 
 /// Append `text` to `out`, doubling any occurrence of `delimiter` when the
@@ -310,6 +368,38 @@ mod tests {
             .map(std::borrow::Cow::into_owned)
             .collect();
         assert_eq!(got, vec!["$COM", "hello world", "$PAR", "2"]);
+    }
+
+    #[test]
+    fn an_empty_value_merges_two_keys_under_doubled() {
+        // The C1 mechanism, pinned. A non-conformant 3.1+ writer emitting an
+        // empty $P1S produces this; `Doubled` welds $P1S and $P2S into one
+        // key and gives it $P2S's value. Note the parity is *preserved* —
+        // two fields vanish, so nothing after this pair shifts.
+        assert_eq!(
+            fields("$P1S||$P2S|FSC|$TOT|3|", b'|', Escaping::Doubled),
+            vec!["$P1S|$P2S", "FSC", "$TOT", "3"]
+        );
+        // The same bytes under `None` are what the writer meant.
+        assert_eq!(
+            fields("$P1S||$P2S|FSC|$TOT|3|", b'|', Escaping::None),
+            vec!["$P1S", "", "$P2S", "FSC", "$TOT", "3"]
+        );
+    }
+
+    #[test]
+    fn merged_keyword_detection_flags_welded_standard_keywords_only() {
+        use super::looks_like_merged_keywords;
+        // Welded standard keywords: the C1 fingerprint.
+        assert!(looks_like_merged_keywords("$P1S|$P2S", b'|'));
+        assert!(looks_like_merged_keywords("$COM|$BEGINDATA", b'|'));
+        // A conformant user keyword whose *name* contains the delimiter must
+        // not be flagged — falling back for it would corrupt a legal file.
+        assert!(!looks_like_merged_keywords("MY KEY", b' '));
+        assert!(!looks_like_merged_keywords("$MY KEY", b' '));
+        // No delimiter at all: the overwhelmingly common case.
+        assert!(!looks_like_merged_keywords("$TOT", b'|'));
+        assert!(!looks_like_merged_keywords("", b'|'));
     }
 
     #[test]
