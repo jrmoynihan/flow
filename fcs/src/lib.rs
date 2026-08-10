@@ -28,6 +28,7 @@ pub mod crc;
 pub mod corpus;
 pub mod datatype;
 pub mod datetime;
+pub(crate) mod decode;
 pub mod file;
 pub mod header;
 pub mod keyword;
