@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## Unreleased
+## 0.5.1 (2026-08-10)
 
 ### Added
 
@@ -22,9 +22,246 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - OTHER-segment offset scan bounded at the first segment; cache emptiness / bounds hardening
   for derived `Fcs` values.
 
+### Bug Fixes (BREAKING)
+
+ - <csr-id-f0b29225fb01d5d2c8060e2b9fdf4b9b87b2dfa7/> resolve offsets data-set-relative, fold OTHER into CRC range
+   Every FCS offset is measured from the start of the data set that declares
+   it, not from the start of the file: HEADER fields (§2.4.3), $BEGINDATA and
+   $BEGINANALYSIS (§3.3.3), and $NEXTDATA (§3.3.31). We were treating them all
+   as file-absolute.
+   
+   The bug stayed invisible because a two-data-set file -- which is what every
+   .lmd is -- takes exactly one hop, from byte 0, where relative and absolute
+   agree. It takes a three-data-set chain to expose it, and no fixture had one.
+   
+   Fcs gains a public dataset_start; a private absolutize() in file.rs maps a
+   declared offset to a file-absolute one. It disambiguates rather than
+   assuming, because vendors do emit file-absolute offsets: an offset below
+   dataset_start must be relative, and otherwise the relative reading wins
+   unless it runs past EOF, in which case we warn and fall back. That keeps the
+   existing vendor-style two-data-set fixture green.
+
+### New Features (BREAKING)
+
+ - <csr-id-b6eb1c2c1f7f3fda501406a830cede1e5cf3913e/> FCS 3.2 conformance — CRC, datetime, keywords, conformance rules
+   Closes the fcs half of epic flow-crates-x17. Every file the crate writes is
+   now FCS 3.2 conformant, and files past 99,999,999 bytes no longer panic on
+   write.
+   
+   CRC (§3.7, flow-crates-x17.3)
+     New fcs/src/crc.rs implements CRC-16/KERMIT. The polynomial text in the spec
+     does not pin the algorithm — XMODEM-with-reflected-input reads the same prose
+     and disagrees on nearly every message. §3.7's normative vector settles it:
+     brute-forcing the CRC-16 parameter space against compute("CatMouse987654321")
+     == 49805 yields exactly one match. Both that vector and KERMIT's catalog
+     check value are asserted, so drift toward XMODEM fails immediately.
+   
+     The on-disk field is 8 ASCII bytes of DECIMAL, left-zero-padded ("00049805"),
+     not hex — the spec quotes the value in hex in the same sentence, which is the
+     trap. Eight ASCII zeros means "not computed"; emitting nothing, which this
+     crate did until now, is not a legal encoding, so every file it had ever
+     written was non-conformant even under the opt-out.
+   
+     Read side warns rather than rejects: many vendor files carry absent or wrong
+     CRCs, and hard-failing would make them unopenable. StoredCrc distinguishes
+     Absent / Value / Malformed / Missing so a pre-CRC file is not called corrupt.
+     Fcs::open_verified opts into strict rejection.
+   
+   HEADER offsets (flow-crates-x17.1)
+     build_header wrote format!("{:>8}", offset) into fixed 8-byte slices with no
+     width guard, so any segment past 99,999,999 bytes panicked in
+     copy_from_slice. A ~768 MB spectral file reaches this in normal use. Per
+     §2.2.4 those offsets are now declared 0 and carried in $BEGINDATA/$ENDDATA.
+   
+     resolve_segment_offsets() is extracted in file.rs so the DataFrame reader and
+     the CRC locator resolve segment bounds the same way; reading them off Header
+     directly is now documented as wrong.
+   
+   Conformance rules and 3.2 keywords (flow-crates-x17.4, x17.5)
+     New fcs/src/conformance.rs holds per-version rules keyed by Version, ready to
+     be lifted into the VersionSpec trait (flow-crates-zmx) rather than scattered.
+     Warnings by default, errors under ConformancePolicy::Strict, so existing
+     pipelines that write slightly-off files keep working.
+   
+     Adds $UNSTAINEDINFO/$UNSTAINEDCENTERS and MixedKeyword::MixingMatrix, a
+     rectangular detector×endmember matrix that $SPILLOVER's square encoding
+     cannot express.
+   
+     fcs/src/upgrade.rs migrates a 3.0/3.1 TEXT segment to 3.2 in place, keeping
+     the deprecated originals so 3.1 readers still work.
+   
+     estimate_text_segment_size now asks each keyword for its serialized length
+     (flow-crates-x17.2): a 64×40 matrix is ~30 KB in one keyword, which the old
+     flat 50-bytes-per-keyword estimate undershot badly enough to exhaust the
+     offset-convergence budget.
+   
+   Also fixes write_inline_fcs baking a stale $BEGINDATA into TEXT
+   (flow-crates-x17.9), and routes both writers through a shared write_segments()
+   so a writer cannot forget the CRC.
+
+### Test
+
+ - <csr-id-7ccf98f5c2c6fd282b1381d00e48b15d2bbe7788/> verify bit-packed fallback rejects lazy column() access
+   column() must reject bit-packed layouts rather than attempt a byte-stride
+   decode that can't represent them. events() correctness for bit-packed data
+   (including $PnR masking) is already covered by
+   bit_packed_events_applies_pnr_mask_matching_data_frame_oracle.
+ - <csr-id-da20fb28d685f27f0349fd55f8c97d9e4b06a9b3/> exercise non-uniform param widths in ColumnLayout offset test
+
+### Refactor
+
+ - <csr-id-c32a0cf75877d51201ffca309d0373328d9f9f69/> dedupe $PnR masking formula, fix ColumnLayout docs, strengthen cache-emptiness test
+ - <csr-id-1d76e633be505604bd3d36996b4cbd4b80679469/> dedupe columns() and have column() delegate to it
+   Fix 1: column() reimplemented columns()'s cache-check/decode/populate
+   sequence instead of delegating to it for a single-element request.
+   Fix 2: columns() could pass duplicate indices to extract_columns when
+   the same channel name was requested more than once; dedupe `missing`
+   before decoding.
+   
+   Addresses two Minor findings deferred from the earlier lazy FCS column
+   loading task.
+ - <csr-id-cdc0f8b085b5d250037fd003050869de968ec797/> widen visibility of parse helpers to pub(crate)
+
+### Performance
+
+ - <csr-id-2d3c6fc30fb8bdcc2ddb2c0ca638766e68401e37/> bulk-load KnnGraph IO; record unsafe micro-opt A/B
+   Keep the ~100× faster graph load via read_exact + LE bytemuck cast.
+   Add Criterion benches and PERF_AB docs for the six-item A/B campaign;
+   revert opts that missed the ≥5% keep rule (BSS, FCS columns/write,
+   TRU-OLS SyncPtr, exact KNN / PaCMAP unchecked).
+
+### Other
+
+ - <csr-id-eec97b1b3512332223985c0dadf268fd8d3a9eba/> compare lazy column/events access against the eager baseline
+   Adds a criterion benchmark on a real compliance-corpus file comparing the
+   new lazy .columns()/.events() paths (Tasks 2-5) against the existing eager
+   data_frame parse, so a CPU-time regression wouldn't slip in silently while
+   the Stage A memory-savings design is measured.
+
+### Bug Fixes
+
+ - <csr-id-0257d38c13049921f84a0f9630f4d4327138f8c9/> bound the OTHER offset scan at the first segment, not at TEXT
+ - <csr-id-a565fdf4b372fe74eb6393eb61218a8ea159b6fe/> address final whole-branch review findings (bounds check, cache warning, feature scoping, version bump, benchmark docs)
+   - Fcs::columns() now returns a descriptive Err instead of panicking when a
+     parameter's cache index falls outside the column cache (can happen on a
+     derived Fcs whose parameters were replaced without resizing the cache,
+     e.g. tru-ols's spectral-unmixing output). Added a regression test.
+   - Added a `# Warning` doc section to column()/columns()/events() noting the
+     cache is only meaningful on an Fcs from open()/open_all() (flow-crates-rkq).
+   - Moved flow-fcs's `test-util` feature enablement from [dependencies] to
+     [dev-dependencies] in gates, tru-ols, and peacoqc-rs so it's no longer
+     forced on in release builds via feature unification.
+   - Bumped flow-fcs to 0.5.1 (test-util didn't exist in the published 0.5.0)
+     and its dependents' version constraints to ^0.5.1.
+   - Documented the benchmark's actual ~8x events_uncached/open_eager_baseline
+     gap (extract_columns lacking a uniform-width fast path, not double work
+     from open()) in the benchmark source and amended the Stage A plan doc.
+     Tracked as flow-crates-3si.
+ - <csr-id-6e3d7233683f7c18b858829c83844171fa6adfd1/> add Fcs::for_testing constructor, restore cross-crate test-fixture construction
+   Task 4's pub(crate) columns field broke every out-of-crate struct-literal
+   construction of Fcs, since a pub(crate) field can't be named externally at
+   all. Adds a public, feature-gated constructor and migrates every known
+   broken call site (tru-ols, peacoqc-rs, gates, plus flow-fcs's own
+   compress-feature tests) to use it instead.
+ - <csr-id-a2aca5e30fd669ab239cba065e66ea0eda1308ed/> apply $PnR masking in events() bit-packed branch
+ - <csr-id-6986541e936967c566b3c6caca42c9e0cbf5678f/> apply $PnR masking, fix bit-packed stride, add $NEXTDATA traversal
+   Fixes four parsing gaps reported in jrmoynihan/flow#21:
+   
+   - $PnR masking (flow-crates-d35, P0): integer parameters now mask off
+     unused high bits per their declared $PnR range before column
+     extraction, fixing silently-wrong channel values on instruments
+     (Beckman FC500/Gallios/Navios, older BD) that store sub-16-bit ADC
+     resolution in wider fields.
+   - Bit-packed $PnB stride (flow-crates-bk6, P2): calculate_bytes_per_event
+     now sums raw bit widths before rounding once, instead of rounding each
+     parameter first — correct for both byte-aligned and bit-packed layouts.
+   - $NEXTDATA traversal (flow-crates-1mg, P2): new Fcs::open_all() walks
+     the $NEXTDATA chain to read every dataset in a multi-dataset FCS file
+     (all Beckman .lmd files use this). open() is unchanged and still
+     returns only the first dataset, so existing callers are unaffected.
+   - $DATATYPE A (flow-crates-ee0, P3, won't-fix): documented the existing
+     Err behavior as a deliberate spec-driven decision (ASCII was
+     deprecated due to cross-vendor bit-order disagreement) rather than an
+     oversight, and added a test confirming it.
+   
+   Bumps flow-fcs 0.4.1 -> 0.5.0 and the paired version requirement in
+   every workspace crate that depends on it via path (Cargo enforces that
+   constraint even for path deps).
+ - <csr-id-968561c2e8c75d77efe1bfbb3b9db4dbb74ba213/> converge TEXT and header data offsets when writing
+   Iterate $BEGINDATA/$ENDDATA until header layout and TEXT keywords agree so
+   digit-length changes cannot leave stale offsets in the written file.
+
+### New Features
+
+ - <csr-id-61704e6f5337a92da20c7a5ca3dbc26aa5e28c52/> add Fcs::events single-pass materialization, cache-free
+ - <csr-id-254049e92dcb1662c9f5d0cc3e6abf12ef46decc/> add Fcs::column and Fcs::columns lazy cached accessors
+ - <csr-id-07e2d9b2612ed225c7f17e2b55205729367e15f3/> add extract_columns row-major traversal primitive
+ - <csr-id-f75d2a30a5921e6b50a6819a7d11b12c8fa2b798/> add ColumnLayout, precomputed per-parameter byte layout
+ - <csr-id-c9223d6d29e19c5d2a4513514c0cdaf8d3fe2926/> add shared KNN crate and unify Burn/cubeCL workspace deps
+   Introduce flow-knn for portable graphs and ANN backends, pin Burn 0.21 with
+   cubeCL 0.10 across GPU consumers, and path-patch pastey/bit-vec for sandbox builds.
+
+### Documentation
+
+ - <csr-id-a897c611a577b16aa12b99809cd5e49134256fd8/> changelog for unpublished 0.5.1 release notes
+ - <csr-id-92e31b03dc632230809d10422be0c1062e6e9e1b/> consumer-first README pass across crates, add peacoqc-py usage example, remove legacy utils crate
+   Rewrites READMEs across the workspace (fcs, flow-clustering,
+   flow-control-detection, flow-density, flow-fcs-compress, flow-knn,
+   flow-linalg, flow-pacmap, flow-peak-detection, gates, peacoqc-cli,
+   peacoqc-rs, tru-ols, tru-ols-cli) to lead with install/quick-start/perf
+   for downstream consumers, and adds a new flow-fcs-bench README.
+   
+   Adds a concrete usage example to peacoqc-py/README.md mirroring the
+   docstring in peacoqc/__init__.py.
+   
+   Removes the superseded utils/ crate (clustering, KDE, and PCA helpers
+   now live in their dedicated crates) and syncs beads issue/interaction
+   export state.
+
 ### Changed
 
 - Manifest version **0.5.1** (includes `test-util` availability for dependents).
+
+### Commit Statistics
+
+<csr-read-only-do-not-edit/>
+
+ - 23 commits contributed to the release over the course of 8 calendar days.
+ - 22 days passed between releases.
+ - 22 commits were understood as [conventional](https://www.conventionalcommits.org).
+ - 0 issues like '(#ID)' were seen in commit messages
+
+### Commit Details
+
+<csr-read-only-do-not-edit/>
+
+<details><summary>view details</summary>
+
+ * **Uncategorized**
+    - Changelog for unpublished 0.5.1 release notes ([`a897c61`](https://github.com/jrmoynihan/flow/commit/a897c611a577b16aa12b99809cd5e49134256fd8))
+    - Merge branch 'main' into worktree-lazy-fcs-column-loading-stage-a ([`52b5c50`](https://github.com/jrmoynihan/flow/commit/52b5c508956b9888bebe7a1279b47c26932afc7d))
+    - Dedupe $PnR masking formula, fix ColumnLayout docs, strengthen cache-emptiness test ([`c32a0cf`](https://github.com/jrmoynihan/flow/commit/c32a0cf75877d51201ffca309d0373328d9f9f69))
+    - Bound the OTHER offset scan at the first segment, not at TEXT ([`0257d38`](https://github.com/jrmoynihan/flow/commit/0257d38c13049921f84a0f9630f4d4327138f8c9))
+    - Resolve offsets data-set-relative, fold OTHER into CRC range ([`f0b2922`](https://github.com/jrmoynihan/flow/commit/f0b29225fb01d5d2c8060e2b9fdf4b9b87b2dfa7))
+    - Address final whole-branch review findings (bounds check, cache warning, feature scoping, version bump, benchmark docs) ([`a565fdf`](https://github.com/jrmoynihan/flow/commit/a565fdf4b372fe74eb6393eb61218a8ea159b6fe))
+    - FCS 3.2 conformance — CRC, datetime, keywords, conformance rules ([`b6eb1c2`](https://github.com/jrmoynihan/flow/commit/b6eb1c2c1f7f3fda501406a830cede1e5cf3913e))
+    - Compare lazy column/events access against the eager baseline ([`eec97b1`](https://github.com/jrmoynihan/flow/commit/eec97b1b3512332223985c0dadf268fd8d3a9eba))
+    - Add Fcs::for_testing constructor, restore cross-crate test-fixture construction ([`6e3d723`](https://github.com/jrmoynihan/flow/commit/6e3d7233683f7c18b858829c83844171fa6adfd1))
+    - Verify bit-packed fallback rejects lazy column() access ([`7ccf98f`](https://github.com/jrmoynihan/flow/commit/7ccf98f5c2c6fd282b1381d00e48b15d2bbe7788))
+    - Dedupe columns() and have column() delegate to it ([`1d76e63`](https://github.com/jrmoynihan/flow/commit/1d76e633be505604bd3d36996b4cbd4b80679469))
+    - Apply $PnR masking in events() bit-packed branch ([`a2aca5e`](https://github.com/jrmoynihan/flow/commit/a2aca5e30fd669ab239cba065e66ea0eda1308ed))
+    - Add Fcs::events single-pass materialization, cache-free ([`61704e6`](https://github.com/jrmoynihan/flow/commit/61704e6f5337a92da20c7a5ca3dbc26aa5e28c52))
+    - Add Fcs::column and Fcs::columns lazy cached accessors ([`254049e`](https://github.com/jrmoynihan/flow/commit/254049e92dcb1662c9f5d0cc3e6abf12ef46decc))
+    - Add extract_columns row-major traversal primitive ([`07e2d9b`](https://github.com/jrmoynihan/flow/commit/07e2d9b2612ed225c7f17e2b55205729367e15f3))
+    - Exercise non-uniform param widths in ColumnLayout offset test ([`da20fb2`](https://github.com/jrmoynihan/flow/commit/da20fb28d685f27f0349fd55f8c97d9e4b06a9b3))
+    - Add ColumnLayout, precomputed per-parameter byte layout ([`f75d2a3`](https://github.com/jrmoynihan/flow/commit/f75d2a30a5921e6b50a6819a7d11b12c8fa2b798))
+    - Widen visibility of parse helpers to pub(crate) ([`cdc0f8b`](https://github.com/jrmoynihan/flow/commit/cdc0f8b085b5d250037fd003050869de968ec797))
+    - Apply $PnR masking, fix bit-packed stride, add $NEXTDATA traversal ([`6986541`](https://github.com/jrmoynihan/flow/commit/6986541e936967c566b3c6caca42c9e0cbf5678f))
+    - Consumer-first README pass across crates, add peacoqc-py usage example, remove legacy utils crate ([`92e31b0`](https://github.com/jrmoynihan/flow/commit/92e31b03dc632230809d10422be0c1062e6e9e1b))
+    - Bulk-load KnnGraph IO; record unsafe micro-opt A/B ([`2d3c6fc`](https://github.com/jrmoynihan/flow/commit/2d3c6fc30fb8bdcc2ddb2c0ca638766e68401e37))
+    - Converge TEXT and header data offsets when writing ([`968561c`](https://github.com/jrmoynihan/flow/commit/968561c2e8c75d77efe1bfbb3b9db4dbb74ba213))
+    - Add shared KNN crate and unify Burn/cubeCL workspace deps ([`c9223d6`](https://github.com/jrmoynihan/flow/commit/c9223d6d29e19c5d2a4513514c0cdaf8d3fe2926))
+</details>
 
 ## 0.4.1 (2026-07-19)
 
@@ -43,7 +280,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 <csr-read-only-do-not-edit/>
 
- - 5 commits contributed to the release over the course of 69 calendar days.
+ - 6 commits contributed to the release over the course of 69 calendar days.
  - 69 days passed between releases.
  - 1 commit was understood as [conventional](https://www.conventionalcommits.org).
  - 0 issues like '(#ID)' were seen in commit messages
@@ -55,6 +292,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 <details><summary>view details</summary>
 
  * **Uncategorized**
+    - Release flow-fcs v0.4.1 ([`597f21b`](https://github.com/jrmoynihan/flow/commit/597f21bef7ea787437071685fc3cce9d2269270f))
     - Specta derives, matrix-context gate fields, Polars 0.54 ([`cf0df0a`](https://github.com/jrmoynihan/flow/commit/cf0df0a44cf8ea82aab571f4bfe3684d99aaf213))
     - Release flow-fcs-compress v0.1.2 ([`0eb992c`](https://github.com/jrmoynihan/flow/commit/0eb992c3d8e97e305a0a957d0a8bbbecb6e56467))
     - Release flow-linalg v0.1.1, flow-density v0.1.1, flow-clustering v0.1.1, flow-fcs-compress v0.1.1 ([`966d22a`](https://github.com/jrmoynihan/flow/commit/966d22ae4fbdd6114dc3862d45648fce7ebf53cc))
