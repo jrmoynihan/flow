@@ -69,7 +69,8 @@ Artifacts under `--out`:
 - **QC-core:** algorithm cost only (headline for vs-R claims).
 - **`--include-margins-doublets`:** times `RemoveMargins`/`remove_margins` + `RemoveDoublets`/`remove_doublets` + PeacoQC in one window (sensitivity; not the default publishable row). Synthetic fixtures include `FSC-H` for doublet ratio.
 - **`--e2e`:** secondary; for synthetic data, R e2e currently times `read.FCS` + PeacoQC on the same prepared file (no compensate/transform). Real-file prep parity can be extended later.
-- **`--gpu`:** optional Rust row using the GPU-enabled binary. CPU rows set `PEACOQC_FORCE_CPU=1` so Rayon/single-thread numbers stay CPU-only. On the 2026-08-10 Apple M5 Max sample, GPU QC-core was slower than CPU for 50k–1M events; record it as a secondary row, not the vs-R headline.
+- **`--gpu`:** optional investigation row only. On the 2026-08-10 Apple M5 Max sample, GPU QC-core was slower than Rayon CPU on **every** size (often ~50–100×). **Do not recommend or highlight GPU for full PeacoQC in 0.3.x**; leave `gpu` off for publishable vs-R timings. See beads `flow-crates-aww`.
+- **Agreement:** reports include `% removed` per config. Prefer real FCS for R↔Rust agreement; synthetic fixtures are for throughput scale and can diverge near decision boundaries. Document agreement alongside speed in `throughput_vs_r_sample.md` / README Performance sections.
 - Real FCS: pass paths only via repeated `--fcs` CLI args. Reports use anonymous `real_01`, `real_02`, … ids — never embed source paths or original filenames in artifacts or docs.
 
 ## Refreshing README tables

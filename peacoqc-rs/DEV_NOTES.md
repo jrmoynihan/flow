@@ -101,22 +101,24 @@ See `DOUBLET_REMOVAL_RECONCILIATION.md` for details on why:
 
 ## GPU Acceleration
 
-GPU acceleration is available via the `gpu` feature flag and provides significant speedup for batched multi-channel operations.
+GPU acceleration is available via the `gpu` feature flag for **some batched kernels**. As of 0.3.x / the 2026-08-10 Rust-vs-R sample, **full end-to-end PeacoQC with GPU enabled is much slower than Rayon CPU** on realistic sizes (50k–1M events × 5–30 FL). Public docs recommend **not** enabling `gpu` for production PeacoQC until that is fixed or gated. Tracking: beads `flow-crates-aww` (profile launch/transfer vs compute; improve or document size thresholds).
+
+The tables below are **microbenchmarks of batched KDE / related ops**, not full QC-core wall time. Do not cite them as PeacoQC e2e speedups.
 
 ### Operations Using GPU
 
 1. **FFT-based Kernel Density Estimation (KDE)**
    - Uses GPU for complex multiplication in frequency domain
    - CPU FFT is used for transforms (burn doesn't expose FFT directly)
-   - **Benefit**: 20-32x speedup for batched multi-channel operations
+   - **Microbench benefit**: 20-32x for batched multi-channel KDE when overhead is amortized
 
 2. **Feature Matrix Building**
    - Matrix construction for Isolation Tree analysis
-   - **Benefit**: Moderate speedup for large matrices
+   - **Benefit**: Moderate speedup for large matrices (microbench)
 
-### Performance Results
+### Performance Results (batched kernel microbenches only)
 
-Batched operations (multiple channels processed together) show significant speedup:
+Batched operations (multiple channels processed together) show significant speedup **in isolation**:
 
 | Configuration            | Batched GPU | Sequential CPU | Speedup   |
 | ------------------------ | ----------- | -------------- | --------- |
@@ -128,15 +130,15 @@ Batched operations (multiple channels processed together) show significant speed
 | 10 channels, 500K events | 3.4 ms      | 110 ms         | **32.1x** |
 | 10 channels, 1M events   | 7.0 ms      | 231 ms         | **33.0x** |
 
-**Key Insight**: Batching amortizes GPU overhead across multiple channels, providing massive speedups even for smaller datasets (50K-100K events per channel).
+**Key Insight (kernels only)**: Batching amortizes GPU overhead across channels for isolated KDE/microbench ops. **Full PeacoQC e2e** with `gpu` enabled was still far slower than Rayon CPU on the 2026-08-10 vs-R sample — do not treat the table above as pipeline speedup. See beads `flow-crates-aww`.
 
 ### Implementation Details
 
 - **Backend**: WGPU (WebGPU) via burn framework
 - **Custom Kernels**: `cubeCL` kernels available (optional, `--features cubecl`)
-- **Batching**: GPU context reuse and kernel caching amortize overhead
+- **Batching**: GPU context reuse and kernel caching amortize overhead *within* batched kernels
 - **Fallback**: Automatic CPU fallback when GPU unavailable
-- **Usage**: GPU is used automatically whenever available (no thresholds)
+- **Usage (0.3.x recommendation)**: Prefer building **without** `gpu` for full PeacoQC. When the feature is enabled, GPU is used automatically whenever available (no size thresholds) — that auto path is currently a regression vs CPU for e2e wall time
 
 ### What Was Tried
 

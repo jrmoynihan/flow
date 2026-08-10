@@ -29,7 +29,7 @@ Feature flags:
 | Flag | Description | Notes |
 | ---- | ----------- | ----- |
 | `flow-fcs` (default) | Enable integration with the `flow-fcs` crate for FCS file support |
-| `gpu` | Enable GPU acceleration for multi-channel datasets (20-32x speedup for batched operations) |
+| `gpu` | Optional GPU path for some batched kernels; **not recommended** for full PeacoQC in 0.3.x (e2e slower than CPU — see Performance) |
 | `cubecl` | Enable cubeCL custom GPU kernels (requires `gpu` feature) |
 
 ## Installation
@@ -361,21 +361,27 @@ Full sample tables: [`docs/throughput_vs_r_sample.md`](docs/throughput_vs_r_samp
 
 Representative release results (Apple M5 Max, 2026-08-10; warmup=1, reps=3; PeacoQC 1.22.0 / flowCore 2.24.0 / peacoqc-rs 0.3.1):
 
-| Case | R mean (s) | Rust 1-thread (s) | Rust Rayon (s) | GPU (s) | Speedup vs R (Rayon) |
-|------|------------|-------------------|----------------|---------|----------------------|
-| real ~215k×13 | 1.53 | 0.222 | 0.103 | 12.6 | **14.9×** |
-| real ~263k×13 | 1.40 | 0.218 | 0.091 | 8.9 | **15.3×** |
-| real ~394k×13 | 1.78 | 0.275 | 0.114 | 10.9 | **15.7×** |
-| synth 200k×15 | 2.27 | 0.312 | 0.214 | 11.7 | **10.6×** |
-| synth 1M×15 | 3.83 | 0.400 | 0.186 | 13.9 | **20.6×** |
-| synth 1M×30 | 7.32 | 0.904 | 0.399 | 29.8 | **18.3×** |
+| Case | R mean (s) | Rust 1-thread (s) | Rust Rayon (s) | Speedup vs R (Rayon) |
+|------|------------|-------------------|----------------|----------------------|
+| real ~215k×13 | 1.53 | 0.222 | 0.103 | **14.9×** |
+| real ~263k×13 | 1.40 | 0.218 | 0.091 | **15.3×** |
+| real ~394k×13 | 1.78 | 0.275 | 0.114 | **15.7×** |
+| synth 200k×15 | 2.27 | 0.312 | 0.214 | **10.6×** |
+| synth 1M×15 | 3.83 | 0.400 | 0.186 | **20.6×** |
+| synth 1M×30 | 7.32 | 0.904 | 0.399 | **18.3×** |
 
-On these sizes, default Rayon is about **15×** faster than R on real stained FCS and about **10–20×** on the synthetic grid. Single-thread Rust is already ~6–10× vs R. The optional GPU PeacoQC path was **slower** than CPU here (transfer/launch overhead); do not use GPU as the vs-R headline.
+On these sizes, default Rayon is about **15×** faster than R on real stained FCS and about **10–20×** on the synthetic grid. Single-thread Rust is already ~6–10× vs R.
+
+**Do not enable `gpu` for full PeacoQC in this version** — on the same sample it was far slower than Rayon CPU on every size (investigation: beads `flow-crates-aww`). Leave GPU off unless you are profiling that path.
+
+### Result agreement (R vs Rust)
+
+On the three real FCS cases, `% removed` agreed closely (|Δ| ≈ 0.3 pp on two samples; +2.1 pp on one). Synthetic fixtures are for timing scale and can diverge; see [`docs/throughput_vs_r_sample.md`](docs/throughput_vs_r_sample.md). Dedicated R-parity tests remain the source of truth for algorithmic fidelity.
 
 Internal notes (not vs R):
 
-- **Parallel Processing**: `rayon` over channels/bins; harness forces `PEACOQC_FORCE_CPU=1` on CPU rows when the binary also has GPU
-- **GPU Acceleration** (optional): batched kernels; beneficial only for some multi-channel batched ops — see `DEV_NOTES.md` / `bench_results/`
+- **Parallel Processing**: `rayon` over channels/bins
+- **GPU** (optional, not recommended for e2e PeacoQC yet): microbench wins on batched KDE do not currently translate to full-pipeline wall time — `DEV_NOTES.md`, beads `flow-crates-aww`
 - Criterion microbenches / alloc A/B: `cargo bench`, [`docs/PERF_AB.md`](docs/PERF_AB.md)
 
 ### Benchmarks
@@ -383,20 +389,20 @@ Internal notes (not vs R):
 Cross-language harness (pass real FCS only via `--fcs`; do not commit clinical paths):
 
 ```bash
-cargo run -p peacoqc-rs --release --no-default-features --features flow-fcs,gpu --example compare_with_r -- \
+cargo run -p peacoqc-rs --release --no-default-features --features flow-fcs --example compare_with_r -- \
   --out target/peacoqc-r-compare/run \
   --events 50000,200000,1000000 --channels 5,15,30 \
-  --warmup 1 --reps 3 --gpu \
+  --warmup 1 --reps 3 \
   --fcs /path/to/a.fcs --fcs /path/to/b.fcs
 ```
+
+(Optional GPU row for investigation only: build with `--features flow-fcs,gpu` and pass `--gpu`. Not recommended for production timings.)
 
 Criterion (Rust-only):
 
 ```bash
 cargo bench --bench peacoqc_bench
 ```
-
-GPU paths need a suitable adapter; without one, prefer `--no-default-features --features flow-fcs`.
 
 ## Testing
 
