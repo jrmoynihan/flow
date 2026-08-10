@@ -78,6 +78,18 @@ impl Decoder {
     ///
     /// `bytes` must be at least as long as this decoder's width; callers pass
     /// `&event[offset..offset + width]`.
+    ///
+    /// # Panics
+    /// Panics if `bytes` is shorter than this decoder's width (2, 4, or 8
+    /// bytes depending on the variant) — the underlying `byteorder` readers
+    /// assert on the slice length. This cannot happen through
+    /// `columns::fill_events`: `offset` and `width` come from
+    /// `ColumnLayout`'s running-sum layout, so `offset + width` never exceeds
+    /// `bytes_per_event`, and every event slice passed in has been chunked to
+    /// exactly `bytes_per_event` bytes by `chunks_exact`. `width` is also
+    /// exactly what [`resolve`](Self::resolve) validated against this
+    /// decoder's variant, so the slice length always equals the width `read`
+    /// expects, not merely satisfies a lower bound.
     #[inline(always)]
     pub(crate) fn read(self, bytes: &[u8]) -> f32 {
         match self {
