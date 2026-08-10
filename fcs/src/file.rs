@@ -3035,16 +3035,57 @@ mod lazy_column_tests {
 
     #[test]
     fn column_matches_data_frame_oracle() {
-        let fcs = Fcs::open(compliance_fcs().to_str().expect("utf-8 corpus path")).expect("open compliance fixture");
-        let channel = fcs.get_parameter_names_from_dataframe()[0].clone();
+        if !crate::corpus::is_available() {
+            eprintln!("compliance corpus missing, skipping");
+            return;
+        }
 
-        let lazy = fcs.column(&channel).expect("lazy column").to_vec();
-        let eager = fcs
-            .get_parameter_events_slice(&channel)
-            .expect("eager column")
-            .to_vec();
+        let mut checked = 0usize;
+        for path in crate::corpus::files() {
+            let name = path.file_name().unwrap_or_default().to_string_lossy().to_string();
+            let Ok(fcs) = Fcs::open(path.to_str().expect("utf-8 path")) else {
+                // Some corpus files exist to exercise reader errors.
+                continue;
+            };
 
-        assert_eq!(lazy, eager, "lazy column() must match the eager data_frame for the same channel");
+            for channel in fcs.get_parameter_names_from_dataframe() {
+                let Ok(eager) = fcs.get_parameter_events_slice(&channel) else { continue };
+                let lazy = match fcs.column(&channel) {
+                    Ok(lazy) => lazy,
+                    Err(e) => {
+                        // Bit-packed files legitimately refuse the lazy path.
+                        assert!(
+                            e.to_string().contains("bit-packed"),
+                            "{name}/{channel}: column() failed for an unexpected reason: {e}"
+                        );
+                        continue;
+                    }
+                };
+
+                assert_eq!(
+                    lazy.len(), eager.len(),
+                    "{name}/{channel}: lazy and eager lengths differ"
+                );
+                for (event, (l, e)) in lazy.iter().zip(eager.iter()).enumerate() {
+                    assert_eq!(
+                        l.to_bits(), e.to_bits(),
+                        "{name}/{channel}/event {event}: lazy {l} != eager {e}"
+                    );
+                }
+                checked += 1;
+            }
+        }
+
+        // Observed on the 10-file corpus: 54 channels checked, zero skips of
+        // any kind (no open failures, no eager-decode failures, no
+        // bit-packed refusals). The floor is set well below that so the
+        // test tolerates minor corpus additions/removals, but far above the
+        // original 8 so a regression that pushed most files back into a
+        // skip path would still fail loudly.
+        assert!(
+            checked >= 45,
+            "the oracle must actually compare something; only {checked} channels were checked"
+        );
     }
 
     #[test]

@@ -570,9 +570,9 @@ mod tests {
         let columns = super::extract_columns(&data_bytes, &layout, &[0, 1]).expect("extract");
         assert_eq!(columns[0].len(), 1000);
         assert_eq!(columns[1].len(), 1000);
-        for e in 0..1000 {
-            assert_eq!(columns[0][e], e as f32, "column 0, event {e}");
-            assert_eq!(columns[1][e], e as f32 + 10_000.0, "column 1, event {e}");
+        for (e, (&a, &b)) in columns[0].iter().zip(columns[1].iter()).enumerate() {
+            assert_eq!(a, e as f32, "column 0, event {e}");
+            assert_eq!(b, e as f32 + 10_000.0, "column 1, event {e}");
         }
     }
 
