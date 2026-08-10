@@ -16,7 +16,7 @@ categories=["science", "algorithms"]
 
 [features]
 default =["flow-fcs", "gpu", "plots"]
-flow-fcs=["dep:flow-fcs", "dep:polars"]
+flow-fcs=["dep:flow-fcs", "dep:polars", "flow-fcs/synthetic"]
 gpu = ["dep:burn"]
 cubecl = ["dep:cubecl", "dep:bytemuck", "gpu"]
 # QC plot rendering (src/qc/plots.rs). Pulls in plotters, which on Linux

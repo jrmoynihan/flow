@@ -32,6 +32,8 @@ pub mod keyword;
 pub mod matrix;
 pub mod metadata;
 pub mod parameter;
+#[cfg(feature = "synthetic")]
+pub mod synthetic;
 mod tests;
 pub mod transform;
 pub mod upgrade;

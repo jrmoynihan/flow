@@ -36,6 +36,8 @@ ndarray={ workspace=true, optional=true }
 ndarray-linalg={ version="0.18.1", optional=true, features=[
     "openblas-system",
 ] }
+rand = { workspace = true, optional = true }
+rand_distr = { workspace = true, optional = true }
 
 ts-rs = { workspace = true, optional = true }
 specta = { workspace = true, optional = true }
@@ -128,6 +130,8 @@ compress=["dep:flow-fcs-compress"]
 # test/bench targets (where #[cfg(test)] alone would suffice). Purely
 # additive — gates one constructor, no behavior change to anything else.
 test-util = []
+# Gaussian-mixture event tables + FCS write helpers for benches/harnesses.
+synthetic = ["dep:rand", "dep:rand_distr", "test-util"]
 compensation = ["dep:flow-linalg"]
 # Optional Parquet sidecar: write/read FCS data as Parquet via Polars (Tier 1
 # of the M5d adapter — interop-first, doesn't yet plumb our specialized codecs

@@ -2,10 +2,9 @@
 
 use anyhow::{Context, Result};
 use flow_fcs::file::Fcs;
-use flow_fcs::keyword::{IntegerKeyword, Keyword, MixedKeyword};
-use flow_fcs::metadata::Metadata;
-use flow_fcs::version::Version;
-use flow_fcs::write::write_fcs_file;
+use flow_fcs::synthetic::{
+    default_cytometry_mixture, gaussian_population_columns, gaussian_populations_fcs,
+};
 use peacoqc_rs::{
     DoubletConfig, MarginConfig, PeacoQCConfig, PeacoQCData, QCMode, peacoqc, remove_doublets,
     remove_margins,
@@ -20,15 +19,49 @@ use std::time::Instant;
 
 /// Mirrors `flow_fcs::corpus::path` until the worktree `flow-fcs` crate includes
 /// the corpus module (present on main workspace, not yet on this branch).
-fn corpus_seed_path(file_name: &str) -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../gates/Gating-ML.v1.5.081030.Compliance-tests.081030/List-mode Data Files")
-        .join(file_name)
+/// Seed for synthetic mixtures (stable across warmup/reps; varies by case size).
+fn synthetic_seed(n_events: usize, n_fl_channels: usize) -> u64 {
+    0xC0FF_EE00 ^ ((n_events as u64) << 16) ^ (n_fl_channels as u64)
 }
 
-/// Synthetic fixture instrument name (no spaces — worktree `flow-fcs` predates V3_1
-/// doubled-delimiter escaping; spaces in `$CYT` would corrupt TEXT on write).
-const SYNTHETIC_CYT: &str = "flow-crates-peacoqc-r-compare-synthetic";
+/// PeacoQC-specific layer: mild mid-acquisition intensity drop on fluorescence channels.
+fn apply_mild_timed_fl_artifact(columns: &mut [(String, Vec<f32>)], n_events: usize) {
+    let start = n_events * 2 / 5;
+    let end = n_events * 3 / 5;
+    if end <= start {
+        return;
+    }
+    for (name, values) in columns.iter_mut() {
+        if !(name.starts_with("FL") && name.ends_with("-A")) {
+            continue;
+        }
+        for (i, v) in values.iter_mut().enumerate() {
+            if i >= start && i < end {
+                *v *= 0.55;
+            }
+        }
+    }
+}
+
+fn write_synthetic_prepared_fcs(path: &Path, n_events: usize, n_fl_channels: usize) -> Result<()> {
+    let seed = synthetic_seed(n_events, n_fl_channels);
+    let spec = default_cytometry_mixture(n_events, n_fl_channels, seed);
+    let mut columns = gaussian_population_columns(&spec)?;
+    apply_mild_timed_fl_artifact(&mut columns, n_events);
+    let polars_cols: Vec<Column> = columns
+        .into_iter()
+        .map(|(name, values)| Column::new(name.into(), values))
+        .collect();
+    let df = DataFrame::new_infer_height(polars_cols).context("build artifacted DataFrame")?;
+    let mut fcs = gaussian_populations_fcs(&spec).context("build synthetic Fcs fixture")?;
+    fcs.data_frame = Arc::new(df);
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)
+            .with_context(|| format!("create parent dir {}", parent.display()))?;
+    }
+    flow_fcs::write::write_fcs_file(fcs, path).context("write artifacted prepared FCS")?;
+    Ok(())
+}
 
 struct CaseSpec {
     id: String,
@@ -135,80 +168,6 @@ struct WorkerResult {
     skipped: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     reason: Option<String>,
-}
-
-fn write_synthetic_prepared_fcs(path: &Path, n_events: usize, n_fl_channels: usize) -> Result<()> {
-    if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent)
-            .with_context(|| format!("create parent dir {}", parent.display()))?;
-    }
-
-    let time: Vec<f32> = (0..n_events).map(|e| e as f32).collect();
-    let fsc_a: Vec<f32> = (0..n_events)
-        .map(|e| (e as f32).mul_add(0.01, 500.0))
-        .collect();
-    let fsc_h: Vec<f32> = fsc_a
-        .iter()
-        .map(|&area| area * 0.85 + 10.0)
-        .collect();
-    let ssc_a: Vec<f32> = (0..n_events)
-        .map(|e| (e as f32).mul_add(0.01, 300.0))
-        .collect();
-
-    let mut columns = vec![
-        Column::new("Time".into(), time),
-        Column::new("FSC-A".into(), fsc_a),
-        Column::new("FSC-H".into(), fsc_h),
-        Column::new("SSC-A".into(), ssc_a),
-    ];
-
-    for fl in 1..=n_fl_channels {
-        let name = format!("FL{fl}-A");
-        let values: Vec<f32> = (0..n_events)
-            .map(|e| (e as f32).mul_add(0.001, fl as f32 * 1000.0))
-            .collect();
-        columns.push(Column::new(name.into(), values));
-    }
-
-    let param_names: Vec<String> = columns.iter().map(|c| c.name().to_string()).collect();
-
-    let df = DataFrame::new_infer_height(columns).context("build synthetic DataFrame")?;
-
-    let seed = corpus_seed_path("int-10000_events_random.fcs");
-    let seed_str = seed
-        .to_str()
-        .context("corpus seed path is not valid UTF-8")?;
-    let mut fcs = Fcs::open(seed_str).context("open corpus seed FCS")?;
-    fcs.header.version = Version::V3_1;
-
-    let mut metadata = Metadata::new();
-    metadata.insert_string_keyword("$BYTEORD".into(), "1,2,3,4".into());
-    metadata.insert_string_keyword("$DATATYPE".into(), "F".into());
-    metadata.insert_string_keyword("$MODE".into(), "L".into());
-    metadata.insert_string_keyword("$NEXTDATA".into(), "0".into());
-    metadata.insert_string_keyword("$CYT".into(), SYNTHETIC_CYT.into());
-
-    for (p, name) in param_names.iter().enumerate() {
-        let idx = p + 1;
-        metadata.insert_string_keyword(format!("$P{idx}N"), name.clone());
-        metadata
-            .keywords
-            .insert(format!("$P{idx}B"), Keyword::Int(IntegerKeyword::PnB(32)));
-        metadata.keywords.insert(
-            format!("$P{idx}R"),
-            Keyword::Int(IntegerKeyword::PnR(262_144)),
-        );
-        metadata.keywords.insert(
-            format!("$P{idx}E"),
-            Keyword::Mixed(MixedKeyword::PnE(0.0, 0.0)),
-        );
-    }
-
-    fcs.metadata = metadata;
-    fcs.data_frame = Arc::new(df);
-
-    write_fcs_file(fcs, path).context("write prepared FCS")?;
-    Ok(())
 }
 
 fn parse_args(args: &[String]) -> Result<CliArgs> {
@@ -1035,7 +994,7 @@ fn run_full(args: &CliArgs) -> Result<()> {
 
 fn main() -> Result<()> {
     let args: Vec<String> = std::env::args().collect();
-    if args
+    if args 
         .windows(2)
         .any(|pair| pair[0] == "--config" && pair[1] == "rust-cpu-1")
     {

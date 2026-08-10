@@ -54,7 +54,9 @@ On these stained files, Rust and R remove nearly the same fraction of events (|�
 | synth 1M×15 | 28.68% | 0.00% | −28.68% |
 | synth 1M×30 | 60.40% | 30.02% | −30.38% |
 
-Synthetic cases exist to scale wall time; several diverge sharply because the fixture (linear trends / channel layout) sits near decision boundaries. Prefer **real FCS** rows above when judging R↔Rust agreement; use unit/parity tests for algorithmic fidelity.
+Synthetic cases use `flow_fcs::synthetic` Gaussian mixtures plus a mild mid-run FL
+intensity drop (PeacoQC-specific). Prefer **real FCS** rows above when judging
+R↔Rust agreement; use unit/parity tests for algorithmic fidelity.
 
 ## PeacoQC Rust vs R throughput report
 

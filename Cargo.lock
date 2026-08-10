@@ -3242,6 +3242,7 @@ dependencies = [
  "ndarray-linalg",
  "polars",
  "rand 0.10.2",
+ "rand_distr 0.6.0",
  "rayon",
  "regex",
  "rustc-hash 2.1.3",

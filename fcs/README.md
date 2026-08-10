@@ -63,6 +63,8 @@ flow-fcs = "0.4.1"
 | `typescript` | TypeScript bindings via `ts-rs` |
 | `specta` | `specta::Type` derives (e.g. tauri-specta) |
 | `parquet-sidecar` | Parquet sidecar write/read (implies `compress`) |
+| `test-util` | `Fcs::for_testing` for out-of-crate fixtures |
+| `synthetic` | Gaussian-mixture event tables (`flow_fcs::synthetic`); enables `test-util` |
 
 ```toml
 [dependencies]
