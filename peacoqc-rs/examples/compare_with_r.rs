@@ -1015,10 +1015,10 @@ fn run_full(args: &CliArgs) -> Result<()> {
 
     let run_synthetic = if args.no_synthetic {
         false
-    } else if args.synthetic || args.fcs_paths.is_empty() {
-        true
     } else {
-        args.synthetic
+        // Synthetic grid runs by default, including when --fcs is also passed.
+        // Pass --no-synthetic to run real files only.
+        true
     };
 
     let mut rows = Vec::new();
