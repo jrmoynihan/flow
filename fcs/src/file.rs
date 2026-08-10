@@ -3265,6 +3265,152 @@ mod nextdata_escaping_tests {
     use crate::tests::write_two_dataset_fixture;
     use crate::version::Version;
 
+    /// I1: the key-side escape path, written by `escape_into` and read by
+    /// *both* `TextFields` consumers on the same bytes.
+    ///
+    /// `write.rs` escapes the key as well as the value, but every other
+    /// escaping test puts the delimiter in a value. Key and value are not
+    /// symmetric on the read side: `find_begindata_offset` matches the decoded
+    /// *key* against `"$BEGINDATA"` and early-stops, so its field sequence is
+    /// shorter than the metadata parse's, and a key-side bug could hit one
+    /// consumer and not the other — the two-tokenizer hazard one level down.
+    ///
+    /// The TEXT here is hand-assembled so the escaped key can sit *ahead of*
+    /// `$BEGINDATA`: `serialize_metadata` always writes `$BEGINDATA` before
+    /// any user keyword, so a writer-produced file can never place one there,
+    /// and the scan would early-stop before ever tokenizing it. Same reasoning
+    /// (and same idiom) as
+    /// `begindata_scan_treats_a_legal_empty_value_as_none_escaped` below.
+    #[test]
+    fn an_escaped_key_reads_back_identically_in_both_tokenizer_consumers() {
+        use crate::keyword::StringableKeyword;
+        use crate::metadata::Metadata;
+        use std::io::Write;
+
+        // Default space delimiter, so the user keyword `$MY KEY` needs
+        // escaping: `escape_into` doubles the embedded space.
+        let mut text: Vec<u8> = Vec::new();
+        let mut push = |key: &str, value: &str| {
+            text.push(b' ');
+            crate::text::escape_into(&mut text, key, b' ', crate::text::Escaping::Doubled);
+            text.push(b' ');
+            crate::text::escape_into(&mut text, value, b' ', crate::text::Escaping::Doubled);
+        };
+        push("$MY KEY", "a value");
+        push("$BEGINDATA", "4096");
+        push("$ENDDATA", "8191");
+        push("$PAR", "1");
+        push("$TOT", "3");
+        text.push(b' ');
+
+        assert!(
+            text.windows(2).any(|pair| pair == b"  "),
+            "the fixture must actually contain a doubled delimiter: {:?}",
+            String::from_utf8_lossy(&text)
+        );
+
+        let mut file = tempfile::NamedTempFile::new().expect("temp file");
+        file.write_all(&text).expect("write");
+        file.flush().expect("flush");
+        // SAFETY: exclusively owned by this test and not mutated after the
+        // write above; the convention `Fcs::open` uses.
+        let mmap = unsafe { memmap3::Mmap::map(file.as_file()) }.expect("mmap");
+
+        // Consumer 1: the metadata parse. The escaped key must un-double, and
+        // the value must land under it rather than under a truncated `$MY`.
+        let metadata = Metadata::from_text_segment(&mmap, &(0..=(text.len() - 1)), Version::V3_1);
+        assert_eq!(
+            metadata
+                .get_string_keyword("$MY KEY")
+                .expect("$MY KEY must survive the key-side escape")
+                .get_str(),
+            "a value"
+        );
+        assert!(
+            !metadata.keywords.contains_key("$MY"),
+            "the key must not be split at its embedded delimiter: {:?}",
+            metadata.keywords
+        );
+        assert_eq!(*metadata.get_number_of_parameters().expect("$PAR"), 1);
+
+        // Consumer 2: the `$BEGINDATA` scan, over the same bytes, with the
+        // escaped key ahead of the keyword it is looking for.
+        assert_eq!(
+            Fcs::find_begindata_offset(&mmap, 0, Version::V3_1)
+                .expect("$BEGINDATA must still be found past an escaped key"),
+            4096,
+            "the two consumers must agree about the same file"
+        );
+    }
+
+    /// The write half of I1: a user keyword whose *name* contains the active
+    /// delimiter survives `write_fcs_file` at V3_1 and reads back under that
+    /// same name.
+    #[test]
+    fn a_key_containing_the_delimiter_round_trips_through_the_writer() {
+        use crate::keyword::{IntegerKeyword, Keyword, MixedKeyword, StringableKeyword};
+        use crate::parameter::ParameterMap;
+        use crate::write::write_fcs_file;
+        use crate::{Header, Metadata, Parameter, TransformType, file::AccessWrapper};
+        use polars::prelude::{Column, DataFrame};
+        use std::sync::Arc;
+
+        let tmp = tempfile::TempDir::new().expect("tempdir");
+        let stub = tmp.path().join("src.tmp");
+        std::fs::write(&stub, b"x").expect("stub");
+
+        let df = DataFrame::new_infer_height(vec![Column::new("FSC-A".into(), vec![1.0f32])])
+            .expect("df");
+        let mut params = ParameterMap::default();
+        params.insert(
+            "FSC-A".into(),
+            Parameter::new(&1, "FSC-A", "FSC-A", &TransformType::Linear),
+        );
+
+        let mut metadata = Metadata::new();
+        metadata.delimiter = ' ';
+        metadata.insert_string_keyword("$BYTEORD".into(), "1,2,3,4".into());
+        metadata.insert_string_keyword("$DATATYPE".into(), "F".into());
+        metadata.insert_string_keyword("$MODE".into(), "L".into());
+        metadata.insert_string_keyword("$NEXTDATA".into(), "0".into());
+        metadata.insert_string_keyword("$P1N".into(), "FSC-A".into());
+        // The keyword under test. `serialize_metadata` strips the `$` and
+        // re-adds it, so naming it `$MY KEY` here is what round-trips.
+        metadata.insert_string_keyword("$MY KEY".into(), "a value".into());
+        metadata.keywords.insert("$P1B".into(), Keyword::Int(IntegerKeyword::PnB(32)));
+        metadata.keywords.insert("$P1R".into(), Keyword::Int(IntegerKeyword::PnR(262_144)));
+        metadata.keywords.insert("$P1E".into(), Keyword::Mixed(MixedKeyword::PnE(0.0, 0.0)));
+
+        let mut header = Header::new();
+        header.version = Version::V3_1;
+
+        let fcs = Fcs::for_testing(
+            header,
+            metadata,
+            params,
+            Arc::new(df),
+            AccessWrapper::new(stub.to_str().expect("utf-8")).expect("access"),
+        );
+
+        let out = tmp.path().join("escaped_key.fcs");
+        write_fcs_file(fcs, &out).expect("write");
+
+        let read_back = Fcs::open(out.to_str().expect("utf-8")).expect("reopen");
+        assert_eq!(
+            read_back
+                .metadata
+                .get_string_keyword("$MY KEY")
+                .expect("$MY KEY must round-trip")
+                .get_str(),
+            "a value"
+        );
+        assert_eq!(
+            read_back.metadata.get_string_keyword("$P1N").expect("$P1N").get_str(),
+            "FSC-A",
+            "keywords after the escaped key must not be shifted"
+        );
+    }
+
     /// A two-data-set file whose *first* data set carries a `$CYT` containing
     /// the active delimiter. This is an end-to-end round-trip check, not a
     /// `find_begindata_offset` regression lock: data set 1 has a real HEADER,
