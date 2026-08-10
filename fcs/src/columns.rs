@@ -20,6 +20,15 @@
 //! every output column's mutable slice across tasks, avoiding any per-event or
 //! per-chunk allocation. Total allocation cost is O(num_columns), with no
 //! intermediate buffers.
+//!
+//! **Steady-state and freeing:** The old design's `Vec<Vec<f32>>` pattern meant
+//! intermediate allocations held heap ownership, making it impossible for the
+//! allocator to free anything until the whole transpose completed. The new
+//! design's boxed slices `Box<[f32]>` allow independent lifetime control —
+//! callers can drop columns as they're consumed without waiting for the full
+//! set to be decoding. During long lazy-access workloads on 3M-event files, this
+//! shifts peak memory from "all-at-once spike" to "streaming steady-state," which
+//! is more amenable to memory pools and incremental processing.
 
 use crate::byteorder::ByteOrder;
 use crate::datatype::FcsDataType;
@@ -297,9 +306,12 @@ fn extract_columns_inner(
 /// **Memory:** Output buffers are pre-sized once and written directly, with no
 /// transient allocations proportional to the number of events. The parallel
 /// branch uses `split_at_mut` to partition output slices across tasks, avoiding
-/// per-event or per-chunk allocation. For small column subsets this makes lazy
-/// extraction cheaper than eager parsing both in time (8–20× on typical files)
-/// and in peak memory (no multi-megabyte intermediate buffers).
+/// per-event or per-chunk allocation. This enables independent ownership of each
+/// column via `Box<[f32]>`, allowing consumers to drop results as they're
+/// processed without blocking the allocator. For small column subsets this makes
+/// lazy extraction cheaper than eager parsing both in time (8–20× on typical
+/// files) and in memory: no multi-megabyte intermediate buffers, and streaming
+/// steady-state rather than all-at-once spikes.
 ///
 /// # Errors
 /// Returns `Err` if `layout.is_bit_packed` (bit-packed records aren't
