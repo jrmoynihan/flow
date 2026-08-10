@@ -8,7 +8,8 @@ use flow_fcs::version::Version;
 use flow_fcs::write::write_fcs_file;
 use peacoqc_rs::{PeacoQCConfig, PeacoQCData, QCMode, peacoqc};
 use polars::prelude::*;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::Arc;
@@ -48,11 +49,16 @@ struct CliArgs {
     rust_only: bool,
     gpu: bool,
     e2e: bool,
+    synthetic: bool,
+    no_synthetic: bool,
     out: Option<PathBuf>,
     config: Option<String>,
     case_dir: Option<PathBuf>,
     warmup: usize,
     reps: usize,
+    events: Vec<usize>,
+    channels: Vec<usize>,
+    fcs_paths: Vec<PathBuf>,
 }
 
 impl Default for CliArgs {
@@ -62,13 +68,48 @@ impl Default for CliArgs {
             rust_only: false,
             gpu: false,
             e2e: false,
+            synthetic: false,
+            no_synthetic: false,
             out: None,
             config: None,
             case_dir: None,
             warmup: 1,
             reps: 5,
+            events: vec![50_000, 200_000, 1_000_000],
+            channels: vec![5, 15, 30],
+            fcs_paths: Vec::new(),
         }
     }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct TimingRow {
+    config: String,
+    case_id: String,
+    phase: String,
+    mean_s: f64,
+    std_s: f64,
+    events: usize,
+    channels: usize,
+    events_per_s: f64,
+    pct_removed: f64,
+    reps: usize,
+    #[serde(default)]
+    skipped: bool,
+    #[serde(default)]
+    reason: Option<String>,
+    #[serde(default)]
+    rayon_num_threads: Option<String>,
+    #[serde(default)]
+    rustc: Option<String>,
+    #[serde(default)]
+    peacoqc_rs_version: Option<String>,
+    #[serde(default)]
+    r_version: Option<String>,
+    #[serde(default)]
+    peacoqc_version: Option<String>,
+    #[serde(default)]
+    flowcore_version: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -169,6 +210,8 @@ fn parse_args(args: &[String]) -> Result<CliArgs> {
             "--rust-only" => parsed.rust_only = true,
             "--gpu" => parsed.gpu = true,
             "--e2e" => parsed.e2e = true,
+            "--synthetic" => parsed.synthetic = true,
+            "--no-synthetic" => parsed.no_synthetic = true,
             "--out" => {
                 i += 1;
                 if i >= args.len() {
@@ -198,6 +241,21 @@ fn parse_args(args: &[String]) -> Result<CliArgs> {
                 i += 1;
                 parsed.reps = parse_usize_arg(args, i, "--reps")?;
             }
+            "--events" => {
+                i += 1;
+                parsed.events = parse_usize_list(args, i, "--events")?;
+            }
+            "--channels" => {
+                i += 1;
+                parsed.channels = parse_usize_list(args, i, "--channels")?;
+            }
+            "--fcs" => {
+                i += 1;
+                if i >= args.len() {
+                    anyhow::bail!("--fcs requires a path");
+                }
+                parsed.fcs_paths.push(PathBuf::from(&args[i]));
+            }
             other => anyhow::bail!("unknown argument: {other}"),
         }
         i += 1;
@@ -207,6 +265,11 @@ fn parse_args(args: &[String]) -> Result<CliArgs> {
         parsed.reps = 1;
     }
     anyhow::ensure!(parsed.reps > 0, "--reps must be greater than zero");
+    anyhow::ensure!(!parsed.events.is_empty(), "--events must list at least one size");
+    anyhow::ensure!(
+        !parsed.channels.is_empty(),
+        "--channels must list at least one FL count"
+    );
     Ok(parsed)
 }
 
@@ -217,6 +280,20 @@ fn parse_usize_arg(args: &[String], index: usize, flag: &str) -> Result<usize> {
     value
         .parse()
         .with_context(|| format!("{flag} must be a non-negative integer, got {value}"))
+}
+
+fn parse_usize_list(args: &[String], index: usize, flag: &str) -> Result<Vec<usize>> {
+    let value = args
+        .get(index)
+        .with_context(|| format!("{flag} requires a comma-separated list"))?;
+    value
+        .split(',')
+        .map(|part| {
+            part.trim()
+                .parse::<usize>()
+                .with_context(|| format!("{flag} entry `{part}` is not a positive integer"))
+        })
+        .collect()
 }
 
 fn is_fl_channel(name: &str) -> bool {
@@ -531,21 +608,318 @@ fn run_smoke(
         .prepared_fcs
         .parent()
         .context("prepared FCS must have a case directory")?;
+    run_case_workers(case_dir, warmup, reps, gpu, rust_only, e2e)?;
+    let rows = collect_case_rows(case_dir)?;
+    write_report(out, &rows, warmup, reps, rust_only, gpu)?;
+    println!("{}: {}", case.id, case.prepared_fcs.display());
+    Ok(())
+}
+
+fn run_case_workers(
+    case_dir: &Path,
+    warmup: usize,
+    reps: usize,
+    gpu: bool,
+    rust_only: bool,
+    e2e: bool,
+) -> Result<()> {
     spawn_worker("rust-cpu-1", case_dir, warmup, reps)?;
     spawn_worker("rust-cpu", case_dir, warmup, reps)?;
     if gpu {
         spawn_worker("rust-gpu", case_dir, warmup, reps)?;
     }
     if rust_only {
-        eprintln!("--rust-only: skipped R PeacoQC baseline");
+        eprintln!("--rust-only: skipped R PeacoQC baseline for {}", case_dir.display());
     } else {
         spawn_r_worker(case_dir, warmup, reps, "qc_core")?;
         if e2e {
-            // Synthetic fixtures are already in analysis space; e2e times read.FCS + PeacoQC.
             spawn_r_worker(case_dir, warmup, reps, "e2e")?;
         }
     }
-    println!("{}: {}", case.id, case.prepared_fcs.display());
+    Ok(())
+}
+
+fn read_timing_row(path: &Path) -> Result<TimingRow> {
+    let text = std::fs::read_to_string(path)
+        .with_context(|| format!("read timing JSON {}", path.display()))?;
+    serde_json::from_str(&text).with_context(|| format!("parse timing JSON {}", path.display()))
+}
+
+fn collect_case_rows(case_dir: &Path) -> Result<Vec<TimingRow>> {
+    let mut rows = Vec::new();
+    for entry in std::fs::read_dir(case_dir)
+        .with_context(|| format!("list case directory {}", case_dir.display()))?
+    {
+        let entry = entry?;
+        let path = entry.path();
+        let name = path
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or_default();
+        if name.starts_with("throughput_") && name.ends_with(".json") {
+            rows.push(read_timing_row(&path)?);
+        }
+    }
+    rows.sort_by(|a, b| {
+        (&a.case_id, &a.phase, &a.config).cmp(&(&b.case_id, &b.phase, &b.config))
+    });
+    Ok(rows)
+}
+
+fn machine_cpu_string() -> String {
+    if cfg!(target_os = "macos") {
+        Command::new("sysctl")
+            .args(["-n", "machdep.cpu.brand_string"])
+            .output()
+            .ok()
+            .filter(|o| o.status.success())
+            .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
+            .filter(|s| !s.is_empty())
+            .unwrap_or_else(|| "unknown-macos-cpu".to_string())
+    } else if cfg!(target_os = "linux") {
+        std::fs::read_to_string("/proc/cpuinfo")
+            .ok()
+            .and_then(|text| {
+                text.lines()
+                    .find_map(|line| line.strip_prefix("model name"))
+                    .map(|rest| rest.trim_start_matches(':').trim().to_string())
+            })
+            .filter(|s| !s.is_empty())
+            .unwrap_or_else(|| "unknown-linux-cpu".to_string())
+    } else {
+        "unknown-cpu".to_string()
+    }
+}
+
+fn speedup(baseline: f64, candidate: f64) -> Option<f64> {
+    if baseline > 0.0 && candidate > 0.0 {
+        Some(baseline / candidate)
+    } else {
+        None
+    }
+}
+
+fn format_speedup(value: Option<f64>) -> String {
+    match value {
+        Some(v) => format!("{v:.2}×"),
+        None => "n/a".to_string(),
+    }
+}
+
+fn write_report(
+    out: &Path,
+    rows: &[TimingRow],
+    warmup: usize,
+    reps: usize,
+    rust_only: bool,
+    gpu: bool,
+) -> Result<()> {
+    std::fs::create_dir_all(out).with_context(|| format!("create out dir {}", out.display()))?;
+
+    let merged_path = out.join("throughput_merged.json");
+    let merged = serde_json::to_vec_pretty(rows).context("serialize merged throughput JSON")?;
+    std::fs::write(&merged_path, merged)
+        .with_context(|| format!("write {}", merged_path.display()))?;
+
+    let mut by_case: BTreeMap<String, Vec<&TimingRow>> = BTreeMap::new();
+    for row in rows {
+        by_case.entry(row.case_id.clone()).or_default().push(row);
+    }
+
+    let mut md = String::new();
+    md.push_str("# PeacoQC Rust vs R throughput report\n\n");
+    md.push_str(&format!(
+        "- Date (UTC): {}\n",
+        chrono_like_utc_now()
+    ));
+    md.push_str(&format!("- CPU: {}\n", machine_cpu_string()));
+    md.push_str(&format!("- OS: {}\n", std::env::consts::OS));
+    md.push_str(&format!("- Warmup / reps: {warmup} / {reps}\n"));
+    md.push_str(&format!(
+        "- Modes: rust_only={rust_only}, gpu_requested={gpu}\n"
+    ));
+    md.push_str("- Headline phase: `qc_core` (PeacoQC only; load excluded)\n\n");
+
+    for (case_id, case_rows) in &by_case {
+        let qc_rows: Vec<&TimingRow> = case_rows
+            .iter()
+            .copied()
+            .filter(|r| r.phase == "qc_core")
+            .collect();
+        if qc_rows.is_empty() {
+            continue;
+        }
+        let events = qc_rows[0].events;
+        let channels = qc_rows[0].channels;
+        md.push_str(&format!(
+            "## Case `{case_id}` ({events} events × {channels} FL channels)\n\n"
+        ));
+        md.push_str(
+            "| Config | Mean (s) | Std (s) | Events/s | % removed | vs R | vs Rust-1 |\n",
+        );
+        md.push_str("|---|---:|---:|---:|---:|---:|---:|\n");
+
+        let r_mean = qc_rows
+            .iter()
+            .find(|r| r.config == "r" && !r.skipped)
+            .map(|r| r.mean_s);
+        let rust1_mean = qc_rows
+            .iter()
+            .find(|r| r.config == "rust-cpu-1" && !r.skipped)
+            .map(|r| r.mean_s);
+
+        let order = ["r", "rust-cpu-1", "rust-cpu", "rust-gpu"];
+        for config in order {
+            if let Some(row) = qc_rows.iter().find(|r| r.config == config) {
+                if row.skipped {
+                    md.push_str(&format!(
+                        "| {config} | skipped | — | — | — | — | — |\n"
+                    ));
+                    if let Some(reason) = &row.reason {
+                        md.push_str(&format!("  - skip reason: {reason}\n"));
+                    }
+                    continue;
+                }
+                let vs_r = r_mean.and_then(|base| speedup(base, row.mean_s));
+                let vs_1 = rust1_mean.and_then(|base| speedup(base, row.mean_s));
+                md.push_str(&format!(
+                    "| {} | {:.4} | {:.4} | {:.0} | {:.2} | {} | {} |\n",
+                    config,
+                    row.mean_s,
+                    row.std_s,
+                    row.events_per_s,
+                    row.pct_removed,
+                    format_speedup(vs_r),
+                    format_speedup(vs_1)
+                ));
+            }
+        }
+        md.push('\n');
+    }
+
+    if let Some(r_row) = rows.iter().find(|r| r.config == "r" && !r.skipped) {
+        if let Some(v) = &r_row.r_version {
+            md.push_str(&format!("- R: {v}\n"));
+        }
+        if let Some(v) = &r_row.peacoqc_version {
+            md.push_str(&format!("- PeacoQC: {v}\n"));
+        }
+        if let Some(v) = &r_row.flowcore_version {
+            md.push_str(&format!("- flowCore: {v}\n"));
+        }
+    }
+    if let Some(rust_row) = rows
+        .iter()
+        .find(|r| r.config.starts_with("rust-") && !r.skipped)
+    {
+        if let Some(v) = &rust_row.rustc {
+            md.push_str(&format!("- rustc: {v}\n"));
+        }
+        if let Some(v) = &rust_row.peacoqc_rs_version {
+            md.push_str(&format!("- peacoqc-rs: {v}\n"));
+        }
+    }
+    md.push_str("\nSee also `docs/comparison-with-r.md` for fairness notes.\n");
+
+    let report_path = out.join("throughput_report.md");
+    std::fs::write(&report_path, md).with_context(|| format!("write {}", report_path.display()))?;
+    println!("wrote {}", report_path.display());
+    Ok(())
+}
+
+fn chrono_like_utc_now() -> String {
+    // Avoid adding a chrono dependency to the example; use UTC via `date -u` when available.
+    Command::new("date")
+        .arg("-u")
+        .arg("+%Y-%m-%dT%H:%M:%SZ")
+        .output()
+        .ok()
+        .filter(|o| o.status.success())
+        .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| "unknown-time".to_string())
+}
+
+fn run_synthetic_grid(args: &CliArgs, out: &Path) -> Result<Vec<TimingRow>> {
+    let mut all_rows = Vec::new();
+    for &n_events in &args.events {
+        for &n_channels in &args.channels {
+            let case_id = format!("synth_{n_events}_x{n_channels}");
+            let case_dir = out.join("cases").join(&case_id);
+            let prepared = case_dir.join("prepared.fcs");
+            eprintln!("preparing {case_id}…");
+            write_synthetic_prepared_fcs(&prepared, n_events, n_channels)?;
+            run_case_workers(
+                &case_dir,
+                args.warmup,
+                args.reps,
+                args.gpu,
+                args.rust_only,
+                args.e2e,
+            )?;
+            all_rows.extend(collect_case_rows(&case_dir)?);
+        }
+    }
+    Ok(all_rows)
+}
+
+fn run_real_fcs_cases(args: &CliArgs, out: &Path) -> Result<Vec<TimingRow>> {
+    let mut all_rows = Vec::new();
+    for path in &args.fcs_paths {
+        let stem = path
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or("real_fcs");
+        let case_id = format!("real_{stem}");
+        let case_dir = out.join("cases").join(&case_id);
+        std::fs::create_dir_all(&case_dir)
+            .with_context(|| format!("create {}", case_dir.display()))?;
+        let prepared = case_dir.join("prepared.fcs");
+        // For now, treat caller-supplied FCS as already prepared (analysis space).
+        std::fs::copy(path, &prepared)
+            .with_context(|| format!("copy {} -> {}", path.display(), prepared.display()))?;
+        eprintln!("running real case {case_id} from {}…", path.display());
+        match run_case_workers(
+            &case_dir,
+            args.warmup,
+            args.reps,
+            args.gpu,
+            args.rust_only,
+            args.e2e,
+        ) {
+            Ok(()) => all_rows.extend(collect_case_rows(&case_dir)?),
+            Err(err) => {
+                eprintln!("case {case_id} failed: {err:#}; continuing");
+            }
+        }
+    }
+    Ok(all_rows)
+}
+
+fn run_full(args: &CliArgs) -> Result<()> {
+    let out = args
+        .out
+        .clone()
+        .unwrap_or_else(|| PathBuf::from("target/peacoqc-r-compare/latest"));
+    std::fs::create_dir_all(&out).with_context(|| format!("create {}", out.display()))?;
+
+    let run_synthetic = if args.no_synthetic {
+        false
+    } else if args.synthetic || args.fcs_paths.is_empty() {
+        true
+    } else {
+        args.synthetic
+    };
+
+    let mut rows = Vec::new();
+    if run_synthetic {
+        rows.extend(run_synthetic_grid(args, &out)?);
+    }
+    if !args.fcs_paths.is_empty() {
+        rows.extend(run_real_fcs_cases(args, &out)?);
+    }
+    anyhow::ensure!(!rows.is_empty(), "no timing rows produced");
+    write_report(&out, &rows, args.warmup, args.reps, args.rust_only, args.gpu)?;
     Ok(())
 }
 
@@ -585,7 +959,12 @@ fn main() -> Result<()> {
         return Ok(());
     }
 
-    anyhow::bail!("no mode selected; use --smoke --out <dir> or --config with --case-dir")
+    if parsed.config.is_none() {
+        run_full(&parsed)?;
+        return Ok(());
+    }
+
+    anyhow::bail!("no mode selected; use --smoke --out <dir>, full grid with --out, or --config with --case-dir")
 }
 
 #[cfg(test)]
