@@ -1,10 +1,21 @@
 //! Criterion: lazy column/events access vs. the existing eager `data_frame`
 //! parse, on a real compliance-corpus file. Stage A must not regress the
 //! already-eager path's performance while adding the lazy one.
+//!
+//! Also carries a generated `$DATATYPE F`, 1,000,000 x 20 fixture (Stage B's
+//! target shape) — see `synthetic_fcs` below for why it has to be generated
+//! rather than committed.
 
 use criterion::{Criterion, criterion_group, criterion_main};
 use flow_fcs::file::Fcs;
+use flow_fcs::keyword::{IntegerKeyword, Keyword, MixedKeyword};
+use flow_fcs::metadata::Metadata;
+use flow_fcs::version::Version;
+use flow_fcs::write::write_fcs_file;
+use polars::prelude::*;
 use std::hint::black_box;
+use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use std::time::Duration;
 
 fn compliance_fcs() -> String {
@@ -12,6 +23,69 @@ fn compliance_fcs() -> String {
         .to_str()
         .expect("utf-8 corpus path")
         .to_string()
+}
+
+/// Generate a `$DATATYPE F`, little-endian FCS file of `n_events` x `n_params`
+/// into `dir` and return its path.
+///
+/// The corpus has nothing above 50,000 x 8 int16, and a committed
+/// multi-million-event file would be hundreds of megabytes, so this generates
+/// one through `write.rs` instead. The seed corpus file is FCS3.0, and its
+/// `header.version` is overridden to `V3_1` below: `$CYT`'s value contains
+/// spaces and `Metadata::new()`'s default delimiter is a space, and pre-3.1
+/// FCS has no delimiter-escape mechanism at all (`Escaping::for_version`
+/// maps V1_0/V2_0/V3_0 to `Escaping::None`) — writing this fixture at V3_0
+/// would silently corrupt TEXT rather than exercise anything. Forcing V3_1
+/// puts the write on the `Escaping::Doubled` path that flow-crates-1xb made
+/// correct, so the escaping the fixture depends on is real, not incidental.
+fn synthetic_fcs(dir: &Path, n_events: usize, n_params: usize) -> PathBuf {
+    let path = dir.join(format!("synthetic_{n_events}x{n_params}.fcs"));
+
+    // Deterministic, non-degenerate values: a per-parameter offset keeps the
+    // columns distinguishable so a transposition bug cannot pass unnoticed.
+    let columns: Vec<Column> = (0..n_params)
+        .map(|p| {
+            let values: Vec<f32> = (0..n_events)
+                .map(|e| (e as f32).mul_add(0.001, p as f32 * 1000.0))
+                .collect();
+            Column::new(format!("P{}", p + 1).into(), values)
+        })
+        .collect();
+    let df = DataFrame::new_infer_height(columns).expect("df");
+
+    // Seed from a real file so `file_access` and `header` are valid; the
+    // writer reads neither `parameters` nor the `columns` cache, so replacing
+    // `header.version`, `metadata`, and `data_frame` is sufficient.
+    let seed = flow_fcs::corpus::path("int-10000_events_random.fcs");
+    let mut fcs = Fcs::open(seed.to_str().expect("utf-8 corpus path")).expect("seed corpus file");
+    fcs.header.version = Version::V3_1;
+
+    let mut metadata = Metadata::new();
+    metadata.insert_string_keyword("$BYTEORD".into(), "1,2,3,4".into());
+    metadata.insert_string_keyword("$DATATYPE".into(), "F".into());
+    metadata.insert_string_keyword("$MODE".into(), "L".into());
+    metadata.insert_string_keyword("$NEXTDATA".into(), "0".into());
+    metadata.insert_string_keyword("$CYT".into(), "flow-crates synthetic bench fixture".into());
+    for p in 1..=n_params {
+        metadata.insert_string_keyword(format!("$P{p}N"), format!("P{p}"));
+        metadata.keywords.insert(format!("$P{p}B"), Keyword::Int(IntegerKeyword::PnB(32)));
+        metadata.keywords.insert(format!("$P{p}R"), Keyword::Int(IntegerKeyword::PnR(262_144)));
+        metadata.keywords.insert(format!("$P{p}E"), Keyword::Mixed(MixedKeyword::PnE(0.0, 0.0)));
+    }
+
+    fcs.metadata = metadata;
+    fcs.data_frame = Arc::new(df);
+
+    write_fcs_file(fcs, &path).expect("write synthetic fixture");
+    path
+}
+
+/// A benchmark against a malformed fixture measures nothing. Check the file
+/// reopens with the shape we asked for before timing anything.
+fn assert_fixture_shape(path: &Path, n_events: usize, n_params: usize) {
+    let fcs = Fcs::open(path.to_str().expect("utf-8")).expect("reopen synthetic fixture");
+    assert_eq!(fcs.data_frame.height(), n_events, "synthetic fixture event count");
+    assert_eq!(fcs.data_frame.width(), n_params, "synthetic fixture parameter count");
 }
 
 fn bench_two_column_access(c: &mut Criterion) {
@@ -50,12 +124,12 @@ fn bench_two_column_access(c: &mut Criterion) {
     group.finish();
 }
 
-/// Measured result (Task 8): `events_uncached` runs ~8x slower than
-/// `open_eager_baseline` alone — NOT because `events()` pays for `open()`'s
-/// parse too (criterion's `iter_batched` excludes setup-closure time from
-/// the measurement), but because `extract_columns` has no uniform-width
-/// fast path and decodes every value through a `#[cold]`-annotated
-/// function. Tracked as `flow-crates-3si`.
+/// Baseline recorded (Task 7, pre-rewrite) in `flow-crates-3si`'s notes and in
+/// `target/criterion/` on disk. `iter_batched` excludes setup-closure time
+/// from the measurement, so `events_uncached` running slower than
+/// `open_eager_baseline` reflects `extract_columns`'s own decode cost, not
+/// `open()`'s parse. See the Phase 4 spec for the rewrite this baseline is
+/// meant to be compared against.
 fn bench_full_materialization(c: &mut Criterion) {
     let mut group = c.benchmark_group("full_materialization");
     group.warm_up_time(Duration::from_millis(300));
@@ -79,5 +153,60 @@ fn bench_full_materialization(c: &mut Criterion) {
     group.finish();
 }
 
-criterion_group!(benches, bench_two_column_access, bench_full_materialization);
+/// The corpus tops out at 50,000 x 8 (`fcs2_int16_50000ev_8par_random.fcs`,
+/// used below), nothing like the multi-million-event, 20-parameter,
+/// `$DATATYPE F` file Stage B targets. `fcs2_int16_50000ev_8par_random.fcs`
+/// stays in the mix precisely because it is awkward: `$BYTEORD 4,3,2,1` with
+/// `$P1B 16` / `$P1R 1024` forces both a byte swap and a range mask, so it
+/// exercises the general decode path rather than any zero-copy shortcut, and
+/// 50,000 x 8 = 400,000 values sits exactly on the current fast-path
+/// threshold.
+fn bench_synthetic_column_access(c: &mut Criterion) {
+    let dir = tempfile::TempDir::new().expect("tempdir");
+    const EVENTS: usize = 1_000_000;
+    const PARAMS: usize = 20;
+    let path = synthetic_fcs(dir.path(), EVENTS, PARAMS);
+    assert_fixture_shape(&path, EVENTS, PARAMS);
+    let path = path.to_str().expect("utf-8").to_string();
+
+    let mut group = c.benchmark_group("synthetic_1Mx20");
+    group.warm_up_time(Duration::from_millis(500));
+    group.measurement_time(Duration::from_secs(10));
+    group.sample_size(10);
+
+    // One column of twenty: the Stage B case. The Vec<Vec<f32>> intermediate
+    // is 20x the size of the output here, which is the cost being removed.
+    group.bench_function("one_column_of_twenty", |bencher| {
+        bencher.iter_batched(
+            || Fcs::open(&path).expect("reopen for cold cache"),
+            |fresh| {
+                let column = fresh.column("P1").expect("column");
+                black_box(column.len());
+            },
+            criterion::BatchSize::LargeInput,
+        );
+    });
+
+    group.bench_function("all_twenty_columns", |bencher| {
+        bencher.iter_batched(
+            || Fcs::open(&path).expect("reopen for cold cache"),
+            |fresh| {
+                let names: Vec<String> = (1..=PARAMS).map(|p| format!("P{p}")).collect();
+                let refs: Vec<&str> = names.iter().map(String::as_str).collect();
+                let cols = fresh.columns(&refs).expect("columns");
+                black_box(cols.len());
+            },
+            criterion::BatchSize::LargeInput,
+        );
+    });
+
+    group.finish();
+}
+
+criterion_group!(
+    benches,
+    bench_two_column_access,
+    bench_full_materialization,
+    bench_synthetic_column_access
+);
 criterion_main!(benches);
