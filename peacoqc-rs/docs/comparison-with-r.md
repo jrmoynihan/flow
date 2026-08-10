@@ -67,7 +67,9 @@ Artifacts under `--out`:
 ## Interpreting QC-core vs e2e
 
 - **QC-core:** algorithm cost only (headline for vs-R claims).
+- **`--include-margins-doublets`:** times `RemoveMargins`/`remove_margins` + `RemoveDoublets`/`remove_doublets` + PeacoQC in one window (sensitivity; not the default publishable row). Synthetic fixtures include `FSC-H` for doublet ratio.
 - **`--e2e`:** secondary; for synthetic data, R e2e currently times `read.FCS` + PeacoQC on the same prepared file (no compensate/transform). Real-file prep parity can be extended later.
+- **`--gpu`:** optional Rust row; skipped with a reason when the binary lacks `gpu` or no adapter path is wired for full PeacoQC yet.
 
 ## Refreshing README tables
 

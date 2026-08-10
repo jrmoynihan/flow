@@ -355,29 +355,43 @@ Uses kernel smoothing (matching R's `stats::ksmooth` with bandwidth=50) to smoot
 
 ## Performance
 
-PeacoQC-RS is optimized for performance:
+Headline comparison is **QC-core wall time** versus Bioconductor PeacoQC (load excluded;
+same defaults). Method and fairness notes: [`docs/comparison-with-r.md`](docs/comparison-with-r.md).
+Full sample tables: [`docs/throughput_vs_r_sample.md`](docs/throughput_vs_r_sample.md).
 
-- **Parallel Processing**: Uses `rayon` for parallel computation:
-  - **Multiple channels** processed in parallel (all channels simultaneously)
-  - **Multiple bins** within each channel processed in parallel
-  - Provides significant speedup on multi-core systems (typically 2-8x depending on core count)
-- **GPU Acceleration** (optional, `--features gpu`): Provides 20-32x speedup for batched multi-channel operations
-  - Automatically used when GPU is available
-  - Batched operations amortize GPU overhead across multiple channels
-  - See `DEV_NOTES.md` for detailed performance results
-- **Efficient Data Structures**: Uses Polars DataFrames (via `flow-fcs` feature flag) for columnar storage
-- **Minimal Allocations**: Optimized to reduce memory allocations
-- **SIMD Support**: Leverages Polars' SIMD operations for fast numeric computations
+Representative release results (Apple M5 Max, 2026-08-10; warmup=1, reps=3; PeacoQC 1.22.0 / flowCore 2.24.0 / peacoqc-rs 0.3.1):
+
+| Case (events×FL) | R mean (s) | Rust 1-thread (s) | Rust Rayon (s) | Speedup vs R (Rayon) |
+|------------------|------------|-------------------|----------------|----------------------|
+| 50k × 5          | 0.42       | 0.056             | 0.037          | **11.3×**            |
+| 50k × 15         | 2.13       | 0.20              | 0.15           | **14.2×**            |
+| 200k × 5         | 1.64       | 0.21              | 0.19           | **8.6×**             |
+| 200k × 15        | 3.92       | 0.66              | 0.47           | **8.3×**             |
+
+Rust single-thread is already ~6–11× faster than R on these cases; default Rayon adds about 1.1–1.5× on top of single-thread. GPU end-to-end PeacoQC row was not measured in this sample (optional `--features gpu`).
+
+Internal notes (not vs R):
+
+- **Parallel Processing**: `rayon` over channels/bins
+- **GPU Acceleration** (optional): batched multi-channel kernels; see `DEV_NOTES.md` / `bench_results/`
+- Criterion microbenches / alloc A/B: `cargo bench`, [`docs/PERF_AB.md`](docs/PERF_AB.md)
 
 ### Benchmarks
 
-Run benchmarks with:
+Cross-language harness:
+
+```bash
+cargo run -p peacoqc-rs --release --no-default-features --features flow-fcs --example compare_with_r -- \
+  --out target/peacoqc-r-compare/run --events 50000,200000 --channels 5,15 --warmup 1 --reps 5
+```
+
+Criterion (Rust-only):
 
 ```bash
 cargo bench --bench peacoqc_bench
 ```
 
-GPU paths need a suitable adapter; without one, prefer `--no-default-features --features flow-fcs`. Micro-opt notes: [`docs/PERF_AB.md`](docs/PERF_AB.md).
+GPU paths need a suitable adapter; without one, prefer `--no-default-features --features flow-fcs`.
 
 ## Testing
 

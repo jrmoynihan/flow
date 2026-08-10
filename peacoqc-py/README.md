@@ -91,6 +91,17 @@ print(peacoqc.__peacoqc_rs_version__)  # peacoqc-rs algorithm version baked into
 Same algorithmic costs as `peacoqc-rs`; Python overhead is binding/conversion only. GPU features
 follow the Rust crate defaults when enabled at build time.
 
+Cross-language QC-core timings live with the Rust crate (bindings do not re-time R separately):
+
+| Case (events×FL) | R mean (s) | Rust Rayon (s) | Speedup vs R |
+|------------------|------------|----------------|--------------|
+| 50k × 15         | 2.13       | 0.15           | **14.2×**    |
+| 200k × 15        | 3.92       | 0.47           | **8.3×**     |
+
+Full matrix, machine footer, and harness docs:
+[`../peacoqc-rs/docs/throughput_vs_r_sample.md`](../peacoqc-rs/docs/throughput_vs_r_sample.md),
+[`../peacoqc-rs/docs/comparison-with-r.md`](../peacoqc-rs/docs/comparison-with-r.md).
+
 ## Building from source
 
 For contributors: build from this directory with the usual [PyO3/maturin](https://github.com/pyo3/maturin) flow.
