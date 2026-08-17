@@ -149,6 +149,92 @@ fn find_time_channel<T: PeacoQCData>(fcs: &T) -> Option<String> {
     })
 }
 
+fn median_positive_step(time_values: &[f64]) -> f64 {
+    let mut diffs: Vec<f64> = time_values
+        .windows(2)
+        .filter_map(|pair| {
+            let d = pair[1] - pair[0];
+            (d.is_finite() && d > 0.0).then_some(d)
+        })
+        .collect();
+    if diffs.is_empty() {
+        return 1.0;
+    }
+    diffs.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+    diffs[diffs.len() / 2]
+}
+
+fn is_time_discontinuity(prev: f64, next: f64, max_step: f64) -> bool {
+    if !prev.is_finite() || !next.is_finite() {
+        return true;
+    }
+    next < prev || next - prev > max_step
+}
+
+/// Bin event rate vs Time. Splits a window at Time wrap / huge jumps so a clock
+/// overflow cannot emit a midpoint in the middle of the axis with rate ≈ 0.
+fn event_rate_windows(time_values: &[f64], window_size: usize) -> Vec<(f64, f64)> {
+    let typical_dt = median_positive_step(time_values);
+    let max_step = (typical_dt * 50.0).max(1.0);
+    let mut events_per_second = Vec::new();
+    let mut i = 0;
+
+    while i < time_values.len() {
+        let window_end = (i + window_size).min(time_values.len());
+        if window_end <= i {
+            break;
+        }
+        push_rate_runs(
+            &mut events_per_second,
+            &time_values[i..window_end],
+            typical_dt,
+            max_step,
+        );
+        i = window_end;
+    }
+
+    events_per_second
+}
+
+fn push_rate_runs(
+    out: &mut Vec<(f64, f64)>,
+    window_times: &[f64],
+    typical_dt: f64,
+    max_step: f64,
+) {
+    if window_times.len() < 2 {
+        return;
+    }
+    let mut run_start = 0;
+    for j in 1..window_times.len() {
+        if is_time_discontinuity(window_times[j - 1], window_times[j], max_step) {
+            push_rate_run(out, &window_times[run_start..j], typical_dt);
+            run_start = j;
+        }
+    }
+    push_rate_run(out, &window_times[run_start..], typical_dt);
+}
+
+fn push_rate_run(out: &mut Vec<(f64, f64)>, run: &[f64], typical_dt: f64) {
+    let Some(&time_start) = run.first() else {
+        return;
+    };
+    let Some(&time_end) = run.last() else {
+        return;
+    };
+    let time_span = time_end - time_start;
+    if time_span <= 0.0 || run.len() < 2 {
+        return;
+    }
+    let max_span = typical_dt.max(1e-9) * run.len() as f64 * 20.0;
+    if time_span > max_span {
+        return;
+    }
+    let mid_time = (time_start + time_end) / 2.0;
+    let rate = run.len() as f64 / time_span;
+    out.push((mid_time, rate));
+}
+
 /// Calculate events per second over time
 fn calculate_events_per_second<T: PeacoQCData>(
     fcs: &T,
@@ -161,34 +247,7 @@ fn calculate_events_per_second<T: PeacoQCData>(
         return Err(PeacoQCError::InsufficientData { min: 1, actual: 0 });
     }
 
-    let mut events_per_second = Vec::new();
-    let mut i = 0;
-
-    while i < time_values.len() {
-        let window_end = (i + window_size).min(time_values.len());
-        if window_end <= i {
-            break;
-        }
-
-        let window_times: Vec<f64> = time_values[i..window_end].to_vec();
-        let time_start = window_times.first().copied().unwrap_or(0.0);
-        let time_end = window_times.last().copied().unwrap_or(time_start);
-        let time_span = time_end - time_start;
-
-        let rate = if time_span > 0.0 {
-            (window_end - i) as f64 / time_span
-        } else {
-            0.0
-        };
-
-        // Use middle of window as x position
-        let mid_time = (time_start + time_end) / 2.0;
-        events_per_second.push((mid_time, rate));
-
-        i = window_end;
-    }
-
-    Ok(events_per_second)
+    Ok(event_rate_windows(&time_values, window_size))
 }
 
 /// Get channel data as vector
@@ -1281,6 +1340,49 @@ mod tests {
         assert_eq!(medians.len(), 4);
         assert_eq!(medians[0], (0, 1.5));
         assert_eq!(medians[1], (1, 3.5));
+    }
+
+    #[test]
+    fn event_rate_windows_splits_wrap_inside_window() {
+        let mut time = Vec::new();
+        for i in 0..800 {
+            time.push(10_000.0 + i as f64);
+        }
+        for i in 0..200 {
+            time.push(i as f64);
+        }
+        let windows = event_rate_windows(&time, 1000);
+        assert_eq!(windows.len(), 2);
+        assert!(windows.iter().all(|&(_, rate)| rate > 0.0));
+        assert!(
+            windows[0].0 > 10_000.0,
+            "pre-wrap run stays on the high Time side: {windows:?}"
+        );
+        assert!(
+            windows[1].0 < 200.0,
+            "post-wrap run stays on the low Time side: {windows:?}"
+        );
+    }
+
+    #[test]
+    fn event_rate_windows_drops_huge_span_wrap_tail() {
+        let mut time = Vec::new();
+        for i in 0..5_000 {
+            time.push(i as f64 * 1.3);
+        }
+        for i in 0..1_000 {
+            time.push(140_000.0 + i as f64 * 160.0);
+        }
+        let windows = event_rate_windows(&time, 1000);
+        assert!(
+            windows.iter().all(|&(_, rate)| rate > 0.1),
+            "near-zero wrap-tail rates must be dropped: {windows:?}"
+        );
+        assert!(
+            windows.iter().all(|&(t, _)| t < 50_000.0),
+            "wrap-tail midpoints must not overlap the main axis: {windows:?}"
+        );
+        assert!(!windows.is_empty());
     }
 
     #[test]
