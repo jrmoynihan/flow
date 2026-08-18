@@ -5,18 +5,142 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+CLI 0.3.0: depends on `flow-fcs` 0.5.x and `peacoqc-rs` 0.3.x; removal-reason visualization options from the library.
+
+### Chore
+
+ - <csr-id-af6097fbd09f00657eaf82ea8367fffd3ee72baf/> default test commands to cargo-nextest (flow-crates-9xv)
+   Nextest runs each test in its own process and reports per-test timing, so
+   make it the default runner everywhere the project tells a human or an agent
+   how to run tests, rather than leaving it as an opt-in each caller remembers.
+   
+   Adds .config/nextest.toml (default profile fails fast; a ci profile runs the
+   whole suite) and a `cargo nt` alias, since Cargo cannot alias the built-in
+   `test` subcommand. Doctests stay on the built-in harness because nextest
+   cannot run them.
+ - <csr-id-74956f94c544d1fa83f6fffbb18e2d4f5e6072ff/> bump flow-fcs to 0.4.0, add publish metadata to new crates
+   - flow-fcs 0.3.0 → 0.4.0 (new compensation feature + public API)
+   - flow-linalg, flow-density, flow-clustering: add repository field
+     and smart-release scripts for first publish
+   - Update all workspace consumers to ^0.4.0
+
+### Documentation
+
+ - <csr-id-3c48e73e751a7852b0e07239540448e6ee35a0cf/> refresh crate READMEs and agent guidelines
+   Keep the beads export in sync and add the Svelte MCP server to Codex config.
+ - <csr-id-92e31b03dc632230809d10422be0c1062e6e9e1b/> consumer-first README pass across crates, add peacoqc-py usage example, remove legacy utils crate
+   Rewrites READMEs across the workspace (fcs, flow-clustering,
+   flow-control-detection, flow-density, flow-fcs-compress, flow-knn,
+   flow-linalg, flow-pacmap, flow-peak-detection, gates, peacoqc-cli,
+   peacoqc-rs, tru-ols, tru-ols-cli) to lead with install/quick-start/perf
+   for downstream consumers, and adds a new flow-fcs-bench README.
+   
+   Adds a concrete usage example to peacoqc-py/README.md mirroring the
+   docstring in peacoqc/__init__.py.
+   
+   Removes the superseded utils/ crate (clustering, KDE, and PCA helpers
+   now live in their dedicated crates) and syncs beads issue/interaction
+   export state.
+
+### New Features
+
+ - <csr-id-907a77cbe2adf5c7654c9a86e3a6bae15c344026/> removal reason visualization and export from mask
+   - Add RemovalReason and per-bin reason data to PeacoQCResult
+   - Color-code removal reasons (IT, MAD, Consecutive) in QC time/channel plots
+   - Add export_csv_boolean_from_mask and export_csv_numeric_from_mask
+   - Improve legend legibility; optional reason-specific colors in QCPlotConfig
+   - peacoqc-cli: tempfile dep, README and CLI updates for new options
+
+### Bug Fixes
+
+ - <csr-id-6986541e936967c566b3c6caca42c9e0cbf5678f/> apply $PnR masking, fix bit-packed stride, add $NEXTDATA traversal
+   Fixes four parsing gaps reported in jrmoynihan/flow#21:
+   
+   - $PnR masking (flow-crates-d35, P0): integer parameters now mask off
+     unused high bits per their declared $PnR range before column
+     extraction, fixing silently-wrong channel values on instruments
+     (Beckman FC500/Gallios/Navios, older BD) that store sub-16-bit ADC
+     resolution in wider fields.
+   - Bit-packed $PnB stride (flow-crates-bk6, P2): calculate_bytes_per_event
+     now sums raw bit widths before rounding once, instead of rounding each
+     parameter first — correct for both byte-aligned and bit-packed layouts.
+   - $NEXTDATA traversal (flow-crates-1mg, P2): new Fcs::open_all() walks
+     the $NEXTDATA chain to read every dataset in a multi-dataset FCS file
+     (all Beckman .lmd files use this). open() is unchanged and still
+     returns only the first dataset, so existing callers are unaffected.
+   - $DATATYPE A (flow-crates-ee0, P3, won't-fix): documented the existing
+     Err behavior as a deliberate spec-driven decision (ASCII was
+     deprecated due to cross-vendor bit-order disagreement) rather than an
+     oversight, and added a test confirming it.
+   
+   Bumps flow-fcs 0.4.1 -> 0.5.0 and the paired version requirement in
+   every workspace crate that depends on it via path (Cargo enforces that
+   constraint even for path deps).
+
+### Refactor
+
+ - <csr-id-f179bb3fb82f79a0f64667577b7ebd5340ba479c/> migrate to structured tracing and improve GPU diagnostics
+   Replaces all eprintln! debug output with tracing::debug! for
+   production-ready structured logging across QC modules (mad, debug,
+   export, plots). Enhances trajectory and bin-level diagnostics.
+   
+   Improves GPU batch operation error handling and context lifecycle.
+   Expands regression test coverage and adds synthetic drift test.
+   CLI: refactored argument parsing and improved output formatting.
+   Python bindings: updated for API changes.
+
+### Style
+
+ - <csr-id-503255e45d9ac34d127fb4a3a1124e229ab937e6/> simplify let-chains in input and output path handling
+
+### Commit Statistics
+
+<csr-read-only-do-not-edit/>
+
+ - 15 commits contributed to the release over the course of 153 calendar days.
+ - 8 commits were understood as [conventional](https://www.conventionalcommits.org).
+ - 0 issues like '(#ID)' were seen in commit messages
+
+### Commit Details
+
+<csr-read-only-do-not-edit/>
+
+<details><summary>view details</summary>
+
+ * **Uncategorized**
+    - Refresh crate READMEs and agent guidelines ([`3c48e73`](https://github.com/jrmoynihan/flow/commit/3c48e73e751a7852b0e07239540448e6ee35a0cf))
+    - Merge branch 'peacoqc-rust-vs-r-throughput' into main ([`536825d`](https://github.com/jrmoynihan/flow/commit/536825ddf5b52f910778eae86b91dfee4f9c319e))
+    - Release flow-fcs v0.5.1 ([`ddc9d09`](https://github.com/jrmoynihan/flow/commit/ddc9d094ee0a7390f16daf3e9f23c47eda39e637))
+    - Release peacoqc-rs v0.3.2 ([`20d0a9c`](https://github.com/jrmoynihan/flow/commit/20d0a9cb60e2c4ed4efed9f3d55dbc4d9bd54abb))
+    - Default test commands to cargo-nextest (flow-crates-9xv) ([`af6097f`](https://github.com/jrmoynihan/flow/commit/af6097fbd09f00657eaf82ea8367fffd3ee72baf))
+    - Apply $PnR masking, fix bit-packed stride, add $NEXTDATA traversal ([`6986541`](https://github.com/jrmoynihan/flow/commit/6986541e936967c566b3c6caca42c9e0cbf5678f))
+    - Consumer-first README pass across crates, add peacoqc-py usage example, remove legacy utils crate ([`92e31b0`](https://github.com/jrmoynihan/flow/commit/92e31b03dc632230809d10422be0c1062e6e9e1b))
+    - Simplify let-chains in input and output path handling ([`503255e`](https://github.com/jrmoynihan/flow/commit/503255e45d9ac34d127fb4a3a1124e229ab937e6))
+    - Release flow-fcs v0.4.1 ([`597f21b`](https://github.com/jrmoynihan/flow/commit/597f21bef7ea787437071685fc3cce9d2269270f))
+    - Release peacoqc-rs v0.3.1 ([`5b5e6fd`](https://github.com/jrmoynihan/flow/commit/5b5e6fdb3e1dee945cae3014f84de5baca57f43d))
+    - Release peacoqc-rs v0.3.0, safety bump 2 crates ([`604a94e`](https://github.com/jrmoynihan/flow/commit/604a94e13464acb60582292768ce3f97598ea55e))
+    - Merge pull request #20 from jrmoynihan/feat/flow-fcs-compress ([`f953bc5`](https://github.com/jrmoynihan/flow/commit/f953bc5df8f6978e3fe511538cb2943730a35eff))
+    - Bump flow-fcs to 0.4.0, add publish metadata to new crates ([`74956f9`](https://github.com/jrmoynihan/flow/commit/74956f94c544d1fa83f6fffbb18e2d4f5e6072ff))
+    - Migrate to structured tracing and improve GPU diagnostics ([`f179bb3`](https://github.com/jrmoynihan/flow/commit/f179bb3fb82f79a0f64667577b7ebd5340ba479c))
+    - Removal reason visualization and export from mask ([`907a77c`](https://github.com/jrmoynihan/flow/commit/907a77cbe2adf5c7654c9a86e3a6bae15c344026))
+</details>
+
 ## 0.2.4 (2026-02-27)
+
+<csr-id-f78ada41f7d265ee456ff9e08c4299139f4683d4/>
 
 ### New Features
 
  - <csr-id-7aad630ce2e5e9ebcda2273cef86f22777efc05b/> plot aesthetics, GPU fix, CLI plot options
    - peacoqc-rs: Plot improvements (issue #16): larger fonts, axis/legend/title
-     config; grid and MAD dashed lines; legend semi-transparent background;
-     spline blue/MAD green; scatter alpha. Add caption_font_size and
-     font_family to QCPlotConfig. Fix GPU tensor shape (Burn Float is f32).
+   config; grid and MAD dashed lines; legend semi-transparent background;
+   spline blue/MAD green; scatter alpha. Add caption_font_size and
+   font_family to QCPlotConfig. Fix GPU tensor shape (Burn Float is f32).
    - peacoqc-cli: Apply --hide-spline-mad and --show-bin-boundaries; add
-     --plot-width, --plot-height, --plot-title-size, --plot-axis-size,
-     --plot-tick-size, --plot-legend-size, --plot-font; document in README.
+   --plot-width, --plot-height, --plot-title-size, --plot-axis-size,
+   --plot-tick-size, --plot-legend-size, --plot-font; document in README.
 
 ### Documentation
 
@@ -36,7 +160,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 <csr-read-only-do-not-edit/>
 
- - 7 commits contributed to the release over the course of 11 calendar days.
+ - 8 commits contributed to the release over the course of 11 calendar days.
  - 11 days passed between releases.
  - 3 commits were understood as [conventional](https://www.conventionalcommits.org).
  - 0 issues like '(#ID)' were seen in commit messages
@@ -48,6 +172,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 <details><summary>view details</summary>
 
  * **Uncategorized**
+    - Release peacoqc-rs v0.2.4, peacoqc-cli v0.2.4 ([`cea03b0`](https://github.com/jrmoynihan/flow/commit/cea03b013c10ae71a83a00fdf96dbea205afc961))
     - Plot aesthetics, GPU fix, CLI plot options ([`7aad630`](https://github.com/jrmoynihan/flow/commit/7aad630ce2e5e9ebcda2273cef86f22777efc05b))
     - Bump version to 0.2.3 in Cargo.toml and Cargo.lock ([`f78ada4`](https://github.com/jrmoynihan/flow/commit/f78ada41f7d265ee456ff9e08c4299139f4683d4))
     - Release peacoqc-rs v0.2.3 ([`7600d54`](https://github.com/jrmoynihan/flow/commit/7600d54b5bdbedb4c5e8189265a6b5f20a1970cf))

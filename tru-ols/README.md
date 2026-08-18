@@ -37,7 +37,7 @@ Default linear algebra is pure-Rust [faer](https://github.com/sarah-ek/faer); op
 
 ```toml
 [dependencies]
-flow-tru-ols = { version = "0.1.0", features = ["flow-fcs"] }
+flow-tru-ols = { version = "0.2.0", features = ["flow-fcs"] }
 ```
 
 | Feature | Description |

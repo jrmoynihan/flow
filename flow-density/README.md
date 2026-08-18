@@ -43,7 +43,7 @@ Or add it directly to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-flow-density = "0.1.1"
+flow-density = "0.1.2"
 ```
 
 ## API Usage

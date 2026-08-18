@@ -5,27 +5,92 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## Unreleased
 
-### Added
+Plot builders expose `BasePlotOptions` fields directly (`.width()`, `.title()`, etc.) instead of requiring a nested `.base(...)`.
 
-- **Scatter overlay plots** (`PlotType::Scatter`): Discrete gate colors via `ScatterPlotData::with_gates()` and `gate_colors` option
-- **Scatter colored by z-axis** (`PlotType::Intensity`): Continuous colormap via `ScatterPlotData::with_z()` and `z_range` option
-- **Density point size**: `point_size` option now affects density heatmap (contribution radius per point), matching scatter behavior
-- **Contour plots**: KDE-based contour lines with `contour_smoothing`, `draw_outliers`, `contour_level_count`
-- **HistogramPlot**: New plot type with filled/unfilled modes, overlaid series, gate colors, baseline separation, `scale_to_peak`
-- `ScatterPlotData`, `HistogramData`, `HistogramPlotOptions` types
-- **`BasePlotOptions` field promotion**: `DensityPlotOptionsBuilder`, `HistogramPlotOptionsBuilder`, and `SpectralSignaturePlotOptionsBuilder` now expose direct passthrough setters (`.width()`, `.height()`, `.title()`, etc.) for every `BasePlotOptions` field, so common layout options no longer require building a separate `BasePlotOptions` and passing it via `.base(...)`. `.base(...)` still works unchanged.
+### Chore
 
-### Changed
+ - <csr-id-af6097fbd09f00657eaf82ea8367fffd3ee72baf/> default test commands to cargo-nextest (flow-crates-9xv)
+   Nextest runs each test in its own process and reports per-test timing, so
+   make it the default runner everywhere the project tells a human or an agent
+   how to run tests, rather than leaving it as an opt-in each caller remembers.
+   
+   Adds .config/nextest.toml (default profile fails fast; a ci profile runs the
+   whole suite) and a `cargo nt` alias, since Cargo cannot alias the built-in
+   `test` subcommand. Doctests stay on the built-in harness because nextest
+   cannot run them.
 
-- **Breaking**: `DensityPlot::Data` is now `ScatterPlotData` instead of `Vec<(f32, f32)>`; use `.into()` for simple data
-- **Breaking**: `render_batch` and `calculate_density_per_pixel_batch` accept `(ScatterPlotData, DensityPlotOptions)`
+### New Features
 
-### Dependencies
+ - <csr-id-3f465e84fb9492cf318777a2e76878e217d9c539/> flatten BasePlotOptions fields onto plot builders, fix scatter dispatch
+   Promote all BasePlotOptions fields (width, height, title, etc.) as direct
+   passthrough setters on DensityPlotOptionsBuilder, HistogramPlotOptionsBuilder,
+   and SpectralSignaturePlotOptionsBuilder via a shared macro, so callers no
+   longer need a nested .base(BasePlotOptions::new()...build()?) just to set
+   common layout options. .base(...) still works unchanged.
+   
+   Also fixes PlotType::Scatter always ignoring gate_ids/gate_colors (the
+   gate-aware scatter_to_pixels_overlay path was dead code); it's now used
+   whenever ScatterPlotData carries gates. Confirmed as a no-op for fast-flow,
+   which never sets gates.
+   
+   Updates README and CHANGELOG examples/naming to match, and corrects stale
+   ScatterOverlay/ScatterColoredContinuous references to the real PlotType
+   variants.
 
-- Added `flow-utils` for KDE contour support
-- Added `ndarray` for marching squares contour extraction
+### Bug Fixes
+
+ - <csr-id-6986541e936967c566b3c6caca42c9e0cbf5678f/> apply $PnR masking, fix bit-packed stride, add $NEXTDATA traversal
+   Fixes four parsing gaps reported in jrmoynihan/flow#21:
+   
+   - $PnR masking (flow-crates-d35, P0): integer parameters now mask off
+     unused high bits per their declared $PnR range before column
+     extraction, fixing silently-wrong channel values on instruments
+     (Beckman FC500/Gallios/Navios, older BD) that store sub-16-bit ADC
+     resolution in wider fields.
+   - Bit-packed $PnB stride (flow-crates-bk6, P2): calculate_bytes_per_event
+     now sums raw bit widths before rounding once, instead of rounding each
+     parameter first — correct for both byte-aligned and bit-packed layouts.
+   - $NEXTDATA traversal (flow-crates-1mg, P2): new Fcs::open_all() walks
+     the $NEXTDATA chain to read every dataset in a multi-dataset FCS file
+     (all Beckman .lmd files use this). open() is unchanged and still
+     returns only the first dataset, so existing callers are unaffected.
+   - $DATATYPE A (flow-crates-ee0, P3, won't-fix): documented the existing
+     Err behavior as a deliberate spec-driven decision (ASCII was
+     deprecated due to cross-vendor bit-order disagreement) rather than an
+     oversight, and added a test confirming it.
+   
+   Bumps flow-fcs 0.4.1 -> 0.5.0 and the paired version requirement in
+   every workspace crate that depends on it via path (Cargo enforces that
+   constraint even for path deps).
+ - <csr-id-67218442c5353cdd9e17fe698f46c1b82618868c/> update plot_types_validation for renamed PlotType variants
+   Use Scatter and Intensity in the validation example after the public plot
+   type enum rename.
+
+### Commit Statistics
+
+<csr-read-only-do-not-edit/>
+
+ - 6 commits contributed to the release over the course of 16 calendar days.
+ - 26 days passed between releases.
+ - 4 commits were understood as [conventional](https://www.conventionalcommits.org).
+ - 0 issues like '(#ID)' were seen in commit messages
+
+### Commit Details
+
+<csr-read-only-do-not-edit/>
+
+<details><summary>view details</summary>
+
+ * **Uncategorized**
+    - Merge branch 'peacoqc-rust-vs-r-throughput' into main ([`536825d`](https://github.com/jrmoynihan/flow/commit/536825ddf5b52f910778eae86b91dfee4f9c319e))
+    - Release flow-fcs v0.5.1 ([`ddc9d09`](https://github.com/jrmoynihan/flow/commit/ddc9d094ee0a7390f16daf3e9f23c47eda39e637))
+    - Default test commands to cargo-nextest (flow-crates-9xv) ([`af6097f`](https://github.com/jrmoynihan/flow/commit/af6097fbd09f00657eaf82ea8367fffd3ee72baf))
+    - Apply $PnR masking, fix bit-packed stride, add $NEXTDATA traversal ([`6986541`](https://github.com/jrmoynihan/flow/commit/6986541e936967c566b3c6caca42c9e0cbf5678f))
+    - Flatten BasePlotOptions fields onto plot builders, fix scatter dispatch ([`3f465e8`](https://github.com/jrmoynihan/flow/commit/3f465e84fb9492cf318777a2e76878e217d9c539))
+    - Update plot_types_validation for renamed PlotType variants ([`6721844`](https://github.com/jrmoynihan/flow/commit/67218442c5353cdd9e17fe698f46c1b82618868c))
+</details>
 
 ## 0.3.2 (2026-07-22)
 
@@ -51,6 +116,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
    - Added new dependencies: fontconfig-parser, fontdb, kurbo, kuva, and ttf-parser with their respective versions and checksums in Cargo.lock.
    - Updated Cargo.toml to include the kuva dependency from a Git repository with specific features.
    - Cleaned up formatting in Cargo.toml for consistency.
+
+### Bug Fixes
+
+ - <csr-id-d207c057b947596195aea314140953fe19171a3a/> add kuva version for crates.io publish
+   Pair the git kuva pin with version 0.1.3 so cargo publish can strip
+   git and resolve the optional raster dependency from the registry.
 
 ### New Features
 
@@ -111,8 +182,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 <csr-read-only-do-not-edit/>
 
- - 19 commits contributed to the release.
- - 11 commits were understood as [conventional](https://www.conventionalcommits.org).
+ - 21 commits contributed to the release.
+ - 12 commits were understood as [conventional](https://www.conventionalcommits.org).
  - 0 issues like '(#ID)' were seen in commit messages
 
 ### Commit Details
@@ -122,6 +193,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 <details><summary>view details</summary>
 
  * **Uncategorized**
+    - Add kuva version for crates.io publish ([`d207c05`](https://github.com/jrmoynihan/flow/commit/d207c057b947596195aea314140953fe19171a3a))
+    - Release flow-pacmap v0.1.1, flow-linalg v0.1.2, flow-fcs-compress v0.1.3, flow-plots v0.3.2, flow-gates v0.4.0 ([`b44c4f5`](https://github.com/jrmoynihan/flow/commit/b44c4f5915916ab3ce73a5b6ce421601090f77a5))
     - Release flow-pacmap v0.1.0, flow-linalg v0.1.2, flow-fcs-compress v0.1.3, flow-plots v0.3.2, flow-gates v0.4.0 ([`e29c820`](https://github.com/jrmoynihan/flow/commit/e29c820dd65493c3a41f437b0e8f850c3cef8102))
     - Release flow-fcs v0.4.1 ([`597f21b`](https://github.com/jrmoynihan/flow/commit/597f21bef7ea787437071685fc3cce9d2269270f))
     - Simplify PlotType enum to Scatter, Density, Intensity, Contour, Histogram ([`4e8f876`](https://github.com/jrmoynihan/flow/commit/4e8f876e384c47ce9c63579811b7f384bb84f21a))

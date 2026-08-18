@@ -5,6 +5,173 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+First crates.io publish of `flow-gates` 0.5.0: derived serde on `GateParameters`/`LabelPosition` (plural wire tags) and removal of the legacy tuple/`companion` forms.
+
+### Chore
+
+ - <csr-id-af6097fbd09f00657eaf82ea8367fffd3ee72baf/> default test commands to cargo-nextest (flow-crates-9xv)
+   Nextest runs each test in its own process and reports per-test timing, so
+   make it the default runner everywhere the project tells a human or an agent
+   how to run tests, rather than leaving it as an opt-in each caller remembers.
+   
+   Adds .config/nextest.toml (default profile fails fast; a ci profile runs the
+   whole suite) and a `cargo nt` alias, since Cargo cannot alias the built-in
+   `test` subcommand. Doctests stay on the built-in harness because nextest
+   cannot run them.
+
+### Documentation
+
+ - <csr-id-3c48e73e751a7852b0e07239540448e6ee35a0cf/> refresh crate READMEs and agent guidelines
+   Keep the beads export in sync and add the Svelte MCP server to Codex config.
+ - <csr-id-92e31b03dc632230809d10422be0c1062e6e9e1b/> consumer-first README pass across crates, add peacoqc-py usage example, remove legacy utils crate
+   Rewrites READMEs across the workspace (fcs, flow-clustering,
+   flow-control-detection, flow-density, flow-fcs-compress, flow-knn,
+   flow-linalg, flow-pacmap, flow-peak-detection, gates, peacoqc-cli,
+   peacoqc-rs, tru-ols, tru-ols-cli) to lead with install/quick-start/perf
+   for downstream consumers, and adds a new flow-fcs-bench README.
+   
+   Adds a concrete usage example to peacoqc-py/README.md mirroring the
+   docstring in peacoqc/__init__.py.
+   
+   Removes the superseded utils/ crate (clustering, KDE, and PCA helpers
+   now live in their dedicated crates) and syncs beads issue/interaction
+   export state.
+ - <csr-id-6d051ac5a34e63a997ca85c8819b790c0d161c8a/> scrub changelog neutralize wording after release rewrite
+   smart-release reintroduced commit-message phrasing about neutralizing
+   attribution; restore neutral release notes and drop the misplaced
+   pacmap prep entry from linalg/gates changelogs.
+
+### Bug Fixes
+
+ - <csr-id-a565fdf4b372fe74eb6393eb61218a8ea159b6fe/> address final whole-branch review findings (bounds check, cache warning, feature scoping, version bump, benchmark docs)
+   - Fcs::columns() now returns a descriptive Err instead of panicking when a
+     parameter's cache index falls outside the column cache (can happen on a
+     derived Fcs whose parameters were replaced without resizing the cache,
+     e.g. tru-ols's spectral-unmixing output). Added a regression test.
+   - Added a `# Warning` doc section to column()/columns()/events() noting the
+     cache is only meaningful on an Fcs from open()/open_all() (flow-crates-rkq).
+   - Moved flow-fcs's `test-util` feature enablement from [dependencies] to
+     [dev-dependencies] in gates, tru-ols, and peacoqc-rs so it's no longer
+     forced on in release builds via feature unification.
+   - Bumped flow-fcs to 0.5.1 (test-util didn't exist in the published 0.5.0)
+     and its dependents' version constraints to ^0.5.1.
+   - Documented the benchmark's actual ~8x events_uncached/open_eager_baseline
+     gap (extract_columns lacking a uniform-width fast path, not double work
+     from open()) in the benchmark source and amended the Stage A plan doc.
+     Tracked as flow-crates-3si.
+ - <csr-id-6e3d7233683f7c18b858829c83844171fa6adfd1/> add Fcs::for_testing constructor, restore cross-crate test-fixture construction
+   Task 4's pub(crate) columns field broke every out-of-crate struct-literal
+   construction of Fcs, since a pub(crate) field can't be named externally at
+   all. Adds a public, feature-gated constructor and migrates every known
+   broken call site (tru-ols, peacoqc-rs, gates, plus flow-fcs's own
+   compress-feature tests) to use it instead.
+ - <csr-id-8dd7e6d6251dae840e4a40b4b68a9fa2c97b6220/> keep GateParameters wire tags plural (two_channels/no_channels)
+   Reconsider the previous commit (2c0efed): the plural tags read better and
+   we don't need backward compatibility with the brief window they were live
+   yet, so keep two_channels/no_channels going forward instead of reverting to
+   singular. Drop the deserialize-side aliases that reverted commit added, and
+   update the gate_roundtrip.rs fixtures to match.
+ - <csr-id-2c0efed0bcfa742e847f46a22157cb046518a91d/> restore singular GateParameters wire tags (two_channel/no_channel)
+   Commit dcb5528 ("style: apply let-chains and formatting cleanups") silently
+   renamed the internally-tagged serde variants from TwoChannel/NoChannel to
+   TwoChannels/NoChannels, despite claiming no semantic change. This broke
+   deserialization of real saved workspace gate JSON, which uses the singular
+   tags matching the enum variant names.
+   
+   Revert serialization to the singular tags, and accept the plural spelling
+   on deserialize via #[serde(alias)] for any workspaces saved during the
+   2026-08-02 to 2026-08-06 window the bug was live.
+ - <csr-id-6986541e936967c566b3c6caca42c9e0cbf5678f/> apply $PnR masking, fix bit-packed stride, add $NEXTDATA traversal
+   Fixes four parsing gaps reported in jrmoynihan/flow#21:
+   
+   - $PnR masking (flow-crates-d35, P0): integer parameters now mask off
+     unused high bits per their declared $PnR range before column
+     extraction, fixing silently-wrong channel values on instruments
+     (Beckman FC500/Gallios/Navios, older BD) that store sub-16-bit ADC
+     resolution in wider fields.
+   - Bit-packed $PnB stride (flow-crates-bk6, P2): calculate_bytes_per_event
+     now sums raw bit widths before rounding once, instead of rounding each
+     parameter first — correct for both byte-aligned and bit-packed layouts.
+   - $NEXTDATA traversal (flow-crates-1mg, P2): new Fcs::open_all() walks
+     the $NEXTDATA chain to read every dataset in a multi-dataset FCS file
+     (all Beckman .lmd files use this). open() is unchanged and still
+     returns only the first dataset, so existing callers are unaffected.
+   - $DATATYPE A (flow-crates-ee0, P3, won't-fix): documented the existing
+     Err behavior as a deliberate spec-driven decision (ASCII was
+     deprecated due to cross-vendor bit-order disagreement) rather than an
+     oversight, and added a test confirming it.
+   
+   Bumps flow-fcs 0.4.1 -> 0.5.0 and the paired version requirement in
+   every workspace crate that depends on it via path (Cargo enforces that
+   constraint even for path deps).
+
+### Style
+
+ - <csr-id-dcb5528bc256d7dd754481c18660919819d605c7/> apply let-chains and formatting cleanups
+   Adopt modern if-let chains and rustfmt across gating XML, hierarchy, and
+   transform helpers without changing gate semantics.
+
+### New Features (BREAKING)
+
+ - <csr-id-1f9508f34dab1be6d0195e827b9dbc367c50cdd8/> derive serde on GateParameters/LabelPosition, drop legacy forms
+   Replace hand-written Serialize/Deserialize impls with derives so the wire
+   tags live in exactly one place — the Rust variant names — and flow through
+   ts-rs/specta unedited. Previously the tag list existed in four
+   hand-synchronized copies (Rust serde, Rust ts(type=...), the frontend
+   interfaces mirror, and the generated binding), which had already drifted.
+
+### Bug Fixes (BREAKING)
+
+ - <csr-id-f0b29225fb01d5d2c8060e2b9fdf4b9b87b2dfa7/> resolve offsets data-set-relative, fold OTHER into CRC range
+   Every FCS offset is measured from the start of the data set that declares
+   it, not from the start of the file: HEADER fields (§2.4.3), $BEGINDATA and
+   $BEGINANALYSIS (§3.3.3), and $NEXTDATA (§3.3.31). We were treating them all
+   as file-absolute.
+   
+   The bug stayed invisible because a two-data-set file -- which is what every
+   .lmd is -- takes exactly one hop, from byte 0, where relative and absolute
+   agree. It takes a three-data-set chain to expose it, and no fixture had one.
+   
+   Fcs gains a public dataset_start; a private absolutize() in file.rs maps a
+   declared offset to a file-absolute one. It disambiguates rather than
+   assuming, because vendors do emit file-absolute offsets: an offset below
+   dataset_start must be relative, and otherwise the relative reading wins
+   unless it runs past EOF, in which case we warn and fall back. That keeps the
+   existing vendor-style two-data-set fixture green.
+
+### Commit Statistics
+
+<csr-read-only-do-not-edit/>
+
+ - 13 commits contributed to the release over the course of 26 calendar days.
+ - 26 days passed between releases.
+ - 12 commits were understood as [conventional](https://www.conventionalcommits.org).
+ - 0 issues like '(#ID)' were seen in commit messages
+
+### Commit Details
+
+<csr-read-only-do-not-edit/>
+
+<details><summary>view details</summary>
+
+ * **Uncategorized**
+    - Refresh crate READMEs and agent guidelines ([`3c48e73`](https://github.com/jrmoynihan/flow/commit/3c48e73e751a7852b0e07239540448e6ee35a0cf))
+    - Default test commands to cargo-nextest (flow-crates-9xv) ([`af6097f`](https://github.com/jrmoynihan/flow/commit/af6097fbd09f00657eaf82ea8367fffd3ee72baf))
+    - Merge branch 'main' into worktree-lazy-fcs-column-loading-stage-a ([`52b5c50`](https://github.com/jrmoynihan/flow/commit/52b5c508956b9888bebe7a1279b47c26932afc7d))
+    - Resolve offsets data-set-relative, fold OTHER into CRC range ([`f0b2922`](https://github.com/jrmoynihan/flow/commit/f0b29225fb01d5d2c8060e2b9fdf4b9b87b2dfa7))
+    - Address final whole-branch review findings (bounds check, cache warning, feature scoping, version bump, benchmark docs) ([`a565fdf`](https://github.com/jrmoynihan/flow/commit/a565fdf4b372fe74eb6393eb61218a8ea159b6fe))
+    - Add Fcs::for_testing constructor, restore cross-crate test-fixture construction ([`6e3d723`](https://github.com/jrmoynihan/flow/commit/6e3d7233683f7c18b858829c83844171fa6adfd1))
+    - Derive serde on GateParameters/LabelPosition, drop legacy forms ([`1f9508f`](https://github.com/jrmoynihan/flow/commit/1f9508f34dab1be6d0195e827b9dbc367c50cdd8))
+    - Keep GateParameters wire tags plural (two_channels/no_channels) ([`8dd7e6d`](https://github.com/jrmoynihan/flow/commit/8dd7e6d6251dae840e4a40b4b68a9fa2c97b6220))
+    - Restore singular GateParameters wire tags (two_channel/no_channel) ([`2c0efed`](https://github.com/jrmoynihan/flow/commit/2c0efed0bcfa742e847f46a22157cb046518a91d))
+    - Apply $PnR masking, fix bit-packed stride, add $NEXTDATA traversal ([`6986541`](https://github.com/jrmoynihan/flow/commit/6986541e936967c566b3c6caca42c9e0cbf5678f))
+    - Consumer-first README pass across crates, add peacoqc-py usage example, remove legacy utils crate ([`92e31b0`](https://github.com/jrmoynihan/flow/commit/92e31b03dc632230809d10422be0c1062e6e9e1b))
+    - Apply let-chains and formatting cleanups ([`dcb5528`](https://github.com/jrmoynihan/flow/commit/dcb5528bc256d7dd754481c18660919819d605c7))
+    - Scrub changelog neutralize wording after release rewrite ([`6d051ac`](https://github.com/jrmoynihan/flow/commit/6d051ac5a34e63a997ca85c8819b790c0d161c8a))
+</details>
+
 ## 0.5.0 (2026-08-06)
 
 ### Breaking
@@ -61,6 +228,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
    (corner-aware sibling of `filter_events_by_hierarchy`).
  - **No migration:** serialized gates with the old `"type":"Quadrant"` shape will
    not deserialize. Callers must handle the load failure (log + continue).
+
+### Chore
+
+ - <csr-id-ba96d7fb2b887ab666a3ecdea9f9f49b0cbbf3f4/> prepare 0.1.1 release with Wang et al. attribution
+   Bump flow-pacmap to 0.1.1, pin the README install line, and scrub changelog
+   wording that celebrated neutralizing academic attribution.
 
 ### Chore
 
@@ -151,7 +324,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 <csr-read-only-do-not-edit/>
 
- - 45 commits contributed to the release.
+ - 46 commits contributed to the release.
  - 34 commits were understood as [conventional](https://www.conventionalcommits.org).
  - 0 issues like '(#ID)' were seen in commit messages
 
@@ -162,6 +335,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 <details><summary>view details</summary>
 
  * **Uncategorized**
+    - Release flow-pacmap v0.1.1, flow-linalg v0.1.2, flow-fcs-compress v0.1.3, flow-plots v0.3.2, flow-gates v0.4.0 ([`b44c4f5`](https://github.com/jrmoynihan/flow/commit/b44c4f5915916ab3ce73a5b6ce421601090f77a5))
     - Prepare 0.1.1 release with Wang et al. attribution ([`ba96d7f`](https://github.com/jrmoynihan/flow/commit/ba96d7fb2b887ab666a3ecdea9f9f49b0cbbf3f4))
     - Release flow-pacmap v0.1.0, flow-linalg v0.1.2, flow-fcs-compress v0.1.3, flow-plots v0.3.2, flow-gates v0.4.0 ([`e29c820`](https://github.com/jrmoynihan/flow/commit/e29c820dd65493c3a41f437b0e8f850c3cef8102))
     - Polish changelogs for pacmap, linalg, and gates releases ([`1d58060`](https://github.com/jrmoynihan/flow/commit/1d5806048f15f590ebe7b2ba449501aa73868b95))

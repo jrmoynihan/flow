@@ -28,7 +28,7 @@ Or add directly to your Cargo.toml:
 
 ```toml
 [dependencies]
-flow-clustering = "0.1.1"
+flow-clustering = "0.1.2"
 ```
 
 | Feature | Description |

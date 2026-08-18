@@ -40,7 +40,7 @@ Or add it directly to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-flow-linalg = { version = "0.1.2", features = ["compensation"] }
+flow-linalg = { version = "0.1.3", features = ["compensation"] }
 ```
 
 ## API Usage

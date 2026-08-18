@@ -31,9 +31,9 @@ Or add it directly to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-flow-plots = "0.3.2"
+flow-plots = "0.3.3"
 # Optional Kuva raster APIs:
-# flow-plots = { version = "0.3.2", features = ["raster"] }
+# flow-plots = { version = "0.3.3", features = ["raster"] }
 ```
 
 ## Usage
