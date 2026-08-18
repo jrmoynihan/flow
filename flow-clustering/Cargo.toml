@@ -29,6 +29,19 @@ linfa-linalg     = "0.2"
 flow-knn         = { path = "../flow-knn", optional = true, default-features = true }
 leiden-rs        = { version = "0.8.1", optional = true, default-features = false, features = ["rayon"] }
 
+[dev-dependencies]
+criterion = { workspace = true }
+libc = "0.2"
+
+[[bench]]
+name = "parc_throughput"
+harness = false
+required-features = ["parc"]
+
+[[example]]
+name = "parc_rss"
+required-features = ["parc"]
+
 [package.metadata.scripts]
 dry-release = "cargo smart-release flow-clustering --update-crates-index"
 publish     = "cargo smart-release flow-clustering --update-crates-index --execute"

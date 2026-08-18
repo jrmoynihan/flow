@@ -138,6 +138,16 @@ fn example(data: &[Vec<f64>], labels: &[usize]) -> ClusteringResult<()> {
 }
 ```
 
+## Performance
+
+See [`docs/PERF_PARC.md`](docs/PERF_PARC.md) for Criterion n×d throughput,
+Rayon vs sequential prune A/B, and peak RSS on Apple M5 Max.
+
+```bash
+cargo bench -p flow-clustering --bench parc_throughput --features parc
+cargo run -p flow-clustering --release --example parc_rss --features parc
+```
+
 ## Tests
 
 ```bash

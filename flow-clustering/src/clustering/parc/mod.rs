@@ -81,6 +81,9 @@ pub struct ParcConfig {
     pub small_pop_max_iters: usize,
     /// Global Jaccard σ for too-big sub-PARC (default 0.3).
     pub jac_std_toobig: f64,
+    /// Use Rayon for local and Jaccard prune stages (default true).
+    /// Leiden may still use Rayon internally unless the process thread pool is capped.
+    pub parallel_prune: bool,
 }
 
 impl Default for ParcConfig {
@@ -107,6 +110,7 @@ impl Default for ParcConfig {
             knn_method: None,
             small_pop_max_iters: 50,
             jac_std_toobig: 0.3,
+            parallel_prune: true,
         }
     }
 }
@@ -265,6 +269,7 @@ fn run_parc_on_graph(
         config.dist_std_local,
         skip_local,
         distances_are_squared,
+        config.parallel_prune,
     );
 
     let jac_std = if is_toobig_sub {
@@ -273,7 +278,13 @@ fn run_parc_on_graph(
         config.jac_std_global
     };
 
-    let pruned = global_jaccard_prune(n, &local_edges, jac_std, config.jac_weighted_edges)?;
+    let pruned = global_jaccard_prune(
+        n,
+        &local_edges,
+        jac_std,
+        config.jac_weighted_edges,
+        config.parallel_prune,
+    )?;
 
     let partition = config.effective_partition();
     let mut labels = leiden::run_leiden(

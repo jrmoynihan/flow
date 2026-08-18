@@ -3179,8 +3179,10 @@ name = "flow-clustering"
 version = "0.1.2"
 dependencies = [
  "anyhow",
+ "criterion 0.8.2",
  "flow-knn",
  "leiden-rs",
+ "libc",
  "linfa",
  "linfa-clustering",
  "linfa-linalg",

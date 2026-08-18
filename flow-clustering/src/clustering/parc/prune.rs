@@ -66,52 +66,70 @@ fn mean_std(values: &[f32]) -> (f32, f32) {
 /// Distance interpretation: with hnswlib `l2`, Python prunes on squared distances
 /// then forms CSR weights as `1/(√d+0.1)`. With `flow-knn` [`DistanceMetric::Euclidean`],
 /// prune thresholds use true L2. Jaccard reweighting replaces local weights for Leiden.
+fn local_distance_prune_row(
+    rowi: usize,
+    nl: &NeighborList,
+    std_mul: f32,
+    skip_local: bool,
+) -> Vec<WeightedEdge> {
+    let rowi_u = rowi as u32;
+    let mut kept: Vec<WeightedEdge> = Vec::new();
+    if nl.indices.is_empty() {
+        return kept;
+    }
+
+    // Python adds 0.1 to distances before the threshold comparison when pruning.
+    let dists_for_thresh: Vec<f32> = if skip_local {
+        nl.distances.clone()
+    } else {
+        nl.distances.iter().map(|d| d + 0.1).collect()
+    };
+
+    let (mean, std) = mean_std(&dists_for_thresh);
+    let threshold = mean + std_mul * std;
+
+    for (j, &idx) in nl.indices.iter().enumerate() {
+        if idx == rowi_u {
+            continue;
+        }
+        let dist_cmp = if skip_local {
+            nl.distances[j]
+        } else {
+            dists_for_thresh[j]
+        };
+        if skip_local || dist_cmp < threshold {
+            kept.push(WeightedEdge {
+                src: rowi_u,
+                dst: idx,
+            });
+        }
+    }
+    kept
+}
+
 pub fn local_distance_prune(
     neighbors: &[NeighborList],
     dist_std_local: f64,
     skip_local: bool,
     _distances_are_squared: bool,
+    parallel: bool,
 ) -> Vec<WeightedEdge> {
     let std_mul = dist_std_local as f32;
-    neighbors
-        .par_iter()
-        .enumerate()
-        .flat_map_iter(|(rowi, nl)| {
-            let rowi_u = rowi as u32;
-            let mut kept: Vec<WeightedEdge> = Vec::new();
-            if nl.indices.is_empty() {
-                return kept.into_iter();
-            }
-
-            // Python adds 0.1 to distances before the threshold comparison when pruning.
-            let dists_for_thresh: Vec<f32> = if skip_local {
-                nl.distances.clone()
-            } else {
-                nl.distances.iter().map(|d| d + 0.1).collect()
-            };
-
-            let (mean, std) = mean_std(&dists_for_thresh);
-            let threshold = mean + std_mul * std;
-
-            for (j, &idx) in nl.indices.iter().enumerate() {
-                if idx == rowi_u {
-                    continue;
-                }
-                let dist_cmp = if skip_local {
-                    nl.distances[j]
-                } else {
-                    dists_for_thresh[j]
-                };
-                if skip_local || dist_cmp < threshold {
-                    kept.push(WeightedEdge {
-                        src: rowi_u,
-                        dst: idx,
-                    });
-                }
-            }
-            kept.into_iter()
-        })
-        .collect()
+    if parallel {
+        neighbors
+            .par_iter()
+            .enumerate()
+            .flat_map_iter(|(rowi, nl)| {
+                local_distance_prune_row(rowi, nl, std_mul, skip_local).into_iter()
+            })
+            .collect()
+    } else {
+        neighbors
+            .iter()
+            .enumerate()
+            .flat_map(|(rowi, nl)| local_distance_prune_row(rowi, nl, std_mul, skip_local))
+            .collect()
+    }
 }
 
 fn build_adjacency(n: usize, edges: &[WeightedEdge]) -> Vec<HashSet<u32>> {
@@ -161,6 +179,7 @@ pub fn global_jaccard_prune(
     local_edges: &[WeightedEdge],
     jac_std: JacStdGlobal,
     _jac_weighted_edges: bool,
+    parallel: bool,
 ) -> ClusteringResult<Vec<PrunedEdge>> {
     if local_edges.is_empty() {
         return Err(ClusteringError::ClusteringFailed(
@@ -185,17 +204,16 @@ pub fn global_jaccard_prune(
     candidates.sort_unstable();
     candidates.dedup();
 
-    let scored: Vec<PrunedEdge> = candidates
-        .par_iter()
-        .map(|&(src, dst)| {
-            let jac = jaccard(&adj[src as usize], &adj[dst as usize]);
-            PrunedEdge {
-                src,
-                dst,
-                jaccard: jac,
-            }
-        })
-        .collect();
+    let score_one = |&(src, dst): &(u32, u32)| PrunedEdge {
+        src,
+        dst,
+        jaccard: jaccard(&adj[src as usize], &adj[dst as usize]),
+    };
+    let scored: Vec<PrunedEdge> = if parallel {
+        candidates.par_iter().map(score_one).collect()
+    } else {
+        candidates.iter().map(score_one).collect()
+    };
 
     if scored.is_empty() {
         return Err(ClusteringError::ClusteringFailed(
@@ -273,7 +291,7 @@ mod tests {
                 distances: vec![10.0],
             },
         ];
-        let edges = local_distance_prune(&neighbors, 0.5, false, false);
+        let edges = local_distance_prune(&neighbors, 0.5, false, false, true);
         assert!(
             edges.iter().any(|e| e.src == 0 && e.dst == 1),
             "close edge kept: {edges:?}"
@@ -321,7 +339,7 @@ mod tests {
                 dst: 0,
             },
         ];
-        let pruned = global_jaccard_prune(4, &local, JacStdGlobal::Median, true).unwrap();
+        let pruned = global_jaccard_prune(4, &local, JacStdGlobal::Median, true, true).unwrap();
         assert!(!pruned.is_empty());
         // Edge (0,3) has lower neighbourhood overlap than triangle edges.
         let has_03 = pruned.iter().any(|e| e.src == 0 && e.dst == 3);
