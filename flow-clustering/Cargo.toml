@@ -6,8 +6,8 @@ authors.workspace = true
 license = "MIT"
 repository = "https://github.com/jrmoynihan/flow/flow-clustering"
 readme = "README.md"
-description = "Clustering algorithms for flow cytometry: K-means, DBSCAN, GMM"
-keywords = ["flow-cytometry", "clustering", "kmeans", "dbscan", "gmm"]
+description = "Clustering algorithms for flow cytometry: K-means, DBSCAN, GMM, and optional PARC"
+keywords = ["flow-cytometry", "clustering", "kmeans", "parc", "leiden"]
 categories = ["science", "algorithms"]
 
 [features]
@@ -15,6 +15,8 @@ default = ["kmeans", "dbscan", "gmm"]
 kmeans  = []
 dbscan  = []
 gmm     = []
+# PARC: HNSW k-NN (flow-knn) + prune + Leiden community detection
+parc = ["dep:flow-knn", "dep:leiden-rs"]
 
 [dependencies]
 thiserror        = { workspace = true }
@@ -24,6 +26,21 @@ ndarray          = { workspace = true }
 linfa            = "0.8"
 linfa-clustering = "0.8"
 linfa-linalg     = "0.2"
+flow-knn         = { path = "../flow-knn", optional = true, default-features = true }
+leiden-rs        = { version = "0.8.1", optional = true, default-features = false, features = ["rayon"] }
+
+[dev-dependencies]
+criterion = { workspace = true }
+libc = "0.2"
+
+[[bench]]
+name = "parc_throughput"
+harness = false
+required-features = ["parc"]
+
+[[example]]
+name = "parc_rss"
+required-features = ["parc"]
 
 [package.metadata.scripts]
 dry-release = "cargo smart-release flow-clustering --update-crates-index"

@@ -1,34 +1,29 @@
 # flow-clustering
 
-Clustering algorithms for flow cytometry: K-means, DBSCAN, and Gaussian Mixture Models.
+Clustering for flow cytometry: K-means, DBSCAN, GMM, and optional PARC (graph community detection).
 
 [![crates.io](https://img.shields.io/crates/v/flow-clustering.svg)](https://crates.io/crates/flow-clustering)
 [![docs.rs](https://docs.rs/flow-clustering/badge.svg)](https://docs.rs/flow-clustering)
 [![MIT](https://img.shields.io/crates/l/flow-clustering.svg)](LICENSE)
 
-## Overview
+## Highlights
 
-`flow-clustering` provides:
-
-- Unsupervised clustering algorithms (K-means, DBSCAN, GMM) commonly used in automated gating or analysis
-- Clustering quality/validation metrics (Silhouette score).
-- *(Future)* FlowSOM-style self-organizing maps
-- *(Future)* Hierarchical clustering / dendrograms
-- *(Future)* Cluster merging heuristics for automated gating
-
-It uses thin wrappers around [`linfa`](https://crates.io/crates/linfa) clustering with shared result types (`labels`, centroids/means, optional noise for DBSCAN).
+- **K-means / GMM / DBSCAN** — thin [`linfa`](https://crates.io/crates/linfa) wrappers with shared error types
+- **PARC** *(feature `parc`)* — HNSW k-NN → local + Jaccard prune → Leiden, for large phenotypic datasets
+- **Silhouette** — full and sampled cluster validation
+- **Shared k-NN** — PARC accepts a prebuilt [`flow-knn`](../flow-knn/) `KnnGraph` (same pattern as PaCMAP)
 
 ## Installation
 
 ```bash
 cargo add flow-clustering
+# Optional PARC (pulls flow-knn + leiden-rs):
+cargo add flow-clustering --features parc
 ```
-
-Or add directly to your Cargo.toml:
 
 ```toml
 [dependencies]
-flow-clustering = "0.1.2"
+flow-clustering = { version = "0.1.2", features = ["parc"] }
 ```
 
 | Feature | Description |
@@ -36,12 +31,11 @@ flow-clustering = "0.1.2"
 | `kmeans` *(default)* | K-means clustering |
 | `dbscan` *(default)* | Density-based spatial clustering (DBSCAN) |
 | `gmm` *(default)* | Gaussian Mixture Model fitting |
+| `parc` | PARC: k-NN graph prune + Leiden community detection |
 
 ## Usage
 
 ### K-Means
-
-Lloyd's algorithm via `linfa-clustering`. Supports row-major `ndarray::Array2` input and `fit_from_rows` for pre-separated channel vectors.
 
 ```rust
 use flow_clustering::{ClusteringResult, KMeans, KMeansConfig, KMeansResult};
@@ -56,15 +50,12 @@ fn example(data: &Array2<f64>) -> ClusteringResult<()> {
     let result: KMeansResult = KMeans::fit(data, &config)?;
     let assignments: &Vec<usize> = &result.assignments;
     let centroids: &Array2<f64> = &result.centroids;
-    let iterations: usize = result.iterations;
-    let inertia: f64 = result.inertia;
+    let _ = (assignments, centroids, result.iterations, result.inertia);
     Ok(())
 }
 ```
 
 ### DBSCAN
-
-Density-based clustering that identifies noise points. Useful for scatter gating where populations have irregular shapes.  Expectation-maximization for Gaussian mixtures. Models multi-modal populations common in fluorescence channels.
 
 ```rust
 use flow_clustering::{ClusteringResult, Dbscan, DbscanConfig, DbscanResult};
@@ -78,8 +69,7 @@ fn example(data: &Array2<f64>) -> ClusteringResult<()> {
     // Note: `Dbscan::fit` currently returns `ClusteringFailed` (linfa API limitation).
     let result: DbscanResult = Dbscan::fit(data, &config)?;
     let assignments: &Vec<i32> = &result.assignments; // -1 = noise
-    let n_clusters: usize = result.n_clusters;
-    let n_noise: usize = result.n_noise;
+    let _ = (assignments, result.n_clusters, result.n_noise);
     Ok(())
 }
 ```
@@ -97,41 +87,79 @@ fn example(data: &Array2<f64>) -> ClusteringResult<()> {
         ..Default::default()
     };
     let result: GmmResult = Gmm::fit(data, &config)?;
-    let assignments: &Vec<usize> = &result.assignments;
-    let means: &Array2<f64> = &result.means;
-    let log_likelihood: f64 = result.log_likelihood;
+    let _ = (&result.assignments, &result.means, result.log_likelihood);
     Ok(())
 }
 ```
 
-### Cluster Validation
+### PARC
 
-Silhouette scores are a quality metric (−1 to +1) of clustering. Full O(n²) and sampled O(n·k) variants available.
+Phenotyping by Accelerated Refined Community-Partitioning. Prefer when you need
+data-driven cluster counts on large cytometry / phenotype matrices. Expects
+ready features (e.g. transformed markers or PCA), not raw FCS events.
+
+Defaults follow the Python reference (`dist_std_local = 3`, etc.). Local and
+Jaccard prune stages are Rayon-parallel; Leiden input edges are sorted for
+seed-stable labels. HNSW comes from `flow-knn` (not hnswlib), so exact label
+parity with Python is not guaranteed.
+
+```rust
+#[cfg(feature = "parc")]
+use flow_clustering::{ClusteringResult, Parc, ParcConfig, ParcResult};
+#[cfg(feature = "parc")]
+use ndarray::Array2;
+
+#[cfg(feature = "parc")]
+fn example(data: &Array2<f64>) -> ClusteringResult<()> {
+    let config: ParcConfig = ParcConfig::default();
+    let result: ParcResult = Parc::fit(data, &config)?;
+    // Or reuse a graph: Parc::fit_with_knn(data, &config, Some(&knn_graph))?;
+    let assignments: &Vec<usize> = &result.assignments;
+    let n_clusters: usize = result.n_clusters;
+    let _ = (assignments, n_clusters);
+    Ok(())
+}
+```
+
+### Cluster validation
+
+Silhouette scores (−1 to +1). API takes row vectors (`&[Vec<f64>]`).
 
 ```rust
 use flow_clustering::{
     silhouette_scores, silhouette_scores_sampled, ClusteringResult, SilhouetteResult,
 };
-use ndarray::Array2;
 
-fn example(data: &Array2<f64>, labels: &[usize]) -> ClusteringResult<()> {
+fn example(data: &[Vec<f64>], labels: &[usize]) -> ClusteringResult<()> {
     let scores: SilhouetteResult = silhouette_scores(data, labels)?;
-    let mean: f64 = scores.mean_score;
-    let per_point: &Vec<f64> = &scores.scores;
-
-// For large datasets, use sampling:
     let sampled: SilhouetteResult = silhouette_scores_sampled(data, labels, 1000)?;
+    let _ = (scores.mean_score, sampled.mean_score);
     Ok(())
 }
+```
+
+## Performance
+
+See [`docs/PERF_PARC.md`](docs/PERF_PARC.md) for Criterion n×d throughput,
+Rayon vs sequential prune A/B, and peak RSS on Apple M5 Max.
+
+```bash
+cargo bench -p flow-clustering --bench parc_throughput --features parc
+cargo run -p flow-clustering --release --example parc_rss --features parc
 ```
 
 ## Tests
 
 ```bash
-cargo test -p flow-clustering
+cargo nextest run -p flow-clustering
+cargo nextest run -p flow-clustering --features parc
 ```
 
-4 unit tests covering silhouette score correctness for well-separated and overlapping clusters.
+## Acknowledgments
+
+PARC algorithm: Stassen et al., *Bioinformatics* 36(9):2778–2786 (2020),
+doi:[10.1093/bioinformatics/btaa042](https://doi.org/10.1093/bioinformatics/btaa042).
+Reference implementation: [ShobiStassen/PARC](https://github.com/ShobiStassen/PARC) (MIT).
 
 ## License
 
@@ -139,8 +167,8 @@ MIT
 
 ## Related crates
 
-- **KDE / Contour Detection** → [`flow-density`](../flow-density/) — density primitives used alongside clustering in gating
-- **Gate Geometry and GatingML** → [`flow-gates`](../gates/) - Consumes this crate in `automated` feature
+- **KDE / Contour Detection** → [`flow-density`](../flow-density/)
+- **Gate Geometry and GatingML** → [`flow-gates`](../gates/)
+- **k-NN graphs** → [`flow-knn`](../flow-knn/)
 - **Dimensionality Reduction** → [`flow-pacmap`](../flow-pacmap/)
-- [`flow-fcs`](../fcs/) - Reading and parsing flow cytometry standard (FCS) files
-- [`tru-ols`](../tru-ols-cli/) CLI — may use clustering in control / QC workflows
+- [`flow-fcs`](../fcs/) — FCS I/O
