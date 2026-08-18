@@ -3223,6 +3223,20 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "37007738a80ea34f969af54a3390dd72cacdef654974cfd449c9f6f72dbaac10"
 
 [[package]]
+name = "flow-autospectral"
+version = "0.1.0"
+dependencies = [
+ "approx",
+ "faer 0.24.4",
+ "flow-clustering",
+ "flow-knn",
+ "flow-tru-ols",
+ "ndarray 0.16.1",
+ "rayon",
+ "thiserror 2.0.19",
+]
+
+[[package]]
 name = "flow-clustering"
 version = "0.1.2"
 dependencies = [

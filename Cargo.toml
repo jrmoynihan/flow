@@ -18,6 +18,7 @@ members = [
     "tru-ols-cli",
     "flow-peak-detection",
     "flow-control-detection",
+    "flow-autospectral",
 
 ]
 resolver = "3"

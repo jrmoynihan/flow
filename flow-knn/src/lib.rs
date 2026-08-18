@@ -9,6 +9,7 @@ mod config;
 mod error;
 mod exact;
 mod graph;
+mod index;
 mod io;
 mod select;
 
@@ -25,6 +26,7 @@ pub use config::{IvfGpuParams, NnDescentGpuParams};
 pub use error::KnnError;
 pub use exact::exact_knn;
 pub use graph::{KnnGraph, NeighborList};
+pub use index::{AnnIndex, build_ann_index};
 pub use io::{read_knn_graph, write_knn_graph};
 #[cfg(feature = "gpu")]
 pub use gpu_ann::gpu_adapter_available;

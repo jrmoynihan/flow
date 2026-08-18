@@ -31,6 +31,16 @@ Median seconds for build+self-query, k=60. Full Cartesian through 100k; Criterio
 
 **Takeaway (CPU):** at FCS scales, `hnsw_ann_search` wins every cell in this matrix; exact only wins below ~5–10k (and is what `recommend_method` returns for `n ≤ 5_000`).
 
+## Spectral / high-d gap
+
+Shipped cells cover **d ≤ 20**. Spectral AF library search often uses **d ∈ {30, 40, 64}**. Extend with:
+
+```bash
+cargo run -p flow-knn --release --example collect_matrix --features "hnsw,ann-search"
+```
+
+`AnnIndex::search_batch` (query ≠ database) should be timed separately from self-query `compute_knn` when filling that matrix.
+
 ## GPU vs CPU (Criterion `knn_cpu_vs_gpu`, 2026-07-24, k=60)
 
 | n × d | exact_cpu | hnsw_ann_cpu | **exact_gpu** | **ivf_gpu** | nndescent_gpu |
