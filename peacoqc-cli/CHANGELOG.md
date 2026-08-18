@@ -7,7 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
-CLI 0.3.0: depends on `flow-fcs` 0.5.x and `peacoqc-rs` 0.3.x; removal-reason visualization options from the library.
+### Changed
+
+- CLI 0.3.0: depends on `flow-fcs` 0.5.x and `peacoqc-rs` 0.3.x; removal-reason visualization options from the library.
 
 ### Chore
 

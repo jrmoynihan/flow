@@ -7,7 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
-Skip Events/sec windows across Time wrap/discontinuities, and refresh the vs-R throughput sample on Gaussian synthetic fixtures.
+### Fixed
+
+- Skip Events/sec windows across Time wrap/discontinuities, and refresh the vs-R throughput sample on Gaussian synthetic fixtures.
 
 ### Documentation
 

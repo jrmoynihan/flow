@@ -7,7 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
-First crates.io release: KDE-based isolation of positive/negative peaks on 1-D intensity samples.
+### Added
+
+- First crates.io release: KDE-based isolation of positive/negative peaks on 1-D intensity samples.
 
 ### Chore
 

@@ -7,7 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
-Faster per-column decode with lower peak memory, FCS 3.1+ TEXT delimiter escaping on read/write, recovery of non-conformant empty-keyword TEXT, and `flow_fcs::synthetic` Gaussian mixture fixtures.
+### Added
+
+- Faster per-column decode with lower peak memory, FCS 3.1+ TEXT delimiter escaping on read/write, recovery of non-conformant empty-keyword TEXT, and `flow_fcs::synthetic` Gaussian mixture fixtures.
 
 ### Documentation
 

@@ -7,7 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
-Plot builders expose `BasePlotOptions` fields directly (`.width()`, `.title()`, etc.) instead of requiring a nested `.base(...)`.
+### Changed
+
+- Plot builders expose `BasePlotOptions` fields directly (`.width()`, `.title()`, etc.) instead of requiring a nested `.base(...)`.
 
 ### Chore
 

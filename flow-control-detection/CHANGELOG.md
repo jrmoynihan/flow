@@ -7,7 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
-First crates.io release: filename heuristics for unstained / single-stain / sample classification and endmember matching.
+### Added
+
+- First crates.io release: filename heuristics for unstained / single-stain / sample classification and endmember matching.
 
 ### Chore
 

@@ -7,7 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
-Condition-number metrics now cover rectangular mixing matrices; Mage hotspot / SIF helpers from similarity.
+### Added
+
+- Condition-number metrics now cover rectangular mixing matrices; Mage hotspot / SIF helpers from similarity.
 
 ### Documentation
 

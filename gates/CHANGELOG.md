@@ -7,7 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
-First crates.io publish of `flow-gates` 0.5.0: derived serde on `GateParameters`/`LabelPosition` (plural wire tags) and removal of the legacy tuple/`companion` forms.
+### Added
+
+- First crates.io publish of `flow-gates` 0.5.0: derived serde on `GateParameters`/`LabelPosition` (plural wire tags) and removal of the legacy tuple/`companion` forms.
 
 ### Chore
 

@@ -7,7 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
-Callers can pass a full pco `ChunkConfig` for `LosslessF32Pco` instead of only a compression level.
+### Added
+
+- Callers can pass a full pco `ChunkConfig` for `LosslessF32Pco` instead of only a compression level.
 
 ### Chore
 

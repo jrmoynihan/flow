@@ -7,7 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
-Unmixed FCS export now records full provenance and stamps FCS 3.2; empty `$PnS` writes are gone; delimiter escaping is left to `flow-fcs`. Mixing-matrix assembly gained autofluorescence, hotspot/SIF, and shared pipeline helpers.
+### Added
+
+- Unmixed FCS export now records full provenance and stamps FCS 3.2; empty `$PnS` writes are gone; delimiter escaping is left to `flow-fcs`. Mixing-matrix assembly gained autofluorescence, hotspot/SIF, and shared pipeline helpers.
 
 ### Chore
 
