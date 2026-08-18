@@ -26,6 +26,10 @@ node_modules/
 # second copy of the tree inside the first.
 .claude/worktrees/
 
+# Serena local project config (per-checkout IDE state)
+.serena/
+**/.serena/
+
 # OS
 .DS_Store
 Thumbs.db
