@@ -8,14 +8,15 @@ Multi-autofluorescence (AF) spectral library discovery and per-event matching fo
 
 Build a library of AF reference spectra from unstained control(s), match stained events to those spectra (residual OLS or ANN nearest-neighbour), then unmix with plain OLS **or** hand a selected AF column to TRU-OLS.
 
-This is a phased AutoSpectral-style pipeline. Phase 1 is AF-focused (GMM / k-means discovery). FlowSOM and fluorophore spectral variants are follow-on work — not gating dependencies.
+This is a phased AutoSpectral-style pipeline. Phase 1 is AF-focused. Fluorophore spectral variants are follow-on work.
 
 ## Highlights
 
-- Pluggable `AfLibraryBuilder` (GMM default, k-means; FlowSOM later)
+- Pluggable `AfLibraryBuilder` (GMM default, k-means, HNSW-medoid, FlowSOM)
+- Optional scatter-match + PCA-intrusive cleaning of unstained events
 - Residual-minimizing AF selection with optional HNSW shortlist via [`flow-knn`](../flow-knn/) `AnnIndex`
 - Rayon over events (`FLOW_AUTOSPECTRAL_FORCE_SEQUENTIAL=1` to disable)
-- Optional `tru-ols` feature for mixing-matrix adapters
+- Optional `tru-ols` feature: `MixingMatrix` adapter and `TruOls::from_preprocessed` after AF match
 
 ## Install
 
@@ -24,6 +25,7 @@ This is a phased AutoSpectral-style pipeline. Phase 1 is AF-focused (GMM / k-mea
 flow-autospectral = { path = "../flow-autospectral", features = ["hnsw"] }
 # optional:
 # flow-autospectral = { path = "../flow-autospectral", features = ["hnsw", "tru-ols"] }
+# flow-autospectral = { path = "../flow-autospectral", features = ["hnsw", "tru-ols", "fcs"] }
 ```
 
 ## Quick start
@@ -48,11 +50,27 @@ fn example(unstained: &[f64], n_u: usize, stained: &[f64], n_s: usize, d: usize)
 }
 ```
 
+## Examples
+
+```bash
+cargo run -p flow-autospectral --example af_match_tru_ols --features tru-ols,fcs
+cargo run -p flow-autospectral --example method_comparison --features tru-ols --release
+```
+
+## Performance
+
+```bash
+cargo bench -p flow-autospectral --bench discover_and_match
+```
+
+See `docs/PERF_AB.md` for A/B protocol (interleave baseline/HEAD; keep the NN match group as an untouched control).
+
 ## Related crates
 
 - [`flow-tru-ols`](../tru-ols/) — truncated re-unmixing after AF selection
 - [`flow-knn`](../flow-knn/) — reusable `AnnIndex` for library search
-- [`flow-clustering`](../flow-clustering/) — GMM / k-means (FlowSOM planned)
+- [`flow-clustering`](../flow-clustering/) — GMM / k-means / SOM / FlowSOM
+- [`flow-dimensional-reduction`](../flow-dimensional-reduction/) — PCA used by intrusive cleaning
 
 ## Acknowledgments
 

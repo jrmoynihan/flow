@@ -108,3 +108,44 @@ pub fn unmix_events_ols(
     }
     Ok(out)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::library::AfLibrary;
+    use faer::Mat;
+
+    #[test]
+    fn residual_of_exact_column_is_near_zero() {
+        let m = Mat::from_fn(2, 1, |i, _| if i == 0 { 1.0 } else { 0.0 });
+        let y = [2.0, 0.0];
+        let r = ols_residual(m.as_ref(), &y).unwrap();
+        assert!(r < 1e-12, "residual {r}");
+    }
+
+    #[test]
+    fn unmix_recovers_scale() {
+        let m = Mat::from_fn(2, 1, |i, _| if i == 0 { 1.0 } else { 0.0 });
+        let y = [4.0, 0.0];
+        let a = unmix_event_ols(m.as_ref(), &y).unwrap();
+        assert_eq!(a.len(), 1);
+        assert!((a[0] - 4.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn swap_af_appends_library_column() {
+        let fluor = Mat::<f64>::zeros(2, 0);
+        let mut sig = Mat::<f64>::zeros(2, 1);
+        sig[(0, 0)] = 1.0;
+        sig[(1, 0)] = 0.2;
+        let lib = AfLibrary {
+            signatures: sig,
+            names: vec!["AF_0".into()],
+            detector_names: vec!["D1".into(), "D2".into()],
+            provenance: "test".into(),
+        };
+        let m = swap_af_column(fluor.as_ref(), &lib, 0).unwrap();
+        assert_eq!(m.ncols(), 1);
+        assert!((m[(0, 0)] - 1.0).abs() < 1e-12);
+    }
+}

@@ -15,18 +15,37 @@ default = ["hnsw"]
 hnsw = ["flow-knn/hnsw"]
 ann-search = ["flow-knn/ann-search"]
 tru-ols = ["dep:flow-tru-ols"]
+fcs = ["dep:flow-fcs", "flow-fcs/synthetic", "flow-tru-ols?/flow-fcs"]
 
 [dependencies]
 faer = { workspace = true }
 ndarray = { workspace = true }
 rayon = { workspace = true }
 thiserror = { workspace = true }
-flow-clustering = { path = "../flow-clustering", version = "^0.1.2" }
+flow-clustering = { path = "../flow-clustering", version = "^0.2.0" }
+flow-dimensional-reduction = { path = "../flow-dimensional-reduction", version = "^0.1.0" }
 flow-knn = { path = "../flow-knn", version = "^0.1.1", default-features = false }
 flow-tru-ols = { path = "../tru-ols", version = "^0.2.0", optional = true, default-features = false }
+flow-fcs = { path = "../fcs", version = "^0.5.2", optional = true }
 
 [dev-dependencies]
 approx = { workspace = true }
+criterion = { workspace = true }
+rand = { workspace = true }
+tempfile = { workspace = true }
+flow-fcs = { path = "../fcs", features = ["synthetic"] }
+
+[[bench]]
+name = "discover_and_match"
+harness = false
+
+[[example]]
+name = "af_match_tru_ols"
+required-features = ["tru-ols", "fcs"]
+
+[[example]]
+name = "method_comparison"
+required-features = ["tru-ols"]
 
 [package.metadata.scripts]
 dry-release = "cargo smart-release flow-autospectral --update-crates-index"

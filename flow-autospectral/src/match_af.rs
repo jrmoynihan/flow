@@ -1,6 +1,6 @@
 //! Match stained events to AF library signatures.
 
-use crate::config::{force_sequential, MatchConfig, MatchStrategy};
+use crate::config::{MatchConfig, MatchStrategy, force_sequential};
 use crate::error::{AutospectralError, Result};
 use crate::library::AfLibrary;
 use crate::unmix_ols::{ols_residual, swap_af_column};
@@ -106,14 +106,8 @@ fn match_residual(
 
     let shortlists: Option<Vec<Vec<usize>>> = if use_shortlist {
         let lib_f32 = library.signatures_row_major_f32();
-        let index = AnnIndex::build(
-            &lib_f32,
-            k_lib,
-            d,
-            &config.knn_method,
-            config.metric,
-        )
-        .map_err(|e| AutospectralError::Knn(e.to_string()))?;
+        let index = AnnIndex::build(&lib_f32, k_lib, d, &config.knn_method, config.metric)
+            .map_err(|e| AutospectralError::Knn(e.to_string()))?;
         let queries: Vec<f32> = events_row_major.iter().map(|&x| x as f32).collect();
         let k_cand = config.ann_candidates.min(k_lib).max(1);
         let nbrs = index
@@ -129,8 +123,7 @@ fn match_residual(
     };
 
     let candidates_all: Vec<usize> = (0..k_lib).collect();
-    let parallel =
-        !force_sequential() && n_events >= config.parallel_event_threshold;
+    let parallel = !force_sequential() && n_events >= config.parallel_event_threshold;
 
     let evaluate = |event_i: usize| -> Result<(usize, f64)> {
         let y = &events_row_major[event_i * d..(event_i + 1) * d];

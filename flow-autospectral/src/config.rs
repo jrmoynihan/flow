@@ -10,6 +10,10 @@ pub enum DiscoveryBackend {
     Gmm,
     /// K-means centroids.
     KMeans,
+    /// K-means assignments, then the HNSW neighbour of each centroid as the signature.
+    HnswMedoid,
+    /// Batch SOM codebook, then k-means metaclusters (FlowSOM).
+    FlowSom,
 }
 
 /// How to assign stained events to AF library columns.
@@ -20,6 +24,70 @@ pub enum MatchStrategy {
     ResidualOls,
     /// Cosine / Euclidean nearest neighbour only (fast quality floor).
     NearestNeighbor,
+}
+
+/// Optional scatter-match of unstained events against stained scatter.
+#[derive(Debug, Clone)]
+pub struct ScatterCleanConfig {
+    /// Keep unstained events whose NN distance to stained scatter is at or below
+    /// this percentile of those distances (0–1).
+    pub keep_percentile: f64,
+    pub knn_method: KnnMethod,
+    pub metric: DistanceMetric,
+}
+
+impl Default for ScatterCleanConfig {
+    fn default() -> Self {
+        Self {
+            keep_percentile: 0.95,
+            knn_method: KnnMethod::default(),
+            metric: DistanceMetric::Euclidean,
+        }
+    }
+}
+
+/// Drop fluorescence outliers in PCA space (intrusive / debris-like events).
+#[derive(Debug, Clone)]
+pub struct PcaCleanConfig {
+    pub n_components: usize,
+    /// Keep events whose PC-space radius is at or below this percentile (0–1).
+    pub keep_percentile: f64,
+}
+
+impl Default for PcaCleanConfig {
+    fn default() -> Self {
+        Self {
+            n_components: 3,
+            keep_percentile: 0.99,
+        }
+    }
+}
+
+/// Optional pre-discovery cleaning. Default is a no-op.
+#[derive(Debug, Clone, Default)]
+pub struct CleanConfig {
+    pub scatter: Option<ScatterCleanConfig>,
+    pub pca: Option<PcaCleanConfig>,
+}
+
+/// FlowSOM grid used when [`DiscoveryBackend::FlowSom`] is selected.
+#[derive(Debug, Clone)]
+pub struct SomDiscoverConfig {
+    pub width: usize,
+    pub height: usize,
+    pub n_epochs: usize,
+    pub radius: Option<f64>,
+}
+
+impl Default for SomDiscoverConfig {
+    fn default() -> Self {
+        Self {
+            width: 6,
+            height: 6,
+            n_epochs: 12,
+            radius: None,
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -34,6 +102,11 @@ pub struct DiscoverConfig {
     pub seed: Option<u64>,
     /// Merge library columns whose cosine similarity exceeds this threshold.
     pub merge_cosine: f64,
+    pub clean: CleanConfig,
+    pub som: SomDiscoverConfig,
+    /// ANN backend for [`DiscoveryBackend::HnswMedoid`] (and scatter-clean).
+    pub knn_method: KnnMethod,
+    pub metric: DistanceMetric,
 }
 
 impl Default for DiscoverConfig {
@@ -46,6 +119,10 @@ impl Default for DiscoverConfig {
             max_iterations: 100,
             seed: Some(42),
             merge_cosine: 0.995,
+            clean: CleanConfig::default(),
+            som: SomDiscoverConfig::default(),
+            knn_method: KnnMethod::default(),
+            metric: DistanceMetric::Cosine,
         }
     }
 }

@@ -3227,18 +3227,23 @@ name = "flow-autospectral"
 version = "0.1.0"
 dependencies = [
  "approx",
+ "criterion 0.8.2",
  "faer 0.24.4",
  "flow-clustering",
+ "flow-dimensional-reduction",
+ "flow-fcs",
  "flow-knn",
  "flow-tru-ols",
  "ndarray 0.16.1",
+ "rand 0.10.2",
  "rayon",
+ "tempfile",
  "thiserror 2.0.19",
 ]
 
 [[package]]
 name = "flow-clustering"
-version = "0.1.2"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "criterion 0.8.2",

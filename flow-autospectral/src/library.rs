@@ -112,12 +112,57 @@ impl AfLibraryBuilder for KMeansAfLibraryBuilder {
     }
 }
 
+#[derive(Debug, Default)]
+pub struct HnswMedoidAfLibraryBuilder;
+
+impl AfLibraryBuilder for HnswMedoidAfLibraryBuilder {
+    fn build(
+        &self,
+        events_row_major: &[f64],
+        n_events: usize,
+        n_detectors: usize,
+        detector_names: &[String],
+        config: &DiscoverConfig,
+    ) -> Result<AfLibrary> {
+        let mut cfg = config.clone();
+        cfg.backend = DiscoveryBackend::HnswMedoid;
+        discover::discover_af_library(
+            events_row_major,
+            n_events,
+            n_detectors,
+            detector_names,
+            &cfg,
+        )
+    }
+}
+
+#[derive(Debug, Default)]
+pub struct FlowSomAfLibraryBuilder;
+
+impl AfLibraryBuilder for FlowSomAfLibraryBuilder {
+    fn build(
+        &self,
+        events_row_major: &[f64],
+        n_events: usize,
+        n_detectors: usize,
+        detector_names: &[String],
+        config: &DiscoverConfig,
+    ) -> Result<AfLibrary> {
+        let mut cfg = config.clone();
+        cfg.backend = DiscoveryBackend::FlowSom;
+        discover::discover_af_library(
+            events_row_major,
+            n_events,
+            n_detectors,
+            detector_names,
+            &cfg,
+        )
+    }
+}
+
 /// Normalize a spectrum in-place by its max absolute entry (unit-peak).
 pub fn normalize_unit_peak(spectrum: &mut [f64]) {
-    let max_abs = spectrum
-        .iter()
-        .map(|v| v.abs())
-        .fold(0.0_f64, f64::max);
+    let max_abs = spectrum.iter().map(|v| v.abs()).fold(0.0_f64, f64::max);
     if max_abs > 0.0 {
         for v in spectrum.iter_mut() {
             *v /= max_abs;
@@ -187,5 +232,30 @@ pub fn merge_near_duplicates(library: AfLibrary, threshold: f64) -> AfLibrary {
             library.provenance,
             keep.len()
         ),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use faer::Mat;
+
+    #[test]
+    fn merge_drops_cosine_duplicates() {
+        let mut signatures = Mat::<f64>::zeros(2, 3);
+        signatures[(0, 0)] = 1.0;
+        signatures[(1, 0)] = 0.0;
+        signatures[(0, 1)] = 0.999;
+        signatures[(1, 1)] = 0.001;
+        signatures[(0, 2)] = 0.0;
+        signatures[(1, 2)] = 1.0;
+        let lib = AfLibrary {
+            signatures,
+            names: vec!["a".into(), "b".into(), "c".into()],
+            detector_names: vec!["D1".into(), "D2".into()],
+            provenance: "t".into(),
+        };
+        let merged = merge_near_duplicates(lib, 0.99);
+        assert_eq!(merged.n_signatures(), 2);
     }
 }

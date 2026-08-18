@@ -2,6 +2,10 @@
 
 Follow workspace protocol in `docs/dev/UNSAFE_MICROOPT_AB.md` when micro-optimizing.
 
-For match throughput, interleave baseline/HEAD Criterion runs and keep an untouched control bench (see beads memory `benchmark-a-b-on-this-machine-apple-m5`).
+For match throughput, interleave baseline/HEAD Criterion runs and keep an untouched control bench (see beads memory `benchmark-a-b-on-this-machine-apple-m5`). The `match_events_nn` group is the control counterpart to `match_events_residual`.
 
-Primary quality metrics for algorithm changes: OLS residual, population spread — not wall time alone.
+```bash
+cargo bench -p flow-autospectral --bench discover_and_match
+```
+
+Primary quality metrics for algorithm changes: OLS residual, population spread — not wall time alone. Use `--example method_comparison --features tru-ols` for quality A/B across discovery backends.

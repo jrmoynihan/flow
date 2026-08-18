@@ -22,6 +22,12 @@ pub enum AutospectralError {
     #[error("linear algebra failure: {0}")]
     Linalg(String),
 
+    #[error("TRU-OLS: {0}")]
+    TruOls(String),
+
+    #[error("PCA: {0}")]
+    Pca(String),
+
     #[error("AF library is empty")]
     EmptyLibrary,
 
