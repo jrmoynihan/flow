@@ -378,7 +378,16 @@ pub fn run_qc_pipeline(fcs: &Fcs, config: &QcPipelineConfig) -> Result<QcPipelin
     // --- raw doublets (flow-gates, multi-pair AND) ---
     let n_in = current.get_event_count_from_dataframe();
     let raw_cfg = filter_raw_doublet_channels(&config.raw_doublet_config, &current);
-    if raw_cfg.channels.is_empty() {
+    if n_in == 0 {
+        record_stage(
+            &mut stages,
+            "raw_doublets",
+            n_in,
+            n_in,
+            "skipped (no events)".to_string(),
+            None,
+        );
+    } else if raw_cfg.channels.is_empty() {
         record_stage(
             &mut stages,
             "raw_doublets",
@@ -498,8 +507,10 @@ pub fn run_qc_pipeline(fcs: &Fcs, config: &QcPipelineConfig) -> Result<QcPipelin
                 );
                 if let Some(ref dir) = config.debug_plot_dir {
                     let _ = std::fs::create_dir_all(dir);
-                    let plot_path =
-                        dir.join(format!("{}_peacoqc_overview.png", config.sanitized_plot_prefix()));
+                    let plot_path = dir.join(format!(
+                        "{}_peacoqc_overview.png",
+                        config.sanitized_plot_prefix()
+                    ));
                     let plot_cfg = peacoqc_rs::QCPlotConfig::default();
                     if let Err(e) =
                         peacoqc_rs::create_qc_plots(&current, &result, &plot_path, plot_cfg, None)
@@ -607,30 +618,41 @@ pub fn run_qc_pipeline(fcs: &Fcs, config: &QcPipelineConfig) -> Result<QcPipelin
     // --- post-debris hybrid doublet ---
     let n_in = current.get_event_count_from_dataframe();
     let post_cfg = filter_post_doublet_channels(&config.post_debris_doublet_config, &current);
-    match detect_doublets(&current, &post_cfg) {
-        Ok(dr) => {
-            let method = dr.statistics.method_used.clone();
-            current =
-                filter_fcs_by_mask(&current, &dr.singlet_mask).context("post doublet mask")?;
-            record_stage(
-                &mut stages,
-                "post_debris_doublets",
-                n_in,
-                current.get_event_count_from_dataframe(),
-                method,
-                None,
-            );
-        }
-        Err(e) => {
-            warn!("post-debris doublet detection failed: {}", e);
-            record_stage(
-                &mut stages,
-                "post_debris_doublets",
-                n_in,
-                n_in,
-                "detect_doublets (error)".to_string(),
-                Some(e.to_string()),
-            );
+    if n_in == 0 {
+        record_stage(
+            &mut stages,
+            "post_debris_doublets",
+            n_in,
+            n_in,
+            "skipped (no events)".to_string(),
+            None,
+        );
+    } else {
+        match detect_doublets(&current, &post_cfg) {
+            Ok(dr) => {
+                let method = dr.statistics.method_used.clone();
+                current =
+                    filter_fcs_by_mask(&current, &dr.singlet_mask).context("post doublet mask")?;
+                record_stage(
+                    &mut stages,
+                    "post_debris_doublets",
+                    n_in,
+                    current.get_event_count_from_dataframe(),
+                    method,
+                    None,
+                );
+            }
+            Err(e) => {
+                warn!("post-debris doublet detection failed: {}", e);
+                record_stage(
+                    &mut stages,
+                    "post_debris_doublets",
+                    n_in,
+                    n_in,
+                    "detect_doublets (error)".to_string(),
+                    Some(e.to_string()),
+                );
+            }
         }
     }
     maybe_snapshot(config.capture_stages, &mut snapshots, "final", &current);
@@ -789,7 +811,16 @@ fn run_relaxed_qc_pipeline(fcs: &Fcs, config: &QcPipelineConfig) -> Result<QcPip
     // --- raw doublets ---
     let n_in = current.get_event_count_from_dataframe();
     let raw_cfg = filter_raw_doublet_channels(&config.raw_doublet_config, &current);
-    if raw_cfg.channels.is_empty() {
+    if n_in == 0 {
+        record_stage(
+            &mut stages,
+            "raw_doublets",
+            n_in,
+            n_in,
+            "skipped (no events)".to_string(),
+            None,
+        );
+    } else if raw_cfg.channels.is_empty() {
         record_stage(
             &mut stages,
             "raw_doublets",
@@ -885,30 +916,41 @@ fn run_relaxed_qc_pipeline(fcs: &Fcs, config: &QcPipelineConfig) -> Result<QcPip
     // --- post-debris hybrid doublet ---
     let n_in = current.get_event_count_from_dataframe();
     let post_cfg = filter_post_doublet_channels(&config.post_debris_doublet_config, &current);
-    match detect_doublets(&current, &post_cfg) {
-        Ok(dr) => {
-            let method = dr.statistics.method_used.clone();
-            current =
-                filter_fcs_by_mask(&current, &dr.singlet_mask).context("post doublet mask")?;
-            record_stage(
-                &mut stages,
-                "post_debris_doublets",
-                n_in,
-                current.get_event_count_from_dataframe(),
-                method,
-                None,
-            );
-        }
-        Err(e) => {
-            warn!("post-debris doublet detection failed: {}", e);
-            record_stage(
-                &mut stages,
-                "post_debris_doublets",
-                n_in,
-                n_in,
-                "detect_doublets (error)".to_string(),
-                Some(e.to_string()),
-            );
+    if n_in == 0 {
+        record_stage(
+            &mut stages,
+            "post_debris_doublets",
+            n_in,
+            n_in,
+            "skipped (no events)".to_string(),
+            None,
+        );
+    } else {
+        match detect_doublets(&current, &post_cfg) {
+            Ok(dr) => {
+                let method = dr.statistics.method_used.clone();
+                current =
+                    filter_fcs_by_mask(&current, &dr.singlet_mask).context("post doublet mask")?;
+                record_stage(
+                    &mut stages,
+                    "post_debris_doublets",
+                    n_in,
+                    current.get_event_count_from_dataframe(),
+                    method,
+                    None,
+                );
+            }
+            Err(e) => {
+                warn!("post-debris doublet detection failed: {}", e);
+                record_stage(
+                    &mut stages,
+                    "post_debris_doublets",
+                    n_in,
+                    n_in,
+                    "detect_doublets (error)".to_string(),
+                    Some(e.to_string()),
+                );
+            }
         }
     }
     maybe_snapshot(config.capture_stages, &mut snapshots, "final", &current);
@@ -1058,14 +1100,14 @@ mod tests {
         let br = n * 4 / 5;
         for i in 0..n {
             time.push(i as f32);
-            fsc.push(48_000.0_f32 + (i % 40) as f32);
-            ssc.push(32_000.0_f32 + (i % 30) as f32);
+            fsc.push(48_000.0_f32 + (i % 40) as f32 + (i % 7) as f32 * 0.25);
+            ssc.push(32_000.0_f32 + (i % 30) as f32 + (i % 5) as f32 * 0.25);
             fsc_h.push(fsc[i] * 0.91);
             ssc_h.push(ssc[i] * 0.93);
             if i < br {
-                fl1.push(120.0_f32);
+                fl1.push(120.0_f32 + (i % 11) as f32);
             } else {
-                fl1.push(25_000.0_f32);
+                fl1.push(25_000.0_f32 + (i % 13) as f32);
             }
         }
         let df = DataFrame::new(
@@ -1094,15 +1136,16 @@ mod tests {
                 Parameter::new(&num, ch, ch, &TransformType::Linear),
             );
         }
+        let metadata = Metadata::from_dataframe_and_parameters(&df, &pm).expect("metadata");
         let tmp = std::env::temp_dir().join(format!("truols_qc_{}.tmp", std::process::id()));
         let _ = std::fs::write(&tmp, b"x");
-        Fcs {
-            header: Header::new(),
-            metadata: Metadata::new(),
-            parameters: pm,
-            data_frame: Arc::new(df),
-            file_access: AccessWrapper::new(tmp.to_str().unwrap_or(".")).expect("access"),
-        }
+        Fcs::for_testing(
+            Header::new(),
+            metadata,
+            pm,
+            Arc::new(df),
+            AccessWrapper::new(tmp.to_str().unwrap_or(".")).expect("access"),
+        )
     }
 
     #[test]

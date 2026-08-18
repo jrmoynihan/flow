@@ -15,6 +15,7 @@ members = [
     "peacoqc-cli",
 
     "tru-ols",
+    "tru-ols-cli",
     "flow-peak-detection",
     "flow-control-detection",
 

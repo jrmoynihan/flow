@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+### Fixed
+
+- Restore `src/commands.rs` (accidentally emptied during the flow-utils split) and retarget KDE/K-means imports to `flow-density` / `flow-clustering`.
+- Construct in-memory `Fcs` fixtures with `Fcs::for_testing` (`flow-fcs` `test-util`) after `columns` became crate-private.
+- Rejoin the workspace so `cargo check -p tru-ols` and crates.io publish work again.
+- Populate `$PnR` on QC pipeline test fixtures so margin removal does not empty the file; skip doublet detection when no events remain.
+
 ## 0.1.1 (2026-03-04)
 
 ### Fixed

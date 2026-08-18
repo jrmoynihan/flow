@@ -134,13 +134,13 @@ fn main() -> Result<()> {
     let file_access = flow_fcs::file::AccessWrapper::new(temp_file.to_str().unwrap_or(""))?;
 
     // Create FCS struct
-    let fcs = Fcs {
-        header: flow_fcs::Header::new(),
+    let fcs = Fcs::for_testing(
+        flow_fcs::Header::new(),
         metadata,
-        parameters: params,
-        data_frame: Arc::new(df),
+        params,
+        Arc::new(df),
         file_access,
-    };
+    );
 
     // Write FCS file
     println!("\n💾 Writing FCS file...");

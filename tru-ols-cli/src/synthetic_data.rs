@@ -267,12 +267,12 @@ pub fn generate_single_stain_control(
         .with_context(|| "Failed to create metadata from DataFrame and ParameterMap")?;
 
     // Create FCS struct with temporary file for AccessWrapper
-    let fcs = Fcs {
-        header: Header::new(),
+    let fcs = Fcs::for_testing(
+        Header::new(),
         metadata,
-        parameters: params,
-        data_frame: Arc::new(df),
-        file_access: AccessWrapper::new(temp_file.to_str().ok_or_else(|| {
+        params,
+        Arc::new(df),
+        AccessWrapper::new(temp_file.to_str().ok_or_else(|| {
             anyhow::anyhow!(
                 "Temp file path contains invalid UTF-8: {}",
                 temp_file.display()
@@ -284,7 +284,7 @@ pub fn generate_single_stain_control(
                 temp_file.display()
             )
         })?,
-    };
+    );
 
     // #region agent log
     {
@@ -524,12 +524,12 @@ pub fn generate_mixed_sample(
     metadata.insert_string_keyword("$FIL".to_string(), filename.to_string());
 
     // Create FCS struct with temporary file for AccessWrapper
-    let fcs = Fcs {
-        header: Header::new(),
+    let fcs = Fcs::for_testing(
+        Header::new(),
         metadata,
-        parameters: params,
-        data_frame: Arc::new(df),
-        file_access: AccessWrapper::new(temp_file.to_str().ok_or_else(|| {
+        params,
+        Arc::new(df),
+        AccessWrapper::new(temp_file.to_str().ok_or_else(|| {
             anyhow::anyhow!(
                 "Temp file path contains invalid UTF-8: {}",
                 temp_file.display()
@@ -541,7 +541,7 @@ pub fn generate_mixed_sample(
                 temp_file.display()
             )
         })?,
-    };
+    );
 
     // Write to file
     write_fcs_file(fcs, output_path).with_context(|| {

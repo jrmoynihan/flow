@@ -8,7 +8,6 @@ use flow_fcs::file::AccessWrapper;
 use flow_fcs::parameter::ParameterMap;
 use flow_fcs::{TransformType, write_fcs_file};
 use flow_plots::colormap::ColorMaps;
-use tru_ols::synthetic_data::{SpectralSignature, generate_spectral_visualization_plots};
 use polars::prelude::*;
 use rand::RngExt;
 use rand_distr::{Distribution, Normal};
@@ -16,6 +15,7 @@ use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
 use std::sync::Arc;
+use tru_ols::synthetic_data::{SpectralSignature, generate_spectral_visualization_plots};
 
 fn main() -> Result<()> {
     let output_dir = PathBuf::from("../../synthetic_test_data/plots/concentrated_test");
@@ -156,14 +156,14 @@ fn main() -> Result<()> {
             .with_context(|| format!("Failed to create temporary file: {}", temp_file.display()))?;
     }
 
-    let fcs = flow_fcs::Fcs {
-        header: flow_fcs::Header::new(),
+    let fcs = flow_fcs::Fcs::for_testing(
+        flow_fcs::Header::new(),
         metadata,
-        parameters: params,
-        data_frame: Arc::new(df),
-        file_access: AccessWrapper::new(temp_file.to_str().unwrap())
+        params,
+        Arc::new(df),
+        AccessWrapper::new(temp_file.to_str().unwrap())
             .with_context(|| "Failed to create AccessWrapper")?,
-    };
+    );
 
     // Write FCS file
     write_fcs_file(fcs, &fcs_path)
