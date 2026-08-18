@@ -3,22 +3,9 @@
 [![Rust](https://img.shields.io/badge/rust-1.70+-orange.svg)](https://www.rust-lang.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-## What this crate is for
+## Overview
 
 Command-line tool for [PeacoQC](https://doi.org/10.1002/cyto.a.24501) on FCS files, built on [`peacoqc-rs`](https://crates.io/crates/peacoqc-rs). Use it to run quality control on one or more FCS files with parallel processing.
-
-For a **longer default preprocessing chain** (margins, raw doublet masks, compensation/transform, time-bin QC, then scatter or consensus forward-scatter debris gating), use the workspace **`tru-ols` CLI package** in [`tru-ols-cli/`](../tru-ols-cli/) (`run_qc_pipeline` and related types)—not the `flow-tru-ols` library crate. This CLI stays focused on running PeacoQC on inputs you have already prepared.
-
-## How it works
-
-Wraps `peacoqc-rs` configuration and I/O: discover FCS paths, run QC, write cleaned files and optional reports. Algorithm details live in [`peacoqc-rs`](../peacoqc-rs/).
-
-## Related crates
-
-- [`peacoqc-rs`](../peacoqc-rs/) — QC library
-- [`peacoqc-py`](../peacoqc-py/) — Python bindings
-- [`tru-ols`](../tru-ols-cli/) CLI — orchestrated QC + unmix pipeline
-- [`flow-fcs`](../fcs/) — FCS I/O
 
 ## Demo / API
 
@@ -359,11 +346,13 @@ The CLI continues processing even if individual files fail:
 
 ## Integration with peacoqc-rs
 
-This CLI is built on [`peacoqc-rs`](../peacoqc-rs/), which provides trait-based QC, parallel processing, and optional [`flow-fcs`](../fcs/) integration. See that crate’s README and docs.rs for library usage.
+This CLI is built on [`peacoqc-rs`](../peacoqc-rs/), which provides:
 
-## Performance
+- Trait-based design for maximum flexibility
+- Efficient parallel processing
+- Comprehensive quality control algorithms
+- Optional integration with [`flow-fcs`](https://crates.io/crates/flow-fcs) for FCS file support
 
-Process directories and directories in parallel; wall time is dominated by FCS I/O and per-file PeacoQC. Prefer SSD-local inputs for large batches.
 
 ## License
 
@@ -385,3 +374,10 @@ We gratefully acknowledge the original PeacoQC algorithm authors:
 ## Contributing
 
 Contributions are welcome! Please feel free to open issues or submit a Pull Request on [Github](https://github.com/jrmoynihan/flow).
+
+## Related crates
+
+- [`peacoqc-rs`](../peacoqc-rs/) — QC library
+- [`peacoqc-py`](../peacoqc-py/) — Python bindings
+- [`tru-ols`](../tru-ols-cli/) CLI — orchestrated QC + unmix pipeline
+- [`flow-fcs`](../fcs/) — FCS I/O

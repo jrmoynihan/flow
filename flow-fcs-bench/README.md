@@ -29,7 +29,7 @@ cargo run -p flow-fcs-bench --release -- file-full path/to/data.fcs
 
 ## Performance
 
-This crate *is* the performance harness—see its CSV output and the tables in [`flow-fcs-compress/README.md`](../flow-fcs-compress/README.md).
+This crate *is* the performance harness — see its CSV output and the tables in [`flow-fcs-compress/README.md`](../flow-fcs-compress/README.md).
 
 ## License
 

@@ -1,2 +1,9 @@
 [features]
 hooks = true
+
+[mcp_servers.svelte]
+command = "npx"
+args = [
+    "-y",
+    "@sveltejs/mcp",
+]

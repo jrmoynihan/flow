@@ -42,7 +42,7 @@ flow-knn = { version = "0.1.1", features = ["hnsw"] }
 | (always) | Exact | Rayon brute-force baseline |
 | `kdtree` | kiddo | Currently falls back to exact |
 
-## API usage
+## API Usage
 
 ```rust
 use flow_knn::{

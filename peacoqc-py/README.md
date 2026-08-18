@@ -6,17 +6,16 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 Python bindings for [`peacoqc-rs`](../peacoqc-rs/), a Rust implementation of the
-[PeacoQC](https://github.com/saeyslab/PeacoQC) automated quality-control algorithm for flow
-cytometry data. Distributed on PyPI as **`peacoqc-rs`**; imported in Python as **`peacoqc`**.
+[Peak Extraction and Cleaning Oriented Quality Control (PeacoQC)](https://github.com/saeyslab/PeacoQC) [(paper)](https://pubmed.ncbi.nlm.nih.gov/34549881/) automated quality-control algorithm for flow cytometry data.
 
 ## How it works
 
 A native extension module (built with [maturin](https://github.com/PyO3/maturin) and
-[PyO3](https://pyo3.rs/)) wraps the Rust `peacoqc-rs` crate and exposes its QC entry points to
+[PyO3](https://pyo3.rs/)) that wraps the Rust `peacoqc-rs` crate and exposes its QC entry points to
 Python, bridging event tables through [Polars](https://pola.rs/)/
 [pyo3-polars](https://github.com/pola-rs/polars/tree/main/pyo3-polars). Type stubs
 ([`peacoqc.pyi`](python/peacoqc/peacoqc.pyi)) ship with the package, so `run_qc(...)`,
-`FcsFile`, etc. autocomplete and type-check in editors without extra config.
+`FcsFile`, etc. provide autocomplete and type-check in editors without any extra config.
 
 Prebuilt wheels are published for Linux (x86_64/aarch64), macOS (Intel/Apple Silicon), and
 Windows (x64), targeting Python 3.9+ via PyO3's stable ABI (`abi3`) — one wheel per platform
@@ -88,21 +87,8 @@ print(peacoqc.__peacoqc_rs_version__)  # peacoqc-rs algorithm version baked into
 
 ## Performance
 
-Same algorithmic costs as `peacoqc-rs`; Python overhead is binding/conversion only.
-
-Cross-language QC-core timings live with the Rust crate (bindings do not re-time R separately):
-
-| Case | R | Rust | Speedup vs R |
-| ---- | ---------- | -------------- | ------------ |
-| real ~215k×13 | 1.55 | 0.109 | **14.2×** |
-| real ~394k×13 | 1.61 | 0.107 | **15.1×** |
-| synth 1M×15 | 2.98 | 0.182 | **16.4×** |
-
-**Do not enable the Rust `gpu` feature for full PeacoQC in this version** — e2e GPU was much slower than CPU on every measured size.
-
-On the three real FCS cases in the sample, R and Rust `% removed` agreed closely (|Δ| ≈ 0.3–2%). Large synthetic (1M) cases also track R; full tables:
-[`../peacoqc-rs/docs/throughput_vs_r_sample.md`](../peacoqc-rs/docs/throughput_vs_r_sample.md),
-[`../peacoqc-rs/docs/comparison-with-r.md`](../peacoqc-rs/docs/comparison-with-r.md).
+Same algorithmic costs as `peacoqc-rs`; Python overhead is binding/conversion only. GPU features
+follow the Rust crate defaults when enabled at build time.
 
 ## Building from source
 
