@@ -7,7 +7,7 @@ license = "MIT"
 repository = "https://github.com/jrmoynihan/flow/flow-dimensional-reduction"
 readme = "README.md"
 description = "Dimensionality reduction primitives for flow cytometry: faer-based PCA"
-keywords = ["flow-cytometry", "pca", "dimensionality-reduction", "faer"]
+keywords = ["flow-cytometry", "pca", "dim-reduction", "faer"]
 categories = ["science"]
 
 [dependencies]
