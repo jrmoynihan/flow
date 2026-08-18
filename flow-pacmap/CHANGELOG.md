@@ -7,10 +7,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
-### Added
-
-- KNN is staged through `flow-knn` (`fit_transform` takes `Option<&KnnGraph>`); PCA init uses `flow-dimensional-reduction`. Optional cubeCL pair-gradient optimization.
-
 ### New Features
 
  - Staged KNN API: public `KnnGraph`, `compute_knn` → `KnnGraph`, and

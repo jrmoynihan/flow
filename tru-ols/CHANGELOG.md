@@ -7,10 +7,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
-### Added
-
-- Unmixed FCS export now records full provenance and stamps FCS 3.2; empty `$PnS` writes are gone; delimiter escaping is left to `flow-fcs`. Mixing-matrix assembly gained autofluorescence, hotspot/SIF, and shared pipeline helpers.
-
 ### Chore
 
  - <csr-id-af6097fbd09f00657eaf82ea8367fffd3ee72baf/> default test commands to cargo-nextest (flow-crates-9xv)

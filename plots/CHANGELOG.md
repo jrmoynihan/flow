@@ -7,10 +7,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
-### Changed
-
-- Plot builders expose `BasePlotOptions` fields directly (`.width()`, `.title()`, etc.) instead of requiring a nested `.base(...)`.
-
 ### Chore
 
  - <csr-id-af6097fbd09f00657eaf82ea8367fffd3ee72baf/> default test commands to cargo-nextest (flow-crates-9xv)

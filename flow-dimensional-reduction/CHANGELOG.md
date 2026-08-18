@@ -7,10 +7,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
-### Added
-
-- First crates.io release: faer covariance-method PCA with a fitted typestate so `transform` is only available after `fit`.
-
 ### New Features
 
  - <csr-id-a803000a61436642b87ad70d6e1edd4deaeab54f/> add faer covariance-method PCA

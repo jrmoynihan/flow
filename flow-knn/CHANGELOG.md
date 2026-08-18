@@ -18,10 +18,6 @@
 
 ## Unreleased
 
-### Added
-
-- First crates.io release: portable `KnnGraph` / `compute_knn`, usearch HNSW (default), optional ann-search-rs and GPU backends, and bulk graph IO.
-
 ### Documentation
 
  - <csr-id-3c48e73e751a7852b0e07239540448e6ee35a0cf/> refresh crate READMEs and agent guidelines
