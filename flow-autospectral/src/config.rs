@@ -137,6 +137,9 @@ pub struct MatchConfig {
     pub knn_method: KnnMethod,
     /// Parallel residual matching above this event count (unless force sequential).
     pub parallel_event_threshold: usize,
+    /// Reuse per-AF mixing matrices / Gram factors across events (default true).
+    /// Set `false` for Criterion A/B against rebuild-M-and-QR-per-candidate.
+    pub reuse_af_factors: bool,
 }
 
 impl Default for MatchConfig {
@@ -148,6 +151,7 @@ impl Default for MatchConfig {
             ann_candidates: 8,
             knn_method: KnnMethod::default(),
             parallel_event_threshold: 256,
+            reuse_af_factors: true,
         }
     }
 }
@@ -164,6 +168,25 @@ impl MatchConfig {
             self.knn_method = KnnMethod::Exact;
         }
         self
+    }
+}
+
+/// Batch OLS unmix: factor once and optionally Rayon over events.
+#[derive(Debug, Clone)]
+pub struct OlsUnmixConfig {
+    /// Parallel unmix above this event count (unless force sequential).
+    pub parallel_event_threshold: usize,
+    /// Factor \(M^\top M\) once (Gram Cholesky, QR fallback) then per-event solve.
+    /// Set `false` for Criterion A/B against per-event QR.
+    pub reuse_factor: bool,
+}
+
+impl Default for OlsUnmixConfig {
+    fn default() -> Self {
+        Self {
+            parallel_event_threshold: 256,
+            reuse_factor: true,
+        }
     }
 }
 

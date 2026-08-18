@@ -2,6 +2,7 @@
 //!
 //! Interleave baseline/HEAD Criterion runs and keep an untouched control bench
 //! when A/B-ing on this machine (see `docs/PERF_AB.md`).
+//! n×K×d residual/NN matrix (naive vs factored vs seq): `benches/match_matrix.rs`.
 
 use criterion::{BenchmarkId, Criterion, Throughput, criterion_group, criterion_main};
 use faer::Mat;

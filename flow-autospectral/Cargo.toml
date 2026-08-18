@@ -14,6 +14,7 @@ categories = ["science", "algorithms"]
 default = ["hnsw"]
 hnsw = ["flow-knn/hnsw"]
 ann-search = ["flow-knn/ann-search"]
+gpu = ["ann-search", "flow-knn/gpu"]
 tru-ols = ["dep:flow-tru-ols"]
 fcs = ["dep:flow-fcs", "flow-fcs/synthetic", "flow-tru-ols?/flow-fcs"]
 
@@ -37,6 +38,14 @@ flow-fcs = { path = "../fcs", features = ["synthetic"] }
 
 [[bench]]
 name = "discover_and_match"
+harness = false
+
+[[bench]]
+name = "match_matrix"
+harness = false
+
+[[bench]]
+name = "scatter_clean"
 harness = false
 
 [[example]]

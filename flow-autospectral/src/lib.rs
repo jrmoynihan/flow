@@ -21,8 +21,8 @@ mod tru_ols;
 
 pub use clean::{CleanedEvents, ScatterInput, clean_unstained};
 pub use config::{
-    CleanConfig, DiscoverConfig, DiscoveryBackend, MatchConfig, MatchStrategy, PcaCleanConfig,
-    ScatterCleanConfig, SomDiscoverConfig, force_sequential,
+    CleanConfig, DiscoverConfig, DiscoveryBackend, MatchConfig, MatchStrategy, OlsUnmixConfig,
+    PcaCleanConfig, ScatterCleanConfig, SomDiscoverConfig, force_sequential,
 };
 pub use discover::{discover_af_library, discover_af_library_cleaned};
 pub use error::{AutospectralError, Result};
@@ -32,7 +32,10 @@ pub use library::{
     normalize_unit_peak,
 };
 pub use match_af::{AfMatchResult, group_events_by_af, match_events, mixing_matrices_by_af};
-pub use unmix_ols::{ols_residual, swap_af_column, unmix_event_ols, unmix_events_ols};
+pub use unmix_ols::{
+    ols_residual, ols_residual_with_matrix, swap_af_column, unmix_event_ols, unmix_events_ols,
+    unmix_events_ols_with,
+};
 
 #[cfg(feature = "tru-ols")]
 pub use tru_ols::{

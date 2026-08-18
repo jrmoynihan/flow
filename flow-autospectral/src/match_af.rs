@@ -3,7 +3,7 @@
 use crate::config::{MatchConfig, MatchStrategy, force_sequential};
 use crate::error::{AutospectralError, Result};
 use crate::library::AfLibrary;
-use crate::unmix_ols::{ols_residual, swap_af_column};
+use crate::unmix_ols::{OlsFactor, ols_residual, swap_af_column};
 use faer::{Mat, MatRef};
 use flow_knn::AnnIndex;
 use rayon::prelude::*;
@@ -125,12 +125,74 @@ fn match_residual(
     let candidates_all: Vec<usize> = (0..k_lib).collect();
     let parallel = !force_sequential() && n_events >= config.parallel_event_threshold;
 
-    let evaluate = |event_i: usize| -> Result<(usize, f64)> {
-        let y = &events_row_major[event_i * d..(event_i + 1) * d];
-        let candidates = shortlists
-            .as_ref()
+    let loop_args = ResidualLoop {
+        events: events_row_major,
+        n_events,
+        d,
+        shortlists: shortlists.as_ref(),
+        candidates_all: &candidates_all,
+        parallel,
+    };
+    let pairs = if config.reuse_af_factors {
+        match_residual_reused(loop_args, library, fluor_matrix)?
+    } else {
+        match_residual_naive(loop_args, library, fluor_matrix)?
+    };
+
+    let mut af_indices = Vec::with_capacity(n_events);
+    let mut residuals = Vec::with_capacity(n_events);
+    for (idx, res) in pairs {
+        af_indices.push(idx);
+        residuals.push(res);
+    }
+    Ok(AfMatchResult {
+        af_indices,
+        residuals,
+        nn_distances: vec![f64::NAN; n_events],
+    })
+}
+
+struct ResidualLoop<'a> {
+    events: &'a [f64],
+    n_events: usize,
+    d: usize,
+    shortlists: Option<&'a Vec<Vec<usize>>>,
+    candidates_all: &'a [usize],
+    parallel: bool,
+}
+
+impl ResidualLoop<'_> {
+    fn candidates(&self, event_i: usize) -> &[usize] {
+        self.shortlists
             .map(|s| s[event_i].as_slice())
-            .unwrap_or(candidates_all.as_slice());
+            .unwrap_or(self.candidates_all)
+    }
+
+    fn spectrum(&self, event_i: usize) -> &[f64] {
+        &self.events[event_i * self.d..(event_i + 1) * self.d]
+    }
+}
+
+fn map_event_matches<F>(n_events: usize, parallel: bool, evaluate: F) -> Result<Vec<(usize, f64)>>
+where
+    F: Fn(usize) -> Result<(usize, f64)> + Sync + Send,
+{
+    if parallel {
+        (0..n_events).into_par_iter().map(evaluate).collect()
+    } else {
+        (0..n_events).map(evaluate).collect()
+    }
+}
+
+/// Rebuild M and QR for every event × AF candidate (Criterion A/B baseline).
+fn match_residual_naive(
+    loop_args: ResidualLoop<'_>,
+    library: &AfLibrary,
+    fluor_matrix: MatRef<'_, f64>,
+) -> Result<Vec<(usize, f64)>> {
+    let evaluate = |event_i: usize| -> Result<(usize, f64)> {
+        let y = loop_args.spectrum(event_i);
+        let candidates = loop_args.candidates(event_i);
         let mut best_idx = candidates[0];
         let mut best_res = f64::INFINITY;
         for &af_idx in candidates {
@@ -143,25 +205,35 @@ fn match_residual(
         }
         Ok((best_idx, best_res))
     };
+    map_event_matches(loop_args.n_events, loop_args.parallel, evaluate)
+}
 
-    let results: Result<Vec<(usize, f64)>> = if parallel {
-        (0..n_events).into_par_iter().map(evaluate).collect()
-    } else {
-        (0..n_events).map(evaluate).collect()
-    };
-
-    let pairs = results?;
-    let mut af_indices = Vec::with_capacity(n_events);
-    let mut residuals = Vec::with_capacity(n_events);
-    for (idx, res) in pairs {
-        af_indices.push(idx);
-        residuals.push(res);
+/// Precompute one mixing matrix (and Llt/QR factor) per AF; residual without rebuild.
+fn match_residual_reused(
+    loop_args: ResidualLoop<'_>,
+    library: &AfLibrary,
+    fluor_matrix: MatRef<'_, f64>,
+) -> Result<Vec<(usize, f64)>> {
+    let mut factors = Vec::with_capacity(library.n_signatures());
+    for af_idx in 0..library.n_signatures() {
+        let m = swap_af_column(fluor_matrix, library, af_idx)?;
+        factors.push(OlsFactor::from_owned(m));
     }
-    Ok(AfMatchResult {
-        af_indices,
-        residuals,
-        nn_distances: vec![f64::NAN; n_events],
-    })
+    let evaluate = |event_i: usize| -> Result<(usize, f64)> {
+        let y = loop_args.spectrum(event_i);
+        let candidates = loop_args.candidates(event_i);
+        let mut best_idx = candidates[0];
+        let mut best_res = f64::INFINITY;
+        for &af_idx in candidates {
+            let res = factors[af_idx].residual(y)?;
+            if res < best_res {
+                best_res = res;
+                best_idx = af_idx;
+            }
+        }
+        Ok((best_idx, best_res))
+    };
+    map_event_matches(loop_args.n_events, loop_args.parallel, evaluate)
 }
 
 /// Partition event indices by assigned AF signature.
@@ -200,8 +272,7 @@ mod tests {
     use crate::discover::discover_af_library;
     use faer::Mat;
 
-    #[test]
-    fn residual_match_picks_matching_af() {
+    fn two_peak_library_and_stained() -> (AfLibrary, Mat<f64>, Vec<f64>) {
         let mut events = Vec::new();
         for _ in 0..30 {
             events.extend_from_slice(&[10.0, 1.0]);
@@ -217,9 +288,14 @@ mod tests {
             ..DiscoverConfig::default()
         };
         let lib = discover_af_library(&events, 60, 2, &names, &cfg).unwrap();
-        // No fluorophores: residual = fit of AF alone.
         let fluor = Mat::<f64>::zeros(2, 0);
         let stained = vec![9.5_f64, 1.2, 1.1, 9.0];
+        (lib, fluor, stained)
+    }
+
+    #[test]
+    fn residual_match_picks_matching_af() {
+        let (lib, fluor, stained) = two_peak_library_and_stained();
         let matched = match_events(
             &stained,
             2,
@@ -233,5 +309,35 @@ mod tests {
         .unwrap();
         assert_eq!(matched.af_indices.len(), 2);
         assert_ne!(matched.af_indices[0], matched.af_indices[1]);
+    }
+
+    #[test]
+    fn residual_match_reuse_af_factors_agrees_on_indices() {
+        let (lib, fluor, stained) = two_peak_library_and_stained();
+        let reused = match_events(
+            &stained,
+            2,
+            &lib,
+            fluor.as_ref(),
+            &MatchConfig {
+                parallel_event_threshold: usize::MAX,
+                reuse_af_factors: true,
+                ..MatchConfig::default()
+            },
+        )
+        .unwrap();
+        let naive = match_events(
+            &stained,
+            2,
+            &lib,
+            fluor.as_ref(),
+            &MatchConfig {
+                parallel_event_threshold: usize::MAX,
+                reuse_af_factors: false,
+                ..MatchConfig::default()
+            },
+        )
+        .unwrap();
+        assert_eq!(reused.af_indices, naive.af_indices);
     }
 }

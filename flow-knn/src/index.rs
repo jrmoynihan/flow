@@ -10,6 +10,8 @@ use crate::exact;
 use crate::graph::NeighborList;
 use rayon::prelude::*;
 
+#[cfg(feature = "gpu")]
+use crate::gpu_ann;
 #[cfg(feature = "ann-search")]
 use crate::hnsw_ann;
 #[cfg(feature = "hnsw")]
@@ -34,6 +36,10 @@ enum AnnBackend {
     Usearch(hnsw_usearch::UsearchIndex),
     #[cfg(feature = "ann-search")]
     AnnSearch(hnsw_ann::AnnSearchIndex),
+    #[cfg(feature = "gpu")]
+    GpuExact(Box<gpu_ann::GpuExactIndex>),
+    #[cfg(feature = "gpu")]
+    GpuIvf(Box<gpu_ann::GpuIvfIndex>),
 }
 
 impl AnnIndex {
@@ -70,10 +76,7 @@ impl AnnIndex {
             return Err(KnnError::DatasetTooSmall { n });
         }
         if d == 0 || data.len() != n * d {
-            return Err(KnnError::DimensionMismatch {
-                len: data.len(),
-                d,
-            });
+            return Err(KnnError::DimensionMismatch { len: data.len(), d });
         }
 
         let (backend, provenance) = match method {
@@ -119,9 +122,40 @@ impl AnnIndex {
                 }
             }
             #[cfg(feature = "gpu")]
-            KnnMethod::GpuExact | KnnMethod::GpuIvf(_) | KnnMethod::GpuNnDescent(_) => {
+            KnnMethod::GpuExact => {
+                if metric == DistanceMetric::Manhattan {
+                    (
+                        AnnBackend::Exact {
+                            data: data.to_vec(),
+                        },
+                        "Exact".to_string(),
+                    )
+                } else {
+                    let index = gpu_ann::GpuExactIndex::build(data, n, d, metric)?;
+                    (
+                        AnnBackend::GpuExact(Box::new(index)),
+                        "GpuExact".to_string(),
+                    )
+                }
+            }
+            #[cfg(feature = "gpu")]
+            KnnMethod::GpuIvf(params) => {
+                if metric == DistanceMetric::Manhattan {
+                    (
+                        AnnBackend::Exact {
+                            data: data.to_vec(),
+                        },
+                        "Exact".to_string(),
+                    )
+                } else {
+                    let index = gpu_ann::GpuIvfIndex::build(data, n, d, params, metric)?;
+                    (AnnBackend::GpuIvf(Box::new(index)), "GpuIvf".to_string())
+                }
+            }
+            #[cfg(feature = "gpu")]
+            KnnMethod::GpuNnDescent(_) => {
                 return Err(KnnError::MethodNotImplemented {
-                    method: "GPU AnnIndex (use Exact or Hnsw for library search)".to_string(),
+                    method: "GpuNnDescent AnnIndex (query_nndescent_index_gpu requires &mut index; use GpuExact or GpuIvf for query-vs-library search)".to_string(),
                 });
             }
             KnnMethod::Annoy => {
@@ -154,7 +188,7 @@ impl AnnIndex {
                 index_d: self.d,
             });
         }
-        let k = k.min(self.n).max(0);
+        let k = k.min(self.n);
         if k == 0 {
             return Ok(NeighborList {
                 indices: Vec::new(),
@@ -174,6 +208,10 @@ impl AnnIndex {
             AnnBackend::Usearch(index) => index.search(query, k),
             #[cfg(feature = "ann-search")]
             AnnBackend::AnnSearch(index) => index.search(query, k),
+            #[cfg(feature = "gpu")]
+            AnnBackend::GpuExact(index) => index.search(query, k),
+            #[cfg(feature = "gpu")]
+            AnnBackend::GpuIvf(index) => index.search(query, k),
         }
     }
 
@@ -221,6 +259,10 @@ impl AnnIndex {
             }
             #[cfg(feature = "ann-search")]
             AnnBackend::AnnSearch(index) => index.search_batch(queries, n_queries, k),
+            #[cfg(feature = "gpu")]
+            AnnBackend::GpuExact(index) => index.search_batch(queries, n_queries, k),
+            #[cfg(feature = "gpu")]
+            AnnBackend::GpuIvf(index) => index.search_batch(queries, n_queries, k),
         }
     }
 }
@@ -287,9 +329,93 @@ mod tests {
     #[test]
     fn rejects_query_dim_mismatch() {
         let data = library();
-        let index = AnnIndex::build(&data, 3, 2, &KnnMethod::Exact, DistanceMetric::Euclidean)
-            .unwrap();
+        let index =
+            AnnIndex::build(&data, 3, 2, &KnnMethod::Exact, DistanceMetric::Euclidean).unwrap();
         let err = index.search(&[1.0, 2.0, 3.0], 1).unwrap_err();
         assert!(matches!(err, KnnError::QueryDimensionMismatch { .. }));
+    }
+
+    #[cfg(feature = "gpu")]
+    #[test]
+    fn gpu_nndescent_ann_index_not_implemented() {
+        use crate::config::NnDescentGpuParams;
+        let data = library();
+        let err = AnnIndex::build(
+            &data,
+            3,
+            2,
+            &KnnMethod::GpuNnDescent(NnDescentGpuParams::default()),
+            DistanceMetric::Euclidean,
+        )
+        .unwrap_err();
+        assert!(matches!(err, KnnError::MethodNotImplemented { .. }));
+        let msg = err.to_string();
+        assert!(
+            msg.contains("GpuNnDescent"),
+            "expected NnDescent-specific message, got {msg}"
+        );
+    }
+
+    #[cfg(feature = "gpu")]
+    #[test]
+    fn gpu_exact_index_query_not_in_database() {
+        if !crate::gpu_adapter_available() {
+            eprintln!("skip gpu_exact AnnIndex: no WGPU adapter");
+            return;
+        }
+        let data = library();
+        let index = AnnIndex::build(&data, 3, 2, &KnnMethod::GpuExact, DistanceMetric::Euclidean)
+            .expect("build GpuExact AnnIndex");
+        assert_eq!(index.provenance(), "GpuExact");
+        let nbrs = index.search(&[0.9, 0.1], 1).expect("search");
+        assert_eq!(nbrs.indices, vec![0]);
+        let queries = vec![0.9f32, 0.1, 0.1, 0.9];
+        let batch = index.search_batch(&queries, 2, 1).expect("batch");
+        assert_eq!(batch[0].indices, vec![0]);
+        assert_eq!(batch[1].indices, vec![1]);
+    }
+
+    #[cfg(feature = "gpu")]
+    #[test]
+    fn gpu_exact_manhattan_falls_back_to_cpu_exact() {
+        let data = library();
+        let index = AnnIndex::build(&data, 3, 2, &KnnMethod::GpuExact, DistanceMetric::Manhattan)
+            .expect("build");
+        assert_eq!(index.provenance(), "Exact");
+        let nbrs = index.search(&[0.9, 0.1], 1).expect("search");
+        assert_eq!(nbrs.indices, vec![0]);
+    }
+
+    #[cfg(feature = "gpu")]
+    #[test]
+    fn gpu_ivf_index_query_not_in_database() {
+        use crate::config::IvfGpuParams;
+        if !crate::gpu_adapter_available() {
+            eprintln!("skip gpu_ivf AnnIndex: no WGPU adapter");
+            return;
+        }
+        let data = library();
+        let params = IvfGpuParams {
+            n_list: Some(1),
+            n_probes: Some(1),
+        };
+        let index = AnnIndex::build(
+            &data,
+            3,
+            2,
+            &KnnMethod::GpuIvf(params),
+            DistanceMetric::Euclidean,
+        )
+        .expect("build GpuIvf AnnIndex");
+        assert_eq!(index.provenance(), "GpuIvf");
+        let nbrs = index.search(&[0.9, 0.1], 1).expect("search");
+        assert_eq!(nbrs.indices, vec![0]);
+    }
+
+    #[cfg(feature = "gpu")]
+    #[test]
+    fn gpu_ann_index_is_send_sync() {
+        fn assert_send_sync<T: Send + Sync>() {}
+        assert_send_sync::<AnnIndex>();
     }
 }

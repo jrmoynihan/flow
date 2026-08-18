@@ -39,7 +39,7 @@ Shipped cells cover **d ≤ 20**. Spectral AF library search often uses **d ∈ 
 cargo run -p flow-knn --release --example collect_matrix --features "hnsw,ann-search"
 ```
 
-`AnnIndex::search_batch` (query ≠ database) should be timed separately from self-query `compute_knn` when filling that matrix.
+`AnnIndex::search_batch` (query ≠ database) should be timed separately from self-query `compute_knn` when filling that matrix. GPU Exact and IVF now support that API (`--features gpu`); GPU NnDescent does not (`query_nndescent_index_gpu` needs `&mut` index).
 
 ## GPU vs CPU (Criterion `knn_cpu_vs_gpu`, 2026-07-24, k=60)
 
