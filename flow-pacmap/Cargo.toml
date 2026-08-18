@@ -26,7 +26,7 @@ faer = { workspace = true }
 rayon = { workspace = true }
 thiserror = { workspace = true }
 rand = { workspace = true }
-flow-knn = { path = "../flow-knn", default-features = false }
+flow-knn = { path = "../flow-knn", version = "0.1.1", default-features = false }
 flow-dimensional-reduction = { path = "../flow-dimensional-reduction", version = "0.1.0" }
 cubecl = { workspace = true, optional = true }
 burn = { workspace = true, optional = true }

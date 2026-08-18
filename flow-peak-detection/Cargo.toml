@@ -4,11 +4,19 @@ version = "0.1.0"
 edition.workspace = true
 authors.workspace = true
 license = "MIT"
+repository = "https://github.com/jrmoynihan/flow/flow-peak-detection"
 description = "KDE-based peak finding for flow cytometry histograms"
 readme = "README.md"
+keywords = ["flow-cytometry", "peak-detection", "kde", "bioinformatics"]
+categories = ["science", "algorithms"]
 
 [dependencies]
 anyhow = { workspace = true }
 
 [dev-dependencies]
 approx = { workspace = true }
+
+[package.metadata.scripts]
+dry-release = "cargo smart-release flow-peak-detection --update-crates-index"
+publish     = "cargo smart-release flow-peak-detection --update-crates-index --execute"
+changelog   = "cargo changelog flow-peak-detection --write"
