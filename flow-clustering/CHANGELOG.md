@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
    config surface (`ParcConfig`). Package version `0.1.2`.
  - `ParcConfig::parallel_prune` to toggle Rayon on local/Jaccard prune.
  - Criterion bench `parc_throughput` and example `parc_rss` (peak RSS).
+ - Batch SOM and FlowSOM (SOM codebook + k-means metaclusters) in `flow-clustering` 0.2.0.
 
 ### Documentation
 

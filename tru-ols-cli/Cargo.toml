@@ -42,7 +42,7 @@ flow-tru-ols={ path="../tru-ols", version="^0.2.0", features=[
 # Plotters backend until kuva stabilizes (omit default "raster" feature)
 flow-plots={ path="../plots", version="^0.3.3", default-features=false }
 flow-density={ path="../flow-density", version= "^0.1.2" }
-flow-clustering={ path="../flow-clustering", version= "^0.1.2" }
+flow-clustering={ path="../flow-clustering", version= "^0.2.0" }
 flow-gates={ path="../gates", version="^0.5.0" }
 peacoqc-rs={ path="../peacoqc-rs", version= "^0.3.3", features=[
     "flow-fcs",
