@@ -23,8 +23,10 @@ node_modules/
 
 # Agent scratch worktrees. `git worktree add` puts a real checkout here; it is
 # already a registered worktree of this repo, so committing it would nest a
-# second copy of the tree inside the first.
+# second copy of the tree inside the first. cargo-smart-release also refuses
+# to publish while these checkouts show up as untracked.
 .claude/worktrees/
+.worktrees/
 
 # Serena local project config (per-checkout IDE state)
 .serena/
