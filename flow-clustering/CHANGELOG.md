@@ -7,8 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Added
+
+ - Optional `parc` feature: PARC clustering (HNSW/Exact k-NN via `flow-knn`,
+   Rayon local + Jaccard prune, `leiden-rs` community detection, too-big
+   recursive split, small-population reassignment).
+ - `Parc::fit` / `Parc::fit_with_knn` with Python-aligned defaults and full
+   config surface (`ParcConfig`). Package version `0.1.2`.
+
 ### Documentation
 
+ - README: PARC usage, citation (Stassen et al. 2020), feature table.
  - <csr-id-92e31b03dc632230809d10422be0c1062e6e9e1b/> consumer-first README pass across crates, add peacoqc-py usage example, remove legacy utils crate
    Rewrites READMEs across the workspace (fcs, flow-clustering,
    flow-control-detection, flow-density, flow-fcs-compress, flow-knn,
