@@ -1,5 +1,12 @@
 # flow-crates Agent Guidelines
 
+## Canonical sources
+
+- **Truth:** this file and `.agents/` (project skills and rules only).
+- **Global skills/subagents:** `~/.agents/skills/` and `~/.agents/agents/` — do not copy into this repo.
+- **Client adapters:** `.cursor/skills`, `.cursor/rules`, `.codex/skills`, and `.claude/skills` symlink to `.agents/` — do not edit duplicate copies.
+- **Placement policy:** `.agents/rules/skills-placement.mdc`
+
 ## Release Workflow
 
 For pull requests, merge branches, and crate releases, use the **rust-release-workflow** skill. Key steps:
@@ -9,7 +16,7 @@ For pull requests, merge branches, and crate releases, use the **rust-release-wo
 3. **Update READMEs** with new versions
 4. **Execute** only after review: add `--execute` to the smart-release command
 
-Pre-1.0 version policy: minor for large features, patch for all other changes (no strict semver for breaking changes). See `.cursor/rules/release-versioning.mdc`.
+Pre-1.0 version policy: minor for large features, patch for all other changes (no strict semver for breaking changes). See `.agents/rules/release-versioning.mdc`.
 
 ---
 

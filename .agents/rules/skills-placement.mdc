@@ -1,0 +1,29 @@
+---
+description: Where to create new Cursor/agent skills and how to expose them
+alwaysApply: false
+---
+
+# Skills placement
+
+**Global skills and subagents** live in `~/.agents/skills/` and `~/.agents/agents/` (also mirrored under `~/.cursor/`). Do not copy them into this repository.
+
+**Project-specific skills** belong under `.agents/skills/<skill-name>/` (e.g. `.agents/skills/beads/SKILL.md`). Project rules live in `.agents/rules/`.
+
+**Client adapters** symlink to `.agents/` — no per-tool copies:
+
+```bash
+.cursor/skills  -> ../.agents/skills
+.cursor/rules   -> ../.agents/rules
+.codex/skills   -> ../.agents/skills
+.claude/skills  -> ../.agents/skills
+```
+
+Subagents are loaded from the global install only (`~/.agents/agents/`). This repo does not ship `.cursor/agents/` or `.codex/agents/`.
+
+Example for a new project skill `foo`:
+
+```bash
+mkdir -p .agents/skills/foo
+# create .agents/skills/foo/SKILL.md
+# client skill directories already point at .agents/skills
+```
