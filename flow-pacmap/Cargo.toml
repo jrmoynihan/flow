@@ -1,6 +1,6 @@
 [package]
 name = "flow-pacmap"
-version = "0.1.1"
+version = "0.1.2"
 edition.workspace = true
 authors.workspace = true
 license = "MIT"
@@ -26,8 +26,8 @@ faer = { workspace = true }
 rayon = { workspace = true }
 thiserror = { workspace = true }
 rand = { workspace = true }
-flow-knn = { path = "../flow-knn", version = "0.1.1", default-features = false }
-flow-dimensional-reduction = { path = "../flow-dimensional-reduction", version = "0.1.0" }
+flow-knn = { path = "../flow-knn", version = "^0.1.1", default-features = false }
+flow-dimensional-reduction = { path = "../flow-dimensional-reduction", version = "^0.1.0" }
 cubecl = { workspace = true, optional = true }
 burn = { workspace = true, optional = true }
 bytemuck = { workspace = true, optional = true }

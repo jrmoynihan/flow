@@ -1,6 +1,6 @@
 [package]
 name="flow-fcs"
-version= "0.5.1"
+version= "0.5.2"
 edition.workspace=true
 authors.workspace=true
 repository="https://github.com/jrmoynihan/flow/fcs"
@@ -43,8 +43,8 @@ ts-rs = { workspace = true, optional = true }
 specta = { workspace = true, optional = true }
 
 # Optional compression integration (Mode A `.fcz` reader/writer)
-flow-fcs-compress = { path = "../flow-fcs-compress", version = "^0.1.2", default-features = false, features = ["multithread"], optional = true }
-flow-linalg = { path = "../flow-linalg", version = "^0.1.1", optional = true, features = ["compensation"] }
+flow-fcs-compress = { path = "../flow-fcs-compress", version = "^0.1.4", default-features = false, features = ["multithread"], optional = true }
+flow-linalg = { path = "../flow-linalg", version = "^0.1.3", optional = true, features = ["compensation"] }
 
 # Parallelization
 rayon={ workspace=true }
