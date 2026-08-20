@@ -82,4 +82,4 @@ _Add a brief overview of your project architecture_
 
 ## Conventions & Patterns
 
-_Add your project-specific conventions here_
+Performance-guided development (napkin math, host snapshot, gap index, retry tactics): `docs/dev/PERF_PGD.md`, `docs/dev/PERF_LATENCIES.md`, `docs/dev/PERF_HOST.md`, `docs/dev/PERF_GAP.md`, `docs/dev/PERF_STRATEGIES.md`. Unpublished calibrator: `cargo run -p flow-perf-calibrate --release --example snapshot_host`. Large misses: Beads epic `flow-crates-0ap`.

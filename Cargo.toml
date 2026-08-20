@@ -19,6 +19,7 @@ members = [
     "flow-peak-detection",
     "flow-control-detection",
     "flow-autospectral",
+    "flow-perf-calibrate",
 
 ]
 resolver = "3"

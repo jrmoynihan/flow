@@ -3446,6 +3446,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "flow-perf-calibrate"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "criterion 0.8.2",
+ "rand 0.10.2",
+ "rayon",
+]
+
+[[package]]
 name = "flow-plots"
 version = "0.3.3"
 dependencies = [

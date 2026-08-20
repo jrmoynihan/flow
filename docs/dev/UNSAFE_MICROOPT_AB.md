@@ -3,6 +3,11 @@
 Criterion baseline → optimize → re-measure → keep or revert for small `unsafe`
 hot-path changes. Pattern matches [`tru-ols/docs/PROFILING.md`](../../tru-ols/docs/PROFILING.md).
 
+Before a 5% A/B, check whether the path is even on the hardware roofline:
+[`PERF_PGD.md`](PERF_PGD.md), [`PERF_LATENCIES.md`](PERF_LATENCIES.md),
+[`PERF_GAP.md`](PERF_GAP.md), [`PERF_STRATEGIES.md`](PERF_STRATEGIES.md).
+A ≥10× miss vs napkin math is a Beads issue, not an `unsafe` indexing campaign.
+
 ## Keep / revert rule
 
 **Keep** if median wall time improves by **≥5%** on the item’s primary size and
@@ -72,7 +77,7 @@ Same keep/revert rule (≥5% median wall on primary size). Baselines use
 | 1 Bulk `write_knn_graph` | `flow-knn` | `knn_graph_io` write group | 100k×k=60 | [PERF_MATRIX.md](../../flow-knn/docs/PERF_MATRIX.md) |
 | 2 KNN read typed buffers | `flow-knn` | `knn_graph_io` load group | 100k×k=60 | [PERF_MATRIX.md](../../flow-knn/docs/PERF_MATRIX.md) |
 | 3 PaCMAP grad buffer reuse | `flow-pacmap` | `gradient_micro` | 50k | [PERFORMANCE_NOTES.md](../../flow-pacmap/docs/PERFORMANCE_NOTES.md) |
-| 4 Compress chunk scratch | `flow-fcs-compress` | `chunk_encode_scratch` | 16×64k | [PERF_AB.md](../../flow-fcs-compress/docs/PERF_AB.md) |
+| 4 Compress: reuse encode payload Vec across chunks | `flow-fcs-compress` | `chunk_encode_scratch` | 16×64k | [PERF_AB.md](../../flow-fcs-compress/docs/PERF_AB.md) |
 | 5 peacoqc peaks bin slices | `peacoqc-rs` | `peaks_alloc_micro` | 100k events | [PERF_AB.md](../../peacoqc-rs/docs/PERF_AB.md) |
 
 ### Campaign 2 results (2026-08-02, arm64 Apple, rustc 59807616e)
@@ -82,5 +87,5 @@ Same keep/revert rule (≥5% median wall on primary size). Baselines use
 | 1 knn write bulk | **kept** | −99.9% @ 100k×60 (13.9s → 17.6ms) |
 | 2 knn read typed | **kept** | −6.7% @ 100k×60 (7.87ms → 7.18ms) |
 | 3 pacmap grad reuse | reverted | +12% @ 50k (fold reuse regressed) |
-| 4 compress scratch | reverted | +8% @ 16×64k (zstd-bound) |
+| 4 compress: reuse payload Vec | reverted | +8% @ 16×64k (zstd-bound) |
 | 5 peacoqc peaks | reverted | noise @ 100k (KDE-bound) |

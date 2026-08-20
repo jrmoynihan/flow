@@ -153,7 +153,7 @@ Growing dataset + selector live in **`flow-knn`**:
 - Collect: `cargo run -p flow-knn --release --example collect_matrix --features "hnsw,ann-search,gpu"`
 - Criterion: `cargo bench -p flow-knn --features "hnsw,ann-search,gpu" --bench knn_cpu_vs_gpu`
 
-At measured FCS cells on **CPU**, `hnsw_ann_search` wins; with **GPU**, prefer `exact_gpu` (≤50k) or `ivf_gpu` (≥100k). Selector returns Exact only for `n ≤ 5_000` unless `RecommendOpts::allow_gpu`.
+At measured FCS event counts on **CPU**, `hnsw_ann_search` wins; with **GPU**, prefer `exact_gpu` (≤50,000 events) or `ivf_gpu` (≥100,000 events). Selector returns Exact only for `n ≤ 5_000` unless `RecommendOpts::allow_gpu`.
 
 ---
 
@@ -194,15 +194,47 @@ FLOW_PACMAP_BENCH_MAX_N=100000 cargo bench -p flow-pacmap --features ann-search 
 Protocol: [`docs/dev/UNSAFE_MICROOPT_AB.md`](../../docs/dev/UNSAFE_MICROOPT_AB.md).
 Bench: `cargo bench -p flow-pacmap --bench gradient_micro`.
 
-| Item | Status | Pre median | Post median | Delta | Primary size | Machine | rustc | Date | Notes |
-|------|--------|------------|-------------|-------|--------------|---------|-------|------|-------|
-| gradient_micro | reverted | 1.3294 ms | 1.4080 ms | +5.9% (regressed) | 50k points | arm64 Apple | 59807616e | 2026-08-02 | unchecked embedding + raw ptr grad writes slower; safe indexing kept |
+**Problem.** The pair-gradient loop indexes the embedding many times; safe indexing theoretically pays a bounds check per access.
+
+**Solution tried.** `get_unchecked` on embedding loads and raw-pointer writes into the gradient buffer.
+
+**What changed in operation.**
+
+- Before: safe indexing.
+- After: unchecked loads and pointer stores.
+- Difference: 1.3294 ms → 1.4080 ms (**+5.9%**, regression) at 50,000 points. The extra `unsafe` path was slower than the safe one.
+
+**Decision:** reverted. Safe indexing remains.
+
+| What we changed | Status | Before | After | Delta | Size | Date |
+|-----------------|--------|--------|-------|-------|------|------|
+| Unchecked embedding loads + raw pointer gradient writes | reverted | 1.3294 ms | 1.4080 ms | +5.9% (regressed) | 50,000 points | 2026-08-02, arm64 Apple, rustc 59807616e |
 
 ## Alloc A/B: gradient buffer reuse
 
 Protocol: [`docs/dev/UNSAFE_MICROOPT_AB.md`](../../docs/dev/UNSAFE_MICROOPT_AB.md) Campaign 2.
 Bench: `cargo bench -p flow-pacmap --bench gradient_micro`.
 
-| Item | Status | Pre median | Post median | Delta | Primary size | Machine | rustc | Date | Notes |
-|------|--------|------------|-------------|-------|--------------|---------|-------|------|-------|
-| grad_fold_reuse | reverted | 1.1866 ms | 1.2976 ms | +12.3% (regressed) | 50k | arm64 Apple | 59807616e | 2026-08-02 | Rayon `fold` per-worker buffer; per-chunk `map` kept |
+**Problem.** Rayon `map` over chunks allocates a gradient contribution buffer per chunk.
+
+**Solution tried.** Rayon `fold` with one buffer per worker, reused across that worker’s chunks.
+
+**What changed in operation.**
+
+- Before: per-chunk `map` allocations.
+- After: per-worker reused buffer in `fold`.
+- Difference: 1.1866 ms → 1.2976 ms (**+12.3%**, regression) at 50,000 points. Fold overhead outweighed the avoided allocations.
+
+**Decision:** reverted. Per-chunk `map` remains.
+
+| What we changed | Status | Before | After | Delta | Size | Date |
+|-----------------|--------|--------|-------|-------|------|------|
+| Rayon `fold` per-worker gradient buffer | reverted | 1.1866 ms | 1.2976 ms | +12.3% (regressed) | 50,000 points | 2026-08-02, arm64 Apple, rustc 59807616e |
+
+## Cost model (napkin vs measured)
+
+Workspace protocol: [`docs/dev/PERF_PGD.md`](../../docs/dev/PERF_PGD.md). Index: [`docs/dev/PERF_GAP.md`](../../docs/dev/PERF_GAP.md).
+
+**Gradient micro** (50,000 points): **1.33 ms** (~27 ns/point). Pair-gradient arithmetic at k≈60 is tens of FLOPs per point; this is **1–3×** a fused inner loop. `get_unchecked` and scratch-`fold` both **regressed** (bound is not checks or alloc). Encoding: embedding is low-d `f32`.
+
+**CPU e2e** `fit_transform` 50,000 events × 10 dimensions, 450 iters: **6.92 s** (usearch). KNN is ~8–12% of that wall; Adam + pairs dominate. **GPU zero-copy optimize** 50k×10: **1.09 s vs 9.49 s CPU** (~9×) — `gpu-after-amortize` already kept for this stage. No ≥10× miss vs the Adam/pair napkin once GPU is on.

@@ -240,8 +240,26 @@ Record `rustc -Vv`, CPU/GPU, and dependency versions. Criterion stores history u
 Protocol: [`docs/dev/UNSAFE_MICROOPT_AB.md`](../../docs/dev/UNSAFE_MICROOPT_AB.md).
 Bench: `OMP_NUM_THREADS=1 cargo bench -p flow-tru-ols --no-default-features --bench unmixing_benchmark -- unmixing/`.
 
-| Item | Status | Pre median | Post median | Delta | Primary size | Machine | rustc | Date | Notes |
-|------|--------|------------|-------------|-------|--------------|---------|-------|------|-------|
-| unmixing SyncPtr scatter | reverted | 30.438 ms | 30.754 ms | +1.0% (noise) | 100k events | arm64 Apple | 59807616e | 2026-08-02 | Direct disjoint writes into faer `Mat`; solver dominates; gather path kept |
+**Problem.** After each event is unmixed on a Rayon worker, abundances are copied into a shared faer `Mat`. The gather path builds per-event rows and then writes them, which looks like extra traffic next to the solver.
 
-Secondary: 50k +3.2% (noise); 2k regressed (below parallel threshold / noise).
+**Solution tried.** `SyncPtr` (shared raw pointer) so each worker writes its disjoint output rows directly into the matrix.
+
+**What changed in operation.**
+
+- Before: gather, then store into `Mat`.
+- After: in-place stores through a shared pointer (workers do not overlap rows).
+- Difference: 30.438 ms → 30.754 ms (**+1.0%**, noise) at 100,000 events. Secondary: 50,000 events **+3.2%**; 2,000 events (below the parallel threshold) also noisier. The least-squares solve dominates; scatter traffic is not the limiter.
+
+**Decision:** reverted. The gather path remains.
+
+| What we changed | Status | Before | After | Delta | Size | Date |
+|-----------------|--------|--------|-------|-------|------|------|
+| Direct disjoint writes into faer `Mat` via SyncPtr | reverted | 30.438 ms | 30.754 ms | +1.0% (noise) | 100,000 events | 2026-08-02, arm64 Apple, rustc 59807616e |
+
+## Cost model (napkin vs measured)
+
+Workspace protocol: [`docs/dev/PERF_PGD.md`](../../docs/dev/PERF_PGD.md). Index: [`docs/dev/PERF_GAP.md`](../../docs/dev/PERF_GAP.md).
+
+**`TruOls::unmix`** (100,000 events, SyncPtr A/B host): **30.4 ms**. This is **not** one OLS: each event runs a variable truncation loop of shrinking least-squares solves. A single-factorization normal-equations floor at this size is **~7 ms** (`ols_vs_normal_equations`). Ratio unmix / NE ≈ **4×** — extra solves, not a missed memcpy. Strategy: `hoist-factor-once` **per active-set mask** (`unmix-cache`), `parallel-after-precomp`. Do not retry SyncPtr scatter (solver-bound). No ≥10× bead vs the right napkin.
+
+**CPU normal equations** (100,000 rows, 10×10): **~7 ms**. GEMM + 10×10 triangular solves are ~10⁷–10⁸ FLOP → ~1–4 ms on this host. Ratio **~2–7×** (**3–10×** occupancy). GPU RHS + CPU is slower here (`gpu-after-amortize`: skip as default on unified memory for this panel).
