@@ -179,6 +179,27 @@ keep optional). KNN `exact_gpu` wins through ~50k; `ivf_gpu` at 100k.
 **Apply:** Keep CPU as default under the measured crossover. Feature-gate GPU.
 Do not quote GPU as the headline when it loses the published sizes.
 
+## `type-width-f32`
+
+**Targets:** SIMD occupancy, DRAM traffic.
+
+**When to try:** A hot path is already on the right complexity (factor once, workspace
+reuse) and the remaining tax is IEEE width. `f64` uses half the NEON lanes of `f32`
+and twice the bytes. Primary sizes that leave L2 (or sit in DRAM either way) show
+this more than tiny occupancy-bound files.
+
+**When not to try:** The published comparison is `double` (R AutoSpectral, Julia).
+Small n where a full `f64→f32` cast of the event table dominates the kernel.
+Ill-conditioned panels until abundances and AF/variant indices match the `f64` path.
+
+**Evidence:** Joint unmix, Apple M5 Max, 2026-08-20, paired Criterion in one binary.
+200,000 events × 64 detectors: 295 ms `f64` → 241 ms `f32` (**−18%**). 10,000 events
+× 20 detectors: **+157%** (skip as default). [`flow-autospectral/docs/PERF_AB.md`](../../flow-autospectral/docs/PERF_AB.md)
+
+**Apply:** Keep `f64` as the default. Expose `f32` (or mixed factor-`f64` / apply-`f32`)
+behind config. Convert the panel once; do not change the public abundance type.
+Quality-check indices and relative abundances before any keep.
+
 ---
 
 ## Do not retry without new evidence

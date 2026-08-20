@@ -190,10 +190,137 @@ impl Default for OlsUnmixConfig {
     }
 }
 
+/// SOM + cosine QC for [`crate::discover_spectral_variants`].
+///
+/// Defaults match AutoSpectral `get.fluor.variants`: cap `n_cells = 10_000`,
+/// square SOM `10 × 10`, cosine ≥ `0.985`, scatter `k.neighbors = 3`.
+#[derive(Debug, Clone)]
+pub struct VariantDiscoverConfig {
+    /// Maximum positive events per fluorophore sent to the SOM.
+    pub n_cells: usize,
+    pub som_width: usize,
+    pub som_height: usize,
+    pub som_n_epochs: usize,
+    pub som_radius: Option<f64>,
+    /// Drop SOM nodes whose cosine to the master spectrum is below this.
+    pub sim_threshold: f64,
+    /// Scatter-space neighbours in the unstained pool for background subtraction.
+    pub k_neighbors: usize,
+    /// Quantile of unstained (raw peak detector and unmixed channel) for positivity.
+    pub positivity_quantile: f64,
+    /// Blend off-peak channels toward the master (`0.5` in AutoSpectral). `None` skips.
+    pub off_peak_blend: Option<f64>,
+    /// Master-spectrum entries above this are treated as on-peak for the blend.
+    pub off_peak_master_min: f64,
+    pub seed: Option<u64>,
+    pub knn_method: KnnMethod,
+    pub metric: DistanceMetric,
+}
+
+impl Default for VariantDiscoverConfig {
+    fn default() -> Self {
+        Self {
+            n_cells: 10_000,
+            som_width: 10,
+            som_height: 10,
+            som_n_epochs: 10,
+            som_radius: None,
+            sim_threshold: 0.985,
+            k_neighbors: 3,
+            positivity_quantile: 0.995,
+            off_peak_blend: Some(0.5),
+            off_peak_master_min: 0.05,
+            seed: Some(42),
+            knn_method: KnnMethod::default(),
+            metric: DistanceMetric::Euclidean,
+        }
+    }
+}
+
+/// Numeric width for the joint-unmix GEMV / Cholesky path.
+///
+/// Default [`Self::F64`] matches R AutoSpectral / AutoSpectralRcpp (`double`).
+/// [`Self::F32`] runs the same algorithm in `faer::Mat<f32>` (inputs still `&[f64]`;
+/// abundances are promoted back to `f64`). Quality versus the `f64` path must be
+/// checked before treating `F32` as a keep (`flow-crates-0ap.1`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum JointUnmixPrecision {
+    /// IEEE-754 binary64 throughout precompute and the per-event loop.
+    #[default]
+    F64,
+    /// Cast panel + events to binary32 for arithmetic; return `f64` abundances.
+    F32,
+}
+
+/// Joint per-cell AF + fluorophore-variant unmix (AutoSpectral v1.6 `pipeline = "joint"`).
+///
+/// Defaults follow R `unmix.fcs` (`n_passes = 1`), not the C++ signature default of 2.
+#[derive(Debug, Clone)]
+pub struct JointUnmixConfig {
+    /// Coordinate-descent passes over fluorophore variants.
+    pub n_passes: usize,
+    /// AF matching-pursuit passes (first pass always runs; extras refine high-AF cells).
+    pub n_af_passes: usize,
+    /// Fraction of high-AF cells revisited when `n_af_passes > 1` (Hyndman–Fan type 7).
+    pub refine_af_quantile: f64,
+    /// Per-detector weights `1 / max(mean, noise_floor)` (and per-cell `y_hat` weights).
+    pub cell_weight: bool,
+    /// Scalar dark-channel floor when [`Self::noise_floor_per_detector`] is `None`.
+    pub noise_floor: f64,
+    /// Optional length-`D` floor; a one-element vector is treated as a scalar.
+    pub noise_floor_per_detector: Option<Vec<f64>>,
+    /// Score = `resid_ratio^α × leakage_ratio^(1−α)`.
+    pub alpha: f64,
+    /// Cosine of unmixing rows `P_i`, `P_j` above which a pair is collinear.
+    pub collinear_threshold: f64,
+    /// Combinatorial retry for collinear pairs after the partner commits.
+    pub joint_pair_resolution: bool,
+    /// Parallel event loop above this count (unless [`force_sequential`]).
+    pub parallel_event_threshold: usize,
+    /// `f64` (default, vs-R) or internal `f32` faer (`flow-crates-0ap.1`).
+    pub precision: JointUnmixPrecision,
+}
+
+impl Default for JointUnmixConfig {
+    fn default() -> Self {
+        Self {
+            n_passes: 1,
+            n_af_passes: 1,
+            refine_af_quantile: 0.5,
+            cell_weight: false,
+            noise_floor: 125.0,
+            noise_floor_per_detector: None,
+            alpha: 0.5,
+            collinear_threshold: 0.5,
+            joint_pair_resolution: true,
+            parallel_event_threshold: 256,
+            precision: JointUnmixPrecision::F64,
+        }
+    }
+}
+
 /// Returns true when `FLOW_AUTOSPECTRAL_FORCE_SEQUENTIAL` disables Rayon.
 pub fn force_sequential() -> bool {
     match std::env::var("FLOW_AUTOSPECTRAL_FORCE_SEQUENTIAL") {
         Ok(v) => matches!(v.as_str(), "1" | "true" | "TRUE" | "yes" | "YES"),
         Err(_) => false,
     }
+}
+
+/// Hyndman–Fan type-7 quantile (R `quantile(..., type = 7)` / AutoSpectral C++).
+pub(crate) fn quantile_type7(values: &[f64], p: f64) -> f64 {
+    let n = values.len();
+    if n == 0 {
+        return 0.0;
+    }
+    if n == 1 {
+        return values[0];
+    }
+    let p = p.clamp(0.0, 1.0);
+    let mut x = values.to_vec();
+    x.sort_by(|a, b| a.total_cmp(b));
+    let h = (n - 1) as f64 * p;
+    let lo = h.floor() as usize;
+    let hi = (lo + 1).min(n - 1);
+    x[lo] + (h - lo as f64) * (x[hi] - x[lo])
 }

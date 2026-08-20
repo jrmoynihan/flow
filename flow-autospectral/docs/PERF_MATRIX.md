@@ -19,8 +19,8 @@ rows.
 | `discover_and_match` | `match_events_nn` | Untouched NN control (narrow n sweep, d=8) |
 | `scatter_clean` | `scatter_clean_cpu` | `KnnMethod::Exact`, d_scatter=2 |
 | `scatter_clean` | `scatter_clean_gpu` | `KnnMethod::GpuExact`; skipped if AnnIndex GPU missing / no adapter |
-| `joint_unmix` | `joint_unmix` | QC-core joint pipeline; IDs `n{n}_d{d}_F{F}_K{K}` |
-| `joint_unmix` | `joint_af_only` | Empty variants (AF matching-pursuit only) — control vs full joint |
+| `joint_unmix` | `joint_unmix` | QC-core joint pipeline; IDs `n{n}_d{d}_F{F}_K{K}` (`f64`) and `…_f32` |
+| `joint_unmix` | `joint_af_only` | Empty variants (AF matching-pursuit only) — `f64` control vs full joint |
 
 ## Env
 
@@ -110,6 +110,7 @@ NN rebuilds `AnnIndex` on every `match_events` call, so it is slower than factor
 | GPU scatter-clean at 10,000 events, 2 scatter detectors | **skip as default** | +1.7% median, overlapping ranges |
 | GPU scatter-clean at 50,000 events, 2 scatter detectors | **keep optional** | 3.1× vs CPU Exact; use `--features gpu` |
 | Reuse `EventScratch` arrays, copy mixing matrices only when a variant is accepted, write into pre-sized tables, column-wise `gemv` | **keep** | −56% median at 10,000 events, 20 detectors, 8 fluorophores, 8 AF spectra (`joint-alloc-pre` → HEAD); AF-only control −49%. Prose: [`PERF_AB.md`](PERF_AB.md). |
+| Internal `f32` faer (`JointUnmixPrecision::F32`) | **keep optional** | −18% vs `f64` at 200,000 events × 64 detectors (bead primary). **Skip as default**: +157% at 10,000 events × 20 detectors; vs-R is double. Prose: [`PERF_AB.md`](PERF_AB.md). |
 
 Still unmeasured: d=20/40, n=50k–250k match residual, K=64, IVF scatter, ANN shortlist vs exhaustive at K>32.
 
@@ -145,7 +146,7 @@ This Criterion grid is Rayon occupancy (default thread pool), so 10k×20 at 6.03
 
 Workspace protocol: [`docs/dev/PERF_PGD.md`](../../docs/dev/PERF_PGD.md). Index: [`docs/dev/PERF_GAP.md`](../../docs/dev/PERF_GAP.md).
 
-**Joint unmix** (Criterion `joint_unmix`, 10,000 events × 20 detectors × 8 fluorophores × 8 AF). Encoding: `faer::Mat<f64>` throughout [`joint.rs`](../src/joint.rs). Bytes in: 10,000 × 20 × 8 B = 1.6 MiB (L2). Arithmetic floor for a few thousand `f64` FLOPs/event on one P-core is ~1 ms; with Rayon, less. Measured keep: **2.096 ms** (MATRIX snapshot 1.658 ms) → ratio **~2×** vs the `f64` FMA floor (**1–3×**, on the roofline for occupancy). Pre-scratch 4.464 ms was alloc-bound (`workspace-per-worker`, `copy-on-commit`, `match-layout-gemv`, `hoist-factor-once` already applied). Remaining lever: **`f64` vs `f32` halves NEON occupancy** on every GEMV — bead `flow-crates-0ap.1`.
+**Joint unmix** (Criterion `joint_unmix`, 10,000 events × 20 detectors × 8 fluorophores × 8 AF). Encoding: default `faer::Mat<f64>` in [`joint_inner.rs`](../src/joint_inner.rs) (`JointUnmixPrecision::F64`). Bytes in: 10,000 × 20 × 8 B = 1.6 MiB (L2). Arithmetic floor for a few thousand `f64` FLOPs/event on one P-core is ~1 ms; with Rayon, less. Measured keep: **2.096 ms** (MATRIX snapshot 1.658 ms) → ratio **~2×** vs the `f64` FMA floor (**1–3×**, on the roofline for occupancy). Pre-scratch 4.464 ms was alloc-bound (`workspace-per-worker`, `copy-on-commit`, `match-layout-gemv`, `hoist-factor-once` already applied). Width experiment (`flow-crates-0ap.1`): `F32` is **optional** at 200,000 events × 64 detectors (−18% vs paired `f64`); it lost at 10,000 events × 20 detectors. Default stays `f64` (vs-R double).
 
 **Residual match, factor-once** (`match_residual_factored`, 10,000 events × 8 detectors × 32 AF): 6.17 ms. 32 applies × 10,000 events of a tiny `d=8` factor is tens of ns each; ratio **~2–4×** vs FMA (`hoist-factor-once`, `parallel-after-precomp`). Naive QR-per-pair was **~4×** this (complexity, already kept).
 

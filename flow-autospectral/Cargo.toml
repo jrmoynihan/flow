@@ -31,8 +31,12 @@ flow-fcs = { path = "../fcs", version = "^0.5.2", optional = true }
 
 [dev-dependencies]
 approx = { workspace = true }
+anyhow = { workspace = true }
 criterion = { workspace = true }
+polars = { workspace = true }
 rand = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
 tempfile = { workspace = true }
 flow-fcs = { path = "../fcs", features = ["synthetic"] }
 
@@ -48,6 +52,10 @@ harness = false
 name = "scatter_clean"
 harness = false
 
+[[bench]]
+name = "joint_unmix"
+harness = false
+
 [[example]]
 name = "af_match_tru_ols"
 required-features = ["tru-ols", "fcs"]
@@ -55,6 +63,10 @@ required-features = ["tru-ols", "fcs"]
 [[example]]
 name = "method_comparison"
 required-features = ["tru-ols"]
+
+[[example]]
+name = "compare_with_r"
+required-features = ["fcs"]
 
 [package.metadata.scripts]
 dry-release = "cargo smart-release flow-autospectral --update-crates-index"
