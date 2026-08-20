@@ -1,6 +1,6 @@
 //! Clustering algorithms module
 //!
-//! Provides K-means, DBSCAN, Gaussian Mixture Model clustering, silhouette scoring,
+//! Provides K-means, DBSCAN, GMM, SOM / FlowSOM, silhouette scoring,
 //! and optional PARC (feature `parc`).
 
 mod dbscan;
@@ -9,6 +9,7 @@ mod kmeans;
 #[cfg(feature = "parc")]
 pub mod parc;
 pub mod silhouette;
+mod som;
 
 pub use dbscan::{Dbscan, DbscanConfig, DbscanResult};
 pub use gmm::{Gmm, GmmConfig, GmmResult};
@@ -18,6 +19,7 @@ pub use parc::{
     JacStdGlobal, KeepLocalDist, Parc, ParcConfig, ParcDistance, ParcPartition, ParcResult,
 };
 pub use silhouette::{SilhouetteResult, silhouette_scores, silhouette_scores_sampled};
+pub use som::{FlowSom, FlowSomConfig, FlowSomResult, Som, SomConfig, SomResult};
 
 use thiserror::Error;
 

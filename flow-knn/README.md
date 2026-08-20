@@ -8,7 +8,9 @@ Algorithm-agnostic k-nearest-neighbour graphs for large-n flow cytometry (and ot
 
 ## Overview
 
-**Build a `KnnGraph` once** (`compute_knn`) and reuse it across various algorithms (PaCMAP, UMAP, or other embedders) — or persist it with `write_knn_graph` / `read_knn_graph`.
+**Build a `KnnGraph` once** (`compute_knn`) and reuse it across embedders — or persist it with `write_knn_graph` / `read_knn_graph`.
+
+For **query ≠ database** search (e.g. stained events vs an AF spectral library), build a reusable `AnnIndex` with `AnnIndex::build` / `search` / `search_batch` (Exact, usearch HNSW, ann-search-rs, or GPU Exact/IVF behind `gpu`; GPU NnDescent is self-query only).
 
 ## How it Works
 

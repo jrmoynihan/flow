@@ -78,6 +78,8 @@ fn example(x_data: &[f64], y_data: &[f64]) -> KdeResult<()> {
 
 FFT KDE targets 10K–10M events where naive O(n²) KDE is impractical.
 
+Cost model (workspace [`docs/dev/PERF_PGD.md`](../docs/dev/PERF_PGD.md)): a 1D FFT on a 512-point grid is microseconds of arithmetic; streaming 1,000,000 `f64` samples is 8 MiB (P-core L2 is 16 MiB on the M5 Max host). Naive O(n²) KDE at that n would be ~10¹² kernel evals — **>100×** vs FFT, which is why the FFT path exists. API is `&[f64]`; switching the **grid** to `f32` would not change cache level. GPU KDE (`--features gpu`) is experimental; PeacoQC e2e often still prefers Rayon CPU (`gpu-after-amortize`).
+
 ## Testing
 
 ```bash

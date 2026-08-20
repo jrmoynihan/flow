@@ -1,0 +1,23 @@
+[package]
+name = "flow-perf-calibrate"
+version = "0.1.0"
+edition.workspace = true
+authors.workspace = true
+license = "MIT"
+publish = false
+description = "Host primitive-cost snapshot for docs/dev/PERF_HOST.md (unpublished)."
+
+[dependencies]
+anyhow = { workspace = true }
+rayon = { workspace = true }
+rand = { workspace = true }
+
+[dev-dependencies]
+criterion = { workspace = true }
+
+[[bench]]
+name = "latencies"
+harness = false
+
+[[example]]
+name = "snapshot_host"

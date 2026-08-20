@@ -1,20 +1,21 @@
 [package]
 name = "flow-clustering"
-version = "0.1.2"
+version = "0.2.0"
 edition.workspace = true
 authors.workspace = true
 license = "MIT"
 repository = "https://github.com/jrmoynihan/flow/flow-clustering"
 readme = "README.md"
-description = "Clustering algorithms for flow cytometry: K-means, DBSCAN, GMM, and optional PARC"
-keywords = ["flow-cytometry", "clustering", "kmeans", "parc", "leiden"]
+description = "Clustering algorithms for flow cytometry: K-means, DBSCAN, GMM, SOM / FlowSOM, and optional PARC"
+keywords = ["flow-cytometry", "clustering", "kmeans", "parc", "flowsom"]
 categories = ["science", "algorithms"]
 
 [features]
-default = ["kmeans", "dbscan", "gmm"]
+default = ["kmeans", "dbscan", "gmm", "som"]
 kmeans  = []
 dbscan  = []
 gmm     = []
+som     = []
 # PARC: HNSW k-NN (flow-knn) + prune + Leiden community detection
 parc = ["dep:flow-knn", "dep:leiden-rs"]
 

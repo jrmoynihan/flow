@@ -1,6 +1,6 @@
 # flow-clustering
 
-Clustering for flow cytometry: K-means, DBSCAN, GMM, and optional PARC (graph community detection).
+Clustering for flow cytometry: K-means, DBSCAN, GMM, SOM / FlowSOM, and optional PARC (graph community detection).
 
 [![crates.io](https://img.shields.io/crates/v/flow-clustering.svg)](https://crates.io/crates/flow-clustering)
 [![docs.rs](https://docs.rs/flow-clustering/badge.svg)](https://docs.rs/flow-clustering)
@@ -9,6 +9,7 @@ Clustering for flow cytometry: K-means, DBSCAN, GMM, and optional PARC (graph co
 ## Highlights
 
 - **K-means / GMM / DBSCAN** — thin [`linfa`](https://crates.io/crates/linfa) wrappers with shared error types
+- **SOM / FlowSOM** *(feature `som`, default)* — batch SOM codebook, then k-means metaclusters
 - **PARC** *(feature `parc`)* — HNSW k-NN → local + Jaccard prune → Leiden, for large phenotypic datasets
 - **Silhouette** — full and sampled cluster validation
 - **Shared k-NN** — PARC accepts a prebuilt [`flow-knn`](../flow-knn/) `KnnGraph` (same pattern as PaCMAP)
@@ -23,7 +24,7 @@ cargo add flow-clustering --features parc
 
 ```toml
 [dependencies]
-flow-clustering = { version = "0.1.2", features = ["parc"] }
+flow-clustering = { version = "0.2.0", features = ["parc"] }
 ```
 
 | Feature | Description |
@@ -31,6 +32,7 @@ flow-clustering = { version = "0.1.2", features = ["parc"] }
 | `kmeans` *(default)* | K-means clustering |
 | `dbscan` *(default)* | Density-based spatial clustering (DBSCAN) |
 | `gmm` *(default)* | Gaussian Mixture Model fitting |
+| `som` *(default)* | Batch SOM and FlowSOM metaclustering |
 | `parc` | PARC: k-NN graph prune + Leiden community detection |
 
 ## Usage
@@ -88,6 +90,33 @@ fn example(data: &Array2<f64>) -> ClusteringResult<()> {
     };
     let result: GmmResult = Gmm::fit(data, &config)?;
     let _ = (&result.assignments, &result.means, result.log_likelihood);
+    Ok(())
+}
+```
+
+### FlowSOM
+
+Batch self-organizing map, then k-means on the codebook (metaclusters). Event labels come from each event's best-matching unit.
+
+```rust
+use flow_clustering::{ClusteringResult, FlowSom, FlowSomConfig, SomConfig};
+use ndarray::Array2;
+
+fn example(data: &Array2<f64>) -> ClusteringResult<()> {
+    let config = FlowSomConfig {
+        som: SomConfig {
+            width: 10,
+            height: 10,
+            n_epochs: 10,
+            ..SomConfig::default()
+        },
+        n_metaclusters: 8,
+        ..FlowSomConfig::default()
+    };
+    let result = FlowSom::fit(data, &config)?;
+    let labels: &Vec<usize> = &result.event_metaclusters;
+    let centroids: &Array2<f64> = &result.metacluster_centroids;
+    let _ = (labels, centroids);
     Ok(())
 }
 ```
@@ -151,15 +180,19 @@ cargo run -p flow-clustering --release --example parc_rss --features parc
 ## Tests
 
 ```bash
-cargo nextest run -p flow-clustering
-cargo nextest run -p flow-clustering --features parc
+cargo nextest run -p flow-clustering --lib
+cargo nextest run -p flow-clustering --features parc --lib
 ```
+
+Unit tests cover silhouette scores plus SOM / FlowSOM recovery of two well-separated blobs.
 
 ## Acknowledgments
 
 PARC algorithm: Stassen et al., *Bioinformatics* 36(9):2778–2786 (2020),
 doi:[10.1093/bioinformatics/btaa042](https://doi.org/10.1093/bioinformatics/btaa042).
 Reference implementation: [ShobiStassen/PARC](https://github.com/ShobiStassen/PARC) (MIT).
+
+Van Gassen S *et al.* (2015). FlowSOM. *Cytometry Part A*, 87(7), 636–645.
 
 ## License
 
@@ -172,3 +205,4 @@ MIT
 - **k-NN graphs** → [`flow-knn`](../flow-knn/)
 - **Dimensionality Reduction** → [`flow-pacmap`](../flow-pacmap/)
 - [`flow-fcs`](../fcs/) — FCS I/O
+- [`flow-autospectral`](../flow-autospectral/) — uses GMM / k-means / FlowSOM for AF libraries
