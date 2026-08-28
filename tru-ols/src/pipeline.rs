@@ -66,7 +66,7 @@ pub fn unmixed_output_path(src: &Path, out_dir: &Path) -> PathBuf {
 pub use fcs_export::{
     PathBExportRequest, UnmixExportRequest, UnmixExportResult, FitMetricsSummary,
     RAW_DATASOURCE_GUID_KEYWORD, export_unmixed_fcs, export_unmixed_fcs_path_b,
-    set_raw_datasource_guid,
+    path_b_tru_with_protected_af, set_raw_datasource_guid,
 };
 
 #[cfg(feature = "flow-fcs")]
@@ -618,7 +618,10 @@ mod fcs_export {
     /// `[fluors | a_k]` and `autofluorescence_idx = n_fluor`. Observations are the
     /// original stained detectors (TruOls subtracts nonspecific itself); exported AF
     /// abundance stays the matcher `k*` and is not taken from these solves.
-    fn path_b_tru_with_protected_af(
+    ///
+    /// Public for Preview IPC (`af_corrected_tru_ols`) so the app reuses the same
+    /// grouped solve as [`export_unmixed_fcs_path_b`] without duplicating the algorithm.
+    pub fn path_b_tru_with_protected_af(
         fluor_matrix: MatRef<'_, f64>,
         stained_data: MatRef<'_, f64>,
         unstained_data: MatRef<'_, f64>,

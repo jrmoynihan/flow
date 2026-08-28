@@ -144,7 +144,8 @@ pub use fcs_integration::{
 #[cfg(feature = "flow-fcs")]
 pub use pipeline::{
     FitMetricsSummary, PathBExportRequest, UnmixExportRequest, UnmixExportResult,
-    export_unmixed_fcs, export_unmixed_fcs_path_b, set_raw_datasource_guid,
+    export_unmixed_fcs, export_unmixed_fcs_path_b, path_b_tru_with_protected_af,
+    set_raw_datasource_guid,
 };
 
 #[cfg(all(feature = "flow-fcs", feature = "plotting"))]
