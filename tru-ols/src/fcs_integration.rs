@@ -27,12 +27,14 @@ pub const UNMIXED_METHOD_TRU_OLS: &str = "TRU-OLS";
 /// Reserved for plain OLS export.
 #[cfg(feature = "flow-fcs")]
 pub const UNMIXED_METHOD_OLS: &str = "OLS";
-/// Path B: truncated fluorophore-only unmixing on an AF-matched residual.
+/// Path B TRU: TRU-OLS on original observations with the event's argmax catalog
+/// signature as a truncation-protected AF column (`autofluorescence_idx = n_fluor`).
 ///
-/// The `MULTI_AF` suffix is the load-bearing part: it tells a reader that the
-/// `Autofluorescence` channel came from per-event catalog matching
-/// ([`crate::af_match`]) and not from an AF column of the recorded mixing matrix, so the
-/// matrix in `$TRUOLS_MIXMAT` is fluorophore-only by design rather than by omission.
+/// Exported `Autofluorescence` is the matcher abundance \(k^*\) (one `$PnN`), not a
+/// TRU-solved AF column. The recorded mixing matrix stays fluorophore-only — there is
+/// no single AF spectrum to stamp — while provenance may record that a protected
+/// catalog column sat at `n_fluor` during the solve. The `MULTI_AF` suffix marks
+/// that distinction for readers of `$UNMIXED` / `$TRUOLS_MIXMAT`.
 #[cfg(feature = "flow-fcs")]
 pub const UNMIXED_METHOD_TRU_OLS_MULTI_AF: &str = "TRU-OLS+MULTI_AF";
 /// Path B without truncation: plain OLS on the AF-matched residual.

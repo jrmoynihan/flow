@@ -95,6 +95,34 @@ mod fcs_export {
     use std::path::{Path, PathBuf};
     use std::sync::Arc;
 
+    /// Test-only observation of Path B TRU solvers (not provenance stamps).
+    ///
+    /// Cleared at the start of each [`path_b_tru_with_protected_af`] call and filled
+    /// with the AF index each constructed solver actually carries, plus whether that
+    /// AF column stayed in the active set for each unmixed event.
+    #[cfg(test)]
+    #[derive(Debug, Clone, Default, PartialEq, Eq)]
+    pub(crate) struct PathBTruSolverProbe {
+        /// `TruOls::autofluorescence_index()` for each catalog-group solver built.
+        pub(crate) solver_af_indices: Vec<Option<usize>>,
+        /// Per stained event that was unmixed: AF endmember remained in `relevant_indices`.
+        pub(crate) af_stayed_active: Vec<bool>,
+    }
+
+    #[cfg(test)]
+    thread_local! {
+        static PATH_B_TRU_SOLVER_PROBE: std::cell::RefCell<PathBTruSolverProbe> =
+            std::cell::RefCell::new(PathBTruSolverProbe {
+                solver_af_indices: Vec::new(),
+                af_stayed_active: Vec::new(),
+            });
+    }
+
+    #[cfg(test)]
+    pub(crate) fn take_path_b_tru_solver_probe() -> PathBTruSolverProbe {
+        PATH_B_TRU_SOLVER_PROBE.with(|cell| std::mem::take(&mut *cell.borrow_mut()))
+    }
+
     /// Provenance keyword written onto exported unmixed FCS files.
     ///
     /// Re-exported from [`crate::provenance`], which owns the full keyword set.
@@ -620,6 +648,11 @@ mod fcs_export {
             ));
         }
 
+        #[cfg(test)]
+        PATH_B_TRU_SOLVER_PROBE.with(|cell| {
+            *cell.borrow_mut() = PathBTruSolverProbe::default();
+        });
+
         let mut fluor_abundances = Mat::<f64>::zeros(n_events, n_fluor);
         let n_groups = prepared.len();
 
@@ -650,11 +683,31 @@ mod fcs_export {
             )?;
             tru.set_strategy(strategy);
 
+            #[cfg(test)]
+            PATH_B_TRU_SOLVER_PROBE.with(|cell| {
+                cell.borrow_mut()
+                    .solver_af_indices
+                    .push(tru.autofluorescence_index());
+            });
+
             let event_indices: Vec<usize> = (0..n_events)
                 .filter(|&ev| (assignment_1based[ev] as usize).saturating_sub(1) == k)
                 .collect();
             if event_indices.is_empty() {
                 continue;
+            }
+
+            #[cfg(test)]
+            {
+                for &ev in &event_indices {
+                    let observation =
+                        faer::Col::from_fn(n_det, |d| stained_data[(ev, d)]);
+                    let (_, relevant_indices, _) = tru.unmix_event(observation.as_ref())?;
+                    let af_active = relevant_indices.contains(&n_fluor);
+                    PATH_B_TRU_SOLVER_PROBE.with(|cell| {
+                        cell.borrow_mut().af_stayed_active.push(af_active);
+                    });
+                }
             }
 
             let group_obs = Mat::from_fn(event_indices.len(), n_det, |i, d| {
@@ -799,6 +852,7 @@ mod tests {
 
 #[cfg(all(test, feature = "flow-fcs"))]
 mod path_b_tests {
+    use super::fcs_export::take_path_b_tru_solver_probe;
     use super::{PathBExportRequest, export_unmixed_fcs_path_b};
     use crate::af_match::{AfCatalogEntry, AfMatchLibrary, AfMatchOptions};
     use crate::error::TruOlsError;
@@ -1219,6 +1273,9 @@ mod path_b_tests {
     /// Truncation may drop a weak fluorophore, but the AF endmember stays protected and
     /// the exported Autofluorescence channel remains the matcher \(k^*\) (not a
     /// truncated-to-zero / UCM-mapped TRU AF abundance).
+    ///
+    /// Protection is proven by the **solvers** Path B TRU constructs (`autofluorescence_index`
+    /// and active-set membership), not by the independently stamped provenance field.
     #[test]
     fn tru_path_b_never_drops_the_af_endmember() {
         // Three fluors on the first three detectors; AF lives in detector 4 so it is
@@ -1231,6 +1288,7 @@ mod path_b_tests {
             0.00, 0.00, 0.00,
         ];
         const AF_SIG: [f64; 4] = [0.05, 0.05, 0.05, 1.00];
+        const N_FLUOR: usize = 3;
 
         let dir = scratch_dir("protect-af");
         // Unstained: fluor 0 ~ 50 → cutoff for endmember 0 is high.
@@ -1279,17 +1337,31 @@ mod path_b_tests {
         };
         req.strategy = UnmixingStrategy::Zero;
 
+        let _ = take_path_b_tru_solver_probe(); // clear any prior probe state
         let result = export_unmixed_fcs_path_b(req).expect("protected-AF Path B TRU export");
+        let probe = take_path_b_tru_solver_probe();
+
+        assert!(
+            !probe.solver_af_indices.is_empty(),
+            "Path B TRU must construct at least one solver the test can observe"
+        );
+        assert!(
+            probe
+                .solver_af_indices
+                .iter()
+                .all(|idx| *idx == Some(N_FLUOR)),
+            "every Path B TRU solver must protect AF at n_fluor={N_FLUOR}; got {:?}",
+            probe.solver_af_indices
+        );
+        assert!(
+            !probe.af_stayed_active.is_empty() && probe.af_stayed_active.iter().all(|&ok| ok),
+            "AF column must remain in the active set for the weak-fluor event; got {:?}",
+            probe.af_stayed_active
+        );
+
         let reopened = Fcs::open(result.output_path.to_str().expect("utf-8 path"))
             .expect("reopen export");
 
-        let provenance = crate::provenance::UnmixProvenance::read_from(&reopened)
-            .expect("provenance recovered");
-        assert_eq!(
-            provenance.af_endmember_index,
-            Some(3),
-            "autofluorescence_idx must be Some(n_fluor); fluor-only TRU leaves it None"
-        );
         assert_eq!(
             reopened
                 .get_keyword_string_value(UNMIXED_KEYWORD)
