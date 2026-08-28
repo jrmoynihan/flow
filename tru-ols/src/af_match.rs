@@ -1018,6 +1018,48 @@ mod tests {
     }
 
     #[test]
+    fn tiny_beta_follows_the_morphological_prior() {
+        // β = 1e-6: spectral likelihood is nearly flat, so a 50/50 spectral tie
+        // must be broken by FSC/SSC.
+        let library = prepared(1e-6);
+        let blended: Vec<f64> = (0..4)
+            .map(|i| 0.5 * (library.entries[0].values[i] + library.entries[1].values[i]))
+            .collect();
+        let event = synthesize([50.0, 50.0], &blended, 40.0);
+        let observations = Mat::from_fn(2, 4, |_, det| event[det]);
+        let scatter = mat![[200.0, 150.0], [800.0, 700.0]];
+
+        let result =
+            match_and_subtract(observations.as_ref(), scatter.as_ref(), None, &library)
+                .expect("match succeeds");
+        assert_eq!(
+            result.assignment_1based,
+            vec![1, 2],
+            "tiny β must let scatter decide a spectral tie"
+        );
+    }
+
+    #[test]
+    fn huge_beta_is_spectral_argmax() {
+        // β = 1e6: spectral evidence dominates. Pure `af_small` spectrum sitting on
+        // the large-cell scatter cluster must still assign small, not flip to large.
+        let library = prepared(1e6);
+        let small = library.entries[0].values.clone();
+        let event = synthesize([50.0, 50.0], &small, 40.0);
+        let observations = Mat::from_fn(1, 4, |_, det| event[det]);
+        let scatter = mat![[800.0, 700.0]];
+
+        let result =
+            match_and_subtract(observations.as_ref(), scatter.as_ref(), None, &library)
+                .expect("match succeeds");
+        assert_eq!(
+            result.assignment_1based,
+            vec![1],
+            "huge β must keep spectral argmax despite conflicting scatter"
+        );
+    }
+
+    #[test]
     fn a_morphological_outlier_falls_back_to_spectral_evidence() {
         // `af_small` carries the larger mixing proportion, so a morphology-driven
         // assignment would prefer it. This event is spectrally pure `af_large` but its
