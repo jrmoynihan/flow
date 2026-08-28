@@ -27,12 +27,48 @@ pub const UNMIXED_METHOD_TRU_OLS: &str = "TRU-OLS";
 /// Reserved for plain OLS export.
 #[cfg(feature = "flow-fcs")]
 pub const UNMIXED_METHOD_OLS: &str = "OLS";
+/// Path B: truncated fluorophore-only unmixing on an AF-matched residual.
+///
+/// The `MULTI_AF` suffix is the load-bearing part: it tells a reader that the
+/// `Autofluorescence` channel came from per-event catalog matching
+/// ([`crate::af_match`]) and not from an AF column of the recorded mixing matrix, so the
+/// matrix in `$TRUOLS_MIXMAT` is fluorophore-only by design rather than by omission.
+#[cfg(feature = "flow-fcs")]
+pub const UNMIXED_METHOD_TRU_OLS_MULTI_AF: &str = "TRU-OLS+MULTI_AF";
+/// Path B without truncation: plain OLS on the AF-matched residual.
+#[cfg(feature = "flow-fcs")]
+pub const UNMIXED_METHOD_OLS_MULTI_AF: &str = "OLS+MULTI_AF";
+/// Which AF catalog entry won each event, summarized as `index=id:event_fraction` pairs.
+///
+/// Per-event assignments live in [`crate::AfMatchResult::assignment_1based`]; TEXT can
+/// only hold a summary, so this records the catalog in assignment-index order together
+/// with the share of events each entry claimed.
+#[cfg(feature = "flow-fcs")]
+pub const AF_ASSIGNMENT_KEYWORD: &str = "$AF_ASSIGNMENT";
+/// Distribution of the winning AF weight over events (`mean`/`median`/`min`).
+///
+/// A low mean means events sat between catalog entries and were subtracted with a blend;
+/// it is the number to look at before trusting a Path B export.
+#[cfg(feature = "flow-fcs")]
+pub const AF_CONFIDENCE_KEYWORD: &str = "$AF_CONFIDENCE";
+/// Unstained control `$FIL` that supplied the AF library for this product (Path B).
+#[cfg(feature = "flow-fcs")]
+pub const AF_SOURCE_KEYWORD: &str = "$AF_SOURCE";
+/// Profile `source_file_guid` of the assigned AF library (Path B).
+#[cfg(feature = "flow-fcs")]
+pub const AF_SOURCE_GUID_KEYWORD: &str = "$AF_SOURCE_GUID";
 /// Explicit non-unmixed marker (absence also means not unmixed).
 #[cfg(feature = "flow-fcs")]
 pub const UNMIXED_METHOD_FALSE: &str = "FALSE";
 /// Default AF abundance `$PnN`.
 #[cfg(feature = "flow-fcs")]
 pub const DEFAULT_AF_CHANNEL_NAME: &str = "Autofluorescence";
+/// Per-event 1-based AF catalog assignment (`$PnN`).
+#[cfg(feature = "flow-fcs")]
+pub const AF_SIGNATURE_CHANNEL_NAME: &str = "AF_Signature";
+/// Per-event max soft-assign weight (`$PnN`).
+#[cfg(feature = "flow-fcs")]
+pub const AF_CONFIDENCE_CHANNEL_NAME: &str = "AF_Confidence";
 
 /// Cast TRU-OLS abundances to FCS float32 **without** clamping.
 ///
@@ -103,7 +139,7 @@ fn strip_parameter_index_keywords<S: std::hash::BuildHasher>(
 /// Checked under both spellings: the writer `$`-prefixes every key, but a file
 /// assembled in memory may still hold the bare form.
 #[cfg(feature = "flow-fcs")]
-fn source_guid(fcs: &Fcs) -> Option<String> {
+pub(crate) fn source_guid(fcs: &Fcs) -> Option<String> {
     for key in ["$GUID", "GUID"] {
         if let Some(value) = fcs.metadata.keywords.get(key).and_then(|k| k.value_str()) {
             let value = value.trim();
@@ -221,7 +257,7 @@ fn short_name_from_endmember_stem(stem: &str) -> String {
 
 #[cfg(feature = "flow-fcs")]
 #[allow(clippy::too_many_arguments)]
-fn build_unmixed_fcs_from_unmixed_abundances(
+pub(crate) fn build_unmixed_fcs_from_unmixed_abundances(
     stained_fcs: &Fcs,
     unmixed_abundances: &Mat<f64>,
     endmember_names: &[&str],
@@ -553,6 +589,88 @@ fn build_unmixed_fcs_from_unmixed_abundances(
     output_fcs.header.version = flow_fcs::upgrade::stamp_v3_2(&mut output_fcs.metadata);
 
     Ok(output_fcs)
+}
+
+/// Append a Linear float `$PnN` column without touching `$SPILLOVER`.
+///
+/// Used for Path B annotation channels (`AF_Signature`, `AF_Confidence`) that must
+/// stay out of the identity spillover / NxN abundance list.
+#[cfg(feature = "flow-fcs")]
+pub fn append_linear_parameter_column(
+    fcs: &mut Fcs,
+    channel_name: &str,
+    channel_label: &str,
+    values: &[f64],
+) -> Result<(), TruOlsError> {
+    use flow_fcs::keyword::{IntegerKeyword, Keyword, MixedKeyword, StringKeyword};
+    use flow_fcs::{Parameter, TransformType};
+    use polars::prelude::Column;
+    use std::sync::Arc;
+
+    let n_events = fcs.data_frame.height();
+    if values.len() != n_events {
+        return Err(TruOlsError::DimensionMismatch {
+            expected: n_events,
+            actual: values.len(),
+        });
+    }
+    let name = channel_name.trim();
+    if name.is_empty() {
+        return Err(TruOlsError::InsufficientData(
+            "annotation channel name must be non-empty".into(),
+        ));
+    }
+    if fcs.parameters.contains_key(name) {
+        return Err(TruOlsError::InsufficientData(format!(
+            "parameter '{name}' already exists on the FCS"
+        )));
+    }
+
+    let f32_values = abundance_f64_to_f32(values);
+    let mut columns = fcs.data_frame.as_ref().columns().to_vec();
+    columns.push(Column::new(name.into(), f32_values));
+    let df = polars::frame::DataFrame::new_infer_height(columns).map_err(|e| {
+        TruOlsError::InsufficientData(format!("append parameter '{name}' DataFrame: {e}"))
+    })?;
+    fcs.data_frame = Arc::new(df);
+
+    let param_num = fcs.parameters.len() + 1;
+    let label = {
+        let trimmed = channel_label.trim();
+        if trimmed.is_empty() {
+            name.to_string()
+        } else {
+            trimmed.to_string()
+        }
+    };
+    let param = Parameter::new(&param_num, name, &label, &TransformType::Linear);
+    fcs.parameters.insert(name.into(), param);
+
+    fcs.metadata.keywords.insert(
+        format!("$P{param_num}N"),
+        Keyword::String(StringKeyword::PnN(Arc::from(name))),
+    );
+    fcs.metadata.keywords.insert(
+        format!("$P{param_num}S"),
+        Keyword::String(StringKeyword::PnS(Arc::from(label.as_str()))),
+    );
+    fcs.metadata.keywords.insert(
+        format!("$P{param_num}B"),
+        Keyword::Int(IntegerKeyword::PnB(32)),
+    );
+    fcs.metadata.keywords.insert(
+        format!("$P{param_num}R"),
+        Keyword::Int(IntegerKeyword::PnR(262144)),
+    );
+    fcs.metadata.keywords.insert(
+        format!("$P{param_num}E"),
+        Keyword::Mixed(MixedKeyword::PnE(0.0, 0.0)),
+    );
+    fcs.metadata.keywords.insert(
+        "$PAR".to_string(),
+        Keyword::Int(flow_fcs::keyword::IntegerKeyword::PAR(fcs.parameters.len())),
+    );
+    Ok(())
 }
 
 #[cfg(feature = "flow-fcs")]
