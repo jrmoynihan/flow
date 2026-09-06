@@ -1,29 +1,25 @@
-//! Path B autofluorescence matching: per-event soft assignment against an AF catalog.
+//! Autofluorescence matching: per-event pair-test against an AF catalog.
 //!
-//! Path A treats autofluorescence as one more endmember column and lets the ordinary
-//! solve estimate its abundance. That is only correct when every cell in the sample
-//! autofluoresces with the same *shape*, which is false for mixed tissue: lymphocytes,
-//! monocytes and debris carry visibly different AF spectra.
-//!
-//! Path B keeps autofluorescence out of the mixing matrix entirely. A catalog of AF
-//! signatures is matched to each event, the winning blend is subtracted, and the
-//! fluorophore-only unmixing then runs on the residual. Two pieces of evidence decide
-//! the match:
+//! Autofluorescence is kept out of the mixing matrix. A catalog of AF signatures is
+//! matched to each event, the **winner** is subtracted, and fluorophore-only unmixing
+//! then runs on the residual. Two pieces of evidence decide the match:
 //!
 //! * **Spectral.** Each catalog signature \(a_k\) is projected off the fluorophore span
 //!   once, up front, leaving \(r_k = (I - P)a_k\) — the part of that AF shape no
 //!   combination of fluorophores can imitate. Scaling \(r_k\) to the event gives the
 //!   only AF amount the data can actually distinguish; the leftover
-//!   \(\lVert (I-P)(y' - k_k a_k)\rVert\) scores the fit.
+//!   \(\lVert (I-P)(y' - k_k a_k)\rVert\) scores the fit. The assignment is the
+//!   residual argmin (lowest index on an exact tie).
 //! * **Morphological.** FSC/SSC is a cheap proxy for cell type, so each catalog entry
-//!   also carries a 2-D Gaussian over scatter. The product of the two evidences is the
-//!   unnormalized weight.
+//!   also carries a 2-D Gaussian over scatter. Scatter is consulted **only** when the
+//!   two best leftover norms are within 5% relative gap
+//!   \((r_2 - r_\star) \le 0.05\cdot\max(r_\star, 10^{-12})\). If both component
+//!   densities fall below [`PreparedAfLibrary::morph_outlier_tau`], the residual
+//!   winner is kept.
 //!
-//! Weights are soft rather than winner-take-all so that events between two AF
-//! populations get a blended subtraction instead of a discontinuity. Events whose
-//! scatter is implausible under *every* component (debris, doublets, boundary events)
-//! fall back to spectral evidence alone rather than being forced into the nearest
-//! morphological cluster.
+//! Subtraction is winner-only (one-hot weights). Confidence is the residual gap
+//! \(1 - r_\star / (r_\star + r_2)\), or `1` when the catalog has a single entry.
+//! Occupancy cannot override a clearly better residual.
 //!
 //! # Numerics
 //!
@@ -202,25 +198,27 @@ impl PreparedAfLibrary {
 /// Per-event outcome of [`match_and_subtract`].
 #[derive(Debug, Clone)]
 pub struct AfMatchResult {
-    /// Blended AF amount \(\sum_k w_k k_k\), one per event.
+    /// Winner AF amount \(k_\star\), one per event.
     pub af_abundance: Vec<f64>,
-    /// `argmax_k w_k`, 1-based so that `0` is never a valid assignment in exported data.
+    /// Residual (then scatter-tie) winner, 1-based so that `0` is never a valid
+    /// assignment in exported data.
     pub assignment_1based: Vec<u32>,
-    /// `max_k w_k`; near `1/len` means the event was genuinely ambiguous.
+    /// Residual-gap confidence \(1 - r_\star / (r_\star + r_2)\); `1` when the catalog
+    /// has a single entry. Near `0.5` means the two best leftovers were equally good.
     pub confidence: Vec<f64>,
-    /// Events × detectors, with \(\sum_k w_k k_k a_k\) removed. When `o_ns` was supplied
+    /// Events × detectors, with \(k_\star a_\star\) removed. When `o_ns` was supplied
     /// this is on the nonspecific-subtracted baseline.
     pub residual_observations: Mat<f64>,
 }
 
-/// Single-event Path B match inspect (Observation / Matched AF / Residual overlay).
+/// Single-event match inspect (Observation / Matched AF / Residual overlay).
 #[derive(Debug, Clone)]
 pub struct AfEventInspect {
     /// Observation after optional unstained baseline subtraction.
     pub observation: Vec<f64>,
-    /// Soft-blend fitted AF \(\sum_k w_k k_k a_k\).
+    /// Winner-only fitted AF \(k_\star a_\star\).
     pub fitted_af: Vec<f64>,
-    /// Winning signature scaled by its amount \(k_{\mathrm{best}}\).
+    /// Winning signature scaled by its amount \(k_\star\).
     pub winner_af: Vec<f64>,
     pub residual: Vec<f64>,
     pub assignment_1based: u32,
@@ -258,7 +256,7 @@ pub fn build_af_match_library(
     }
     if library.entries.is_empty() {
         return Err(TruOlsError::InsufficientData(
-            "AF catalog is empty; Path B needs at least one autofluorescence signature".into(),
+            "AF catalog is empty; at least one autofluorescence signature is required".into(),
         ));
     }
     if !library.beta.is_finite() || library.beta <= 0.0 {
@@ -406,7 +404,7 @@ pub fn build_af_match_library(
     })
 }
 
-/// Assign each event a soft AF blend and subtract it.
+/// Assign each event a winner AF signature and subtract it.
 ///
 /// `observations` is events × detectors of raw detector signal, `fsc_ssc` is events × 2
 /// in the same units the catalog's morphological clusters were fitted in, and `o_ns` is
@@ -597,7 +595,7 @@ fn match_event(
 
     let fsc = fsc_ssc[(event, 0)];
     let ssc = fsc_ssc[(event, 1)];
-    let mut morph_prior_sum = 0.0_f64;
+    let n_entries = library.entries.len();
 
     for (k, entry) in library.entries.iter().enumerate() {
         let mut projection = 0.0_f64;
@@ -615,49 +613,59 @@ fn match_event(
             let d = scratch.orthogonal[i] - amount * entry.residual[i];
             leftover_norm_sq += d * d;
         }
-        scratch.log_spectral[k] = -library.beta * leftover_norm_sq.sqrt();
+        scratch.log_spectral[k] = leftover_norm_sq.sqrt();
 
         let d0 = fsc - entry.mean[0];
         let d1 = ssc - entry.mean[1];
         let mahalanobis = d0 * (entry.inv_cov[0][0] * d0 + entry.inv_cov[0][1] * d1)
             + d1 * (entry.inv_cov[1][0] * d0 + entry.inv_cov[1][1] * d1);
-        let log_morph = entry.log_prior_peak - 0.5 * mahalanobis;
-        scratch.log_morph[k] = log_morph;
-        morph_prior_sum += log_morph.exp();
+        scratch.log_morph[k] = entry.log_prior_peak - 0.5 * mahalanobis;
     }
 
-    // A morphological outlier — debris, a doublet, an event on the edge of the scatter
-    // plot — is not evidence for the nearest cluster. Drop the prior for it rather than
-    // letting an arbitrarily small density dominate the product.
-    let use_morphology = morph_prior_sum.is_finite() && morph_prior_sum >= library.morph_outlier_tau;
-    for k in 0..library.entries.len() {
-        scratch.weights[k] = if use_morphology {
-            scratch.log_spectral[k] + scratch.log_morph[k]
-        } else {
-            scratch.log_spectral[k]
-        };
-    }
-    normalize_log_weights(&mut scratch.weights);
-
-    let mut af_abundance = 0.0_f64;
-    let mut best = 0usize;
-    for k in 0..library.entries.len() {
-        af_abundance += scratch.weights[k] * scratch.amounts[k];
-        if scratch.weights[k].total_cmp(&scratch.weights[best]).is_gt() {
-            best = k;
+    let mut k_star = 0usize;
+    for k in 1..n_entries {
+        if scratch.log_spectral[k] < scratch.log_spectral[k_star] {
+            k_star = k;
         }
     }
 
-    let observation = scratch.adjusted[..n_detectors].to_vec();
-    let mut fitted_af = vec![0.0_f64; n_detectors];
-    for (k, entry) in library.entries.iter().enumerate() {
-        let scale = scratch.weights[k] * scratch.amounts[k];
-        if scale == 0.0 {
+    let mut k_2 = None;
+    for k in 0..n_entries {
+        if k == k_star {
             continue;
         }
-        for (f, a) in fitted_af.iter_mut().zip(&entry.values) {
-            *f += scale * a;
+        match k_2 {
+            None => k_2 = Some(k),
+            Some(j) if scratch.log_spectral[k] < scratch.log_spectral[j] => k_2 = Some(k),
+            _ => {}
         }
+    }
+
+    let mut winner = k_star;
+    if let Some(k2) = k_2 {
+        let r_star = scratch.log_spectral[k_star];
+        let r2 = scratch.log_spectral[k2];
+        let residual_tie = (r2 - r_star) <= 0.05 * r_star.max(1e-12);
+        if residual_tie {
+            let density_star = scratch.log_morph[k_star].exp();
+            let density_2 = scratch.log_morph[k2].exp();
+            let both_outliers =
+                density_star < library.morph_outlier_tau && density_2 < library.morph_outlier_tau;
+            if !both_outliers && density_2 > density_star {
+                winner = k2;
+            }
+        }
+    }
+
+    scratch.weights.fill(0.0);
+    scratch.weights[winner] = 1.0;
+
+    let af_abundance = scratch.amounts[winner];
+    let observation = scratch.adjusted[..n_detectors].to_vec();
+    let mut fitted_af = vec![0.0_f64; n_detectors];
+    let scale = scratch.amounts[winner];
+    for (fitted, value) in fitted_af.iter_mut().zip(&library.entries[winner].values) {
+        *fitted = scale * value;
     }
     let residual: Vec<f64> = observation
         .iter()
@@ -665,20 +673,31 @@ fn match_event(
         .map(|(o, f)| o - f)
         .collect();
 
+    let confidence = if n_entries == 1 {
+        1.0
+    } else if let Some(k2) = k_2 {
+        let r_star = scratch.log_spectral[k_star];
+        let r2 = scratch.log_spectral[k2];
+        (1.0 - r_star / (r_star + r2)).clamp(0.0, 1.0)
+    } else {
+        1.0
+    };
+
     EventOutcome {
         af_abundance,
-        assignment_1based: (best + 1) as u32,
-        confidence: scratch.weights[best],
+        assignment_1based: (winner + 1) as u32,
+        confidence,
         residual,
         observation,
         fitted_af,
-        winner_amount: scratch.amounts[best],
+        winner_amount: scratch.amounts[winner],
     }
 }
 
 /// Softmax in place, via log-sum-exp so a very peaked likelihood cannot underflow to a
 /// zero denominator. Degenerate input (all `-inf`, any `NaN`) becomes a uniform blend,
 /// which subtracts the average AF rather than an arbitrary one.
+#[cfg(test)]
 fn normalize_log_weights(weights: &mut [f64]) {
     let uniform = 1.0 / weights.len() as f64;
     let max = weights
@@ -805,12 +824,7 @@ mod tests {
     /// have detectors 3/4 to live in, so the fluorophore-orthogonal residual is exact
     /// and the expected answers are known in closed form.
     fn fluor_matrix() -> Mat<f64> {
-        mat![
-            [1.00, 0.20],
-            [0.15, 1.00],
-            [0.00, 0.00],
-            [0.00, 0.00],
-        ]
+        mat![[1.00, 0.20], [0.15, 1.00], [0.00, 0.00], [0.00, 0.00],]
     }
 
     fn entry(
@@ -834,16 +848,23 @@ mod tests {
     fn two_cluster_library(beta: f64) -> AfMatchLibrary {
         AfMatchLibrary {
             entries: vec![
-                entry("af_small", [0.10, 0.05, 1.00, 0.20], [200.0, 150.0], 400.0, 0.6),
-                entry("af_large", [0.05, 0.10, 0.20, 1.00], [800.0, 700.0], 400.0, 0.4),
+                entry(
+                    "af_small",
+                    [0.10, 0.05, 1.00, 0.20],
+                    [200.0, 150.0],
+                    400.0,
+                    0.6,
+                ),
+                entry(
+                    "af_large",
+                    [0.05, 0.10, 0.20, 1.00],
+                    [800.0, 700.0],
+                    400.0,
+                    0.4,
+                ),
             ],
             beta,
-            detector_names: vec![
-                "D1".into(),
-                "D2".into(),
-                "D3".into(),
-                "D4".into(),
-            ],
+            detector_names: vec!["D1".into(), "D2".into(), "D3".into(), "D4".into()],
         }
     }
 
@@ -857,11 +878,7 @@ mod tests {
     }
 
     /// `fluor_amounts · fluor_matrix + af_amount · signature`, i.e. the forward model.
-    fn synthesize(
-        fluor_amounts: [f64; 2],
-        af_signature: &[f64],
-        af_amount: f64,
-    ) -> [f64; 4] {
+    fn synthesize(fluor_amounts: [f64; 2], af_signature: &[f64], af_amount: f64) -> [f64; 4] {
         let m = fluor_matrix();
         let mut out = [0.0_f64; 4];
         for i in 0..4 {
@@ -901,14 +918,15 @@ mod tests {
             mixing_proportion: 0.3,
         });
 
-        let built = build_af_match_library(
-            library,
-            fluor_matrix().as_ref(),
-            AfMatchOptions::default(),
-        )
-        .expect("library builds");
+        let built =
+            build_af_match_library(library, fluor_matrix().as_ref(), AfMatchOptions::default())
+                .expect("library builds");
 
-        assert_eq!(built.len(), 2, "only the two distinguishable entries survive");
+        assert_eq!(
+            built.len(),
+            2,
+            "only the two distinguishable entries survive"
+        );
         assert_eq!(built.entry_ids(), vec!["af_small", "af_large"]);
         assert_eq!(built.dropped_entries().len(), 1);
         assert_eq!(built.dropped_entries()[0].id, "af_collinear");
@@ -962,13 +980,16 @@ mod tests {
         let small_event = synthesize([120.0, 45.0], small, 30.0);
         let large_event = synthesize([80.0, 200.0], large, 55.0);
         let observations = Mat::from_fn(2, 4, |ev, det| {
-            if ev == 0 { small_event[det] } else { large_event[det] }
+            if ev == 0 {
+                small_event[det]
+            } else {
+                large_event[det]
+            }
         });
         let scatter = mat![[200.0, 150.0], [800.0, 700.0]];
 
-        let result =
-            match_and_subtract(observations.as_ref(), scatter.as_ref(), None, &library)
-                .expect("match succeeds");
+        let result = match_and_subtract(observations.as_ref(), scatter.as_ref(), None, &library)
+            .expect("match succeeds");
 
         assert_eq!(result.assignment_1based, vec![1, 2]);
         assert!(
@@ -1007,9 +1028,8 @@ mod tests {
         // Row 0 sits on the small-cell cluster, row 1 on the large-cell cluster.
         let scatter = mat![[200.0, 150.0], [800.0, 700.0]];
 
-        let result =
-            match_and_subtract(observations.as_ref(), scatter.as_ref(), None, &library)
-                .expect("match succeeds");
+        let result = match_and_subtract(observations.as_ref(), scatter.as_ref(), None, &library)
+            .expect("match succeeds");
         assert_eq!(
             result.assignment_1based,
             vec![1, 2],
@@ -1018,9 +1038,157 @@ mod tests {
     }
 
     #[test]
-    fn tiny_beta_follows_the_morphological_prior() {
-        // β = 1e-6: spectral likelihood is nearly flat, so a 50/50 spectral tie
-        // must be broken by FSC/SSC.
+    fn occupancy_cannot_steal_a_clearer_residual() {
+        // Entry 0 = rare AF (small occupancy / prior). Entry 1 = common AF.
+        // Event is a scaled copy of entry 0 sitting on entry 1's FSC/SSC.
+        // Pair-test must assign 1 (entry 0), not the occupancy-heavy Gaussian.
+        let library = AfMatchLibrary {
+            entries: vec![
+                entry(
+                    "af_rare",
+                    [0.10, 0.05, 1.00, 0.20],
+                    [200.0, 150.0],
+                    400.0,
+                    0.01,
+                ),
+                entry(
+                    "af_common",
+                    [0.05, 0.10, 0.20, 1.00],
+                    [800.0, 700.0],
+                    400.0,
+                    0.99,
+                ),
+            ],
+            beta: 2.0,
+            detector_names: vec!["D1".into(), "D2".into(), "D3".into(), "D4".into()],
+        };
+        let prepared =
+            build_af_match_library(library, fluor_matrix().as_ref(), AfMatchOptions::default())
+                .expect("library builds");
+        let rare = prepared.entries[0].values.clone();
+        let event = synthesize([50.0, 50.0], &rare, 40.0);
+        let observations = Mat::from_fn(1, 4, |_, det| event[det]);
+        let scatter = mat![[800.0, 700.0]];
+
+        let result = match_and_subtract(observations.as_ref(), scatter.as_ref(), None, &prepared)
+            .expect("match succeeds");
+        assert_eq!(
+            result.assignment_1based,
+            vec![1],
+            "occupancy must not override a clearer residual"
+        );
+    }
+
+    #[test]
+    fn scatter_ignored_when_residual_gap_exceeds_five_percent() {
+        // Distinct spectra; event matches entry 0; FSC/SSC sits on entry 1.
+        // assignment_1based == 1.
+        let library = prepared(2.0);
+        let small = library.entries[0].values.clone();
+        let event = synthesize([50.0, 50.0], &small, 40.0);
+        let observations = Mat::from_fn(1, 4, |_, det| event[det]);
+        let scatter = mat![[800.0, 700.0]];
+
+        let result = match_and_subtract(observations.as_ref(), scatter.as_ref(), None, &library)
+            .expect("match succeeds");
+        assert_eq!(
+            result.assignment_1based,
+            vec![1],
+            "scatter must be ignored when the residual gap exceeds 5%"
+        );
+    }
+
+    #[test]
+    fn winner_only_subtract_does_not_blend() {
+        // Two similar-but-not-tied signatures; residual of fitted AF must equal
+        // y - k_star * a_star, not a weighted sum.
+        let library = AfMatchLibrary {
+            entries: vec![
+                entry("af_a", [0.10, 0.05, 1.00, 0.20], [200.0, 150.0], 400.0, 0.5),
+                entry("af_b", [0.12, 0.07, 0.90, 0.28], [220.0, 160.0], 400.0, 0.5),
+            ],
+            beta: 2.0,
+            detector_names: vec!["D1".into(), "D2".into(), "D3".into(), "D4".into()],
+        };
+        let prepared =
+            build_af_match_library(library, fluor_matrix().as_ref(), AfMatchOptions::default())
+                .expect("library builds");
+        let signature = prepared.entries[0].values.clone();
+        let event = synthesize([80.0, 40.0], &signature, 35.0);
+        let observations = Mat::from_fn(1, 4, |_, det| event[det]);
+        let scatter = mat![[200.0, 150.0]];
+
+        let result = match_and_subtract(observations.as_ref(), scatter.as_ref(), None, &prepared)
+            .expect("match succeeds");
+        assert_eq!(result.assignment_1based, vec![1]);
+        assert!(
+            (result.af_abundance[0] - 35.0).abs() < 1e-6,
+            "winner amount {:?}",
+            result.af_abundance
+        );
+        for det in 0..4 {
+            let expected = event[det] - 35.0 * signature[det];
+            assert!(
+                (result.residual_observations[(0, det)] - expected).abs() < 1e-6,
+                "detector {det}: {} vs {expected} (must be winner subtract, not a blend)",
+                result.residual_observations[(0, det)],
+            );
+        }
+    }
+
+    #[test]
+    fn confidence_is_residual_gap_not_softmax_weight() {
+        // Two equally good residuals → confidence ≈ 0.5.
+        // One library entry → confidence == 1.0.
+        let library = prepared(2.0);
+        let blended: Vec<f64> = (0..4)
+            .map(|i| 0.5 * (library.entries[0].values[i] + library.entries[1].values[i]))
+            .collect();
+        let event = synthesize([50.0, 50.0], &blended, 40.0);
+        let observations = Mat::from_fn(1, 4, |_, det| event[det]);
+        let scatter = mat![[200.0, 150.0]];
+
+        let two_entry = match_and_subtract(observations.as_ref(), scatter.as_ref(), None, &library)
+            .expect("match succeeds");
+        assert!(
+            (two_entry.confidence[0] - 0.5).abs() < 1e-6,
+            "equal residuals must score confidence 0.5, got {:?}",
+            two_entry.confidence
+        );
+
+        let mean_values: Vec<f64> = blended;
+        let single = AfMatchLibrary {
+            entries: vec![entry(
+                "af_only",
+                [
+                    mean_values[0],
+                    mean_values[1],
+                    mean_values[2],
+                    mean_values[3],
+                ],
+                [200.0, 150.0],
+                400.0,
+                1.0,
+            )],
+            beta: 2.0,
+            detector_names: library.detector_names.clone(),
+        };
+        let single_prepared =
+            build_af_match_library(single, fluor_matrix().as_ref(), AfMatchOptions::default())
+                .expect("single-entry library builds");
+        let one_entry = match_and_subtract(
+            observations.as_ref(),
+            scatter.as_ref(),
+            None,
+            &single_prepared,
+        )
+        .expect("match succeeds");
+        assert_eq!(one_entry.confidence[0], 1.0);
+    }
+
+    #[test]
+    fn spectral_tie_uses_scatter() {
+        // A 50/50 spectral blend is a 0% residual gap, so FSC/SSC still decides.
         let library = prepared(1e-6);
         let blended: Vec<f64> = (0..4)
             .map(|i| 0.5 * (library.entries[0].values[i] + library.entries[1].values[i]))
@@ -1029,29 +1197,27 @@ mod tests {
         let observations = Mat::from_fn(2, 4, |_, det| event[det]);
         let scatter = mat![[200.0, 150.0], [800.0, 700.0]];
 
-        let result =
-            match_and_subtract(observations.as_ref(), scatter.as_ref(), None, &library)
-                .expect("match succeeds");
+        let result = match_and_subtract(observations.as_ref(), scatter.as_ref(), None, &library)
+            .expect("match succeeds");
         assert_eq!(
             result.assignment_1based,
             vec![1, 2],
-            "tiny β must let scatter decide a spectral tie"
+            "a spectral tie must let scatter decide"
         );
     }
 
     #[test]
     fn huge_beta_is_spectral_argmax() {
-        // β = 1e6: spectral evidence dominates. Pure `af_small` spectrum sitting on
-        // the large-cell scatter cluster must still assign small, not flip to large.
+        // Distinct spectra: leftover gap exceeds 5%, so scatter must not flip the
+        // assignment even when the event sits on the other cluster.
         let library = prepared(1e6);
         let small = library.entries[0].values.clone();
         let event = synthesize([50.0, 50.0], &small, 40.0);
         let observations = Mat::from_fn(1, 4, |_, det| event[det]);
         let scatter = mat![[800.0, 700.0]];
 
-        let result =
-            match_and_subtract(observations.as_ref(), scatter.as_ref(), None, &library)
-                .expect("match succeeds");
+        let result = match_and_subtract(observations.as_ref(), scatter.as_ref(), None, &library)
+            .expect("match succeeds");
         assert_eq!(
             result.assignment_1based,
             vec![1],
@@ -1070,9 +1236,8 @@ mod tests {
         let observations = Mat::from_fn(1, 4, |_, det| event[det]);
         let scatter = mat![[50_000.0, 50_000.0]];
 
-        let result =
-            match_and_subtract(observations.as_ref(), scatter.as_ref(), None, &library)
-                .expect("match succeeds");
+        let result = match_and_subtract(observations.as_ref(), scatter.as_ref(), None, &library)
+            .expect("match succeeds");
         assert_eq!(result.assignment_1based, vec![2]);
         assert!((result.af_abundance[0] - 60.0).abs() < 1e-6);
     }
@@ -1137,13 +1302,16 @@ mod tests {
 
         let observations = Mat::from_fn(n_events, 4, |ev, det| rows[ev][det]);
         let scatter = Mat::from_fn(n_events, 2, |ev, axis| {
-            let center = if sources[ev] == 0 { [200.0, 150.0] } else { [800.0, 700.0] };
+            let center = if sources[ev] == 0 {
+                [200.0, 150.0]
+            } else {
+                [800.0, 700.0]
+            };
             center[axis]
         });
 
-        let result =
-            match_and_subtract(observations.as_ref(), scatter.as_ref(), None, &library)
-                .expect("match succeeds");
+        let result = match_and_subtract(observations.as_ref(), scatter.as_ref(), None, &library)
+            .expect("match succeeds");
 
         assert_eq!(result.af_abundance.len(), n_events);
         for e in 0..n_events {
@@ -1165,7 +1333,10 @@ mod tests {
         let wrong_detectors = Mat::<f64>::zeros(1, 3);
         assert!(matches!(
             match_and_subtract(wrong_detectors.as_ref(), scatter.as_ref(), None, &library),
-            Err(TruOlsError::DimensionMismatch { expected: 4, actual: 3 })
+            Err(TruOlsError::DimensionMismatch {
+                expected: 4,
+                actual: 3
+            })
         ));
 
         let observations = Mat::<f64>::zeros(1, 4);
@@ -1177,7 +1348,10 @@ mod tests {
                 None,
                 &library
             ),
-            Err(TruOlsError::DimensionMismatch { expected: 2, actual: 3 })
+            Err(TruOlsError::DimensionMismatch {
+                expected: 2,
+                actual: 3
+            })
         ));
 
         let short_scatter = Mat::<f64>::zeros(2, 2);
@@ -1188,7 +1362,10 @@ mod tests {
                 None,
                 &library
             ),
-            Err(TruOlsError::DimensionMismatch { expected: 1, actual: 2 })
+            Err(TruOlsError::DimensionMismatch {
+                expected: 1,
+                actual: 2
+            })
         ));
 
         assert!(matches!(
@@ -1198,7 +1375,10 @@ mod tests {
                 Some(&[0.0, 0.0]),
                 &library
             ),
-            Err(TruOlsError::DimensionMismatch { expected: 4, actual: 2 })
+            Err(TruOlsError::DimensionMismatch {
+                expected: 4,
+                actual: 2
+            })
         ));
     }
 
@@ -1206,12 +1386,9 @@ mod tests {
     fn a_singular_morphological_covariance_is_rejected() {
         let mut library = two_cluster_library(1.0);
         library.entries[0].fsc_ssc_cov = [[100.0, 100.0], [100.0, 100.0]];
-        let err = build_af_match_library(
-            library,
-            fluor_matrix().as_ref(),
-            AfMatchOptions::default(),
-        )
-        .expect_err("singular covariance is fatal");
+        let err =
+            build_af_match_library(library, fluor_matrix().as_ref(), AfMatchOptions::default())
+                .expect_err("singular covariance is fatal");
         assert!(
             matches!(err, TruOlsError::InsufficientData(ref msg) if msg.contains("determinant")),
             "unexpected error: {err}"
@@ -1261,28 +1438,20 @@ mod tests {
             [790.0, 710.0],
         ];
 
-        let soft = match_and_subtract(
-            observations.as_ref(),
-            scatter.as_ref(),
-            None,
-            &soft_library,
-        )
-        .expect("soft match succeeds");
+        let soft = match_and_subtract(observations.as_ref(), scatter.as_ref(), None, &soft_library)
+            .expect("soft match succeeds");
         assert!(
             soft.af_abundance.iter().all(|a| a.is_finite()),
             "soft AF abundances must be finite: {:?}",
             soft.af_abundance
         );
         assert!(
-            (0..4).all(|ev| {
-                (0..4).all(|det| soft.residual_observations[(ev, det)].is_finite())
-            }),
+            (0..4)
+                .all(|ev| { (0..4).all(|det| soft.residual_observations[(ev, det)].is_finite()) }),
             "soft residuals must be finite"
         );
 
-        let mean_values: Vec<f64> = (0..4)
-            .map(|i| 0.5 * (small[i] + large[i]))
-            .collect();
+        let mean_values: Vec<f64> = (0..4).map(|i| 0.5 * (small[i] + large[i])).collect();
         let mean_catalog = AfMatchLibrary {
             entries: vec![entry(
                 "af_mean",
