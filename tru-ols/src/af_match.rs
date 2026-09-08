@@ -676,9 +676,7 @@ fn match_event(
     let confidence = if n_entries == 1 {
         1.0
     } else if let Some(k2) = k_2 {
-        let r_star = scratch.log_spectral[k_star];
-        let r2 = scratch.log_spectral[k2];
-        (1.0 - r_star / (r_star + r2)).clamp(0.0, 1.0)
+        residual_gap_confidence(scratch.log_spectral[k_star], scratch.log_spectral[k2])
     } else {
         1.0
     };
@@ -693,6 +691,20 @@ fn match_event(
         winner_amount: scratch.amounts[winner],
     }
 }
+
+/// Residual-gap confidence \(1 - r_\star / (r_\star + r_2)\).
+///
+/// When both residuals are 0 (or the denominator is non-finite), the two fits
+/// are a perfect tie — return `0.5`. Do not divide; `.clamp` does not fold NaN.
+fn residual_gap_confidence(r_star: f64, r2: f64) -> f64 {
+    let denom = r_star + r2;
+    if !denom.is_finite() || denom <= 0.0 {
+        0.5
+    } else {
+        (1.0 - r_star / denom).clamp(0.0, 1.0)
+    }
+}
+
 
 /// Softmax in place, via log-sum-exp so a very peaked likelihood cannot underflow to a
 /// zero denominator. Degenerate input (all `-inf`, any `NaN`) becomes a uniform blend,
@@ -1184,6 +1196,56 @@ mod tests {
         )
         .expect("match succeeds");
         assert_eq!(one_entry.confidence[0], 1.0);
+    }
+
+    #[test]
+    fn confidence_is_finite_half_when_both_residuals_are_zero() {
+        // Direct formula: identical perfect fits → denom 0. Without the guard this is NaN.
+        let c = residual_gap_confidence(0.0, 0.0);
+        assert!(c.is_finite(), "zero–zero residuals must not be NaN, got {c}");
+        assert_eq!(c, 0.5, "perfect tie must score confidence 0.5");
+
+        // Integration: identical catalog signatures + pure-AF observation stays finite.
+        let library = AfMatchLibrary {
+            entries: vec![
+                entry(
+                    "af_a",
+                    [0.10, 0.05, 1.00, 0.20],
+                    [200.0, 150.0],
+                    400.0,
+                    0.5,
+                ),
+                entry(
+                    "af_b",
+                    [0.10, 0.05, 1.00, 0.20],
+                    [800.0, 700.0],
+                    400.0,
+                    0.5,
+                ),
+            ],
+            beta: 2.0,
+            detector_names: vec!["D1".into(), "D2".into(), "D3".into(), "D4".into()],
+        };
+        let prepared =
+            build_af_match_library(library, fluor_matrix().as_ref(), AfMatchOptions::default())
+                .expect("library builds");
+        assert_eq!(prepared.entries.len(), 2);
+        let event = synthesize([0.0, 0.0], &prepared.entries[0].values, 40.0);
+        let observations = Mat::from_fn(1, 4, |_, det| event[det]);
+        let scatter = mat![[200.0, 150.0]];
+
+        let result = match_and_subtract(observations.as_ref(), scatter.as_ref(), None, &prepared)
+            .expect("match succeeds");
+        assert!(
+            result.confidence[0].is_finite(),
+            "identical signatures must not write NaN into AF_Confidence, got {:?}",
+            result.confidence
+        );
+        assert!(
+            (result.confidence[0] - 0.5).abs() < 1e-6,
+            "perfect spectral tie must score confidence 0.5, got {:?}",
+            result.confidence
+        );
     }
 
     #[test]
