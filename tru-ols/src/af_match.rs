@@ -99,6 +99,104 @@ impl Default for AfMatchOptions {
     }
 }
 
+/// Named-stain reconstruction share at which Accept shows a contamination warning.
+pub const DEFAULT_PURITY_WARN_FLUOR_FRACTION: f64 = 0.15;
+/// Named-stain reconstruction share at which the candidate is rejected as dye-like.
+pub const DEFAULT_PURITY_REJECT_FLUOR_FRACTION: f64 = 0.35;
+/// Minimum cosine (peak-1 max-normalized) to name a stain for Warn/Reject.
+pub const DEFAULT_PURITY_MIN_COSINE: f64 = 0.70;
+/// Minimum reconstruction share to consider a stain as a naming candidate.
+pub const DEFAULT_PURITY_NAME_MIN_SHARE: f64 = 0.10;
+
+/// Tuning for [`assess_af_purity`].
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct AfPurityOptions {
+    pub warn_fluor_fraction: f64,
+    pub reject_fluor_fraction: f64,
+    pub min_cosine: f64,
+    pub name_min_share: f64,
+}
+
+impl Default for AfPurityOptions {
+    fn default() -> Self {
+        Self {
+            warn_fluor_fraction: DEFAULT_PURITY_WARN_FLUOR_FRACTION,
+            reject_fluor_fraction: DEFAULT_PURITY_REJECT_FLUOR_FRACTION,
+            min_cosine: DEFAULT_PURITY_MIN_COSINE,
+            name_min_share: DEFAULT_PURITY_NAME_MIN_SHARE,
+        }
+    }
+}
+
+/// Accept-time purity outcome for one AF candidate.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AfPurityVerdict {
+    Pass,
+    Warn,
+    Reject,
+}
+
+/// A fluorophore that explains a meaningful slice of a contaminated candidate.
+#[derive(Debug, Clone, PartialEq)]
+pub struct AfPurityCulprit {
+    pub name: String,
+    /// NNLS loading on that fluor column.
+    pub loading: f64,
+    /// Share of the total non-negative reconstruction (`loading / Σc`).
+    pub fraction: f64,
+    /// Unsigned cosine of peak-1 max-normalized candidate vs this fluor column.
+    pub cosine: f64,
+}
+
+/// NNLS decomposition of a candidate against `[S | AF_ref]`.
+#[derive(Debug, Clone, PartialEq)]
+pub struct AfPurityReport {
+    pub verdict: AfPurityVerdict,
+    /// Loadings on fluor columns, same order as `fluor_names`.
+    pub fluor_loadings: Vec<f64>,
+    pub fluor_names: Vec<String>,
+    pub af_ref_loading: f64,
+    /// `Σ fluor_loadings / Σ all loadings` (0 when the reconstruction is empty).
+    pub fluor_fraction: f64,
+    /// `‖[S|AF_ref] c − a‖ / ‖a‖`.
+    pub relative_residual: f64,
+    pub culprits: Vec<AfPurityCulprit>,
+}
+
+impl AfPurityReport {
+    /// Consumer-facing copy: named dye share (`culprit.fraction`), not total fluor mass.
+    pub fn summary(&self) -> String {
+        match self.verdict {
+            AfPurityVerdict::Pass => {
+                "This AF signature looks more like broad autofluorescence than any single stain."
+                    .to_string()
+            }
+            AfPurityVerdict::Warn | AfPurityVerdict::Reject => {
+                let dye_pct = (self.fluor_fraction * 100.0).round() as i32;
+                if let Some(top) = self.culprits.first() {
+                    let named_pct = (top.fraction * 100.0).round() as i32;
+                    let steal = "Keeping it as AF can steal that fluor's signal in unmixing.";
+                    if named_pct == dye_pct {
+                        format!(
+                            "{} accounts for {named_pct}% of this spectrum's reconstruction. {steal}",
+                            top.name
+                        )
+                    } else {
+                        format!(
+                            "{} accounts for {named_pct}% of this spectrum's reconstruction (dyes together: {dye_pct}%). {steal}",
+                            top.name
+                        )
+                    }
+                } else {
+                    format!(
+                        "Fluorophores account for {dye_pct}% of this spectrum's reconstruction. Keeping it as AF can steal those fluors' signal in unmixing."
+                    )
+                }
+            }
+        }
+    }
+}
+
 /// Why a catalog entry did not make it into a [`PreparedAfLibrary`].
 #[derive(Debug, Clone, PartialEq)]
 pub struct DroppedAfEntry {
@@ -705,7 +803,6 @@ fn residual_gap_confidence(r_star: f64, r2: f64) -> f64 {
     }
 }
 
-
 /// Softmax in place, via log-sum-exp so a very peaked likelihood cannot underflow to a
 /// zero denominator. Degenerate input (all `-inf`, any `NaN`) becomes a uniform blend,
 /// which subtracts the average AF rather than an arbitrary one.
@@ -825,6 +922,334 @@ fn invert_2x2_covariance(
         [-cov[1][0] / determinant, cov[0][0] / determinant],
     ];
     Ok((inv, determinant.ln()))
+}
+
+fn max_normalize_peak(v: &[f64]) -> Vec<f64> {
+    let peak = v.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+    if !peak.is_finite() || peak <= 0.0 {
+        return vec![0.0; v.len()];
+    }
+    v.iter().map(|x| x / peak).collect()
+}
+
+/// Unsigned cosine after max-normalizing both vectors to peak 1.
+/// Zero or non-positive peak → `0.0`.
+fn cosine_after_peak_normalize(a: &[f64], b: &[f64]) -> f64 {
+    let na = max_normalize_peak(a);
+    let nb = max_normalize_peak(b);
+    if na.len() != nb.len() {
+        return 0.0;
+    }
+    let mut dot = 0.0;
+    let mut na2 = 0.0;
+    let mut nb2 = 0.0;
+    for i in 0..na.len() {
+        dot += na[i] * nb[i];
+        na2 += na[i] * na[i];
+        nb2 += nb[i] * nb[i];
+    }
+    if na2 == 0.0 || nb2 == 0.0 {
+        return 0.0;
+    }
+    let denom = (na2.sqrt() * nb2.sqrt()).max(f64::EPSILON);
+    dot / denom
+}
+
+fn triggering_culprit(culprits: &[AfPurityCulprit], min_cosine: f64) -> Option<usize> {
+    culprits
+        .iter()
+        .enumerate()
+        .filter(|(_, culprit)| culprit.cosine >= min_cosine)
+        .max_by(|(_, left), (_, right)| {
+            left.fraction
+                .total_cmp(&right.fraction)
+                .then_with(|| left.cosine.total_cmp(&right.cosine))
+        })
+        .map(|(index, _)| index)
+}
+
+/// Accept-time NNLS purity: `a ≈ [S | AF_ref] c` with `c ≥ 0`.
+///
+/// Fluor loadings are the non-specific-binding fingerprint; the AF_ref loading is
+/// genuine autofluorescence. Call once per candidate, never per event.
+pub fn assess_af_purity(
+    candidate: &[f64],
+    fluor_matrix: MatRef<'_, f64>,
+    af_ref: &[f64],
+    fluor_names: &[String],
+    options: AfPurityOptions,
+) -> Result<AfPurityReport, TruOlsError> {
+    let n_detectors = fluor_matrix.nrows();
+    let n_fluor = fluor_matrix.ncols();
+    if n_detectors == 0 || n_fluor == 0 {
+        return Err(TruOlsError::InvalidMixingMatrix(
+            "fluor matrix must have at least one detector and one endmember".into(),
+        ));
+    }
+    if candidate.len() != n_detectors {
+        return Err(TruOlsError::DimensionMismatch {
+            expected: n_detectors,
+            actual: candidate.len(),
+        });
+    }
+    if af_ref.len() != n_detectors {
+        return Err(TruOlsError::DimensionMismatch {
+            expected: n_detectors,
+            actual: af_ref.len(),
+        });
+    }
+    if fluor_names.len() != n_fluor {
+        return Err(TruOlsError::DimensionMismatch {
+            expected: n_fluor,
+            actual: fluor_names.len(),
+        });
+    }
+    if !options.warn_fluor_fraction.is_finite()
+        || options.warn_fluor_fraction < 0.0
+        || !options.reject_fluor_fraction.is_finite()
+        || options.reject_fluor_fraction < options.warn_fluor_fraction
+        || !options.min_cosine.is_finite()
+        || options.min_cosine < 0.0
+        || options.min_cosine > 1.0
+        || !options.name_min_share.is_finite()
+        || options.name_min_share < 0.0
+        || options.name_min_share > 1.0
+    {
+        return Err(TruOlsError::InsufficientData(
+            "purity thresholds must be finite with 0 ≤ warn ≤ reject and cosine/share in [0, 1]"
+                .into(),
+        ));
+    }
+    if candidate.iter().any(|v| !v.is_finite())
+        || af_ref.iter().any(|v| !v.is_finite())
+        || (0..n_detectors).any(|i| (0..n_fluor).any(|j| !fluor_matrix[(i, j)].is_finite()))
+    {
+        return Err(TruOlsError::InsufficientData(
+            "purity candidate, AF reference, and fluor matrix must be finite".into(),
+        ));
+    }
+
+    let candidate_norm = euclidean_norm(candidate);
+    if candidate_norm == 0.0 {
+        return Ok(AfPurityReport {
+            verdict: AfPurityVerdict::Reject,
+            fluor_loadings: vec![0.0; n_fluor],
+            fluor_names: fluor_names.to_vec(),
+            af_ref_loading: 0.0,
+            fluor_fraction: 0.0,
+            relative_residual: 0.0,
+            culprits: Vec::new(),
+        });
+    }
+
+    let n_cols = n_fluor + 1;
+    let design = Mat::from_fn(n_detectors, n_cols, |i, j| {
+        if j < n_fluor {
+            fluor_matrix[(i, j)]
+        } else {
+            af_ref[i]
+        }
+    });
+    let loadings = nnls(design.as_ref(), candidate)?;
+    let fluor_loadings = loadings[..n_fluor].to_vec();
+    let af_ref_loading = loadings[n_fluor];
+    let fluor_mass: f64 = fluor_loadings.iter().sum();
+    let total: f64 = fluor_mass + af_ref_loading;
+    let fluor_fraction = if total > 0.0 { fluor_mass / total } else { 0.0 };
+
+    let mut reconstructed = vec![0.0_f64; n_detectors];
+    for i in 0..n_detectors {
+        let mut acc = 0.0;
+        for j in 0..n_cols {
+            acc += design[(i, j)] * loadings[j];
+        }
+        reconstructed[i] = acc;
+    }
+    let residual: Vec<f64> = candidate
+        .iter()
+        .zip(&reconstructed)
+        .map(|(obs, rec)| obs - rec)
+        .collect();
+    let relative_residual = euclidean_norm(&residual) / candidate_norm;
+
+    let mut culprits: Vec<AfPurityCulprit> = fluor_loadings
+        .iter()
+        .enumerate()
+        .zip(fluor_names)
+        .filter_map(|((j, &loading), name)| {
+            if loading <= 0.0 || total <= 0.0 {
+                return None;
+            }
+            let fraction = loading / total;
+            if fraction < options.name_min_share {
+                return None;
+            }
+            let mut column = vec![0.0_f64; n_detectors];
+            for i in 0..n_detectors {
+                column[i] = fluor_matrix[(i, j)];
+            }
+            Some(AfPurityCulprit {
+                name: name.clone(),
+                loading,
+                fraction,
+                cosine: cosine_after_peak_normalize(candidate, &column),
+            })
+        })
+        .collect();
+    culprits.sort_by(|left, right| right.cosine.total_cmp(&left.cosine));
+
+    let trigger_index = triggering_culprit(&culprits, options.min_cosine);
+    let verdict = match trigger_index.map(|index| &culprits[index]) {
+        Some(c) if c.fraction >= options.reject_fluor_fraction => AfPurityVerdict::Reject,
+        Some(c) if c.fraction >= options.warn_fluor_fraction => AfPurityVerdict::Warn,
+        _ => AfPurityVerdict::Pass,
+    };
+    if let Some(index) = trigger_index.filter(|index| *index != 0) {
+        let trigger = culprits.remove(index);
+        culprits.insert(0, trigger);
+    }
+
+    Ok(AfPurityReport {
+        verdict,
+        fluor_loadings,
+        fluor_names: fluor_names.to_vec(),
+        af_ref_loading,
+        fluor_fraction,
+        relative_residual,
+        culprits,
+    })
+}
+
+/// Lawson–Hanson NNLS: minimize `‖A x − b‖²` subject to `x ≥ 0`.
+fn nnls(a: MatRef<'_, f64>, b: &[f64]) -> Result<Vec<f64>, TruOlsError> {
+    let m = a.nrows();
+    let n = a.ncols();
+    if b.len() != m {
+        return Err(TruOlsError::DimensionMismatch {
+            expected: m,
+            actual: b.len(),
+        });
+    }
+    if n == 0 {
+        return Ok(Vec::new());
+    }
+
+    let mut x = vec![0.0_f64; n];
+    let mut passive = vec![false; n];
+    let max_iter = n.saturating_mul(3).max(8);
+    let grad_tol = 1e-12;
+
+    for _ in 0..max_iter {
+        let residual = nnls_residual(a, b, &x);
+        let w = nnls_gradient(a, &residual);
+        let mut best_j = None;
+        let mut best_w = grad_tol;
+        for (j, &on) in passive.iter().enumerate() {
+            if !on && w[j] > best_w {
+                best_w = w[j];
+                best_j = Some(j);
+            }
+        }
+        let Some(enter) = best_j else {
+            break;
+        };
+        passive[enter] = true;
+
+        loop {
+            let mut idx = Vec::new();
+            for (j, &on) in passive.iter().enumerate() {
+                if on {
+                    idx.push(j);
+                }
+            }
+            if idx.is_empty() {
+                break;
+            }
+            let s_p = match nnls_unconstrained(a, b, &idx) {
+                Ok(sol) => sol,
+                Err(_) => {
+                    passive[idx[idx.len() - 1]] = false;
+                    continue;
+                }
+            };
+            let mut s = vec![0.0_f64; n];
+            for (local, &j) in idx.iter().enumerate() {
+                s[j] = s_p[local];
+            }
+            let min_s = idx.iter().map(|&j| s[j]).fold(f64::INFINITY, f64::min);
+            if min_s >= -grad_tol {
+                x = s;
+                break;
+            }
+            let mut alpha = 1.0_f64;
+            for &j in &idx {
+                if s[j] < -grad_tol {
+                    let denom = x[j] - s[j];
+                    if denom > 0.0 {
+                        alpha = alpha.min(x[j] / denom);
+                    }
+                }
+            }
+            if !alpha.is_finite() || alpha <= 0.0 {
+                break;
+            }
+            for j in 0..n {
+                x[j] += alpha * (s[j] - x[j]);
+                if x[j] < grad_tol {
+                    x[j] = 0.0;
+                    passive[j] = false;
+                }
+            }
+        }
+    }
+
+    for xj in &mut x {
+        if *xj < 0.0 {
+            *xj = 0.0;
+        }
+    }
+    Ok(x)
+}
+
+fn nnls_residual(a: MatRef<'_, f64>, b: &[f64], x: &[f64]) -> Vec<f64> {
+    let m = a.nrows();
+    let n = a.ncols();
+    let mut r = vec![0.0_f64; m];
+    for i in 0..m {
+        let mut ax = 0.0;
+        for j in 0..n {
+            ax += a[(i, j)] * x[j];
+        }
+        r[i] = b[i] - ax;
+    }
+    r
+}
+
+fn nnls_gradient(a: MatRef<'_, f64>, residual: &[f64]) -> Vec<f64> {
+    let m = a.nrows();
+    let n = a.ncols();
+    let mut w = vec![0.0_f64; n];
+    for j in 0..n {
+        let mut acc = 0.0;
+        for i in 0..m {
+            acc += a[(i, j)] * residual[i];
+        }
+        w[j] = acc;
+    }
+    w
+}
+
+fn nnls_unconstrained(
+    a: MatRef<'_, f64>,
+    b: &[f64],
+    cols: &[usize],
+) -> Result<Vec<f64>, TruOlsError> {
+    let m = a.nrows();
+    let k = cols.len();
+    let sub = Mat::from_fn(m, k, |i, j| a[(i, cols[j])]);
+    let rhs = Col::from_fn(m, |i| b[i]);
+    let sol = solve_linear_system(sub.as_ref(), rhs.as_ref())?;
+    Ok((0..k).map(|j| sol[j]).collect())
 }
 
 #[cfg(test)]
@@ -1202,26 +1627,17 @@ mod tests {
     fn confidence_is_finite_half_when_both_residuals_are_zero() {
         // Direct formula: identical perfect fits → denom 0. Without the guard this is NaN.
         let c = residual_gap_confidence(0.0, 0.0);
-        assert!(c.is_finite(), "zero–zero residuals must not be NaN, got {c}");
+        assert!(
+            c.is_finite(),
+            "zero–zero residuals must not be NaN, got {c}"
+        );
         assert_eq!(c, 0.5, "perfect tie must score confidence 0.5");
 
         // Integration: identical catalog signatures + pure-AF observation stays finite.
         let library = AfMatchLibrary {
             entries: vec![
-                entry(
-                    "af_a",
-                    [0.10, 0.05, 1.00, 0.20],
-                    [200.0, 150.0],
-                    400.0,
-                    0.5,
-                ),
-                entry(
-                    "af_b",
-                    [0.10, 0.05, 1.00, 0.20],
-                    [800.0, 700.0],
-                    400.0,
-                    0.5,
-                ),
+                entry("af_a", [0.10, 0.05, 1.00, 0.20], [200.0, 150.0], 400.0, 0.5),
+                entry("af_b", [0.10, 0.05, 1.00, 0.20], [800.0, 700.0], 400.0, 0.5),
             ],
             beta: 2.0,
             detector_names: vec!["D1".into(), "D2".into(), "D3".into(), "D4".into()],
@@ -1581,6 +1997,313 @@ mod tests {
         assert!(
             residual_diff > 1.0,
             "AF subtraction must alter observations when AF is present (diff={residual_diff})"
+        );
+    }
+
+    fn purity_names() -> Vec<String> {
+        vec!["BV421".into(), "FITC".into()]
+    }
+
+    fn purity_af_ref() -> [f64; 4] {
+        [0.05, 0.05, 1.00, 0.40]
+    }
+
+    #[test]
+    fn nnls_recovers_a_nonnegative_combination() {
+        let a = fluor_matrix();
+        let b = [
+            0.6 * a[(0, 0)] + 0.3 * a[(0, 1)],
+            0.6 * a[(1, 0)] + 0.3 * a[(1, 1)],
+            0.6 * a[(2, 0)] + 0.3 * a[(2, 1)],
+            0.6 * a[(3, 0)] + 0.3 * a[(3, 1)],
+        ];
+        let x = nnls(a.as_ref(), &b).expect("nnls");
+        assert!((x[0] - 0.6).abs() < 1e-8, "x0={}", x[0]);
+        assert!((x[1] - 0.3).abs() < 1e-8, "x1={}", x[1]);
+        assert!(x.iter().all(|&v| v >= -1e-12));
+    }
+
+    #[test]
+    fn nnls_does_not_use_a_negative_unconstrained_coefficient() {
+        // Unconstrained LS on this pair wants a negative on column 1; NNLS must zero it.
+        let a = mat![[1.0, 0.9], [0.0, 0.1], [0.0, 0.0], [0.0, 0.0]];
+        let b = [1.0, -0.5, 0.0, 0.0];
+        let x = nnls(a.as_ref(), &b).expect("nnls");
+        assert!(
+            x[1] >= -1e-12,
+            "second loading must be non-negative: {:?}",
+            x
+        );
+        assert!(x[0] > 0.0);
+    }
+
+    #[test]
+    fn purity_trigger_prefers_largest_share_among_cosine_clear_culprits() {
+        let culprits = vec![
+            AfPurityCulprit {
+                name: "HighCosine".into(),
+                loading: 0.12,
+                fraction: 0.12,
+                cosine: 0.95,
+            },
+            AfPurityCulprit {
+                name: "HighShare".into(),
+                loading: 0.50,
+                fraction: 0.50,
+                cosine: 0.72,
+            },
+        ];
+
+        let trigger = triggering_culprit(&culprits, DEFAULT_PURITY_MIN_COSINE)
+            .expect("one culprit clears the cosine floor");
+
+        assert_eq!(trigger, 1);
+
+        let equal_share = vec![
+            AfPurityCulprit {
+                name: "LowerCosine".into(),
+                loading: 0.50,
+                fraction: 0.50,
+                cosine: 0.72,
+            },
+            AfPurityCulprit {
+                name: "HigherCosine".into(),
+                loading: 0.50,
+                fraction: 0.50,
+                cosine: 0.90,
+            },
+        ];
+        assert_eq!(
+            triggering_culprit(&equal_share, DEFAULT_PURITY_MIN_COSINE),
+            Some(1),
+            "equal-share ties use cosine descending"
+        );
+    }
+
+    #[test]
+    fn purity_passes_a_clean_unstained_spectrum() {
+        let af = purity_af_ref();
+        let report = assess_af_purity(
+            &af,
+            fluor_matrix().as_ref(),
+            &af,
+            &purity_names(),
+            AfPurityOptions::default(),
+        )
+        .expect("purity");
+        assert_eq!(report.verdict, AfPurityVerdict::Pass);
+        assert!(
+            report.fluor_fraction < DEFAULT_PURITY_WARN_FLUOR_FRACTION,
+            "fluor_fraction={}",
+            report.fluor_fraction
+        );
+        assert!(report.af_ref_loading > report.fluor_loadings.iter().copied().sum::<f64>());
+        assert_eq!(
+            report.summary(),
+            "This AF signature looks more like broad autofluorescence than any single stain."
+        );
+    }
+
+    #[test]
+    fn purity_rejects_a_fluor_copy_and_names_the_culprit() {
+        let fluor = fluor_matrix();
+        let candidate = [fluor[(0, 0)], fluor[(1, 0)], fluor[(2, 0)], fluor[(3, 0)]];
+        let report = assess_af_purity(
+            &candidate,
+            fluor.as_ref(),
+            &purity_af_ref(),
+            &purity_names(),
+            AfPurityOptions::default(),
+        )
+        .expect("purity");
+        assert_eq!(report.verdict, AfPurityVerdict::Reject);
+        assert!(
+            report.fluor_fraction >= DEFAULT_PURITY_REJECT_FLUOR_FRACTION,
+            "fluor_fraction={}",
+            report.fluor_fraction
+        );
+        assert_eq!(report.culprits[0].name, "BV421");
+        assert!(report.culprits[0].cosine > 0.99);
+        assert!(report.culprits[0].fraction >= DEFAULT_PURITY_REJECT_FLUOR_FRACTION);
+        assert!(report.summary().contains("BV421"));
+    }
+
+    #[test]
+    fn purity_flags_nsb_contaminated_af_and_is_scale_invariant() {
+        let fluor = fluor_matrix();
+        let af = purity_af_ref();
+        let mix = |scale: f64| {
+            [
+                scale * (0.55 * af[0] + 0.45 * fluor[(0, 0)]),
+                scale * (0.55 * af[1] + 0.45 * fluor[(1, 0)]),
+                scale * (0.55 * af[2] + 0.45 * fluor[(2, 0)]),
+                scale * (0.55 * af[3] + 0.45 * fluor[(3, 0)]),
+            ]
+        };
+        let low = assess_af_purity(
+            &mix(1.0),
+            fluor.as_ref(),
+            &af,
+            &purity_names(),
+            AfPurityOptions::default(),
+        )
+        .expect("purity");
+        let high = assess_af_purity(
+            &mix(40.0),
+            fluor.as_ref(),
+            &af,
+            &purity_names(),
+            AfPurityOptions::default(),
+        )
+        .expect("purity");
+        // Cosine to BV421 is ~0.63 (below 0.70): leftover parking, not a dye copy.
+        assert_eq!(low.verdict, AfPurityVerdict::Pass);
+        assert_eq!(low.verdict, high.verdict);
+        assert!((low.fluor_fraction - high.fluor_fraction).abs() < 1e-9);
+
+        // High-cosine mix: AF overlaps BV421 enough that cosine ≥ 0.70 at ~22% named share.
+        // Three detectors keep NNLS determined (2 fluors + AF).
+        let s = mat![[1.0, 0.10], [0.85, 0.10], [0.10, 1.0]];
+        let af2 = [0.90, 1.00, 0.20];
+        let nsb = |scale: f64| {
+            [
+                scale * (0.22 * s[(0, 0)] + 0.78 * af2[0]),
+                scale * (0.22 * s[(1, 0)] + 0.78 * af2[1]),
+                scale * (0.22 * s[(2, 0)] + 0.78 * af2[2]),
+            ]
+        };
+        let names = vec!["BV421".into(), "FITC".into()];
+        let nsb_low = assess_af_purity(
+            &nsb(1.0),
+            s.as_ref(),
+            &af2,
+            &names,
+            AfPurityOptions::default(),
+        )
+        .expect("purity");
+        let nsb_high = assess_af_purity(
+            &nsb(40.0),
+            s.as_ref(),
+            &af2,
+            &names,
+            AfPurityOptions::default(),
+        )
+        .expect("purity");
+        assert_eq!(nsb_low.verdict, AfPurityVerdict::Warn);
+        assert_eq!(nsb_low.verdict, nsb_high.verdict);
+        assert!((nsb_low.fluor_fraction - nsb_high.fluor_fraction).abs() < 1e-9);
+        assert_eq!(nsb_low.culprits[0].name, "BV421");
+    }
+
+    #[test]
+    fn purity_summary_names_the_dye_share_not_total_fluor_mass() {
+        let mixed = AfPurityReport {
+            verdict: AfPurityVerdict::Warn,
+            fluor_loadings: vec![0.10, 0.24],
+            fluor_names: vec!["BUV496".into(), "RB705".into()],
+            af_ref_loading: 0.66,
+            fluor_fraction: 0.34,
+            relative_residual: 0.12,
+            culprits: vec![AfPurityCulprit {
+                name: "RB705".into(),
+                loading: 0.24,
+                fraction: 0.24,
+                cosine: 0.82,
+            }],
+        };
+        let summary = mixed.summary();
+        assert!(
+            summary.contains("RB705 accounts for 24%"),
+            "summary={summary}"
+        );
+        assert!(summary.contains("dyes together: 34%"), "summary={summary}");
+        assert!(
+            !summary.contains("34% explained by RB705"),
+            "must not attribute total fluor mass to one dye: {summary}"
+        );
+
+        let single = AfPurityReport {
+            fluor_loadings: vec![0.34],
+            fluor_names: vec!["RB705".into()],
+            culprits: vec![AfPurityCulprit {
+                name: "RB705".into(),
+                loading: 0.34,
+                fraction: 0.34,
+                cosine: 0.82,
+            }],
+            ..mixed
+        };
+        let single_summary = single.summary();
+        assert!(
+            single_summary.contains("RB705 accounts for 34%"),
+            "summary={single_summary}"
+        );
+        assert!(
+            !single_summary.contains("dyes together"),
+            "single dye should not restate the same share: {single_summary}"
+        );
+    }
+
+    fn cosine_max_normalized(a: &[f64], b: &[f64]) -> f64 {
+        cosine_after_peak_normalize(a, b)
+    }
+
+    #[test]
+    fn purity_passes_when_dye_share_is_high_but_cosine_is_low() {
+        let fluor = fluor_matrix();
+        // Broad AF-like vector with a small bump on BV421's peak — leftover parking, unlike BV421.
+        let candidate = [0.35, 0.30, 1.00, 0.80];
+        let report = assess_af_purity(
+            &candidate,
+            fluor.as_ref(),
+            &purity_af_ref(),
+            &purity_names(),
+            AfPurityOptions::default(),
+        )
+        .expect("purity");
+        let bv = [fluor[(0, 0)], fluor[(1, 0)], fluor[(2, 0)], fluor[(3, 0)]];
+        assert!(
+            cosine_max_normalized(&candidate, &bv) < DEFAULT_PURITY_MIN_COSINE,
+            "fixture must be unlike BV421"
+        );
+        assert_eq!(report.verdict, AfPurityVerdict::Pass);
+        assert!(
+            report.culprits.first().map(|c| c.cosine).unwrap_or(0.0) < DEFAULT_PURITY_MIN_COSINE
+                || report.culprits.is_empty()
+                || report.culprits[0].cosine < DEFAULT_PURITY_MIN_COSINE
+        );
+    }
+
+    #[test]
+    fn purity_warns_when_named_share_and_cosine_both_clear() {
+        // AF overlaps BV421 enough for cosine ≥ 0.70 at ~22% named share.
+        // Three detectors keep NNLS determined (2 fluors + AF).
+        let s = mat![[1.0, 0.10], [0.85, 0.10], [0.10, 1.0]];
+        let af2 = [0.90, 1.00, 0.20];
+        let cand = [
+            0.22 * s[(0, 0)] + 0.78 * af2[0],
+            0.22 * s[(1, 0)] + 0.78 * af2[1],
+            0.22 * s[(2, 0)] + 0.78 * af2[2],
+        ];
+        let names = vec!["BV421".into(), "FITC".into()];
+        let report = assess_af_purity(&cand, s.as_ref(), &af2, &names, AfPurityOptions::default())
+            .expect("purity");
+        assert_eq!(report.verdict, AfPurityVerdict::Warn);
+        assert_eq!(report.culprits[0].name, "BV421");
+        assert!(
+            report.culprits[0].cosine >= DEFAULT_PURITY_MIN_COSINE,
+            "cosine={}",
+            report.culprits[0].cosine
+        );
+        assert!(
+            report.culprits[0].fraction >= DEFAULT_PURITY_WARN_FLUOR_FRACTION,
+            "fraction={}",
+            report.culprits[0].fraction
+        );
+        assert!(
+            report.culprits[0].fraction < DEFAULT_PURITY_REJECT_FLUOR_FRACTION,
+            "fraction={}",
+            report.culprits[0].fraction
         );
     }
 }
