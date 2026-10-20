@@ -3,10 +3,8 @@
 //! These tests verify that algorithms produce mathematically correct results,
 //! independent of R comparison. They test the algorithms themselves.
 
-use peacoqc_rs::qc::isolation_tree::{
-    IsolationTreeConfig, build_feature_matrix, isolation_tree_detect,
-};
-use peacoqc_rs::qc::mad::{MADConfig, mad_outlier_method};
+use peacoqc_rs::qc::isolation_tree::IsolationTreeConfig;
+use peacoqc_rs::qc::mad::MADConfig;
 use peacoqc_rs::qc::peaks::{ChannelPeakFrame, PeakInfo};
 use peacoqc_rs::stats::median_mad::{MAD_SCALE_FACTOR, median_mad, median_mad_scaled};
 use std::collections::HashMap;
