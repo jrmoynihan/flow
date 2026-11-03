@@ -5,23 +5,77 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## Unreleased
+## 0.2.0 — 2026-11-03
 
 ### Added
 
- - Optional `parc` feature: PARC clustering (HNSW/Exact k-NN via `flow-knn`,
-   Rayon local + Jaccard prune, `leiden-rs` community detection, too-big
-   recursive split, small-population reassignment).
- - `Parc::fit` / `Parc::fit_with_knn` with Python-aligned defaults and full
-   config surface (`ParcConfig`). Package version `0.1.2`.
- - `ParcConfig::parallel_prune` to toggle Rayon on local/Jaccard prune.
- - Criterion bench `parc_throughput` and example `parc_rss` (peak RSS).
- - Batch SOM and FlowSOM (SOM codebook + k-means metaclusters) in `flow-clustering` 0.2.0.
+- Optional `parc` feature: PARC clustering (HNSW/Exact k-NN via `flow-knn`,
+  Rayon local + Jaccard prune, `leiden-rs` community detection, too-big
+  recursive split, small-population reassignment).
+- `Parc::fit` / `Parc::fit_with_knn` with Python-aligned defaults and full
+  config surface (`ParcConfig`).
+- `ParcConfig::parallel_prune` to toggle Rayon on local/Jaccard prune.
+- Criterion bench `parc_throughput` and example `parc_rss` (peak RSS).
+- Batch SOM and FlowSOM (SOM codebook + k-means metaclusters) behind default
+  feature `som`.
 
 ### Documentation
 
- - README: PARC usage, citation (Stassen et al. 2020), feature table.
- - `docs/PERF_PARC.md`: M5 Max throughput, Rayon A/B, and peak RSS baselines.
+- README: PARC and FlowSOM usage, Stassen et al. 2020 citation, feature table.
+- `docs/PERF_PARC.md`: throughput, Rayon A/B, and peak RSS baselines.
+
+## v0.2.0 (2026-11-03)
+
+### Chore
+
+ - <csr-id-964879b6c4d52736bd5dd54e0d80572f655a9557/> polish changelogs for knn 0.1.2, clustering 0.2.0, autospectral 0.1.0
+   Pin flow-knn to ^0.1.2 for AnnIndex consumers and ready scoped
+   smart-release publishes in dependency order.
+
+### New Features
+
+ - <csr-id-9cc2e13cbc12e04a3474b00a7af9915deac4ee9e/> add batch SOM and FlowSOM metaclustering
+   Train a rectangular codebook then k-means the nodes so AF discovery can
+   use a FlowSOM backend without gating the rest of Phase 1. Bump to 0.2.0
+   and pin path dependents (flow-gates, tru-ols-cli) to match.
+ - <csr-id-b953a8b210ccd5fe5ecad413a0dc8cbae1afc5c6/> :sparkles: add PARC clustering algorithm
+   - Added optional `parc` feature for PARC clustering, integrating HNSW k-NN via `flow-knn` and Leiden community detection. - Updated README and CHANGELOG to reflect new feature and usage instructions. - Modified Cargo.toml to include dependencies for `flow-knn` and `leiden-rs`. - Enhanced clustering module to support PARC functionality, including pruning and community detection.
+
+### Performance
+
+ - <csr-id-c33e8b220b5108b6be7b14493eb63e3c6fcb9ba2/> add PARC benches and Exact vs HNSW baselines
+   Measure e2e Exact↔HNSW and Rayon prune A/B on M5 Max; expose parallel_prune
+   for isolation. At ≥50k events HNSW wins clearly and remains the default.
+
+### Commit Statistics
+
+<csr-read-only-do-not-edit/>
+
+ - 6 commits contributed to the release.
+ - 4 commits were understood as [conventional](https://www.conventionalcommits.org).
+ - 0 issues like '(#ID)' were seen in commit messages
+
+### Commit Details
+
+<csr-read-only-do-not-edit/>
+
+<details><summary>view details</summary>
+
+ * **Uncategorized**
+    - Polish changelogs for knn 0.1.2, clustering 0.2.0, autospectral 0.1.0 ([`964879b`](https://github.com/jrmoynihan/flow/commit/964879b6c4d52736bd5dd54e0d80572f655a9557))
+    - Merge pull request #22 from jrmoynihan/feature/flow-autospectral ([`35007ba`](https://github.com/jrmoynihan/flow/commit/35007ba7841c164cf8e4ffae220a782dcb87d7ce))
+    - Add batch SOM and FlowSOM metaclustering ([`9cc2e13`](https://github.com/jrmoynihan/flow/commit/9cc2e13cbc12e04a3474b00a7af9915deac4ee9e))
+    - Merge branch 'feature/parc-clustering' ([`baf4f01`](https://github.com/jrmoynihan/flow/commit/baf4f01043a91470566d16c5d43fc815da17379e))
+    - Add PARC benches and Exact vs HNSW baselines ([`c33e8b2`](https://github.com/jrmoynihan/flow/commit/c33e8b220b5108b6be7b14493eb63e3c6fcb9ba2))
+    - :sparkles: add PARC clustering algorithm ([`b953a8b`](https://github.com/jrmoynihan/flow/commit/b953a8b210ccd5fe5ecad413a0dc8cbae1afc5c6))
+</details>
+
+## v0.1.2 (2026-08-18)
+
+### Documentation
+
+ - <csr-id-3b118cede174e11c18a64c25e913416654b8c26e/> polish release notes and README install versions
+   Add first-publish summaries for unpublished crates and bump install examples to the versions cargo-smart-release will publish.
  - <csr-id-92e31b03dc632230809d10422be0c1062e6e9e1b/> consumer-first README pass across crates, add peacoqc-py usage example, remove legacy utils crate
    Rewrites READMEs across the workspace (fcs, flow-clustering,
    flow-control-detection, flow-density, flow-fcs-compress, flow-knn,
@@ -40,9 +94,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 <csr-read-only-do-not-edit/>
 
- - 1 commit contributed to the release over the course of 13 calendar days.
+ - 3 commits contributed to the release over the course of 13 calendar days.
  - 99 days passed between releases.
- - 1 commit was understood as [conventional](https://www.conventionalcommits.org).
+ - 2 commits were understood as [conventional](https://www.conventionalcommits.org).
  - 0 issues like '(#ID)' were seen in commit messages
 
 ### Commit Details
@@ -52,6 +106,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 <details><summary>view details</summary>
 
  * **Uncategorized**
+    - Release flow-fcs-compress v0.1.4, flow-linalg v0.1.3, flow-fcs v0.5.2, flow-knn v0.1.1, flow-dimensional-reduction v0.1.0, flow-pacmap v0.1.2, flow-density v0.1.2, flow-plots v0.3.3, flow-clustering v0.1.2, flow-gates v0.5.0, flow-peak-detection v0.1.0, flow-control-detection v0.1.0, flow-tru-ols v0.2.0, peacoqc-rs v0.3.3, peacoqc-cli v0.3.0 ([`63fb593`](https://github.com/jrmoynihan/flow/commit/63fb5937185fba6f342ae3ae5b960a4df4c2bc72))
+    - Polish release notes and README install versions ([`3b118ce`](https://github.com/jrmoynihan/flow/commit/3b118cede174e11c18a64c25e913416654b8c26e))
     - Consumer-first README pass across crates, add peacoqc-py usage example, remove legacy utils crate ([`92e31b0`](https://github.com/jrmoynihan/flow/commit/92e31b03dc632230809d10422be0c1062e6e9e1b))
 </details>
 

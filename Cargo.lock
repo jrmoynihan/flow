@@ -3226,6 +3226,7 @@ checksum = "37007738a80ea34f969af54a3390dd72cacdef654974cfd449c9f6f72dbaac10"
 name = "flow-autospectral"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "approx",
  "criterion 0.8.2",
  "faer 0.24.4",
@@ -3235,8 +3236,11 @@ dependencies = [
  "flow-knn",
  "flow-tru-ols",
  "ndarray 0.16.1",
+ "polars",
  "rand 0.10.2",
  "rayon",
+ "serde",
+ "serde_json",
  "tempfile",
  "thiserror 2.0.19",
 ]
@@ -3390,7 +3394,7 @@ dependencies = [
 
 [[package]]
 name = "flow-knn"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "ann-search-rs",
  "approx",
