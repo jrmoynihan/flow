@@ -626,6 +626,34 @@ pub(crate) fn resolve_layout(
 /// Upper bound on TEXT re-serializations in [`resolve_layout`].
 pub(crate) const MAX_LAYOUT_PASSES: usize = 8;
 
+/// Resolve `$BYTEORD` for TEXT serialization without inventing endianness.
+fn resolve_byteord_for_write(metadata: &Metadata) -> Result<String> {
+    let order = match metadata.keywords.get("$BYTEORD") {
+        Some(Keyword::Byte(ByteKeyword::BYTEORD(bo))) => bo.clone(),
+        Some(Keyword::String(sk)) => {
+            let raw = sk.get_str();
+            ByteOrder::from_keyword_str(raw.as_ref()).map_err(|_| {
+                anyhow!(
+                    "invalid $BYTEORD value {raw:?}; expected \"1,2,3,4\" or \"4,3,2,1\" \
+                     (refusing to invent little-endian)"
+                )
+            })?
+        }
+        Some(_) => {
+            return Err(anyhow!(
+                "$BYTEORD is present but not a byte-order or string keyword; \
+                 refusing to invent little-endian"
+            ));
+        }
+        None => {
+            return Err(anyhow!(
+                "$BYTEORD is required when writing FCS metadata; refusing to invent little-endian"
+            ));
+        }
+    };
+    Ok(order.to_keyword_str().to_string())
+}
+
 pub(crate) fn serialize_metadata(
     metadata: &Metadata,
     n_events: usize,
@@ -670,16 +698,12 @@ pub(crate) fn serialize_metadata(
     add_keyword("BEGINDATA", &data_start.to_string());
     add_keyword("ENDDATA", &data_end.to_string());
 
-    // Ensure required keywords are written (use metadata values if present, otherwise defaults)
-    let byteord_value = metadata
-        .keywords
-        .get("$BYTEORD")
-        .and_then(|k| match k {
-            Keyword::Byte(ByteKeyword::BYTEORD(bo)) => Some(bo.to_keyword_str()),
-            _ => None,
-        })
-        .unwrap_or("1,2,3,4");
-    add_keyword("BYTEORD", byteord_value);
+    // $BYTEORD must reflect metadata when present. Never invent little-endian:
+    // a silent "1,2,3,4" default with big-endian DATA inverts every multi-byte
+    // channel (flow-crates-lfg). Resolve typed Byte keywords, or string values
+    // via ByteOrder::from_keyword_str; missing/invalid → error.
+    let byteord_value = resolve_byteord_for_write(metadata)?;
+    add_keyword("BYTEORD", &byteord_value);
 
     let datatype_value = metadata
         .keywords
@@ -991,6 +1015,80 @@ pub(crate) fn build_header(
     header[50..58].copy_from_slice(b"       0");
 
     Ok(header)
+}
+
+#[cfg(test)]
+mod byteord_serialize_tests {
+    use super::*;
+    use crate::keyword::StringKeyword;
+
+    /// Why: callers often set `$BYTEORD` via `insert_string_keyword`. That used to
+    /// store `StringKeyword::Other`, and serialize then emitted hardcoded
+    /// little-endian — so a big-endian write claim corrupted every multi-byte
+    /// channel (flow-crates-lfg).
+    #[test]
+    fn insert_string_byteord_big_endian_survives_serialize() {
+        let mut metadata = Metadata::new();
+        metadata.insert_string_keyword("$BYTEORD".into(), "4,3,2,1".into());
+        metadata.insert_string_keyword("$DATATYPE".into(), "F".into());
+        metadata.insert_string_keyword("$MODE".into(), "L".into());
+        metadata.insert_string_keyword("$NEXTDATA".into(), "0".into());
+
+        assert!(
+            matches!(
+                metadata.keywords.get("$BYTEORD"),
+                Some(Keyword::Byte(ByteKeyword::BYTEORD(ByteOrder::BigEndian)))
+            ),
+            "insert_string_keyword must store typed BYTEORD, got {:?}",
+            metadata.keywords.get("$BYTEORD")
+        );
+
+        let text = serialize_metadata(&metadata, 1, 1, 256, 259, Version::V3_1)
+            .expect("serialize with big-endian BYTEORD");
+        let text_str = String::from_utf8(text).expect("utf8 TEXT");
+        assert!(
+            text_str.contains("4,3,2,1"),
+            "TEXT must keep caller big-endian BYTEORD, got: {text_str}"
+        );
+        assert!(
+            !text_str.contains("$BYTEORD/1,2,3,4") && !text_str.contains("$BYTEORD\u{000c}1,2,3,4"),
+            "must not silently downgrade to little-endian"
+        );
+    }
+
+    #[test]
+    fn string_other_byteord_still_resolved_without_inventing_le() {
+        let mut metadata = Metadata::new();
+        // Defense in depth: even a pre-fix Other string must not become LE.
+        metadata.keywords.insert(
+            "$BYTEORD".into(),
+            Keyword::String(StringKeyword::Other(Arc::from("4,3,2,1"))),
+        );
+        metadata.insert_string_keyword("$DATATYPE".into(), "F".into());
+        metadata.insert_string_keyword("$MODE".into(), "L".into());
+        metadata.insert_string_keyword("$NEXTDATA".into(), "0".into());
+
+        let text = serialize_metadata(&metadata, 1, 1, 256, 259, Version::V3_1)
+            .expect("string Other BYTEORD must resolve via from_keyword_str");
+        let text_str = String::from_utf8(text).expect("utf8 TEXT");
+        assert!(text_str.contains("4,3,2,1"), "got: {text_str}");
+    }
+
+    #[test]
+    fn missing_byteord_errors_instead_of_defaulting_to_le() {
+        let mut metadata = Metadata::new();
+        metadata.insert_string_keyword("$DATATYPE".into(), "F".into());
+        metadata.insert_string_keyword("$MODE".into(), "L".into());
+        metadata.insert_string_keyword("$NEXTDATA".into(), "0".into());
+
+        let err = serialize_metadata(&metadata, 1, 1, 256, 259, Version::V3_1)
+            .expect_err("missing $BYTEORD must not invent little-endian");
+        let msg = err.to_string();
+        assert!(
+            msg.contains("$BYTEORD") && msg.contains("refusing"),
+            "error must refuse invented endianness, got: {msg}"
+        );
+    }
 }
 
 #[cfg(test)]
