@@ -36,6 +36,8 @@
 
 ## v0.1.2 (2026-11-03)
 
+<csr-id-964879b6c4d52736bd5dd54e0d80572f655a9557/>
+
 ### Chore
 
  - <csr-id-964879b6c4d52736bd5dd54e0d80572f655a9557/> polish changelogs for knn 0.1.2, clustering 0.2.0, autospectral 0.1.0
@@ -65,7 +67,7 @@
 
 <csr-read-only-do-not-edit/>
 
- - 5 commits contributed to the release.
+ - 6 commits contributed to the release.
  - 4 commits were understood as [conventional](https://www.conventionalcommits.org).
  - 0 issues like '(#ID)' were seen in commit messages
 
@@ -76,6 +78,7 @@
 <details><summary>view details</summary>
 
  * **Uncategorized**
+    - Release flow-knn v0.1.2 ([`00e1ffc`](https://github.com/jrmoynihan/flow/commit/00e1ffcf73ae1ea33e15670704d3f38c4a50e432))
     - Polish changelogs for knn 0.1.2, clustering 0.2.0, autospectral 0.1.0 ([`964879b`](https://github.com/jrmoynihan/flow/commit/964879b6c4d52736bd5dd54e0d80572f655a9557))
     - Merge pull request #22 from jrmoynihan/feature/flow-autospectral ([`35007ba`](https://github.com/jrmoynihan/flow/commit/35007ba7841c164cf8e4ffae220a782dcb87d7ce))
     - Add performance-guided development map and host calibrator ([`e33bbe7`](https://github.com/jrmoynihan/flow/commit/e33bbe75d3777e0b8f7c8f5ebe0d71259ab9b4ef))
