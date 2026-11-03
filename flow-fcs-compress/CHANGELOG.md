@@ -24,7 +24,9 @@ unmix pipelines do not inflate to a full DataFrame.
 
 - `flow-linalg` ^0.2.0 (row-block contracts).
 
-## Unreleased
+## 0.2.0 (2026-11-03)
+
+<csr-id-9ee153e04507d454f9509a4d2b2a2b3ffe9db17b/>
 
 ### Chore
 
@@ -33,6 +35,80 @@ unmix pipelines do not inflate to a full DataFrame.
 
 ### Documentation
 
+ - <csr-id-92e31b03dc632230809d10422be0c1062e6e9e1b/> consumer-first README pass across crates, add peacoqc-py usage example, remove legacy utils crate
+   Rewrites READMEs across the workspace (fcs, flow-clustering,
+   flow-control-detection, flow-density, flow-fcs-compress, flow-knn,
+   flow-linalg, flow-pacmap, flow-peak-detection, gates, peacoqc-cli,
+   peacoqc-rs, tru-ols, tru-ols-cli) to lead with install/quick-start/perf
+   for downstream consumers, and adds a new flow-fcs-bench README.
+   
+   Adds a concrete usage example to peacoqc-py/README.md mirroring the
+   docstring in peacoqc/__init__.py.
+   
+   Removes the superseded utils/ crate (clustering, KDE, and PCA helpers
+   now live in their dedicated crates) and syncs beads issue/interaction
+   export state.
+ - <csr-id-e33bbe75d3777e0b8f7c8f5ebe0d71259ab9b4ef/> add performance-guided development map and host calibrator
+   Give agents a napkin-math floor, this-machine snapshot, gap index, and
+   retry shortlist so hot-path work starts from hardware cost rather than
+   another 5% unsafe A/B.
+
+### New Features
+
+ - <csr-id-adceb9d0655b46e1fadb4ecb9f0e4dc6e3d73742/> expose full pco ChunkConfig for LosslessF32Pco
+   Wrap pco 1.x ChunkConfig so callers can set mode, delta, and paging instead
+   of only compression level.
+ - <csr-id-c9980a9e0ab5a8539428a6ae3edf68d23023ea1f/> ranged FCS/FCZ row readers and streaming sinks
+
+### Performance
+
+ - <csr-id-05d8cf13511a8b064b406fd3a385eec95948b8bd/> bulk-write KnnGraph and typed load buffers
+   Complete Campaign 2 A/B: keep staged write_all (−99.9%) and LE typed
+   read_exact (−6.7%) at 100k×60; document reverted pacmap/compress/peaks
+   scratch experiments with Criterion benches retained.
+ - <csr-id-2d3c6fc30fb8bdcc2ddb2c0ca638766e68401e37/> bulk-load KnnGraph IO; record unsafe micro-opt A/B
+   Keep the ~100× faster graph load via read_exact + LE bytemuck cast.
+   Add Criterion benches and PERF_AB docs for the six-item A/B campaign;
+   revert opts that missed the ≥5% keep rule (BSS, FCS columns/write,
+   TRU-OLS SyncPtr, exact KNN / PaCMAP unchecked).
+
+### Commit Statistics
+
+<csr-read-only-do-not-edit/>
+
+ - 5 commits contributed to the release.
+ - 2 commits were understood as [conventional](https://www.conventionalcommits.org).
+ - 0 issues like '(#ID)' were seen in commit messages
+
+### Commit Details
+
+<csr-read-only-do-not-edit/>
+
+<details><summary>view details</summary>
+
+ * **Uncategorized**
+    - Release flow-linalg 0.2.0, flow-fcs-compress 0.2.0, flow-fcs 0.6.0, flow-tru-ols 0.3.0 ([`1b24dcf`](https://github.com/jrmoynihan/flow/commit/1b24dcfc91ae604072a32d451465478eb56669fc))
+    - Merge pull request #25 from jrmoynihan/feature/ranged-fcs-fcz-row-io ([`b085d16`](https://github.com/jrmoynihan/flow/commit/b085d16cf01bf1d782116975d2448d4394036c72))
+    - Ranged FCS/FCZ row readers and streaming sinks ([`c9980a9`](https://github.com/jrmoynihan/flow/commit/c9980a9e0ab5a8539428a6ae3edf68d23023ea1f))
+    - Merge pull request #22 from jrmoynihan/feature/flow-autospectral ([`35007ba`](https://github.com/jrmoynihan/flow/commit/35007ba7841c164cf8e4ffae220a782dcb87d7ce))
+    - Add performance-guided development map and host calibrator ([`e33bbe7`](https://github.com/jrmoynihan/flow/commit/e33bbe75d3777e0b8f7c8f5ebe0d71259ab9b4ef))
+</details>
+
+## 0.1.4 (2026-08-18)
+
+### Chore
+
+ - <csr-id-9ee153e04507d454f9509a4d2b2a2b3ffe9db17b/> add crates.io metadata for unpublished crates
+   Pin flow-pacmap's flow-knn path dependency to a version so cargo publish can succeed.
+
+### Documentation
+
+ - <csr-id-8953fb69a59e69ae363e1b2d1ef28ce5f67289ee/> drop user Unreleased summaries that break smart-release
+   Leave Keep-a-Changelog sections cargo-smart-release already knows how to rewrite.
+ - <csr-id-2af7c38d871243877def4efd66ae004c3af6ce5f/> put changelog summaries under Keep-a-Changelog headings
+   cargo-smart-release rejects free-form Unreleased paragraphs that are not a known section.
+ - <csr-id-3b118cede174e11c18a64c25e913416654b8c26e/> polish release notes and README install versions
+   Add first-publish summaries for unpublished crates and bump install examples to the versions cargo-smart-release will publish.
  - <csr-id-92e31b03dc632230809d10422be0c1062e6e9e1b/> consumer-first README pass across crates, add peacoqc-py usage example, remove legacy utils crate
    Rewrites READMEs across the workspace (fcs, flow-clustering,
    flow-control-detection, flow-density, flow-fcs-compress, flow-knn,
@@ -69,9 +145,9 @@ unmix pipelines do not inflate to a full DataFrame.
 
 <csr-read-only-do-not-edit/>
 
- - 5 commits contributed to the release over the course of 16 calendar days.
- - 26 days passed between releases.
- - 5 commits were understood as [conventional](https://www.conventionalcommits.org).
+ - 9 commits contributed to the release over the course of 16 calendar days.
+ - 27 days passed between releases.
+ - 8 commits were understood as [conventional](https://www.conventionalcommits.org).
  - 0 issues like '(#ID)' were seen in commit messages
 
 ### Commit Details
@@ -81,6 +157,10 @@ unmix pipelines do not inflate to a full DataFrame.
 <details><summary>view details</summary>
 
  * **Uncategorized**
+    - Release flow-fcs-compress v0.1.4, flow-linalg v0.1.3, flow-fcs v0.5.2, flow-knn v0.1.1, flow-dimensional-reduction v0.1.0, flow-pacmap v0.1.2, flow-density v0.1.2, flow-plots v0.3.3, flow-clustering v0.1.2, flow-gates v0.5.0, flow-peak-detection v0.1.0, flow-control-detection v0.1.0, flow-tru-ols v0.2.0, peacoqc-rs v0.3.3, peacoqc-cli v0.3.0 ([`63fb593`](https://github.com/jrmoynihan/flow/commit/63fb5937185fba6f342ae3ae5b960a4df4c2bc72))
+    - Drop user Unreleased summaries that break smart-release ([`8953fb6`](https://github.com/jrmoynihan/flow/commit/8953fb69a59e69ae363e1b2d1ef28ce5f67289ee))
+    - Put changelog summaries under Keep-a-Changelog headings ([`2af7c38`](https://github.com/jrmoynihan/flow/commit/2af7c38d871243877def4efd66ae004c3af6ce5f))
+    - Polish release notes and README install versions ([`3b118ce`](https://github.com/jrmoynihan/flow/commit/3b118cede174e11c18a64c25e913416654b8c26e))
     - Add crates.io metadata for unpublished crates ([`9ee153e`](https://github.com/jrmoynihan/flow/commit/9ee153e04507d454f9509a4d2b2a2b3ffe9db17b))
     - Consumer-first README pass across crates, add peacoqc-py usage example, remove legacy utils crate ([`92e31b0`](https://github.com/jrmoynihan/flow/commit/92e31b03dc632230809d10422be0c1062e6e9e1b))
     - Bulk-write KnnGraph and typed load buffers ([`05d8cf1`](https://github.com/jrmoynihan/flow/commit/05d8cf13511a8b064b406fd3a385eec95948b8bd))
