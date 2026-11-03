@@ -1,7 +1,7 @@
 //! Synthetic data test utilities and tests for TRU-OLS
 
 use faer::{Mat, MatRef};
-use flow_tru_ols::{TruOls, UnmixingStrategy};
+use flow_tru_ols::TruOls;
 use rand::RngExt;
 
 /// Generate a synthetic mixing matrix with specified dimensions

@@ -15,7 +15,6 @@
 //! Run with: `cargo test --test compliance_tests -- --ignored`
 
 use flow_fcs::Fcs;
-use flow_gates::filtering::filter_events_by_gate;
 use flow_gates::gatingml::gatingml_to_gates;
 use std::path::{Path, PathBuf};
 
@@ -36,7 +35,7 @@ struct ComplianceTestCase {
     /// Expected number of events inside the gate
     expected_events: usize,
     /// Path to the expected results file (if available)
-    expected_results_file: Option<PathBuf>,
+    _expected_results_file: Option<PathBuf>,
 }
 
 /// Load all compliance test cases from the Summary.csv file
@@ -83,7 +82,7 @@ fn load_test_cases(base_path: &Path) -> anyhow::Result<Vec<ComplianceTestCase>> 
             gatingml_file,
             fcs_file,
             expected_events,
-            expected_results_file: if expected_results_file.exists() {
+            _expected_results_file: if expected_results_file.exists() {
                 Some(expected_results_file)
             } else {
                 None

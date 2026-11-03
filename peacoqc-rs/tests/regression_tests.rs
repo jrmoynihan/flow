@@ -7,10 +7,9 @@
 //! - IT and MAD algorithms
 //! - Known good outputs from test files
 
-use peacoqc_rs::qc::isolation_tree::{IsolationTreeConfig, build_feature_matrix};
-use peacoqc_rs::qc::mad::{MADConfig, mad_outlier_method};
+use peacoqc_rs::qc::isolation_tree::IsolationTreeConfig;
+use peacoqc_rs::qc::mad::MADConfig;
 use peacoqc_rs::qc::peaks::{ChannelPeakFrame, PeakInfo};
-use peacoqc_rs::{PeacoQCConfig, PeacoQCData, QCMode};
 use std::collections::HashMap;
 
 /// Test that feature matrix has one column per cluster (not per channel)
@@ -321,7 +320,7 @@ fn test_peaks_sorted_before_clustering() {
 /// Regression test: IT should find largest homogeneous group
 #[test]
 fn test_isolation_tree_finds_largest_group() {
-    use peacoqc_rs::qc::isolation_tree::{build_feature_matrix, isolation_tree_detect};
+    use peacoqc_rs::qc::isolation_tree::isolation_tree_detect;
 
     // Create data with clear separation: first 10 bins similar, last 10 bins different
     let mut peaks = Vec::new();

@@ -76,6 +76,8 @@ pub(crate) fn ensure_endmember_limit(n_endmembers: usize) -> Result<(), TruOlsEr
     Ok(())
 }
 
+pub mod af_match;
+pub mod af_validation;
 pub mod batched_ols;
 pub mod benchmark;
 pub mod error;
@@ -100,6 +102,14 @@ pub mod provenance;
 #[cfg(all(feature = "flow-fcs", feature = "plotting"))]
 pub mod plotting;
 
+pub use af_match::{
+    AfCatalogEntry, AfEventInspect, AfMatchLibrary, AfMatchOptions, AfMatchResult, DroppedAfEntry,
+    PreparedAfLibrary, build_af_match_library, inspect_match_event, match_and_subtract,
+};
+pub use af_validation::{
+    EventLabels, PathSolveResult, SolveMetrics, SyntheticPanel, ValidationPanelId,
+    metrics_for_fluor_index, run_path_a, run_path_b,
+};
 pub use batched_ols::run_ols_normal_equations;
 pub use error::TruOlsError;
 pub use preprocessing::{CutoffCalculator, NonspecificObservation};
@@ -125,13 +135,16 @@ pub use metrics::{
 pub use fcs_integration::apply_tru_ols_unmixing_from_preprocessed_with_shared_factor_cache;
 #[cfg(feature = "flow-fcs")]
 pub use fcs_integration::{
-    DEFAULT_AF_CHANNEL_NAME, TruOlsUnmixing, UNMIXED_KEYWORD, UNMIXED_METHOD_FALSE,
-    UNMIXED_METHOD_OLS, UNMIXED_METHOD_TRU_OLS, apply_tru_ols_unmixing_from_preprocessed,
-    extract_detector_data,
+    AF_ASSIGNMENT_KEYWORD, AF_CONFIDENCE_CHANNEL_NAME, AF_CONFIDENCE_KEYWORD,
+    AF_SIGNATURE_CHANNEL_NAME, AF_SOURCE_GUID_KEYWORD, AF_SOURCE_KEYWORD, DEFAULT_AF_CHANNEL_NAME,
+    TruOlsUnmixing, UNMIXED_KEYWORD, UNMIXED_METHOD_FALSE, UNMIXED_METHOD_OLS,
+    UNMIXED_METHOD_OLS_MULTI_AF, UNMIXED_METHOD_TRU_OLS, UNMIXED_METHOD_TRU_OLS_MULTI_AF,
+    append_linear_parameter_column, apply_tru_ols_unmixing_from_preprocessed, extract_detector_data,
 };
 #[cfg(feature = "flow-fcs")]
 pub use pipeline::{
-    FitMetricsSummary, UnmixExportRequest, UnmixExportResult, export_unmixed_fcs,
+    FitMetricsSummary, PathBExportRequest, UnmixExportRequest, UnmixExportResult,
+    export_unmixed_fcs, export_unmixed_fcs_path_b, path_b_tru_with_protected_af,
     set_raw_datasource_guid,
 };
 

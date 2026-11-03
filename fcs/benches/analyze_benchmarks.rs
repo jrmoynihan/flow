@@ -3,10 +3,7 @@ use std::io::{self, BufRead};
 
 #[derive(Debug)]
 struct BenchmarkResult {
-    name: String,
-    min: f64,
     median: f64,
-    max: f64,
 }
 
 fn parse_benchmark_line(line: &str) -> Option<BenchmarkResult> {
@@ -26,16 +23,11 @@ fn parse_benchmark_line(line: &str) -> Option<BenchmarkResult> {
         return None;
     }
 
-    let min = parts[0].trim().parse().ok()?;
+    parts[0].trim().parse::<f64>().ok()?;
     let median = parts[1].trim().parse().ok()?;
-    let max = parts[2].trim().parse().ok()?;
+    parts[2].trim().parse::<f64>().ok()?;
 
-    Some(BenchmarkResult {
-        name: String::new(), // Will be set from context
-        min,
-        median,
-        max,
-    })
+    Some(BenchmarkResult { median })
 }
 
 fn main() -> io::Result<()> {

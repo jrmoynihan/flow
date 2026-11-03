@@ -54,6 +54,40 @@ pub fn shared_mask_factor_cache_with_capacity(capacity: usize) -> SharedMaskFact
     SharedMaskFactorCache::with_capacity(capacity)
 }
 
+/// Shared shape checks for the `from_preprocessed*` constructors.
+fn validate_preprocessed_shapes(
+    mixing_matrix: MatRef<'_, f64>,
+    unstained_control: MatRef<'_, f64>,
+    cutoffs: ColRef<'_, f64>,
+    nonspecific_observation: ColRef<'_, f64>,
+    autofluorescence_idx: Option<usize>,
+) -> Result<(), TruOlsError> {
+    let n_detectors = mixing_matrix.nrows();
+    let n_endmembers = mixing_matrix.ncols();
+    if unstained_control.ncols() != n_detectors {
+        return Err(TruOlsError::DimensionMismatch {
+            expected: n_detectors,
+            actual: unstained_control.ncols(),
+        });
+    }
+    if cutoffs.nrows() != n_endmembers {
+        return Err(TruOlsError::DimensionMismatch {
+            expected: n_endmembers,
+            actual: cutoffs.nrows(),
+        });
+    }
+    if nonspecific_observation.nrows() != n_detectors {
+        return Err(TruOlsError::DimensionMismatch {
+            expected: n_detectors,
+            actual: nonspecific_observation.nrows(),
+        });
+    }
+    if autofluorescence_idx.is_some_and(|idx| idx >= n_endmembers) {
+        return Err(TruOlsError::NoAutofluorescenceEndmember);
+    }
+    Ok(())
+}
+
 /// Strategy for handling irrelevant endmember abundances.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum UnmixingStrategy {
@@ -69,7 +103,10 @@ pub struct TruOls {
     cutoffs: Col<f64>,
     nonspecific_observation: Col<f64>,
     unstained_control: Mat<f64>,
-    autofluorescence_idx: usize,
+    /// `None` for a fluorophore-only panel (OLS Path B after AF subtract): there is no AF
+    /// column to protect from truncation or to exempt from UCM. See [`TruOls::new_fluor_only`].
+    /// TRU Path B instead uses [`Self::from_preprocessed`] with a catalog-signature AF column.
+    autofluorescence_idx: Option<usize>,
     strategy: UnmixingStrategy,
     /// Present when built with the **`unmix-cache`** feature; keyed by active global-endmember mask.
     #[cfg(feature = "unmix-cache")]
@@ -111,11 +148,67 @@ impl TruOls {
             cutoffs: cutoffs.cutoffs().clone(),
             nonspecific_observation: nonspecific.observation().clone(),
             unstained_control,
-            autofluorescence_idx,
+            autofluorescence_idx: Some(autofluorescence_idx),
             strategy: UnmixingStrategy::UnstainedControlMapping,
             #[cfg(feature = "unmix-cache")]
             factor_cache: shared_mask_factor_cache_with_capacity(512),
         })
+    }
+
+    /// Create a TRU-OLS instance for a **fluorophore-only** mixing matrix.
+    ///
+    /// OLS Path B (see [`crate::af_match`]) removes autofluorescence from the observation
+    /// before unmixing, so the matrix passed here has no AF column. Every endmember is
+    /// then an ordinary fluorophore: none is protected from truncation, and none is
+    /// exempt from [`UnmixingStrategy::UnstainedControlMapping`].
+    ///
+    /// **Do not use for TRU Path B.** AutoSpectral → TRU appends the argmax catalog
+    /// signature as a protected AF column via [`Self::from_preprocessed`] /
+    /// [`Self::new`]. Prefer this over synthesizing a placeholder AF column only when
+    /// the pipeline is truly fluorophore-only after AF subtract (OLS).
+    pub fn new_fluor_only(
+        mixing_matrix: Mat<f64>,
+        unstained_control: Mat<f64>,
+    ) -> Result<Self, TruOlsError> {
+        ensure_endmember_limit(mixing_matrix.ncols())?;
+        let cutoffs =
+            CutoffCalculator::calculate(mixing_matrix.as_ref(), unstained_control.as_ref(), 0.995)?;
+        let nonspecific = NonspecificObservation::calculate_fluor_only(
+            mixing_matrix.as_ref(),
+            unstained_control.as_ref(),
+        )?;
+
+        Ok(Self {
+            mixing_matrix,
+            cutoffs: cutoffs.cutoffs().clone(),
+            nonspecific_observation: nonspecific.observation().clone(),
+            unstained_control,
+            autofluorescence_idx: None,
+            strategy: UnmixingStrategy::UnstainedControlMapping,
+            #[cfg(feature = "unmix-cache")]
+            factor_cache: shared_mask_factor_cache_with_capacity(512),
+        })
+    }
+
+    /// [`Self::new_fluor_only`] with cutoffs and the nonspecific observation already computed.
+    pub fn from_preprocessed_fluor_only(
+        mixing_matrix: Mat<f64>,
+        unstained_control: Mat<f64>,
+        cutoffs: Col<f64>,
+        nonspecific_observation: Col<f64>,
+    ) -> Result<Self, TruOlsError> {
+        Self::from_preprocessed_with_optional_af(
+            mixing_matrix,
+            unstained_control,
+            cutoffs,
+            nonspecific_observation,
+            None,
+        )
+    }
+
+    /// The AF column index, or `None` for a fluorophore-only panel.
+    pub fn autofluorescence_index(&self) -> Option<usize> {
+        self.autofluorescence_idx
     }
 
     /// Build a [`TruOls`] from a mixing matrix, unstained control, and **already computed** cutoffs
@@ -130,29 +223,30 @@ impl TruOls {
         nonspecific_observation: Col<f64>,
         autofluorescence_idx: usize,
     ) -> Result<Self, TruOlsError> {
-        let n_detectors = mixing_matrix.nrows();
+        Self::from_preprocessed_with_optional_af(
+            mixing_matrix,
+            unstained_control,
+            cutoffs,
+            nonspecific_observation,
+            Some(autofluorescence_idx),
+        )
+    }
+
+    fn from_preprocessed_with_optional_af(
+        mixing_matrix: Mat<f64>,
+        unstained_control: Mat<f64>,
+        cutoffs: Col<f64>,
+        nonspecific_observation: Col<f64>,
+        autofluorescence_idx: Option<usize>,
+    ) -> Result<Self, TruOlsError> {
         let n_endmembers = mixing_matrix.ncols();
-        if unstained_control.ncols() != n_detectors {
-            return Err(TruOlsError::DimensionMismatch {
-                expected: n_detectors,
-                actual: unstained_control.ncols(),
-            });
-        }
-        if cutoffs.nrows() != n_endmembers {
-            return Err(TruOlsError::DimensionMismatch {
-                expected: n_endmembers,
-                actual: cutoffs.nrows(),
-            });
-        }
-        if nonspecific_observation.nrows() != n_detectors {
-            return Err(TruOlsError::DimensionMismatch {
-                expected: n_detectors,
-                actual: nonspecific_observation.nrows(),
-            });
-        }
-        if autofluorescence_idx >= n_endmembers {
-            return Err(TruOlsError::NoAutofluorescenceEndmember);
-        }
+        validate_preprocessed_shapes(
+            mixing_matrix.as_ref(),
+            unstained_control.as_ref(),
+            cutoffs.as_ref(),
+            nonspecific_observation.as_ref(),
+            autofluorescence_idx,
+        )?;
         ensure_endmember_limit(n_endmembers)?;
 
         Ok(Self {
@@ -177,29 +271,14 @@ impl TruOls {
         autofluorescence_idx: usize,
         factor_cache: SharedMaskFactorCache,
     ) -> Result<Self, TruOlsError> {
-        let n_detectors = mixing_matrix.nrows();
         let n_endmembers = mixing_matrix.ncols();
-        if unstained_control.ncols() != n_detectors {
-            return Err(TruOlsError::DimensionMismatch {
-                expected: n_detectors,
-                actual: unstained_control.ncols(),
-            });
-        }
-        if cutoffs.nrows() != n_endmembers {
-            return Err(TruOlsError::DimensionMismatch {
-                expected: n_endmembers,
-                actual: cutoffs.nrows(),
-            });
-        }
-        if nonspecific_observation.nrows() != n_detectors {
-            return Err(TruOlsError::DimensionMismatch {
-                expected: n_detectors,
-                actual: nonspecific_observation.nrows(),
-            });
-        }
-        if autofluorescence_idx >= n_endmembers {
-            return Err(TruOlsError::NoAutofluorescenceEndmember);
-        }
+        validate_preprocessed_shapes(
+            mixing_matrix.as_ref(),
+            unstained_control.as_ref(),
+            cutoffs.as_ref(),
+            nonspecific_observation.as_ref(),
+            Some(autofluorescence_idx),
+        )?;
         ensure_endmember_limit(n_endmembers)?;
 
         Ok(Self {
@@ -207,7 +286,7 @@ impl TruOls {
             cutoffs,
             nonspecific_observation,
             unstained_control,
-            autofluorescence_idx,
+            autofluorescence_idx: Some(autofluorescence_idx),
             strategy: UnmixingStrategy::UnstainedControlMapping,
             factor_cache,
         })
@@ -441,7 +520,7 @@ impl TruOls {
             scratch.to_remove.clear();
             for local_idx in 0..active {
                 let global_idx = scratch.current_indices[local_idx];
-                if global_idx == self.autofluorescence_idx {
+                if Some(global_idx) == self.autofluorescence_idx {
                     continue;
                 }
                 if scratch.x_out[local_idx] < self.cutoffs[global_idx] {
@@ -579,7 +658,7 @@ impl TruOls {
 
         for event_idx in 0..n_events {
             for endmember_idx in 0..n_endmembers {
-                if endmember_idx == self.autofluorescence_idx {
+                if Some(endmember_idx) == self.autofluorescence_idx {
                     continue;
                 }
 
@@ -679,6 +758,75 @@ mod tests {
         let u2 = t2.unmix(dataset.as_ref()).unwrap();
         assert!((u1[(0, 0)] - u2[(0, 0)]).abs() < 1e-12);
         assert!((u1[(0, 1)] - u2[(0, 1)]).abs() < 1e-12);
+    }
+
+    /// The AF column is exempt from truncation and from UCM. A fluorophore-only panel has
+    /// no such column, so an endmember that falls under its cutoff must actually be
+    /// removed — which is exactly what a synthesized placeholder AF column would prevent.
+    #[test]
+    fn a_fluor_only_panel_truncates_every_endmember() {
+        let mixing_matrix = mat![[1.0, 0.0], [0.0, 1.0]];
+        // Endmember 0 sits at 10 in the control, endmember 1 at 0, so the cutoffs are
+        // (10, 0) and the event below is under the first one.
+        let unstained = mat![[10.0, 0.0], [10.0, 0.0], [10.0, 0.0]];
+        let dataset = mat![[5.0, 100.0]];
+
+        let mut with_af = TruOls::new(mixing_matrix.clone(), unstained.clone(), 0).unwrap();
+        with_af.set_strategy(UnmixingStrategy::Zero);
+        assert_eq!(with_af.autofluorescence_index(), Some(0));
+        let protected = with_af.unmix(dataset.as_ref()).unwrap();
+        assert!(
+            (protected[(0, 0)] - 5.0).abs() < 1e-9,
+            "the AF endmember is never truncated: {}",
+            protected[(0, 0)]
+        );
+
+        let mut fluor_only =
+            TruOls::new_fluor_only(mixing_matrix, unstained).unwrap();
+        fluor_only.set_strategy(UnmixingStrategy::Zero);
+        assert_eq!(fluor_only.autofluorescence_index(), None);
+        let truncated = fluor_only.unmix(dataset.as_ref()).unwrap();
+        assert!(
+            truncated[(0, 0)].abs() < 1e-9,
+            "endmember 0 is under its cutoff and has no AF exemption: {}",
+            truncated[(0, 0)]
+        );
+        assert!((truncated[(0, 1)] - 100.0).abs() < 1e-9);
+    }
+
+    /// The AF column is exempt from truncation. Path B TRU appends a catalog signature at
+    /// `autofluorescence_idx = n_fluor` for the same reason — that index must survive even
+    /// when its abundance sits under the AF cutoff.
+    #[test]
+    fn protected_af_endmember_stays_in_the_active_set() {
+        let mixing_matrix = mat![
+            [1.0, 0.0, 0.1],
+            [0.0, 1.0, 0.1],
+            [0.0, 0.0, 1.0]
+        ];
+        // Fluors bright in control → high cutoffs; AF column near zero → low AF cutoff.
+        let unstained = mat![
+            [20.0, 20.0, 0.0],
+            [20.0, 20.0, 0.0],
+            [20.0, 20.0, 0.0]
+        ];
+        let mut tru = TruOls::new(mixing_matrix, unstained, 2).unwrap();
+        tru.set_strategy(UnmixingStrategy::Zero);
+        assert_eq!(tru.autofluorescence_index(), Some(2));
+
+        let observation = faer::col![5.0, 5.0, 50.0];
+        let (relevant, relevant_indices, _) =
+            tru.unmix_event(observation.as_ref()).unwrap();
+        assert!(
+            relevant_indices.contains(&2),
+            "AF index must remain active: {relevant_indices:?}"
+        );
+        let af_local = relevant_indices.iter().position(|&i| i == 2).unwrap();
+        assert!(
+            relevant[af_local] > 1.0,
+            "protected AF abundance should not be zeroed: {}",
+            relevant[af_local]
+        );
     }
 
     #[test]
