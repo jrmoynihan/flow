@@ -209,7 +209,7 @@ pub(crate) fn write_segments(
 ///
 /// Split out so both write paths share one behaviour, and so the eventual
 /// per-version dispatch has a single site to redirect.
-fn enforce_conformance(
+pub(crate) fn enforce_conformance(
     metadata: &Metadata,
     version: Version,
     policy: ConformancePolicy,

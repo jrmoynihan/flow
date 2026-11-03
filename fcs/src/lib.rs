@@ -2,11 +2,13 @@ use std::path::PathBuf;
 
 pub use byteorder::ByteOrder;
 pub use datatype::FcsDataType;
-pub use file::Fcs;
+pub use file::{Fcs, FcsWriteMetadata, FcsWriteSource};
 pub use header::Header;
 pub use keyword::Keyword;
 pub use matrix::MatrixOps;
 pub use metadata::Metadata;
+pub use row_io::{FcsRowReadError, FcsRowSource};
+pub use row_sink::{FcsFloatRowSink, FcsRowSinkError};
 pub use parameter::{ChannelName, EventDataFrame, EventDatum, LabelName, Parameter, ParameterMap};
 pub use transform::{Formattable, TransformType, Transformable};
 pub use version::Version;
@@ -35,6 +37,8 @@ pub mod keyword;
 pub mod matrix;
 pub mod metadata;
 pub mod parameter;
+pub mod row_io;
+pub mod row_sink;
 #[cfg(feature = "synthetic")]
 pub mod synthetic;
 mod tests;
