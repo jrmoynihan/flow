@@ -27,7 +27,294 @@ aligned with the matched signature.
 - `flow-fcs` ^0.6.0 (optional `flow-fcs` feature)
 - `flow-linalg` ^0.2.0
 
-## Unreleased
+## 0.3.0 (2026-11-03)
+
+<csr-id-af6097fbd09f00657eaf82ea8367fffd3ee72baf/>
+<csr-id-74956f94c544d1fa83f6fffbb18e2d4f5e6072ff/>
+<csr-id-fd1cc4a76af40804018e24792dce407860302857/>
+<csr-id-bd8837a275f83cee37e59ab665d6dd2ec293bbfc/>
+
+### Chore
+
+ - <csr-id-af6097fbd09f00657eaf82ea8367fffd3ee72baf/> default test commands to cargo-nextest (flow-crates-9xv)
+   Nextest runs each test in its own process and reports per-test timing, so
+   make it the default runner everywhere the project tells a human or an agent
+   how to run tests, rather than leaving it as an opt-in each caller remembers.
+   
+   Adds .config/nextest.toml (default profile fails fast; a ci profile runs the
+   whole suite) and a `cargo nt` alias, since Cargo cannot alias the built-in
+   `test` subcommand. Doctests stay on the built-in harness because nextest
+   cannot run them.
+ - <csr-id-74956f94c544d1fa83f6fffbb18e2d4f5e6072ff/> bump flow-fcs to 0.4.0, add publish metadata to new crates
+   - flow-fcs 0.3.0 → 0.4.0 (new compensation feature + public API)
+   - flow-linalg, flow-density, flow-clustering: add repository field
+     and smart-release scripts for first publish
+   - Update all workspace consumers to ^0.4.0
+ - <csr-id-fd1cc4a76af40804018e24792dce407860302857/> Release
+ - <csr-id-bd8837a275f83cee37e59ab665d6dd2ec293bbfc/> clean up Cargo.toml formatting and remove unused keyword
+   - Removed "compensation" from keywords.
+   - Standardized formatting for dependencies and dev-dependencies for consistency.
+
+### Test
+
+ - <csr-id-7169985189803569276439dd5872638a80c28d06/> lock AF matcher β extremes
+   Add tiny-β morphology and huge-β spectral-argmax regressions so ksr.7.3 covers the documented prior vs likelihood limits.
+
+### Chore
+
+ - <csr-id-9272c3787525a50a253f7f27ce5ff43902e68c6d/> drop unused imports from tests and benches
+   Rand 0.9 exposes random_range on RngExt, and several integration tests imported helpers they never called. Clearing those keeps cargo check --tests --benches quiet without touching unused TestScenario variants still wired for later cases.
+
+### Documentation
+
+ - <csr-id-92e31b03dc632230809d10422be0c1062e6e9e1b/> consumer-first README pass across crates, add peacoqc-py usage example, remove legacy utils crate
+   Rewrites READMEs across the workspace (fcs, flow-clustering,
+   flow-control-detection, flow-density, flow-fcs-compress, flow-knn,
+   flow-linalg, flow-pacmap, flow-peak-detection, gates, peacoqc-cli,
+   peacoqc-rs, tru-ols, tru-ols-cli) to lead with install/quick-start/perf
+   for downstream consumers, and adds a new flow-fcs-bench README.
+   
+   Adds a concrete usage example to peacoqc-py/README.md mirroring the
+   docstring in peacoqc/__init__.py.
+   
+   Removes the superseded utils/ crate (clustering, KDE, and PCA helpers
+   now live in their dedicated crates) and syncs beads issue/interaction
+   export state.
+ - <csr-id-a915f69bce32ad10dbdb5e1c166f40cbda1681ff/> add PeacoQC and TRU-OLS CPU vs GPU bench result notes
+ - <csr-id-a9d4aaaed740a9f5928c2ec9225b23f69b7d1675/> add benchmark reports, flamegraphs, and performance analysis
+   Root benchmark_output/: quality metrics report (JSON + markdown + CSVs)
+   from synthetic unmixing scenarios.
+   tru-ols/benchmark_output/: e2e plate throughput logs, perf ceiling
+   hypotheses, before/after comparison, and samply flamegraph profiles.
+ - <csr-id-cdff38f488388888dfe146cf6672ff23086c5014/> move long-form docs into docs/
+   - Add crate README; centralize comparison, validation, and dev notes
+ - <csr-id-e33bbe75d3777e0b8f7c8f5ebe0d71259ab9b4ef/> add performance-guided development map and host calibrator
+   Give agents a napkin-math floor, this-machine snapshot, gap index, and
+   retry shortlist so hot-path work starts from hardware cost rather than
+   another 5% unsafe A/B.
+
+### New Features
+
+ - <csr-id-26a0a5421d948b319977d0b359ed6a0e8d536d32/> retire delimiter workaround now that flow-fcs handles escaping
+   Remove SAFE_TEXT_DELIMITER and ensure_delimiter_survives_provenance
+   which worked around the writer's inability to escape delimiters in
+   keyword values. flow-crates-1xb now handles delimiter escaping in
+   flow-fcs's writer at FCS 3.1+ (3.2 is the version tru-ols stamps
+   products as), so this containment mechanism is no longer needed.
+ - <csr-id-0cc2d3beabceb00542ea645e7daa84d234396c3e/> record full unmixing provenance and stamp products FCS3.2
+   Closes flow-crates-x17.6 and x17.7. An unmixed .fcs could not be audited,
+   reproduced, or even attributed from the file alone.
+   
+   What was recorded before: $UNMIXED = "TRU-OLS", and — on only one of the two
+   write paths — $RAW_DATASOURCE_GUID. The mixing matrix, the unstained control
+   identity, the cutoff percentile, the strategy, the AF index, the software
+   version and the fit metrics were all dropped. $SPILLOVER, the one slot a
+   reader would inspect, is overwritten with an identity matrix. That is correct
+   behaviour — the detector basis is gone, so downstream tools must not
+   re-compensate — but it carries zero information about the transform that
+   replaced it.
+   
+   The core defect was the split: export_unmixed_fcs set the GUID pair, but the
+   apply_tru_ols_unmixing* trait methods did not. A caller using the trait plus
+   write_fcs_file produced a file that inherited the raw file's $GUID with no
+   parent pointer — indistinguishable from the source it came from.
+   
+   Provenance is now written unconditionally from
+   build_unmixed_fcs_from_unmixed_abundances, the single chokepoint both paths
+   already flow through, so neither path can omit it. The parameters arrive as an
+   UnmixProvenance struct rather than more positional arguments; the function was
+   already #[allow(clippy::too_many_arguments)].
+   
+   The matrix goes in $TRUOLS_MIXMAT (MixedKeyword::MixingMatrix) rather than
+   $SPILLOVER, whose square n×n encoding cannot represent a rectangular
+   detector×endmember matrix. Unstained-control description uses the spec-native
+   $UNSTAINEDINFO.
+   
+   read_provenance(&Fcs) -> Option<UnmixProvenance> reads it back, which is what
+   makes the traceability usable rather than merely recorded — and testable.
+   
+   Products are stamped FCS3.2 via flow_fcs::upgrade::stamp_v3_2: $ORIGINALITY =
+   DataModified, $LAST_MODIFIER, $LAST_MODIFIED, ISO 8601 datetimes derived from
+   the source's $DATE/$BTIM/$ETIM, and carrier keywords migrated from the
+   deprecated plate/well forms. Raw passthrough writes are untouched and keep
+   their source version — 3.2 is not the global writer default.
+ - <csr-id-cd6b4d9ffb17f3ecaa0aa60393b45255d77962a1/> harden unmixed FCS export metadata and channel labels
+   Preserve signed abundances, stamp $UNMIXED, mint a fresh GUID, strip orphan
+   Pn* keywords, and write fluor/target labels plus identity spillover for plots.
+ - <csr-id-c9223d6d29e19c5d2a4513514c0cdaf8d3fe2926/> add shared KNN crate and unify Burn/cubeCL workspace deps
+   Introduce flow-knn for portable graphs and ANN backends, pin Burn 0.21 with
+   cubeCL 0.10 across GPU consumers, and path-patch pastey/bit-vec for sandbox builds.
+ - <csr-id-4fa5791892b1403996979a5d5a695a83c03fa050/> include Autofluorescence as mixing-matrix endmember
+   Append AF as a max-normalized column when set so cosine similarity and
+   hotspot/SIF reflect AF collinearity with the panel.
+ - <csr-id-c31b59dca115999cf7f9a4ff074ff39b12a1c4ae/> attach hotspot/SIF to mixing matrix assemble
+ - <csr-id-1c50f77e55c25456a7da29e78e472422a669d780/> add mixing matrix assembly and shared pipeline helpers
+   Build MixingMatrix with condition/cosine QC and UI-agnostic AF resolution / FCS export helpers, depending on flow-linalg.
+ - <csr-id-cd548b992d65013fe718124cb5d4bab5db0c5505/> parallelize unmixing pipeline with scratch buffers and batch caching
+   Major performance refactor of the TRU-OLS unmixing engine:
+   - Rayon parallelization for preprocessing and unmixing (threshold-gated)
+   - Scratch-buffer least-squares solvers (faer QR/Cholesky, BLAS paths)
+   - SharedMaskFactorCache for batch runs (new unmix-cache feature)
+   - Comprehensive quality metrics (spread, USE, dimensionality, fit)
+   - FCS reconstruction from unmixed abundances (build_unmixed_fcs)
+   
+   New modules: batched_ols, benchmark, metrics, unmix_buffer, unmix_cache, gpu.
+   New docs: profiling guide, Julia/BLAS notes, quality comparison report.
+ - <csr-id-d043a3591c9d66858d3b03fdf0753214817565db/> FCS naming, unmix export clamping, bench targets
+   - Derive display names from endmember stems without splitting markers
+   - Clamp unmixed abundances to non-negative for FCS export
+   - Register unmixing_benchmark harness; split sequential vs parallel benches
+   - Use flow-plots without default raster feature
+ - <csr-id-8d79dd17b3a38a8bcdc26126333abf8d2555fcd9/> implement contour path clipping to axis range
+   - Added `clip_contour_paths` function to clamp contour path points to specified x and y axis ranges, dropping degenerate paths.
+   - Updated `calculate_contours` to utilize the new clipping function, ensuring contour paths do not exceed the chart's axis range.
+   - Enhanced documentation for `x_range` and `y_range` parameters to clarify their purpose.
+   - Added regression tests to verify clipping behavior and prevent panics when rendering contours with out-of-range data.
+ - <csr-id-8b26c1418137646bb311d45a678d1d43ef05a22d/> scatter overlay, z-axis coloring, density point size, contours, histograms
+   - ScatterPlotData: discrete gate colors (ScatterOverlay), continuous z-axis (ScatterColoredContinuous)
+   - Density plots: point_size affects contribution radius (matches scatter behavior)
+   - Contour plots: KDE-based contours, draw_outliers, contour_smoothing
+   - HistogramPlot: filled/unfilled, overlaid with gate colors, baseline separation, scale_to_peak
+   - Breaking: DensityPlot::Data is now ScatterPlotData; use .into() for Vec<(f32,f32)>
+   - Updated tru-ols, tru-ols-cli, gates for new API
+ - <csr-id-6ec0f3bdfd00ba1f39a1e8f4e76869027e40ca55/> pair-test AF match with scatter tie-break
+ - <csr-id-f8bd87e4728fc880f681aa7c33bbf82b80a49f34/> export path_b_tru_with_protected_af for Preview IPC
+   Public API so fast-flow preview_unmix_af can reuse the grouped Path B TRU
+   solve without duplicating the algorithm.
+ - <csr-id-db2b6374dc5ff0d6c7fc2e4f41119e1849a8b8f7/> Path B TRU with protected catalog AF column
+   AutoSpectral+TRU now builds per-assignment [fluors|a_k] solvers with
+   autofluorescence_idx protected, using original observations; exported
+   Autofluorescence remains matcher k*, and provenance records af index.
+
+### Bug Fixes
+
+ - <csr-id-2ea795744687e96f3e4f9be8cfeb9c75ec36ca93/> stop writing empty $PnS in unmixed FCS export (flow-crates-aht)
+   FCS 3.1+ forbids empty keyword values because a doubled delimiter is the
+   escape for one literal delimiter in those versions; a blank $PnS
+   serialises to two adjacent delimiters and the next keyword's bytes get
+   absorbed on read. The unmixed-export path always stamps output as FCS
+   3.2 (stamp_v3_2) while writing $PnS = "" for scatter/time passthrough
+   parameters, autofluorescence, and fluorophore endmembers with no
+   resolved marker name — corrupting the TEXT segment on reopen.
+   
+   Write descriptive, non-empty values instead of omitting or blanking:
+   - scatter/time parameters: $PnS = channel name (orig_param.channel_name)
+   - fluorophore endmembers: $PnS = target when resolved, else fall back
+   to the fluor name already written as $PnN for that parameter
+   - autofluorescence: $PnS = af_pn (defaults to "Autofluorescence")
+ - <csr-id-a565fdf4b372fe74eb6393eb61218a8ea159b6fe/> address final whole-branch review findings (bounds check, cache warning, feature scoping, version bump, benchmark docs)
+   - Fcs::columns() now returns a descriptive Err instead of panicking when a
+   parameter's cache index falls outside the column cache (can happen on a
+   derived Fcs whose parameters were replaced without resizing the cache,
+   e.g. tru-ols's spectral-unmixing output). Added a regression test.
+   - Added a `# Warning` doc section to column()/columns()/events() noting the
+   cache is only meaningful on an Fcs from open()/open_all() (flow-crates-rkq).
+   - Moved flow-fcs's `test-util` feature enablement from [dependencies] to
+   [dev-dependencies] in gates, tru-ols, and peacoqc-rs so it's no longer
+   forced on in release builds via feature unification.
+   - Bumped flow-fcs to 0.5.1 (test-util didn't exist in the published 0.5.0)
+   and its dependents' version constraints to ^0.5.1.
+   - Documented the benchmark's actual ~8x events_uncached/open_eager_baseline
+   gap (extract_columns lacking a uniform-width fast path, not double work
+   from open()) in the benchmark source and amended the Stage A plan doc.
+   Tracked as flow-crates-3si.
+ - <csr-id-6e3d7233683f7c18b858829c83844171fa6adfd1/> add Fcs::for_testing constructor, restore cross-crate test-fixture construction
+   Task 4's pub(crate) columns field broke every out-of-crate struct-literal
+   construction of Fcs, since a pub(crate) field can't be named externally at
+   all. Adds a public, feature-gated constructor and migrates every known
+   broken call site (tru-ols, peacoqc-rs, gates, plus flow-fcs's own
+   compress-feature tests) to use it instead.
+ - <csr-id-6986541e936967c566b3c6caca42c9e0cbf5678f/> apply $PnR masking, fix bit-packed stride, add $NEXTDATA traversal
+   Fixes four parsing gaps reported in jrmoynihan/flow#21:
+   
+   - $PnR masking (flow-crates-d35, P0): integer parameters now mask off
+   unused high bits per their declared $PnR range before column
+   extraction, fixing silently-wrong channel values on instruments
+   (Beckman FC500/Gallios/Navios, older BD) that store sub-16-bit ADC
+   resolution in wider fields.
+   - Bit-packed $PnB stride (flow-crates-bk6, P2): calculate_bytes_per_event
+   now sums raw bit widths before rounding once, instead of rounding each
+   parameter first — correct for both byte-aligned and bit-packed layouts.
+   - $NEXTDATA traversal (flow-crates-1mg, P2): new Fcs::open_all() walks
+   the $NEXTDATA chain to read every dataset in a multi-dataset FCS file
+   (all Beckman .lmd files use this). open() is unchanged and still
+   returns only the first dataset, so existing callers are unaffected.
+   - $DATATYPE A (flow-crates-ee0, P3, won't-fix): documented the existing
+   Err behavior as a deliberate spec-driven decision (ASCII was
+   deprecated due to cross-vendor bit-order disagreement) rather than an
+   oversight, and added a test confirming it.
+   
+   Bumps flow-fcs 0.4.1 -> 0.5.0 and the paired version requirement in
+   every workspace crate that depends on it via path (Cargo enforces that
+   constraint even for path deps).
+ - <csr-id-758d02ec3225382d81b566db15a30e5cd4863e16/> update rand and polars APIs for compatibility
+   - Use rand::RngExt for random_range (rand 0.10)
+   - Use DataFrame::new_infer_height for polars 0.53
+ - <csr-id-08388d5fa6f7950067ada4e4ab3680f54ef7635a/> dual-gate AF purity on cosine and named stain share
+   Warn/Reject on the largest reconstruction share among stains that resemble the AF signature.
+ - <csr-id-bc983d04e59e0984d515fde6e03406152e829a26/> finite AF_Confidence when both pair-test residuals are zero
+ - <csr-id-2ffae7de31341df36163df65e1cb7fbca8527974/> bind Path B TRU protection test to solvers
+   Rewrite UNMIXED_METHOD_TRU_OLS_MULTI_AF docs for protected catalog AF,
+   and probe constructed TruOls AF indices / active-set membership so the
+   suite fails if Path B TRU regresses to fluor-only.
+
+### Performance
+
+ - <csr-id-2d3c6fc30fb8bdcc2ddb2c0ca638766e68401e37/> bulk-load KnnGraph IO; record unsafe micro-opt A/B
+   Keep the ~100× faster graph load via read_exact + LE bytemuck cast.
+   Add Criterion benches and PERF_AB docs for the six-item A/B campaign;
+   revert opts that missed the ≥5% keep rule (BSS, FCS columns/write,
+   TRU-OLS SyncPtr, exact KNN / PaCMAP unchecked).
+
+### Bug Fixes (BREAKING)
+
+ - <csr-id-f0b29225fb01d5d2c8060e2b9fdf4b9b87b2dfa7/> resolve offsets data-set-relative, fold OTHER into CRC range
+   Every FCS offset is measured from the start of the data set that declares
+   it, not from the start of the file: HEADER fields (§2.4.3), $BEGINDATA and
+   $BEGINANALYSIS (§3.3.3), and $NEXTDATA (§3.3.31). We were treating them all
+   as file-absolute.
+   
+   The bug stayed invisible because a two-data-set file -- which is what every
+   .lmd is -- takes exactly one hop, from byte 0, where relative and absolute
+   agree. It takes a three-data-set chain to expose it, and no fixture had one.
+   
+   Fcs gains a public dataset_start; a private absolutize() in file.rs maps a
+   declared offset to a file-absolute one. It disambiguates rather than
+   assuming, because vendors do emit file-absolute offsets: an offset below
+   dataset_start must be relative, and otherwise the relative reading wins
+   unless it runs past EOF, in which case we warn and fall back. That keeps the
+   existing vendor-style two-data-set fixture green.
+
+### Commit Statistics
+
+<csr-read-only-do-not-edit/>
+
+ - 12 commits contributed to the release.
+ - 9 commits were understood as [conventional](https://www.conventionalcommits.org).
+ - 0 issues like '(#ID)' were seen in commit messages
+
+### Commit Details
+
+<csr-read-only-do-not-edit/>
+
+<details><summary>view details</summary>
+
+ * **Uncategorized**
+    - Release flow-linalg 0.2.0, flow-fcs-compress 0.2.0, flow-fcs 0.6.0, flow-tru-ols 0.3.0 ([`1b24dcf`](https://github.com/jrmoynihan/flow/commit/1b24dcfc91ae604072a32d451465478eb56669fc))
+    - Merge pull request #26 from jrmoynihan/feature/tru-ols-path-b-protected-af ([`a51cd25`](https://github.com/jrmoynihan/flow/commit/a51cd25879f62c31a9fb6cb3e787697136f8fb00))
+    - Drop unused imports from tests and benches ([`9272c37`](https://github.com/jrmoynihan/flow/commit/9272c3787525a50a253f7f27ce5ff43902e68c6d))
+    - Dual-gate AF purity on cosine and named stain share ([`08388d5`](https://github.com/jrmoynihan/flow/commit/08388d5fa6f7950067ada4e4ab3680f54ef7635a))
+    - Finite AF_Confidence when both pair-test residuals are zero ([`bc983d0`](https://github.com/jrmoynihan/flow/commit/bc983d04e59e0984d515fde6e03406152e829a26))
+    - Pair-test AF match with scatter tie-break ([`6ec0f3b`](https://github.com/jrmoynihan/flow/commit/6ec0f3bdfd00ba1f39a1e8f4e76869027e40ca55))
+    - Lock AF matcher β extremes ([`7169985`](https://github.com/jrmoynihan/flow/commit/7169985189803569276439dd5872638a80c28d06))
+    - Export path_b_tru_with_protected_af for Preview IPC ([`f8bd87e`](https://github.com/jrmoynihan/flow/commit/f8bd87e4728fc880f681aa7c33bbf82b80a49f34))
+    - Bind Path B TRU protection test to solvers ([`2ffae7d`](https://github.com/jrmoynihan/flow/commit/2ffae7de31341df36163df65e1cb7fbca8527974))
+    - Path B TRU with protected catalog AF column ([`db2b637`](https://github.com/jrmoynihan/flow/commit/db2b6374dc5ff0d6c7fc2e4f41119e1849a8b8f7))
+    - Merge pull request #22 from jrmoynihan/feature/flow-autospectral ([`35007ba`](https://github.com/jrmoynihan/flow/commit/35007ba7841c164cf8e4ffae220a782dcb87d7ce))
+    - Add performance-guided development map and host calibrator ([`e33bbe7`](https://github.com/jrmoynihan/flow/commit/e33bbe75d3777e0b8f7c8f5ebe0d71259ab9b4ef))
+</details>
+
+## 0.2.0 (2026-08-18)
 
 ### Chore
 
@@ -52,6 +339,12 @@ aligned with the matched signature.
 
 ### Documentation
 
+ - <csr-id-8953fb69a59e69ae363e1b2d1ef28ce5f67289ee/> drop user Unreleased summaries that break smart-release
+   Leave Keep-a-Changelog sections cargo-smart-release already knows how to rewrite.
+ - <csr-id-2af7c38d871243877def4efd66ae004c3af6ce5f/> put changelog summaries under Keep-a-Changelog headings
+   cargo-smart-release rejects free-form Unreleased paragraphs that are not a known section.
+ - <csr-id-3b118cede174e11c18a64c25e913416654b8c26e/> polish release notes and README install versions
+   Add first-publish summaries for unpublished crates and bump install examples to the versions cargo-smart-release will publish.
  - <csr-id-92e31b03dc632230809d10422be0c1062e6e9e1b/> consumer-first README pass across crates, add peacoqc-py usage example, remove legacy utils crate
    Rewrites READMEs across the workspace (fcs, flow-clustering,
    flow-control-detection, flow-density, flow-fcs-compress, flow-knn,
@@ -255,8 +548,8 @@ aligned with the matched signature.
 
 <csr-read-only-do-not-edit/>
 
- - 35 commits contributed to the release.
- - 26 commits were understood as [conventional](https://www.conventionalcommits.org).
+ - 39 commits contributed to the release.
+ - 29 commits were understood as [conventional](https://www.conventionalcommits.org).
  - 0 issues like '(#ID)' were seen in commit messages
 
 ### Commit Details
@@ -266,6 +559,10 @@ aligned with the matched signature.
 <details><summary>view details</summary>
 
  * **Uncategorized**
+    - Release flow-fcs-compress v0.1.4, flow-linalg v0.1.3, flow-fcs v0.5.2, flow-knn v0.1.1, flow-dimensional-reduction v0.1.0, flow-pacmap v0.1.2, flow-density v0.1.2, flow-plots v0.3.3, flow-clustering v0.1.2, flow-gates v0.5.0, flow-peak-detection v0.1.0, flow-control-detection v0.1.0, flow-tru-ols v0.2.0, peacoqc-rs v0.3.3, peacoqc-cli v0.3.0 ([`63fb593`](https://github.com/jrmoynihan/flow/commit/63fb5937185fba6f342ae3ae5b960a4df4c2bc72))
+    - Drop user Unreleased summaries that break smart-release ([`8953fb6`](https://github.com/jrmoynihan/flow/commit/8953fb69a59e69ae363e1b2d1ef28ce5f67289ee))
+    - Put changelog summaries under Keep-a-Changelog headings ([`2af7c38`](https://github.com/jrmoynihan/flow/commit/2af7c38d871243877def4efd66ae004c3af6ce5f))
+    - Polish release notes and README install versions ([`3b118ce`](https://github.com/jrmoynihan/flow/commit/3b118cede174e11c18a64c25e913416654b8c26e))
     - Retire delimiter workaround now that flow-fcs handles escaping ([`26a0a54`](https://github.com/jrmoynihan/flow/commit/26a0a5421d948b319977d0b359ed6a0e8d536d32))
     - Default test commands to cargo-nextest (flow-crates-9xv) ([`af6097f`](https://github.com/jrmoynihan/flow/commit/af6097fbd09f00657eaf82ea8367fffd3ee72baf))
     - Stop writing empty $PnS in unmixed FCS export (flow-crates-aht) ([`2ea7957`](https://github.com/jrmoynihan/flow/commit/2ea795744687e96f3e4f9be8cfeb9c75ec36ca93))
