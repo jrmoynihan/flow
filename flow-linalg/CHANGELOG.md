@@ -5,10 +5,83 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## Unreleased
+## [0.2.0] — 2026-11-03
+
+### Added
+
+- Row-block contracts (`RowSource`, `OrderedRowSink`, `ChunkSize`, `MatrixShape`,
+  `RowBlock`) so large cytometry matrices can be read and written in bounded
+  chunks without holding a full event table in RAM.
+- Chunk-lease helpers for tests that assert live high-water marks.
+
+### Why
+
+PeacoQC, TRU-OLS, and compensation on million-event files currently force a full
+in-memory table. Shared row-block traits let FCS/FCZ and algorithm crates stream
+the same numerics with a configured memory ceiling.
+
+## 0.2.0 (2026-11-03)
 
 ### Documentation
 
+ - <csr-id-92e31b03dc632230809d10422be0c1062e6e9e1b/> consumer-first README pass across crates, add peacoqc-py usage example, remove legacy utils crate
+   Rewrites READMEs across the workspace (fcs, flow-clustering,
+   flow-control-detection, flow-density, flow-fcs-compress, flow-knn,
+   flow-linalg, flow-pacmap, flow-peak-detection, gates, peacoqc-cli,
+   peacoqc-rs, tru-ols, tru-ols-cli) to lead with install/quick-start/perf
+   for downstream consumers, and adds a new flow-fcs-bench README.
+   
+   Adds a concrete usage example to peacoqc-py/README.md mirroring the
+   docstring in peacoqc/__init__.py.
+   
+   Removes the superseded utils/ crate (clustering, KDE, and PCA helpers
+   now live in their dedicated crates) and syncs beads issue/interaction
+   export state.
+ - <csr-id-6d051ac5a34e63a997ca85c8819b790c0d161c8a/> scrub changelog neutralize wording after release rewrite
+   smart-release reintroduced commit-message phrasing about neutralizing
+   attribution; restore neutral release notes and drop the misplaced
+   pacmap prep entry from linalg/gates changelogs.
+
+### New Features
+
+ - <csr-id-aaee839d28030214d7836b502d74fe82be0ea022/> compute condition metrics for rectangular matrices
+   Allow κ₂ / complexity on m×n mixing matrices via SVD over nonzero singular
+   values, not only square spillover matrices.
+ - <csr-id-79599d58958183b1177afdf80770d087ee7f3242/> Mage hotspot matrix and SIFs from similarity
+ - <csr-id-c10b51bf31f30b4798eca428b5989749da481f43/> add matrix condition number metrics
+   Expose κ₂ / complexity index helpers via SVD for assessing mixing-matrix stability.
+ - <csr-id-c9980a9e0ab5a8539428a6ae3edf68d23023ea1f/> ranged FCS/FCZ row readers and streaming sinks
+
+### Commit Statistics
+
+<csr-read-only-do-not-edit/>
+
+ - 3 commits contributed to the release.
+ - 1 commit was understood as [conventional](https://www.conventionalcommits.org).
+ - 0 issues like '(#ID)' were seen in commit messages
+
+### Commit Details
+
+<csr-read-only-do-not-edit/>
+
+<details><summary>view details</summary>
+
+ * **Uncategorized**
+    - Release flow-linalg 0.2.0, flow-fcs-compress 0.2.0, flow-fcs 0.6.0, flow-tru-ols 0.3.0 ([`1b24dcf`](https://github.com/jrmoynihan/flow/commit/1b24dcfc91ae604072a32d451465478eb56669fc))
+    - Merge pull request #25 from jrmoynihan/feature/ranged-fcs-fcz-row-io ([`b085d16`](https://github.com/jrmoynihan/flow/commit/b085d16cf01bf1d782116975d2448d4394036c72))
+    - Ranged FCS/FCZ row readers and streaming sinks ([`c9980a9`](https://github.com/jrmoynihan/flow/commit/c9980a9e0ab5a8539428a6ae3edf68d23023ea1f))
+</details>
+
+## 0.1.3 (2026-08-18)
+
+### Documentation
+
+ - <csr-id-8953fb69a59e69ae363e1b2d1ef28ce5f67289ee/> drop user Unreleased summaries that break smart-release
+   Leave Keep-a-Changelog sections cargo-smart-release already knows how to rewrite.
+ - <csr-id-2af7c38d871243877def4efd66ae004c3af6ce5f/> put changelog summaries under Keep-a-Changelog headings
+   cargo-smart-release rejects free-form Unreleased paragraphs that are not a known section.
+ - <csr-id-3b118cede174e11c18a64c25e913416654b8c26e/> polish release notes and README install versions
+   Add first-publish summaries for unpublished crates and bump install examples to the versions cargo-smart-release will publish.
  - <csr-id-92e31b03dc632230809d10422be0c1062e6e9e1b/> consumer-first README pass across crates, add peacoqc-py usage example, remove legacy utils crate
    Rewrites READMEs across the workspace (fcs, flow-clustering,
    flow-control-detection, flow-density, flow-fcs-compress, flow-knn,
@@ -40,9 +113,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 <csr-read-only-do-not-edit/>
 
- - 5 commits contributed to the release over the course of 26 calendar days.
- - 26 days passed between releases.
- - 5 commits were understood as [conventional](https://www.conventionalcommits.org).
+ - 9 commits contributed to the release over the course of 27 calendar days.
+ - 27 days passed between releases.
+ - 8 commits were understood as [conventional](https://www.conventionalcommits.org).
  - 0 issues like '(#ID)' were seen in commit messages
 
 ### Commit Details
@@ -52,6 +125,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 <details><summary>view details</summary>
 
  * **Uncategorized**
+    - Release flow-fcs-compress v0.1.4, flow-linalg v0.1.3, flow-fcs v0.5.2, flow-knn v0.1.1, flow-dimensional-reduction v0.1.0, flow-pacmap v0.1.2, flow-density v0.1.2, flow-plots v0.3.3, flow-clustering v0.1.2, flow-gates v0.5.0, flow-peak-detection v0.1.0, flow-control-detection v0.1.0, flow-tru-ols v0.2.0, peacoqc-rs v0.3.3, peacoqc-cli v0.3.0 ([`63fb593`](https://github.com/jrmoynihan/flow/commit/63fb5937185fba6f342ae3ae5b960a4df4c2bc72))
+    - Drop user Unreleased summaries that break smart-release ([`8953fb6`](https://github.com/jrmoynihan/flow/commit/8953fb69a59e69ae363e1b2d1ef28ce5f67289ee))
+    - Put changelog summaries under Keep-a-Changelog headings ([`2af7c38`](https://github.com/jrmoynihan/flow/commit/2af7c38d871243877def4efd66ae004c3af6ce5f))
+    - Polish release notes and README install versions ([`3b118ce`](https://github.com/jrmoynihan/flow/commit/3b118cede174e11c18a64c25e913416654b8c26e))
     - Consumer-first README pass across crates, add peacoqc-py usage example, remove legacy utils crate ([`92e31b0`](https://github.com/jrmoynihan/flow/commit/92e31b03dc632230809d10422be0c1062e6e9e1b))
     - Compute condition metrics for rectangular matrices ([`aaee839`](https://github.com/jrmoynihan/flow/commit/aaee839d28030214d7836b502d74fe82be0ea022))
     - Mage hotspot matrix and SIFs from similarity ([`79599d5`](https://github.com/jrmoynihan/flow/commit/79599d58958183b1177afdf80770d087ee7f3242))
@@ -62,6 +139,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## 0.1.2 (2026-07-22)
 
 <csr-id-c9b7448fef935e2ba6f3ea568ce092f9c777b53b/>
+<csr-id-ba96d7fb2b887ab666a3ecdea9f9f49b0cbbf3f4/>
 
 ### Chore
 
