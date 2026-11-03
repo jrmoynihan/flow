@@ -31,10 +31,179 @@ numeric endianness behind the caller's back.
 - `flow-linalg` ^0.2.0
 - Optional `flow-fcs-compress` ^0.2.0 (`compress` feature)
 
-## Unreleased
+## 0.6.0 (2026-11-03)
+
+<csr-id-8798af8a4af75b1d26b437220879f10ca2d39844/>
+<csr-id-1c7f208ca7951f71c7d714758104ab60c1833f5f/>
+<csr-id-55bdf0144b4ef185d31dded670fef23c41eb4d0e/>
 
 ### Documentation
 
+ - <csr-id-de456a73a3ced9adfd6637b277a46a9e5255fdef/> expand column decoder memory docs to cover steady-state and freeing
+   Add explanation of how independent Box<[f32]> ownership and lack of
+   intermediate allocations enable streaming consumption and per-column
+   freeing, rather than blocking the allocator until the full set is
+   decoded. Shifts peak memory from all-at-once spikes to incremental
+   steady-state, which is more amenable to memory pools and long-running
+   lazy-access workloads.
+ - <csr-id-646095807bd1a91bf577a676d5622347e81c424f/> document column decoder memory efficiency improvements
+   Add module-level and function-level documentation explaining how the
+   rewritten extract_columns avoids transient Vec<Vec<f32>> intermediates
+   and achieves O(columns) allocation cost instead of O(events). For large
+   files, this eliminates multi-megabyte intermediate buffers and reduces
+   peak memory usage substantially.
+   
+   Previously, a 3M-event × 40-parameter request for 2 columns would
+   transiently allocate 456 MB despite outputting only 24 MB. Current
+   implementation pre-allocates once and writes directly, with parallel
+   branch using split_at_mut to avoid per-event allocation entirely.
+ - <csr-id-76a9d146c51640f9f775107746d655cf73ed0358/> probe the 781 KiB crossover, correct the threshold comment
+   Review caught an overreach in f48cc09: the comment said no fixture in the
+   256 KiB - 4 MiB band exists, generalizing 'I could not measure this' into
+   'this cannot be measured'. fcs2_int16_50000ev_8par_random.fcs has a
+   781.25 KiB DATA segment (50,000 x 8 x 2) -- parallel at 256 KiB, sequential
+   at 1 MiB and 4 MiB -- and is already covered by the lazy/eager oracle.
+   
+   Probed it directly (scaffolding, not committed: compliance_fcs() temporarily
+   repointed, isolated CRITERION_HOME, two interleaved cycles). Parallel is
+   31.5% and 43.8% SLOWER than sequential, p=0.00 both cycles, against a control
+   that moved 4.4%. Rayon's fan-out costs more than the decode it splits at that
+   size. 1 MiB stands and 256 KiB is now ruled out by measurement rather than
+   merely unsupported; 1 MiB - 4 MiB remains unprobed.
+ - <csr-id-3370e1b4c80a8e66c9971e0cfb894340b3cf64c6/> strip csr noise from 0.5.1 changelog section
+ - <csr-id-e33bbe75d3777e0b8f7c8f5ebe0d71259ab9b4ef/> add performance-guided development map and host calibrator
+   Give agents a napkin-math floor, this-machine snapshot, gap index, and
+   retry shortlist so hot-path work starts from hardware cost rather than
+   another 5% unsafe A/B.
+
+### New Features
+
+ - <csr-id-f1faae9fa7dd09c8d6e5d00658c10eba205bbc22/> add synthetic Gaussian mixture fixtures
+   Provide flow_fcs::synthetic for seeded cytometry-like populations, wire
+   compare_with_r to use them with a mild FL timed artifact, and clarify that
+   GPU speedups are KDE microbenches—not full PeacoQC e2e.
+ - <csr-id-c9980a9e0ab5a8539428a6ae3edf68d23023ea1f/> ranged FCS/FCZ row readers and streaming sinks
+
+### Bug Fixes
+
+ - <csr-id-9fd2334d06bd26807fcc7d334b0f8c170aa3086f/> require both halves standard in the merged-keyword fingerprint
+   The C1 fallback fingerprint tested only that the text after a literal
+   delimiter began with $. That flags a legal user keyword whose name
+   contains `<delimiter>$` (`COST $USD`), and one hit re-parses the whole
+   TEXT segment under Escaping::None -- silently corrupting a valid file,
+   the same failure class the guard exists to prevent.
+   
+   Also require the field itself to begin with $. The prefix is reserved
+   for standard keywords, so a conformant user keyword can never start with
+   one; the added test excludes every legal user keyword by construction
+   rather than by heuristic. No standard keyword contains a plausible
+   delimiter, so the tightened predicate has no false positive on
+   conformant input.
+ - <csr-id-21dda7daf43e2c6ba8d74fcbcd113e3031adc91b/> recover TEXT written by non-conformant FCS 3.1+ writers (C1)
+   FCS 3.1+ forbids empty keyword values, and `Escaping::Doubled` is only
+   invertible because of that. A writer that emits one anyway — flow-crates
+   itself did, for `$PnS`, until 2ea7957/4ebc3c3 — produces the same bytes as
+   an escaped literal delimiter, so the tokenizer welds two keywords into one
+   and drops both. `Fcs::open` still succeeded, because the structurally
+   required keywords are serialized ahead of the sorted user keywords: silent
+   data loss.
+   
+   Detect, warn, retry unescaped. There is no byte-level signature (an empty
+   value and an escaped delimiter are byte-identical in the same position), so
+   the fingerprint is semantic: a key that un-doubled a delimiter and whose
+   text after it begins with `$`, i.e. two standard keywords welded together.
+   A legal escaped key such as `MY KEY` does not match and must not. The check
+   costs one `Cow` discriminant test on the conformant path.
+   
+   Both `TextFields` consumers get the same fallback — `from_text_segment` and
+   `find_begindata_offset`, the latter because an empty value immediately ahead
+   of `$BEGINDATA` hides the key the scan matches on. No second tokenizer.
+   
+   `write.rs` still refuses to write an empty value at 3.1+; the read and write
+   sites now cross-reference that asymmetry.
+ - <csr-id-e9cd0372ae5c4c7c740ca67d95926971ce1264fa/> stop inventing little-endian when serializing $BYTEORD
+   insert_string_keyword used to coerce typed parses (including $BYTEORD)
+   into StringKeyword::Other, and serialize_metadata then emitted a hardcoded
+   1,2,3,4 whenever the Byte variant was missing. Callers that set big-endian
+   via the string helper therefore wrote LE TEXT over BE DATA and inverted
+   every multi-byte channel. Store typed keywords from match_and_parse_keyword
+   and resolve $BYTEORD via ByteOrder::from_keyword_str, erroring instead of
+   guessing endianness.
+
+### Performance
+
+ - <csr-id-f48cc09196307199407617ff80b735f6b17bfe63/> tune PARALLEL_BYTE_THRESHOLD from measurement, record results
+   Sweep over 256 KiB / 1 MiB / 4 MiB found no measurable difference and could
+   not have: the corpus fixture's DATA segment is 234 KiB (sequential at all
+   three) and the synthetic fixture's is 76.3 MiB (parallel at all three). Value
+   left at 1 MiB; its doc comment now says 'unfalsified default' rather than
+   claiming a measured crossover.
+   
+   Records the criterion paired A/B (2c8f09f --save-baseline pre vs HEAD
+   --baseline pre, bench file byte-identical at both commits) in the bench doc
+   comment, and corrects two stale pre-rewrite claims there.
+
+### Test
+
+ - <csr-id-8798af8a4af75b1d26b437220879f10ca2d39844/> cover find_begindata_offset's non-conformant-writer fallback (C1)
+   An empty value immediately ahead of `$BEGINDATA` welds the two keys together,
+   so `eq_ignore_ascii_case("$BEGINDATA")` misses and the scan errors on a
+   recoverable data set. Pins the fallback, and pins that the same bytes at V3_0
+   never reach it.
+ - <csr-id-1c7f208ca7951f71c7d714758104ab60c1833f5f/> force the parallel branch through the oracle, tighten it (I2, I3) + minors
+ - <csr-id-55bdf0144b4ef185d31dded670fef23c41eb4d0e/> read back the escaped-key path in both tokenizer consumers (I1)
+   `write.rs` escapes the key as well as the value, but every existing escaping
+   test put the delimiter in a value. Key and value are not symmetric on read:
+   `find_begindata_offset` matches the decoded key and early-stops, so its field
+   sequence is shorter than the metadata parse's and a key-side bug could hit
+   one consumer and not the other.
+   
+   Two tests: a hand-assembled TEXT with an escaped key ahead of `$BEGINDATA`
+   (which `serialize_metadata` can never produce, since it writes `$BEGINDATA`
+   before any user keyword), checked through both consumers on the same bytes;
+   and a `write_fcs_file` round trip at V3_1 for the write half.
+
+### Chore
+
+ - <csr-id-9272c3787525a50a253f7f27ce5ff43902e68c6d/> drop unused imports from tests and benches
+   Rand 0.9 exposes random_range on RngExt, and several integration tests imported helpers they never called. Clearing those keeps cargo check --tests --benches quiet without touching unused TestScenario variants still wired for later cases.
+
+### Commit Statistics
+
+<csr-read-only-do-not-edit/>
+
+ - 9 commits contributed to the release.
+ - 4 commits were understood as [conventional](https://www.conventionalcommits.org).
+ - 0 issues like '(#ID)' were seen in commit messages
+
+### Commit Details
+
+<csr-read-only-do-not-edit/>
+
+<details><summary>view details</summary>
+
+ * **Uncategorized**
+    - Release flow-linalg 0.2.0, flow-fcs-compress 0.2.0, flow-fcs 0.6.0, flow-tru-ols 0.3.0 ([`1b24dcf`](https://github.com/jrmoynihan/flow/commit/1b24dcfc91ae604072a32d451465478eb56669fc))
+    - Merge pull request #26 from jrmoynihan/feature/tru-ols-path-b-protected-af ([`a51cd25`](https://github.com/jrmoynihan/flow/commit/a51cd25879f62c31a9fb6cb3e787697136f8fb00))
+    - Merge pull request #25 from jrmoynihan/feature/ranged-fcs-fcz-row-io ([`b085d16`](https://github.com/jrmoynihan/flow/commit/b085d16cf01bf1d782116975d2448d4394036c72))
+    - Merge pull request #24 from jrmoynihan/fix/fcs-byteord-serialize-lfg ([`596a68e`](https://github.com/jrmoynihan/flow/commit/596a68ebf954122e670bb947f3cb78ad67bf4004))
+    - Ranged FCS/FCZ row readers and streaming sinks ([`c9980a9`](https://github.com/jrmoynihan/flow/commit/c9980a9e0ab5a8539428a6ae3edf68d23023ea1f))
+    - Stop inventing little-endian when serializing $BYTEORD ([`e9cd037`](https://github.com/jrmoynihan/flow/commit/e9cd0372ae5c4c7c740ca67d95926971ce1264fa))
+    - Drop unused imports from tests and benches ([`9272c37`](https://github.com/jrmoynihan/flow/commit/9272c3787525a50a253f7f27ce5ff43902e68c6d))
+    - Merge pull request #22 from jrmoynihan/feature/flow-autospectral ([`35007ba`](https://github.com/jrmoynihan/flow/commit/35007ba7841c164cf8e4ffae220a782dcb87d7ce))
+    - Add performance-guided development map and host calibrator ([`e33bbe7`](https://github.com/jrmoynihan/flow/commit/e33bbe75d3777e0b8f7c8f5ebe0d71259ab9b4ef))
+</details>
+
+## 0.5.2 (2026-08-18)
+
+### Documentation
+
+ - <csr-id-8953fb69a59e69ae363e1b2d1ef28ce5f67289ee/> drop user Unreleased summaries that break smart-release
+   Leave Keep-a-Changelog sections cargo-smart-release already knows how to rewrite.
+ - <csr-id-2af7c38d871243877def4efd66ae004c3af6ce5f/> put changelog summaries under Keep-a-Changelog headings
+   cargo-smart-release rejects free-form Unreleased paragraphs that are not a known section.
+ - <csr-id-3b118cede174e11c18a64c25e913416654b8c26e/> polish release notes and README install versions
+   Add first-publish summaries for unpublished crates and bump install examples to the versions cargo-smart-release will publish.
  - <csr-id-de456a73a3ced9adfd6637b277a46a9e5255fdef/> expand column decoder memory docs to cover steady-state and freeing
    Add explanation of how independent Box<[f32]> ownership and lack of
    intermediate allocations enable streaming consumption and per-column
@@ -150,9 +319,9 @@ numeric endianness behind the caller's back.
 
 <csr-read-only-do-not-edit/>
 
- - 12 commits contributed to the release over the course of 7 calendar days.
- - 7 days passed between releases.
- - 11 commits were understood as [conventional](https://www.conventionalcommits.org).
+ - 16 commits contributed to the release over the course of 8 calendar days.
+ - 8 days passed between releases.
+ - 14 commits were understood as [conventional](https://www.conventionalcommits.org).
  - 0 issues like '(#ID)' were seen in commit messages
 
 ### Commit Details
@@ -162,6 +331,10 @@ numeric endianness behind the caller's back.
 <details><summary>view details</summary>
 
  * **Uncategorized**
+    - Release flow-fcs-compress v0.1.4, flow-linalg v0.1.3, flow-fcs v0.5.2, flow-knn v0.1.1, flow-dimensional-reduction v0.1.0, flow-pacmap v0.1.2, flow-density v0.1.2, flow-plots v0.3.3, flow-clustering v0.1.2, flow-gates v0.5.0, flow-peak-detection v0.1.0, flow-control-detection v0.1.0, flow-tru-ols v0.2.0, peacoqc-rs v0.3.3, peacoqc-cli v0.3.0 ([`63fb593`](https://github.com/jrmoynihan/flow/commit/63fb5937185fba6f342ae3ae5b960a4df4c2bc72))
+    - Drop user Unreleased summaries that break smart-release ([`8953fb6`](https://github.com/jrmoynihan/flow/commit/8953fb69a59e69ae363e1b2d1ef28ce5f67289ee))
+    - Put changelog summaries under Keep-a-Changelog headings ([`2af7c38`](https://github.com/jrmoynihan/flow/commit/2af7c38d871243877def4efd66ae004c3af6ce5f))
+    - Polish release notes and README install versions ([`3b118ce`](https://github.com/jrmoynihan/flow/commit/3b118cede174e11c18a64c25e913416654b8c26e))
     - Expand column decoder memory docs to cover steady-state and freeing ([`de456a7`](https://github.com/jrmoynihan/flow/commit/de456a73a3ced9adfd6637b277a46a9e5255fdef))
     - Document column decoder memory efficiency improvements ([`6460958`](https://github.com/jrmoynihan/flow/commit/646095807bd1a91bf577a676d5622347e81c424f))
     - Merge branch 'peacoqc-rust-vs-r-throughput' into main ([`536825d`](https://github.com/jrmoynihan/flow/commit/536825ddf5b52f910778eae86b91dfee4f9c319e))
@@ -177,6 +350,22 @@ numeric endianness behind the caller's back.
 </details>
 
 ## 0.5.1 (2026-08-10)
+
+<csr-id-4914a363216ef4326f35abb5b9ea1942bfdc1665/>
+<csr-id-c7a26b4d206d3c8bf141f9f5ff03c8e365daa21c/>
+<csr-id-83c5459bcc80a2fc0751cf14d5379f33ffe5dfaf/>
+<csr-id-6d9aad0992746948aaa6e9de6382b3ef64d22011/>
+<csr-id-4ebc3c3df61b58a8038c54eed9b1106be23378e6/>
+<csr-id-0e563f08a83d6264175d746417677223a47751c2/>
+<csr-id-7ccf98f5c2c6fd282b1381d00e48b15d2bbe7788/>
+<csr-id-da20fb28d685f27f0349fd55f8c97d9e4b06a9b3/>
+<csr-id-b90080c3abe4567014416d2269efc7d54100805a/>
+<csr-id-c32a0cf75877d51201ffca309d0373328d9f9f69/>
+<csr-id-1d76e633be505604bd3d36996b4cbd4b80679469/>
+<csr-id-cdc0f8b085b5d250037fd003050869de968ec797/>
+<csr-id-987242ee7aa9bbd1f5ecb77757d8200e8a6e7cbd/>
+<csr-id-9b9481d33a2ef4c9825668c52396bfc93b0bed1c/>
+<csr-id-eec97b1b3512332223985c0dadf268fd8d3a9eba/>
 
 ### Added
 
@@ -220,51 +409,51 @@ numeric endianness behind the caller's back.
    write.
    
    CRC (§3.7, flow-crates-x17.3)
-     New fcs/src/crc.rs implements CRC-16/KERMIT. The polynomial text in the spec
-     does not pin the algorithm — XMODEM-with-reflected-input reads the same prose
-     and disagrees on nearly every message. §3.7's normative vector settles it:
-     brute-forcing the CRC-16 parameter space against compute("CatMouse987654321")
-     == 49805 yields exactly one match. Both that vector and KERMIT's catalog
-     check value are asserted, so drift toward XMODEM fails immediately.
+   New fcs/src/crc.rs implements CRC-16/KERMIT. The polynomial text in the spec
+   does not pin the algorithm — XMODEM-with-reflected-input reads the same prose
+   and disagrees on nearly every message. §3.7's normative vector settles it:
+   brute-forcing the CRC-16 parameter space against compute("CatMouse987654321")
+   == 49805 yields exactly one match. Both that vector and KERMIT's catalog
+   check value are asserted, so drift toward XMODEM fails immediately.
    
-     The on-disk field is 8 ASCII bytes of DECIMAL, left-zero-padded ("00049805"),
-     not hex — the spec quotes the value in hex in the same sentence, which is the
-     trap. Eight ASCII zeros means "not computed"; emitting nothing, which this
-     crate did until now, is not a legal encoding, so every file it had ever
-     written was non-conformant even under the opt-out.
+   The on-disk field is 8 ASCII bytes of DECIMAL, left-zero-padded ("00049805"),
+   not hex — the spec quotes the value in hex in the same sentence, which is the
+   trap. Eight ASCII zeros means "not computed"; emitting nothing, which this
+   crate did until now, is not a legal encoding, so every file it had ever
+   written was non-conformant even under the opt-out.
    
-     Read side warns rather than rejects: many vendor files carry absent or wrong
-     CRCs, and hard-failing would make them unopenable. StoredCrc distinguishes
-     Absent / Value / Malformed / Missing so a pre-CRC file is not called corrupt.
-     Fcs::open_verified opts into strict rejection.
+   Read side warns rather than rejects: many vendor files carry absent or wrong
+   CRCs, and hard-failing would make them unopenable. StoredCrc distinguishes
+   Absent / Value / Malformed / Missing so a pre-CRC file is not called corrupt.
+   Fcs::open_verified opts into strict rejection.
    
    HEADER offsets (flow-crates-x17.1)
-     build_header wrote format!("{:>8}", offset) into fixed 8-byte slices with no
-     width guard, so any segment past 99,999,999 bytes panicked in
-     copy_from_slice. A ~768 MB spectral file reaches this in normal use. Per
-     §2.2.4 those offsets are now declared 0 and carried in $BEGINDATA/$ENDDATA.
+   build_header wrote format!("{:>8}", offset) into fixed 8-byte slices with no
+   width guard, so any segment past 99,999,999 bytes panicked in
+   copy_from_slice. A ~768 MB spectral file reaches this in normal use. Per
+   §2.2.4 those offsets are now declared 0 and carried in $BEGINDATA/$ENDDATA.
    
-     resolve_segment_offsets() is extracted in file.rs so the DataFrame reader and
-     the CRC locator resolve segment bounds the same way; reading them off Header
-     directly is now documented as wrong.
+   resolve_segment_offsets() is extracted in file.rs so the DataFrame reader and
+   the CRC locator resolve segment bounds the same way; reading them off Header
+   directly is now documented as wrong.
    
    Conformance rules and 3.2 keywords (flow-crates-x17.4, x17.5)
-     New fcs/src/conformance.rs holds per-version rules keyed by Version, ready to
-     be lifted into the VersionSpec trait (flow-crates-zmx) rather than scattered.
-     Warnings by default, errors under ConformancePolicy::Strict, so existing
-     pipelines that write slightly-off files keep working.
+   New fcs/src/conformance.rs holds per-version rules keyed by Version, ready to
+   be lifted into the VersionSpec trait (flow-crates-zmx) rather than scattered.
+   Warnings by default, errors under ConformancePolicy::Strict, so existing
+   pipelines that write slightly-off files keep working.
    
-     Adds $UNSTAINEDINFO/$UNSTAINEDCENTERS and MixedKeyword::MixingMatrix, a
-     rectangular detector×endmember matrix that $SPILLOVER's square encoding
-     cannot express.
+   Adds $UNSTAINEDINFO/$UNSTAINEDCENTERS and MixedKeyword::MixingMatrix, a
+   rectangular detector×endmember matrix that $SPILLOVER's square encoding
+   cannot express.
    
-     fcs/src/upgrade.rs migrates a 3.0/3.1 TEXT segment to 3.2 in place, keeping
-     the deprecated originals so 3.1 readers still work.
+   fcs/src/upgrade.rs migrates a 3.0/3.1 TEXT segment to 3.2 in place, keeping
+   the deprecated originals so 3.1 readers still work.
    
-     estimate_text_segment_size now asks each keyword for its serialized length
-     (flow-crates-x17.2): a 64×40 matrix is ~30 KB in one keyword, which the old
-     flat 50-bytes-per-keyword estimate undershot badly enough to exhaust the
-     offset-convergence budget.
+   estimate_text_segment_size now asks each keyword for its serialized length
+   (flow-crates-x17.2): a 64×40 matrix is ~30 KB in one keyword, which the old
+   flat 50-bytes-per-keyword estimate undershot badly enough to exhaust the
+   offset-convergence budget.
    
    Also fixes write_inline_fcs baking a stale $BEGINDATA into TEXT
    (flow-crates-x17.9), and routes both writers through a shared write_segments()
@@ -395,20 +584,20 @@ numeric endianness behind the caller's back.
  - <csr-id-0257d38c13049921f84a0f9630f4d4327138f8c9/> bound the OTHER offset scan at the first segment, not at TEXT
  - <csr-id-a565fdf4b372fe74eb6393eb61218a8ea159b6fe/> address final whole-branch review findings (bounds check, cache warning, feature scoping, version bump, benchmark docs)
    - Fcs::columns() now returns a descriptive Err instead of panicking when a
-     parameter's cache index falls outside the column cache (can happen on a
-     derived Fcs whose parameters were replaced without resizing the cache,
-     e.g. tru-ols's spectral-unmixing output). Added a regression test.
+   parameter's cache index falls outside the column cache (can happen on a
+   derived Fcs whose parameters were replaced without resizing the cache,
+   e.g. tru-ols's spectral-unmixing output). Added a regression test.
    - Added a `# Warning` doc section to column()/columns()/events() noting the
-     cache is only meaningful on an Fcs from open()/open_all() (flow-crates-rkq).
+   cache is only meaningful on an Fcs from open()/open_all() (flow-crates-rkq).
    - Moved flow-fcs's `test-util` feature enablement from [dependencies] to
-     [dev-dependencies] in gates, tru-ols, and peacoqc-rs so it's no longer
-     forced on in release builds via feature unification.
+   [dev-dependencies] in gates, tru-ols, and peacoqc-rs so it's no longer
+   forced on in release builds via feature unification.
    - Bumped flow-fcs to 0.5.1 (test-util didn't exist in the published 0.5.0)
-     and its dependents' version constraints to ^0.5.1.
+   and its dependents' version constraints to ^0.5.1.
    - Documented the benchmark's actual ~8x events_uncached/open_eager_baseline
-     gap (extract_columns lacking a uniform-width fast path, not double work
-     from open()) in the benchmark source and amended the Stage A plan doc.
-     Tracked as flow-crates-3si.
+   gap (extract_columns lacking a uniform-width fast path, not double work
+   from open()) in the benchmark source and amended the Stage A plan doc.
+   Tracked as flow-crates-3si.
  - <csr-id-6e3d7233683f7c18b858829c83844171fa6adfd1/> add Fcs::for_testing constructor, restore cross-crate test-fixture construction
    Task 4's pub(crate) columns field broke every out-of-crate struct-literal
    construction of Fcs, since a pub(crate) field can't be named externally at
@@ -420,21 +609,21 @@ numeric endianness behind the caller's back.
    Fixes four parsing gaps reported in jrmoynihan/flow#21:
    
    - $PnR masking (flow-crates-d35, P0): integer parameters now mask off
-     unused high bits per their declared $PnR range before column
-     extraction, fixing silently-wrong channel values on instruments
-     (Beckman FC500/Gallios/Navios, older BD) that store sub-16-bit ADC
-     resolution in wider fields.
+   unused high bits per their declared $PnR range before column
+   extraction, fixing silently-wrong channel values on instruments
+   (Beckman FC500/Gallios/Navios, older BD) that store sub-16-bit ADC
+   resolution in wider fields.
    - Bit-packed $PnB stride (flow-crates-bk6, P2): calculate_bytes_per_event
-     now sums raw bit widths before rounding once, instead of rounding each
-     parameter first — correct for both byte-aligned and bit-packed layouts.
+   now sums raw bit widths before rounding once, instead of rounding each
+   parameter first — correct for both byte-aligned and bit-packed layouts.
    - $NEXTDATA traversal (flow-crates-1mg, P2): new Fcs::open_all() walks
-     the $NEXTDATA chain to read every dataset in a multi-dataset FCS file
-     (all Beckman .lmd files use this). open() is unchanged and still
-     returns only the first dataset, so existing callers are unaffected.
+   the $NEXTDATA chain to read every dataset in a multi-dataset FCS file
+   (all Beckman .lmd files use this). open() is unchanged and still
+   returns only the first dataset, so existing callers are unaffected.
    - $DATATYPE A (flow-crates-ee0, P3, won't-fix): documented the existing
-     Err behavior as a deliberate spec-driven decision (ASCII was
-     deprecated due to cross-vendor bit-order disagreement) rather than an
-     oversight, and added a test confirming it.
+   Err behavior as a deliberate spec-driven decision (ASCII was
+   deprecated due to cross-vendor bit-order disagreement) rather than an
+   oversight, and added a test confirming it.
    
    Bumps flow-fcs 0.4.1 -> 0.5.0 and the paired version requirement in
    every workspace crate that depends on it via path (Cargo enforces that
