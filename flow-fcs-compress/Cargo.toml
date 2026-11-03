@@ -27,6 +27,7 @@ thiserror = { workspace = true }
 
 # I/O for .fcz container
 memmap3 = { workspace = true }
+flow-linalg = { path = "../flow-linalg", version = "^0.1.3" }
 
 # Optional: parallel chunk encode/decode
 rayon = { workspace = true, optional = true }

@@ -32,9 +32,12 @@
 
 use crate::byteorder::ByteOrder;
 use crate::datatype::FcsDataType;
+use crate::decode::Decoder;
 use crate::metadata::Metadata;
-use anyhow::Result;
+use anyhow::{Context, Result, anyhow};
 use rayon::prelude::*;
+use std::collections::HashSet;
+use std::ops::Range;
 
 /// Byte count above which `extract_columns` decodes in parallel.
 ///
@@ -83,6 +86,8 @@ pub(crate) struct ColumnLayout {
     pub bytes_per_event: usize,
     /// Byte width of each parameter (`$PnB / 8`), in parameter order.
     pub bytes_per_parameter: Vec<usize>,
+    /// Exact `$PnB` widths, including widths not divisible by eight.
+    pub bits_per_parameter: Vec<usize>,
     /// Running-sum byte offset of each parameter within one event record.
     /// Not `param_idx * width` — widths vary per parameter.
     pub param_offsets: Vec<usize>,
@@ -131,14 +136,13 @@ impl ColumnLayout {
         let byte_order = metadata.get_byte_order()?.clone();
 
         let mut running = 0usize;
-        let param_offsets: Vec<usize> = bytes_per_parameter
-            .iter()
-            .map(|&width| {
-                let offset = running;
-                running += width;
-                offset
-            })
-            .collect();
+        let mut param_offsets = Vec::with_capacity(bytes_per_parameter.len());
+        for &width in &bytes_per_parameter {
+            param_offsets.push(running);
+            running = running
+                .checked_add(width)
+                .context("FCS bytes-per-event overflows usize")?;
+        }
         let bytes_per_event = running;
 
         let range_masks: Vec<Option<u32>> = (1..=number_of_parameters)
@@ -159,6 +163,7 @@ impl ColumnLayout {
             num_events: number_of_events,
             bytes_per_event,
             bytes_per_parameter,
+            bits_per_parameter,
             param_offsets,
             data_types,
             byte_order,
@@ -168,8 +173,169 @@ impl ColumnLayout {
     }
 }
 
-use crate::decode::Decoder;
-use anyhow::anyhow;
+/// Decode selected channels and rows directly into reusable row-major storage.
+pub(crate) fn decode_selected_rows_into(
+    data_bytes: &[u8],
+    layout: &ColumnLayout,
+    channels: &[usize],
+    rows: Range<usize>,
+    storage: &mut Vec<f32>,
+) -> Result<()> {
+    if channels.is_empty() {
+        return Err(anyhow!("at least one channel must be selected"));
+    }
+    let mut unique = HashSet::with_capacity(channels.len());
+    for &channel in channels {
+        if channel >= layout.bits_per_parameter.len() {
+            return Err(anyhow!(
+                "channel index {channel} is out of range for {} channels",
+                layout.bits_per_parameter.len()
+            ));
+        }
+        if !unique.insert(channel) {
+            return Err(anyhow!(
+                "channel index {channel} was selected more than once"
+            ));
+        }
+    }
+    if rows.start > rows.end || rows.end > layout.num_events {
+        return Err(anyhow!(
+            "row range {}..{} is outside 0..{}",
+            rows.start,
+            rows.end,
+            layout.num_events
+        ));
+    }
+    let row_count = rows.end - rows.start;
+    let element_count = row_count
+        .checked_mul(channels.len())
+        .context("selected row-major dimensions overflow usize")?;
+    storage.clear();
+    storage.resize(element_count, 0.0);
+
+    if layout.is_bit_packed {
+        return decode_bit_packed_rows(data_bytes, layout, channels, rows, storage);
+    }
+
+    let bytes_per_event = layout
+        .bytes_per_parameter
+        .iter()
+        .try_fold(0usize, |sum, &width| {
+            sum.checked_add(width)
+                .context("FCS bytes-per-event overflows usize")
+        })?;
+    let byte_start = rows
+        .start
+        .checked_mul(bytes_per_event)
+        .context("FCS row byte offset overflows usize")?;
+    let byte_end = rows
+        .end
+        .checked_mul(bytes_per_event)
+        .context("FCS row byte end overflows usize")?;
+    let selected = data_bytes.get(byte_start..byte_end).ok_or_else(|| {
+        anyhow!(
+            "DATA segment has {} bytes but rows {}..{} require bytes {byte_start}..{byte_end}",
+            data_bytes.len(),
+            rows.start,
+            rows.end
+        )
+    })?;
+    let plans = build_plans(layout, channels)?;
+    for (local_row, event) in selected.chunks_exact(bytes_per_event).enumerate() {
+        let output_row = &mut storage[local_row * channels.len()..(local_row + 1) * channels.len()];
+        for (out, plan) in output_row.iter_mut().zip(&plans) {
+            let raw = plan
+                .decoder
+                .read(&event[plan.offset..plan.offset + plan.width]);
+            *out = apply_range_mask(raw, plan.mask);
+        }
+    }
+    Ok(())
+}
+
+fn decode_bit_packed_rows(
+    data_bytes: &[u8],
+    layout: &ColumnLayout,
+    channels: &[usize],
+    rows: Range<usize>,
+    storage: &mut [f32],
+) -> Result<()> {
+    // This deliberately matches `file::BitReader`: the legacy packed stream is
+    // consumed MSB-first. `$BYTEORD` selects byte order for byte-aligned
+    // integer/float fields; this crate's established packed-record semantics
+    // do not reinterpret it as a bit-order flag.
+    if let Some((channel, data_type)) = layout
+        .data_types
+        .iter()
+        .copied()
+        .enumerate()
+        .find(|(_, data_type)| *data_type != FcsDataType::I)
+    {
+        return Err(anyhow!(
+            "bit-packed channel {channel} must use $DATATYPE I, found {data_type:?}"
+        ));
+    }
+    let bits_per_event = layout
+        .bits_per_parameter
+        .iter()
+        .try_fold(0usize, |sum, &bits| {
+            sum.checked_add(bits)
+                .context("FCS bits-per-event overflows usize")
+        })?;
+    let required_bits = rows
+        .end
+        .checked_mul(bits_per_event)
+        .context("FCS bit-packed row end overflows usize")?;
+    let available_bits = data_bytes
+        .len()
+        .checked_mul(8)
+        .context("FCS DATA bit length overflows usize")?;
+    if required_bits > available_bits {
+        return Err(anyhow!(
+            "bit-packed DATA has {available_bits} bits but rows through {} require {required_bits}",
+            rows.end
+        ));
+    }
+    let mut offsets = Vec::with_capacity(layout.bits_per_parameter.len());
+    let mut running = 0usize;
+    for &bits in &layout.bits_per_parameter {
+        offsets.push(running);
+        running = running
+            .checked_add(bits)
+            .context("FCS bit-packed channel offset overflows usize")?;
+    }
+    for (local_row, global_row) in (rows.start..rows.end).enumerate() {
+        let row_bit = global_row
+            .checked_mul(bits_per_event)
+            .context("FCS bit-packed row offset overflows usize")?;
+        for (output_column, &channel) in channels.iter().enumerate() {
+            let bit_start = row_bit
+                .checked_add(offsets[channel])
+                .context("FCS bit-packed value offset overflows usize")?;
+            let value = read_msb_bits(data_bytes, bit_start, layout.bits_per_parameter[channel])?;
+            storage[local_row * channels.len() + output_column] =
+                apply_range_mask(value as f32, layout.range_masks[channel]);
+        }
+    }
+    Ok(())
+}
+
+fn read_msb_bits(data: &[u8], bit_start: usize, width: usize) -> Result<u64> {
+    if width > u64::BITS as usize {
+        return Err(anyhow!("bit-packed width {width} exceeds 64 bits"));
+    }
+    let mut value = 0u64;
+    let bit_end = bit_start
+        .checked_add(width)
+        .context("bit-packed value offset overflows usize")?;
+    for bit in bit_start..bit_end {
+        let byte = data
+            .get(bit / 8)
+            .ok_or_else(|| anyhow!("bit-packed value extends beyond DATA segment"))?;
+        value = (value << 1) | u64::from((byte >> (7 - bit % 8)) & 1);
+    }
+    Ok(value)
+}
 
 /// Everything the inner decode loop needs for one requested column,
 /// precomputed. `Copy` because every field is `Copy` (including `Decoder`,
@@ -211,7 +377,12 @@ fn build_plans(layout: &ColumnLayout, wanted: &[usize]) -> Result<Vec<ColumnPlan
             })?;
             let width = layout.bytes_per_parameter[idx];
             let decoder = Decoder::resolve(layout.data_types[idx], width, &layout.byte_order)?;
-            Ok(ColumnPlan { offset, width, decoder, mask: layout.range_masks[idx] })
+            Ok(ColumnPlan {
+                offset,
+                width,
+                decoder,
+                mask: layout.range_masks[idx],
+            })
         })
         .collect()
 }
@@ -229,7 +400,9 @@ fn fill_events(
 ) {
     for (event_index, event) in event_bytes.chunks_exact(bytes_per_event).enumerate() {
         for (plan, out) in plans.iter().zip(outs.iter_mut()) {
-            let raw = plan.decoder.read(&event[plan.offset..plan.offset + plan.width]);
+            let raw = plan
+                .decoder
+                .read(&event[plan.offset..plan.offset + plan.width]);
             out[event_index] = apply_range_mask(raw, plan.mask);
         }
     }
@@ -375,7 +548,10 @@ fn extract_columns_impl(
     // `vec![0.0f32; n]` lowers to `alloc_zeroed` via the `IsZero`
     // specialization — untouched zero pages, not a memset, so there is no
     // reason to reach for `MaybeUninit` and no unsafe.
-    let mut columns: Vec<Vec<f32>> = plans.iter().map(|_| vec![0.0f32; layout.num_events]).collect();
+    let mut columns: Vec<Vec<f32>> = plans
+        .iter()
+        .map(|_| vec![0.0f32; layout.num_events])
+        .collect();
 
     extract_columns_inner(
         event_bytes,
@@ -390,22 +566,24 @@ fn extract_columns_impl(
 
 #[cfg(test)]
 mod tests {
+    use crate::byteorder::ByteOrder;
     use crate::datatype::FcsDataType;
     use crate::keyword::{ByteKeyword, IntegerKeyword, Keyword};
     use crate::metadata::Metadata;
-    use crate::byteorder::ByteOrder;
 
     /// 3 events x 2 parameters, both `$DATATYPE F`, `$PnB 32` (byte-aligned,
     /// not bit-packed). Mirrors the synthetic-metadata construction style used
     /// in `fcs/src/write.rs`'s existing bit-packed test.
     fn synthetic_metadata_2f32() -> Metadata {
         let mut metadata = Metadata::new();
-        metadata
-            .keywords
-            .insert("$BYTEORD".to_string(), Keyword::Byte(ByteKeyword::BYTEORD(ByteOrder::LittleEndian)));
-        metadata
-            .keywords
-            .insert("$DATATYPE".to_string(), Keyword::Byte(ByteKeyword::DATATYPE(FcsDataType::F)));
+        metadata.keywords.insert(
+            "$BYTEORD".to_string(),
+            Keyword::Byte(ByteKeyword::BYTEORD(ByteOrder::LittleEndian)),
+        );
+        metadata.keywords.insert(
+            "$DATATYPE".to_string(),
+            Keyword::Byte(ByteKeyword::DATATYPE(FcsDataType::F)),
+        );
         metadata
             .keywords
             .insert("$PAR".to_string(), Keyword::Int(IntegerKeyword::PAR(2)));
@@ -427,12 +605,23 @@ mod tests {
         let layout = super::ColumnLayout::from_metadata(&metadata).expect("layout");
 
         assert_eq!(layout.num_events, 3);
-        assert_eq!(layout.bytes_per_event, 8, "2 params x 4 bytes = 8 bytes/event");
+        assert_eq!(
+            layout.bytes_per_event, 8,
+            "2 params x 4 bytes = 8 bytes/event"
+        );
         assert_eq!(layout.bytes_per_parameter, vec![4, 4]);
-        assert_eq!(layout.param_offsets, vec![0, 4], "param 0 starts at byte 0, param 1 at byte 4");
+        assert_eq!(
+            layout.param_offsets,
+            vec![0, 4],
+            "param 0 starts at byte 0, param 1 at byte 4"
+        );
         assert_eq!(layout.data_types, vec![FcsDataType::F, FcsDataType::F]);
         assert!(!layout.is_bit_packed);
-        assert_eq!(layout.range_masks, vec![None, None], "F32 params are never range-masked");
+        assert_eq!(
+            layout.range_masks,
+            vec![None, None],
+            "F32 params are never range-masked"
+        );
     }
 
     /// 1 event x 3 parameters with deliberately non-uniform `$PnB` widths
@@ -445,12 +634,14 @@ mod tests {
     /// distinguishable from the correct answer.
     fn synthetic_metadata_varying_widths() -> Metadata {
         let mut metadata = Metadata::new();
-        metadata
-            .keywords
-            .insert("$BYTEORD".to_string(), Keyword::Byte(ByteKeyword::BYTEORD(ByteOrder::LittleEndian)));
-        metadata
-            .keywords
-            .insert("$DATATYPE".to_string(), Keyword::Byte(ByteKeyword::DATATYPE(FcsDataType::I)));
+        metadata.keywords.insert(
+            "$BYTEORD".to_string(),
+            Keyword::Byte(ByteKeyword::BYTEORD(ByteOrder::LittleEndian)),
+        );
+        metadata.keywords.insert(
+            "$DATATYPE".to_string(),
+            Keyword::Byte(ByteKeyword::DATATYPE(FcsDataType::I)),
+        );
         metadata
             .keywords
             .insert("$PAR".to_string(), Keyword::Int(IntegerKeyword::PAR(3)));
@@ -488,9 +679,10 @@ mod tests {
     #[test]
     fn layout_computes_range_mask_for_integer_params() {
         let mut metadata = synthetic_metadata_2f32();
-        metadata
-            .keywords
-            .insert("$DATATYPE".to_string(), Keyword::Byte(ByteKeyword::DATATYPE(FcsDataType::I)));
+        metadata.keywords.insert(
+            "$DATATYPE".to_string(),
+            Keyword::Byte(ByteKeyword::DATATYPE(FcsDataType::I)),
+        );
         for n in 1..=2 {
             metadata
                 .keywords
@@ -508,9 +700,10 @@ mod tests {
     #[test]
     fn layout_detects_bit_packed_records() {
         let mut metadata = synthetic_metadata_2f32();
-        metadata
-            .keywords
-            .insert("$DATATYPE".to_string(), Keyword::Byte(ByteKeyword::DATATYPE(FcsDataType::I)));
+        metadata.keywords.insert(
+            "$DATATYPE".to_string(),
+            Keyword::Byte(ByteKeyword::DATATYPE(FcsDataType::I)),
+        );
         for n in 1..=2 {
             metadata
                 .keywords
@@ -546,9 +739,10 @@ mod tests {
     #[test]
     fn extract_columns_applies_range_mask_for_integer_params() {
         let mut metadata = synthetic_metadata_2f32();
-        metadata
-            .keywords
-            .insert("$DATATYPE".to_string(), Keyword::Byte(ByteKeyword::DATATYPE(FcsDataType::I)));
+        metadata.keywords.insert(
+            "$DATATYPE".to_string(),
+            Keyword::Byte(ByteKeyword::DATATYPE(FcsDataType::I)),
+        );
         for n in 1..=2 {
             metadata
                 .keywords
@@ -564,16 +758,21 @@ mod tests {
         layout.num_events = 1;
 
         let columns = super::extract_columns(&data_bytes, &layout, &[0, 1]).expect("extract");
-        assert_eq!(&*columns[0], &[15.0f32], "0xFF & (16.next_power_of_two()-1 = 15) = 15");
+        assert_eq!(
+            &*columns[0],
+            &[15.0f32],
+            "0xFF & (16.next_power_of_two()-1 = 15) = 15"
+        );
         assert_eq!(&*columns[1], &[10.0f32], "0x0A & 15 = 10, unaffected");
     }
 
     #[test]
     fn extract_columns_rejects_bit_packed_layout() {
         let mut metadata = synthetic_metadata_2f32();
-        metadata
-            .keywords
-            .insert("$DATATYPE".to_string(), Keyword::Byte(ByteKeyword::DATATYPE(FcsDataType::I)));
+        metadata.keywords.insert(
+            "$DATATYPE".to_string(),
+            Keyword::Byte(ByteKeyword::DATATYPE(FcsDataType::I)),
+        );
         for n in 1..=2 {
             metadata
                 .keywords
@@ -598,7 +797,9 @@ mod tests {
             "$BYTEORD".to_string(),
             Keyword::Byte(ByteKeyword::BYTEORD(ByteOrder::BigEndian)),
         );
-        metadata.keywords.insert("$TOT".to_string(), Keyword::Int(IntegerKeyword::TOT(2)));
+        metadata
+            .keywords
+            .insert("$TOT".to_string(), Keyword::Int(IntegerKeyword::TOT(2)));
         metadata
     }
 
@@ -639,7 +840,9 @@ mod tests {
         // Param 0 is $PnB 64 with $DATATYPE I — 8-byte integers are not a
         // legal FCS decode width. Pass an empty slice: resolution must fail
         // before any byte is touched, so the short slice is never reached.
-        let err = super::extract_columns(&[], &layout, &[0]).unwrap_err().to_string();
+        let err = super::extract_columns(&[], &layout, &[0])
+            .unwrap_err()
+            .to_string();
         assert!(
             err.contains("Unsupported integer size"),
             "resolution must reject the width before decoding, got: {err}"
@@ -651,7 +854,9 @@ mod tests {
         // A transposition bug produces plausible-looking output when every
         // column holds the same values. Give each column a distinct offset.
         let mut metadata = synthetic_metadata_2f32();
-        metadata.keywords.insert("$TOT".to_string(), Keyword::Int(IntegerKeyword::TOT(1000)));
+        metadata
+            .keywords
+            .insert("$TOT".to_string(), Keyword::Int(IntegerKeyword::TOT(1000)));
         let layout = super::ColumnLayout::from_metadata(&metadata).expect("layout");
 
         let mut data_bytes = Vec::with_capacity(1000 * 8);
@@ -677,7 +882,10 @@ mod tests {
         // test exists to pin.
         const EVENTS: usize = super::EVENTS_PER_CHUNK * 2 + 37;
         let mut metadata = synthetic_metadata_2f32();
-        metadata.keywords.insert("$TOT".to_string(), Keyword::Int(IntegerKeyword::TOT(EVENTS)));
+        metadata.keywords.insert(
+            "$TOT".to_string(),
+            Keyword::Int(IntegerKeyword::TOT(EVENTS)),
+        );
         let layout = super::ColumnLayout::from_metadata(&metadata).expect("layout");
 
         let mut data_bytes = Vec::with_capacity(EVENTS * 8);
@@ -713,9 +921,10 @@ mod tests {
         // stay a fast test.
         const EVENTS: usize = 200_000;
         let mut metadata = synthetic_metadata_2f32();
-        metadata
-            .keywords
-            .insert("$TOT".to_string(), Keyword::Int(IntegerKeyword::TOT(EVENTS)));
+        metadata.keywords.insert(
+            "$TOT".to_string(),
+            Keyword::Int(IntegerKeyword::TOT(EVENTS)),
+        );
         let layout = super::ColumnLayout::from_metadata(&metadata).expect("layout");
         assert!(
             EVENTS * layout.bytes_per_event >= super::PARALLEL_BYTE_THRESHOLD,
@@ -748,7 +957,11 @@ mod tests {
             "first event of the second chunk"
         );
         assert_eq!(columns[0][EVENTS - 1], (EVENTS - 1) as f32, "last event");
-        assert_eq!(columns[1][EVENTS - 1], (EVENTS - 1) as f32 + 0.5, "last event");
+        assert_eq!(
+            columns[1][EVENTS - 1],
+            (EVENTS - 1) as f32 + 0.5,
+            "last event"
+        );
     }
 
     #[test]
@@ -758,9 +971,10 @@ mod tests {
         // off-by-one in the split_at_mut walk.
         const EVENTS: usize = super::EVENTS_PER_CHUNK + 1;
         let mut metadata = synthetic_metadata_2f32();
-        metadata
-            .keywords
-            .insert("$TOT".to_string(), Keyword::Int(IntegerKeyword::TOT(EVENTS)));
+        metadata.keywords.insert(
+            "$TOT".to_string(),
+            Keyword::Int(IntegerKeyword::TOT(EVENTS)),
+        );
         let layout = super::ColumnLayout::from_metadata(&metadata).expect("layout");
 
         let mut data_bytes = Vec::with_capacity(EVENTS * 8);
@@ -778,10 +992,106 @@ mod tests {
             true,
         );
 
-        assert_eq!(columns[0][EVENTS - 1], (EVENTS - 1) as f32, "ragged tail event");
+        assert_eq!(
+            columns[0][EVENTS - 1],
+            (EVENTS - 1) as f32,
+            "ragged tail event"
+        );
         assert!(
             columns[0].iter().all(|v| !v.is_nan()),
             "every slot must have been written; a NaN means a chunk was skipped"
         );
+    }
+
+    #[test]
+    fn selected_ranges_match_float_and_double_decoding() {
+        let float_metadata = synthetic_metadata_2f32();
+        let float_layout = super::ColumnLayout::from_metadata(&float_metadata).expect("layout");
+        let mut storage = Vec::new();
+        super::decode_selected_rows_into(
+            &synthetic_f32_bytes(),
+            &float_layout,
+            &[1, 0],
+            1..3,
+            &mut storage,
+        )
+        .expect("float range");
+        assert_eq!(storage, [4.0, 3.0, 6.0, 5.0]);
+
+        let mut double_metadata = synthetic_metadata_2f32();
+        double_metadata.keywords.insert(
+            "$DATATYPE".to_string(),
+            Keyword::Byte(ByteKeyword::DATATYPE(FcsDataType::D)),
+        );
+        for n in 1..=2 {
+            double_metadata
+                .keywords
+                .insert(format!("$P{n}B"), Keyword::Int(IntegerKeyword::PnB(64)));
+        }
+        let double_layout =
+            super::ColumnLayout::from_metadata(&double_metadata).expect("double layout");
+        let values = [1.25_f64, 2.5, 3.75, 4.5, 5.25, 6.5];
+        let bytes: Vec<u8> = values
+            .iter()
+            .flat_map(|value| value.to_le_bytes())
+            .collect();
+        super::decode_selected_rows_into(&bytes, &double_layout, &[0, 1], 0..2, &mut storage)
+            .expect("double range");
+        assert_eq!(storage, [1.25, 2.5, 3.75, 4.5]);
+    }
+
+    #[test]
+    fn selected_bit_packed_ranges_match_existing_msb_stream_semantics() {
+        let mut metadata = synthetic_metadata_2f32();
+        metadata.keywords.insert(
+            "$BYTEORD".to_string(),
+            Keyword::Byte(ByteKeyword::BYTEORD(ByteOrder::BigEndian)),
+        );
+        metadata.keywords.insert(
+            "$DATATYPE".to_string(),
+            Keyword::Byte(ByteKeyword::DATATYPE(FcsDataType::I)),
+        );
+        metadata
+            .keywords
+            .insert("$TOT".to_string(), Keyword::Int(IntegerKeyword::TOT(3)));
+        for (n, bits) in [(1, 10), (2, 6)] {
+            metadata
+                .keywords
+                .insert(format!("$P{n}B"), Keyword::Int(IntegerKeyword::PnB(bits)));
+            metadata.keywords.insert(
+                format!("$P{n}R"),
+                Keyword::Int(IntegerKeyword::PnR(1 << bits)),
+            );
+        }
+        let rows = [[1_u16, 2_u16], [511, 31], [1023, 63]];
+        let mut bytes = Vec::new();
+        let mut bit_position = 0usize;
+        for row in rows {
+            for (value, width) in row.into_iter().zip([10, 6]) {
+                for source_bit in (0..width).rev() {
+                    let byte_index = bit_position / 8;
+                    if byte_index == bytes.len() {
+                        bytes.push(0);
+                    }
+                    bytes[byte_index] |=
+                        (((value >> source_bit) & 1) as u8) << (7 - bit_position % 8);
+                    bit_position += 1;
+                }
+            }
+        }
+        let layout = super::ColumnLayout::from_metadata(&metadata).expect("layout");
+        let mut storage = Vec::new();
+        super::decode_selected_rows_into(&bytes, &layout, &[1, 0], 1..3, &mut storage)
+            .expect("bit-packed range");
+        assert_eq!(storage, [31.0, 511.0, 63.0, 1023.0]);
+
+        let eager = crate::file::Fcs::parse_bit_packed_data(
+            &bytes,
+            &layout.bits_per_parameter,
+            &layout.data_types,
+            3,
+        )
+        .expect("existing bit-packed decoder");
+        assert_eq!(eager, [1.0, 2.0, 511.0, 31.0, 1023.0, 63.0]);
     }
 }

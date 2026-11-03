@@ -44,7 +44,7 @@ specta = { workspace = true, optional = true }
 
 # Optional compression integration (Mode A `.fcz` reader/writer)
 flow-fcs-compress = { path = "../flow-fcs-compress", version = "^0.1.4", default-features = false, features = ["multithread"], optional = true }
-flow-linalg = { path = "../flow-linalg", version = "^0.1.3", optional = true, features = ["compensation"] }
+flow-linalg = { path = "../flow-linalg", version = "^0.1.3" }
 
 # Parallelization
 rayon={ workspace=true }
@@ -132,7 +132,7 @@ compress=["dep:flow-fcs-compress"]
 test-util = []
 # Gaussian-mixture event tables + FCS write helpers for benches/harnesses.
 synthetic = ["dep:rand", "dep:rand_distr", "test-util"]
-compensation = ["dep:flow-linalg"]
+compensation = ["flow-linalg/compensation"]
 # Optional Parquet sidecar: write/read FCS data as Parquet via Polars (Tier 1
 # of the M5d adapter — interop-first, doesn't yet plumb our specialized codecs
 # through Parquet's custom-codec slot).

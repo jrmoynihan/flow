@@ -33,11 +33,15 @@
 //!
 //! `adc_bits == 0` means "unknown" (codec falls back to `ceil(log2(range))`).
 
+use std::collections::HashSet;
 use std::fs::{File, OpenOptions};
 use std::io::{Seek, SeekFrom, Write};
-use std::path::Path;
+use std::ops::Range;
+use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
 
 use byteorder::{ByteOrder, LittleEndian};
+use flow_linalg::{ContractError, MatrixShape, OrderedRowSink, RowBlock, RowSource};
 use memmap3::Mmap;
 
 use crate::chunk::{CHUNK_HEADER_BYTES, ChunkHeader};
@@ -52,6 +56,7 @@ const MAGIC_TAIL: [u8; 8] = *b"FCZ1END!";
 const FORMAT_VERSION: u16 = 1;
 const TRAILER_BYTES: u64 = 16; // index_offset (8) + magic_tail (8)
 const INDEX_ENTRY_BYTES: usize = 2 + 4 + 8 + 4; // 18
+static PARTIAL_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
 /// Writer for the native `.fcz` container.
 /// Pre-encoded chunk produced by [`FczWriter::encode_chunk_payload`].
@@ -67,13 +72,14 @@ pub struct FczWriter {
     file: File,
     fcs_text: Vec<u8>,
     channels: Vec<ChannelEntry>,
-    chunk_payloads: Vec<u8>, // accumulated payload section, written in finish()
     index: Vec<IndexEntry>,
     events_per_chunk: u32,
     /// Events seen per channel. All channels MUST end up with the same count;
     /// `finish` enforces this and writes the shared value as `total_events`.
     events_per_channel: Vec<u64>,
     n_chunks: u32,
+    n_chunks_offset: Option<u64>,
+    total_events_offset: Option<u64>,
     state: WriterState,
 }
 
@@ -87,7 +93,7 @@ struct ChannelEntry {
 struct IndexEntry {
     channel_idx: u16,
     chunk_idx: u32,
-    payload_offset_in_section: u64,
+    file_offset: u64,
     byte_len: u32,
 }
 
@@ -115,9 +121,246 @@ impl Default for FczWriteOptions {
     }
 }
 
+/// Failure while incrementally writing an FCZ row stream.
+#[derive(Debug, thiserror::Error)]
+pub enum FczRowSinkError {
+    #[error(transparent)]
+    Contract(#[from] ContractError),
+    #[error("FCZ container operation failed: {0}")]
+    Container(#[from] Error),
+    #[error("FCZ filesystem operation failed: {0}")]
+    Io(#[from] std::io::Error),
+    #[error("{0}")]
+    Invalid(String),
+}
+
+/// Incremental row-major FCZ sink with atomic publication.
+pub struct FczRowSink {
+    writer: Option<FczWriter>,
+    final_path: PathBuf,
+    partial_path: PathBuf,
+    shape: MatrixShape,
+    next_row: usize,
+    next_chunk: u32,
+    events_per_chunk: usize,
+    row_buffer: Vec<f32>,
+    published: bool,
+}
+
+impl FczRowSink {
+    /// Create a sink for a fixed schema and expected row count.
+    pub fn create(
+        path: impl AsRef<Path>,
+        shape: MatrixShape,
+        channels: &[(ChannelParams, CodecId)],
+        options: FczWriteOptions,
+        fcs_text: &[u8],
+    ) -> std::result::Result<Self, FczRowSinkError> {
+        let final_path = path.as_ref().to_path_buf();
+        if final_path.extension().and_then(|value| value.to_str()) != Some("fcz") {
+            return Err(FczRowSinkError::Invalid(
+                "FCZ output path must have .fcz extension".to_string(),
+            ));
+        }
+        if channels.is_empty() || channels.len() != shape.columns() {
+            return Err(FczRowSinkError::Invalid(format!(
+                "FCZ schema has {} channels but row shape has {} columns",
+                channels.len(),
+                shape.columns()
+            )));
+        }
+        let events_per_chunk = usize::try_from(options.events_per_chunk)
+            .map_err(|_| FczRowSinkError::Invalid("chunk size does not fit usize".to_string()))?;
+        if events_per_chunk == 0 {
+            return Err(FczRowSinkError::Invalid(
+                "events_per_chunk must be non-zero".to_string(),
+            ));
+        }
+        events_per_chunk
+            .checked_mul(shape.columns())
+            .ok_or_else(|| {
+                FczRowSinkError::Invalid("FCZ row-group dimensions overflow usize".to_string())
+            })?;
+        let partial_path = sibling_partial_path(&final_path)?;
+        let initialized = (|| {
+            let mut writer = FczWriter::create(&partial_path, options)?;
+            writer.set_fcs_text(fcs_text)?;
+            for (params, codec) in channels {
+                writer.add_channel(params.clone(), *codec)?;
+            }
+            Ok::<_, FczRowSinkError>(writer)
+        })();
+        let writer = match initialized {
+            Ok(writer) => writer,
+            Err(error) => {
+                let _ = std::fs::remove_file(&partial_path);
+                return Err(error);
+            }
+        };
+        Ok(Self {
+            writer: Some(writer),
+            final_path,
+            partial_path,
+            shape,
+            next_row: 0,
+            next_chunk: 0,
+            events_per_chunk,
+            row_buffer: Vec::with_capacity(events_per_chunk * shape.columns()),
+            published: false,
+        })
+    }
+
+    pub fn write(&mut self, block: RowBlock<'_, f32>) -> std::result::Result<(), FczRowSinkError> {
+        <Self as OrderedRowSink<f32>>::write(self, block)
+    }
+
+    pub fn finish(mut self) -> std::result::Result<PathBuf, FczRowSinkError> {
+        if self.next_row != self.shape.rows() {
+            return Err(ContractError::IncompleteSink {
+                expected_rows: self.shape.rows(),
+                written_rows: self.next_row,
+            }
+            .into());
+        }
+        self.flush_buffer()?;
+        self.writer
+            .take()
+            .ok_or_else(|| FczRowSinkError::Invalid("FCZ sink is already closed".to_string()))?
+            .finish()?;
+        let reader = FczReader::open(&self.partial_path)?;
+        if reader.total_events()
+            != u64::try_from(self.shape.rows()).map_err(|_| {
+                FczRowSinkError::Invalid("expected row count does not fit u64".to_string())
+            })?
+            || reader.n_channels() != self.shape.columns()
+        {
+            return Err(FczRowSinkError::Invalid(
+                "final FCZ shape does not match declared sink shape".to_string(),
+            ));
+        }
+        drop(reader);
+        std::fs::rename(&self.partial_path, &self.final_path)?;
+        sync_parent_directory(&self.final_path);
+        self.published = true;
+        Ok(self.final_path.clone())
+    }
+
+    fn flush_buffer(&mut self) -> std::result::Result<(), FczRowSinkError> {
+        if self.row_buffer.is_empty() {
+            return Ok(());
+        }
+        let columns = self.shape.columns();
+        let rows = self.row_buffer.len() / columns;
+        let writer = self
+            .writer
+            .as_mut()
+            .ok_or_else(|| FczRowSinkError::Invalid("FCZ sink is already closed".to_string()))?;
+        let mut channel = Vec::with_capacity(rows);
+        for channel_index in 0..columns {
+            channel.clear();
+            channel.extend(
+                self.row_buffer
+                    .chunks_exact(columns)
+                    .map(|row| row[channel_index]),
+            );
+            writer.write_chunk(channel_index as u16, self.next_chunk, &channel)?;
+        }
+        self.row_buffer.clear();
+        self.next_chunk = self
+            .next_chunk
+            .checked_add(1)
+            .ok_or_else(|| FczRowSinkError::Invalid("FCZ chunk index overflow".to_string()))?;
+        Ok(())
+    }
+}
+
+impl OrderedRowSink<f32> for FczRowSink {
+    type Error = FczRowSinkError;
+    type Output = PathBuf;
+
+    fn shape(&self) -> MatrixShape {
+        self.shape
+    }
+
+    fn write(&mut self, block: RowBlock<'_, f32>) -> std::result::Result<(), Self::Error> {
+        if block.row_start() != self.next_row {
+            return Err(ContractError::OutOfOrderBlock {
+                expected_start: self.next_row,
+                actual_start: block.row_start(),
+            }
+            .into());
+        }
+        if block.columns() != self.shape.columns() {
+            return Err(ContractError::ColumnMismatch {
+                expected: self.shape.columns(),
+                actual: block.columns(),
+            }
+            .into());
+        }
+        if block.row_end() > self.shape.rows() {
+            return Err(ContractError::BlockExceedsShape {
+                block_end: block.row_end(),
+                expected_rows: self.shape.rows(),
+            }
+            .into());
+        }
+        let columns = self.shape.columns();
+        for row in block.as_slice().chunks_exact(columns) {
+            if self.row_buffer.len() == self.events_per_chunk * columns {
+                self.flush_buffer()?;
+            }
+            self.row_buffer.extend_from_slice(row);
+            self.next_row += 1;
+        }
+        Ok(())
+    }
+
+    fn finish(self) -> std::result::Result<Self::Output, Self::Error> {
+        FczRowSink::finish(self)
+    }
+}
+
+impl Drop for FczRowSink {
+    fn drop(&mut self) {
+        if !self.published {
+            drop(self.writer.take());
+            let _ = std::fs::remove_file(&self.partial_path);
+        }
+    }
+}
+
+fn sibling_partial_path(final_path: &Path) -> std::result::Result<PathBuf, FczRowSinkError> {
+    let parent = final_path.parent().unwrap_or_else(|| Path::new("."));
+    let name = final_path
+        .file_name()
+        .and_then(|value| value.to_str())
+        .ok_or_else(|| FczRowSinkError::Invalid("FCZ output filename is not UTF-8".to_string()))?;
+    let sequence = PARTIAL_SEQUENCE.fetch_add(1, Ordering::Relaxed);
+    Ok(parent.join(format!(
+        ".{name}.{}.{}.partial",
+        std::process::id(),
+        sequence
+    )))
+}
+
+#[cfg(unix)]
+fn sync_parent_directory(path: &Path) {
+    if let Some(parent) = path.parent() {
+        if let Ok(directory) = File::open(parent) {
+            let _ = directory.sync_all();
+        }
+    }
+}
+
+#[cfg(not(unix))]
+fn sync_parent_directory(_path: &Path) {}
+
 impl FczWriter {
     /// Create a new `.fcz` file at `path`. Truncates existing files.
     pub fn create(path: impl AsRef<Path>, opts: FczWriteOptions) -> Result<Self> {
+        if opts.events_per_chunk == 0 {
+            return Err(Error::InvalidParams("events_per_chunk must be non-zero"));
+        }
         let file = OpenOptions::new()
             .read(true)
             .write(true)
@@ -128,11 +371,12 @@ impl FczWriter {
             file,
             fcs_text: Vec::new(),
             channels: Vec::new(),
-            chunk_payloads: Vec::new(),
             index: Vec::new(),
             events_per_chunk: opts.events_per_chunk,
             events_per_channel: Vec::new(),
             n_chunks: 0,
+            n_chunks_offset: None,
+            total_events_offset: None,
             state: WriterState::Open,
         })
     }
@@ -167,15 +411,42 @@ impl FczWriter {
         Ok(idx)
     }
 
+    fn start_streaming(&mut self) -> Result<()> {
+        if self.state != WriterState::Open {
+            return Ok(());
+        }
+        if self.channels.is_empty() {
+            return Err(Error::InvalidParams(
+                "at least one channel must be declared before writing chunks",
+            ));
+        }
+        let mut prelude = Vec::new();
+        prelude.extend_from_slice(&MAGIC);
+        write_u16(&mut prelude, FORMAT_VERSION);
+        write_u16(&mut prelude, 0);
+        let text_len = u32::try_from(self.fcs_text.len())
+            .map_err(|_| Error::InvalidParams("FCS TEXT exceeds u32 length"))?;
+        write_u32(&mut prelude, text_len);
+        prelude.extend_from_slice(&self.fcs_text);
+        write_u16(&mut prelude, self.channels.len() as u16);
+        for entry in &self.channels {
+            write_channel_descriptor(&mut prelude, entry);
+        }
+        self.n_chunks_offset = Some(prelude.len() as u64);
+        write_u32(&mut prelude, 0);
+        write_u32(&mut prelude, self.events_per_chunk);
+        self.total_events_offset = Some(prelude.len() as u64);
+        write_u64(&mut prelude, 0);
+        self.file.seek(SeekFrom::Start(0))?;
+        self.file.write_all(&prelude)?;
+        self.state = WriterState::Streaming;
+        Ok(())
+    }
+
     /// Encode and append a chunk for one channel. The caller decides the order;
     /// the chunk index records actual offsets, so any order is valid as long as
     /// every (channel, chunk) pair is written exactly once.
-    pub fn write_chunk(
-        &mut self,
-        channel_idx: u16,
-        chunk_idx: u32,
-        events: &[f32],
-    ) -> Result<()> {
+    pub fn write_chunk(&mut self, channel_idx: u16, chunk_idx: u32, events: &[f32]) -> Result<()> {
         if self.state == WriterState::Closed {
             return Err(Error::InvalidParams("writer is already closed"));
         }
@@ -187,7 +458,7 @@ impl FczWriter {
                 "chunk has more events than events_per_chunk",
             ));
         }
-        self.state = WriterState::Streaming;
+        self.start_streaming()?;
 
         let entry = &self.channels[channel_idx as usize];
         let codec = codec_from_id(entry.codec_id)?;
@@ -195,29 +466,39 @@ impl FczWriter {
         let mut payload = Vec::new();
         codec.encode_chunk(events, &entry.params, &mut payload)?;
         let checksum = xxhash_rust::xxh3::xxh3_64(&payload);
-        let header = ChunkHeader::new(
-            CodecId::from_wire(entry.codec_id).expect("validated on add_channel"),
-            payload.len() as u32,
-            events.len() as u32,
-            checksum,
-        );
-
-        let payload_offset_in_section = self.chunk_payloads.len() as u64;
-        header.write_to(&mut self.chunk_payloads);
-        self.chunk_payloads.extend_from_slice(&payload);
-        let byte_len = (CHUNK_HEADER_BYTES + payload.len()) as u32;
+        let payload_len = u32::try_from(payload.len())
+            .map_err(|_| Error::InvalidParams("encoded chunk payload exceeds u32 length"))?;
+        let codec_id = CodecId::from_wire(entry.codec_id)
+            .ok_or(Error::InvalidParams("channel codec id is invalid"))?;
+        let header = ChunkHeader::new(codec_id, payload_len, events.len() as u32, checksum);
+        let file_offset = self.file.stream_position()?;
+        let mut header_bytes = Vec::with_capacity(CHUNK_HEADER_BYTES);
+        header.write_to(&mut header_bytes);
+        self.file.write_all(&header_bytes)?;
+        self.file.write_all(&payload)?;
+        let byte_len = u32::try_from(
+            CHUNK_HEADER_BYTES
+                .checked_add(payload.len())
+                .ok_or(Error::InvalidParams("encoded chunk byte length overflow"))?,
+        )
+        .map_err(|_| Error::InvalidParams("encoded chunk byte length exceeds u32"))?;
 
         self.index.push(IndexEntry {
             channel_idx,
             chunk_idx,
-            payload_offset_in_section,
+            file_offset,
             byte_len,
         });
 
         if chunk_idx >= self.n_chunks {
-            self.n_chunks = chunk_idx + 1;
+            self.n_chunks = chunk_idx
+                .checked_add(1)
+                .ok_or(Error::InvalidParams("chunk index exceeds FCZ limit"))?;
         }
-        self.events_per_channel[channel_idx as usize] += events.len() as u64;
+        self.events_per_channel[channel_idx as usize] = self.events_per_channel
+            [channel_idx as usize]
+            .checked_add(events.len() as u64)
+            .ok_or(Error::InvalidParams("channel event count exceeds u64"))?;
         Ok(())
     }
 
@@ -228,11 +509,7 @@ impl FczWriter {
     ///
     /// The writer is *not* mutated by this call. Call it from any thread.
     /// All channel descriptors must already be added via [`Self::add_channel`].
-    pub fn encode_chunk_payload(
-        &self,
-        channel_idx: u16,
-        events: &[f32],
-    ) -> Result<EncodedChunk> {
+    pub fn encode_chunk_payload(&self, channel_idx: u16, events: &[f32]) -> Result<EncodedChunk> {
         if (channel_idx as usize) >= self.channels.len() {
             return Err(Error::InvalidParams("channel_idx out of range"));
         }
@@ -256,38 +533,59 @@ impl FczWriter {
     /// Append a pre-encoded chunk (typically produced by parallel
     /// [`Self::encode_chunk_payload`] calls). Sequential — the writer's
     /// internal buffer mutates here, so call this from a single thread.
-    pub fn append_encoded_chunk(
-        &mut self,
-        chunk_idx: u32,
-        encoded: EncodedChunk,
-    ) -> Result<()> {
+    pub fn append_encoded_chunk(&mut self, chunk_idx: u32, encoded: EncodedChunk) -> Result<()> {
         if self.state == WriterState::Closed {
             return Err(Error::InvalidParams("writer is already closed"));
         }
-        self.state = WriterState::Streaming;
         let channel_idx = encoded.channel_idx;
+        let entry = self
+            .channels
+            .get(channel_idx as usize)
+            .ok_or(Error::InvalidParams("channel_idx out of range"))?;
+        if entry.codec_id != encoded.codec_id {
+            return Err(Error::InvalidParams(
+                "encoded chunk codec does not match channel codec",
+            ));
+        }
+        if encoded.decoded_len > self.events_per_chunk {
+            return Err(Error::InvalidParams(
+                "chunk has more events than events_per_chunk",
+            ));
+        }
+        self.start_streaming()?;
         let payload = encoded.payload;
         let checksum = xxhash_rust::xxh3::xxh3_64(&payload);
-        let header = ChunkHeader::new(
-            CodecId::from_wire(encoded.codec_id).expect("validated on add_channel"),
-            payload.len() as u32,
-            encoded.decoded_len,
-            checksum,
-        );
-        let payload_offset_in_section = self.chunk_payloads.len() as u64;
-        header.write_to(&mut self.chunk_payloads);
-        self.chunk_payloads.extend_from_slice(&payload);
-        let byte_len = (CHUNK_HEADER_BYTES + payload.len()) as u32;
+        let payload_len = u32::try_from(payload.len())
+            .map_err(|_| Error::InvalidParams("encoded chunk payload exceeds u32 length"))?;
+        let codec_id = CodecId::from_wire(encoded.codec_id)
+            .ok_or(Error::InvalidParams("encoded chunk codec id is invalid"))?;
+        let header = ChunkHeader::new(codec_id, payload_len, encoded.decoded_len, checksum);
+        let file_offset = self.file.stream_position()?;
+        let mut header_bytes = Vec::with_capacity(CHUNK_HEADER_BYTES);
+        header.write_to(&mut header_bytes);
+        self.file.write_all(&header_bytes)?;
+        self.file.write_all(&payload)?;
+        let byte_len = u32::try_from(
+            CHUNK_HEADER_BYTES
+                .checked_add(payload.len())
+                .ok_or(Error::InvalidParams("encoded chunk byte length overflow"))?,
+        )
+        .map_err(|_| Error::InvalidParams("encoded chunk byte length exceeds u32"))?;
         self.index.push(IndexEntry {
             channel_idx,
             chunk_idx,
-            payload_offset_in_section,
+            file_offset,
             byte_len,
         });
         if chunk_idx >= self.n_chunks {
-            self.n_chunks = chunk_idx + 1;
+            self.n_chunks = chunk_idx
+                .checked_add(1)
+                .ok_or(Error::InvalidParams("chunk index exceeds FCZ limit"))?;
         }
-        self.events_per_channel[channel_idx as usize] += encoded.decoded_len as u64;
+        self.events_per_channel[channel_idx as usize] = self.events_per_channel
+            [channel_idx as usize]
+            .checked_add(u64::from(encoded.decoded_len))
+            .ok_or(Error::InvalidParams("channel event count exceeds u64"))?;
         Ok(())
     }
 
@@ -296,7 +594,7 @@ impl FczWriter {
         if self.state == WriterState::Closed {
             return Err(Error::InvalidParams("writer is already closed"));
         }
-        self.state = WriterState::Closed;
+        self.start_streaming()?;
 
         // All channels must report identical event counts.
         let total_events = match self.events_per_channel.first().copied() {
@@ -310,47 +608,47 @@ impl FczWriter {
                 first
             }
         };
-
-        // Header section
-        let mut prelude = Vec::new();
-        prelude.extend_from_slice(&MAGIC);
-        write_u16(&mut prelude, FORMAT_VERSION);
-        write_u16(&mut prelude, 0);
-        write_u32(&mut prelude, self.fcs_text.len() as u32);
-        prelude.extend_from_slice(&self.fcs_text);
-        write_u16(&mut prelude, self.channels.len() as u16);
-        for entry in &self.channels {
-            write_channel_descriptor(&mut prelude, entry);
+        let expected_entries = self
+            .channels
+            .len()
+            .checked_mul(self.n_chunks as usize)
+            .ok_or(Error::InvalidParams("FCZ index dimensions overflow usize"))?;
+        if self.index.len() != expected_entries {
+            return Err(Error::InvalidParams(
+                "not every channel/chunk pair was written exactly once",
+            ));
         }
-        write_u32(&mut prelude, self.n_chunks);
-        write_u32(&mut prelude, self.events_per_chunk);
-        write_u64(&mut prelude, total_events);
-
-        let payload_section_offset = prelude.len() as u64;
-
-        // Index entries record absolute file offsets, not section-relative.
-        let index_offset = payload_section_offset + self.chunk_payloads.len() as u64;
-        let mut index_bytes = Vec::with_capacity(self.index.len() * INDEX_ENTRY_BYTES);
-        for e in &self.index {
-            write_u16(&mut index_bytes, e.channel_idx);
-            write_u32(&mut index_bytes, e.chunk_idx);
-            write_u64(
-                &mut index_bytes,
-                payload_section_offset + e.payload_offset_in_section,
-            );
-            write_u32(&mut index_bytes, e.byte_len);
+        let mut pairs = HashSet::with_capacity(self.index.len());
+        if !self
+            .index
+            .iter()
+            .all(|entry| pairs.insert((entry.channel_idx, entry.chunk_idx)))
+        {
+            return Err(Error::InvalidParams("duplicate channel/chunk pair"));
         }
 
-        let mut trailer = Vec::with_capacity(TRAILER_BYTES as usize);
-        write_u64(&mut trailer, index_offset);
-        trailer.extend_from_slice(&MAGIC_TAIL);
+        let n_chunks_offset = self
+            .n_chunks_offset
+            .ok_or(Error::InvalidParams("FCZ header was not initialized"))?;
+        let total_events_offset = self
+            .total_events_offset
+            .ok_or(Error::InvalidParams("FCZ header was not initialized"))?;
+        self.file.seek(SeekFrom::Start(n_chunks_offset))?;
+        self.file.write_all(&self.n_chunks.to_le_bytes())?;
+        self.file.seek(SeekFrom::Start(total_events_offset))?;
+        self.file.write_all(&total_events.to_le_bytes())?;
 
-        self.file.seek(SeekFrom::Start(0))?;
-        self.file.write_all(&prelude)?;
-        self.file.write_all(&self.chunk_payloads)?;
-        self.file.write_all(&index_bytes)?;
-        self.file.write_all(&trailer)?;
+        let index_offset = self.file.seek(SeekFrom::End(0))?;
+        for entry in &self.index {
+            self.file.write_all(&entry.channel_idx.to_le_bytes())?;
+            self.file.write_all(&entry.chunk_idx.to_le_bytes())?;
+            self.file.write_all(&entry.file_offset.to_le_bytes())?;
+            self.file.write_all(&entry.byte_len.to_le_bytes())?;
+        }
+        self.file.write_all(&index_offset.to_le_bytes())?;
+        self.file.write_all(&MAGIC_TAIL)?;
         self.file.sync_all()?;
+        self.state = WriterState::Closed;
         Ok(())
     }
 }
@@ -422,6 +720,47 @@ pub struct FczReader {
     index: Vec<Vec<(u64, u32)>>,
 }
 
+/// A selected-channel [`RowSource`] over an open FCZ reader.
+pub struct FczRowSource<'a> {
+    reader: &'a FczReader,
+    channels: Vec<usize>,
+    shape: MatrixShape,
+}
+
+impl<'a> FczRowSource<'a> {
+    /// Validate a channel selection and create a fixed-shape source.
+    pub fn new(reader: &'a FczReader, channels: &[usize]) -> Result<Self> {
+        let rows = usize::try_from(reader.total_events)
+            .map_err(|_| Error::InvalidParams("total_events does not fit usize"))?;
+        let shape = MatrixShape::new(rows, channels.len())
+            .map_err(|_| Error::InvalidParams("FCZ row-source shape overflows usize"))?;
+        let mut storage = Vec::new();
+        reader.read_selected_rows_into(channels, 0..0, &mut storage)?;
+        Ok(Self {
+            reader,
+            channels: channels.to_vec(),
+            shape,
+        })
+    }
+
+    pub fn channels(&self) -> &[usize] {
+        &self.channels
+    }
+}
+
+impl RowSource<f32> for FczRowSource<'_> {
+    type Error = Error;
+
+    fn shape(&self) -> MatrixShape {
+        self.shape
+    }
+
+    fn read_rows(&mut self, rows: Range<usize>, storage: &mut Vec<f32>) -> Result<()> {
+        self.reader
+            .read_selected_rows_into(&self.channels, rows, storage)
+    }
+}
+
 impl FczReader {
     /// Open and parse the header + chunk index. Mmaps the whole file.
     pub fn open(path: impl AsRef<Path>) -> Result<Self> {
@@ -486,8 +825,9 @@ impl FczReader {
             });
         }
 
-        let mut index: Vec<Vec<(u64, u32)>> =
-            (0..n_channels).map(|_| vec![(0, 0); n_chunks as usize]).collect();
+        let mut index: Vec<Vec<(u64, u32)>> = (0..n_channels)
+            .map(|_| vec![(0, 0); n_chunks as usize])
+            .collect();
         let mut q = index_offset as usize;
         for _ in 0..n_entries {
             let channel_idx = LittleEndian::read_u16(&bytes[q..q + 2]) as usize;
@@ -622,6 +962,86 @@ impl FczReader {
         }
         out.truncate(written);
         Ok(out)
+    }
+
+    /// Decode selected channels for a global row range into reusable row-major
+    /// storage, crossing compressed chunk boundaries as needed.
+    pub fn read_selected_rows_into(
+        &self,
+        channels: &[usize],
+        rows: Range<usize>,
+        storage: &mut Vec<f32>,
+    ) -> Result<()> {
+        if channels.is_empty() {
+            return Err(Error::InvalidParams(
+                "at least one channel must be selected",
+            ));
+        }
+        let mut seen = HashSet::with_capacity(channels.len());
+        for &channel in channels {
+            if channel >= self.n_channels() {
+                return Err(Error::InvalidParams("channel_idx out of range"));
+            }
+            if !seen.insert(channel) {
+                return Err(Error::InvalidParams("duplicate channel selection"));
+            }
+        }
+        let total_rows = usize::try_from(self.total_events)
+            .map_err(|_| Error::InvalidParams("total_events does not fit usize"))?;
+        if rows.start > rows.end || rows.end > total_rows {
+            return Err(Error::InvalidParams("row range out of bounds"));
+        }
+        let row_count = rows.end - rows.start;
+        let elements = row_count
+            .checked_mul(channels.len())
+            .ok_or(Error::InvalidParams(
+                "selected row dimensions overflow usize",
+            ))?;
+        storage.clear();
+        storage.resize(elements, 0.0);
+        if row_count == 0 {
+            return Ok(());
+        }
+
+        let mut chunk_start = 0usize;
+        let mut temporary = Vec::new();
+        for chunk_idx in 0..self.n_chunks {
+            let chunk_rows = self.chunk_event_count(channels[0], chunk_idx)? as usize;
+            let chunk_end = chunk_start
+                .checked_add(chunk_rows)
+                .ok_or(Error::InvalidParams("chunk row offset overflow"))?;
+            if chunk_end <= rows.start {
+                chunk_start = chunk_end;
+                continue;
+            }
+            if chunk_start >= rows.end {
+                break;
+            }
+            let copy_start = rows.start.max(chunk_start);
+            let copy_end = rows.end.min(chunk_end);
+            for (output_column, &channel) in channels.iter().enumerate() {
+                let channel_rows = self.chunk_event_count(channel, chunk_idx)? as usize;
+                if channel_rows != chunk_rows {
+                    return Err(Error::InvalidParams(
+                        "selected channels have unequal chunk row counts",
+                    ));
+                }
+                temporary.resize(chunk_rows, 0.0);
+                self.decode_chunk_into(channel, chunk_idx, &mut temporary)?;
+                for global_row in copy_start..copy_end {
+                    let output_row = global_row - rows.start;
+                    storage[output_row * channels.len() + output_column] =
+                        temporary[global_row - chunk_start];
+                }
+            }
+            chunk_start = chunk_end;
+        }
+        if chunk_start < rows.end {
+            return Err(Error::InvalidParams(
+                "chunk index ended before requested row range",
+            ));
+        }
+        Ok(())
     }
 
     /// Decode every (channel, chunk) into pre-allocated per-channel buffers in
@@ -798,7 +1218,9 @@ mod tests {
         let mut x = Vec::with_capacity(n);
         let mut s = seed;
         for i in 0..n {
-            s = s.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+            s = s
+                .wrapping_mul(6364136223846793005)
+                .wrapping_add(1442695040888963407);
             let u = ((s >> 32) as u32) as f32 / u32::MAX as f32;
             x.push((i as f32) * 0.5 + (u - 0.5) * 100.0);
         }
@@ -838,8 +1260,10 @@ mod tests {
         let mut chunk_idx = 0;
         while written < total {
             let n = (total - written).min(ch_size as usize);
-            w.write_chunk(0, chunk_idx, &fsc[written..written + n]).unwrap();
-            w.write_chunk(1, chunk_idx, &ssc[written..written + n]).unwrap();
+            w.write_chunk(0, chunk_idx, &fsc[written..written + n])
+                .unwrap();
+            w.write_chunk(1, chunk_idx, &ssc[written..written + n])
+                .unwrap();
             written += n;
             chunk_idx += 1;
         }
@@ -915,9 +1339,7 @@ mod tests {
                     Err(_) => continue,
                 };
                 let mut out = vec![0.0f32; n];
-                if let Err(Error::ChecksumMismatch { .. }) =
-                    r.decode_chunk_into(ch, ck, &mut out)
-                {
+                if let Err(Error::ChecksumMismatch { .. }) = r.decode_chunk_into(ch, ck, &mut out) {
                     hit_checksum_err = true;
                 }
             }

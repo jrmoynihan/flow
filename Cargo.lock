@@ -3353,6 +3353,7 @@ dependencies = [
  "byteorder",
  "criterion 0.8.2",
  "fastlanes",
+ "flow-linalg",
  "lz4_flex",
  "memmap3",
  "pco",
