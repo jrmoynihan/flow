@@ -27,7 +27,7 @@ ndarray          = { workspace = true }
 linfa            = "0.8"
 linfa-clustering = "0.8"
 linfa-linalg     = "0.2"
-flow-knn         = { path = "../flow-knn", optional = true, default-features = true }
+flow-knn         = { path = "../flow-knn", version = "^0.1.2", optional = true, default-features = true }
 leiden-rs        = { version = "0.8.1", optional = true, default-features = false, features = ["rayon"] }
 
 [dev-dependencies]

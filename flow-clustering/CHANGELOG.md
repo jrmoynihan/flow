@@ -5,55 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## Unreleased
+## 0.2.0 — 2026-11-03
 
 ### Added
 
- - Optional `parc` feature: PARC clustering (HNSW/Exact k-NN via `flow-knn`,
-   Rayon local + Jaccard prune, `leiden-rs` community detection, too-big
-   recursive split, small-population reassignment).
- - `Parc::fit` / `Parc::fit_with_knn` with Python-aligned defaults and full
-   config surface (`ParcConfig`). Package version `0.1.2`.
- - `ParcConfig::parallel_prune` to toggle Rayon on local/Jaccard prune.
- - Criterion bench `parc_throughput` and example `parc_rss` (peak RSS).
- - Batch SOM and FlowSOM (SOM codebook + k-means metaclusters) in `flow-clustering` 0.2.0.
+- Optional `parc` feature: PARC clustering (HNSW/Exact k-NN via `flow-knn`,
+  Rayon local + Jaccard prune, `leiden-rs` community detection, too-big
+  recursive split, small-population reassignment).
+- `Parc::fit` / `Parc::fit_with_knn` with Python-aligned defaults and full
+  config surface (`ParcConfig`).
+- `ParcConfig::parallel_prune` to toggle Rayon on local/Jaccard prune.
+- Criterion bench `parc_throughput` and example `parc_rss` (peak RSS).
+- Batch SOM and FlowSOM (SOM codebook + k-means metaclusters) behind default
+  feature `som`.
 
 ### Documentation
 
- - README: PARC usage, citation (Stassen et al. 2020), feature table.
- - `docs/PERF_PARC.md`: M5 Max throughput, Rayon A/B, and peak RSS baselines.
- - <csr-id-92e31b03dc632230809d10422be0c1062e6e9e1b/> consumer-first README pass across crates, add peacoqc-py usage example, remove legacy utils crate
-   Rewrites READMEs across the workspace (fcs, flow-clustering,
-   flow-control-detection, flow-density, flow-fcs-compress, flow-knn,
-   flow-linalg, flow-pacmap, flow-peak-detection, gates, peacoqc-cli,
-   peacoqc-rs, tru-ols, tru-ols-cli) to lead with install/quick-start/perf
-   for downstream consumers, and adds a new flow-fcs-bench README.
-   
-   Adds a concrete usage example to peacoqc-py/README.md mirroring the
-   docstring in peacoqc/__init__.py.
-   
-   Removes the superseded utils/ crate (clustering, KDE, and PCA helpers
-   now live in their dedicated crates) and syncs beads issue/interaction
-   export state.
-
-### Commit Statistics
-
-<csr-read-only-do-not-edit/>
-
- - 1 commit contributed to the release over the course of 13 calendar days.
- - 99 days passed between releases.
- - 1 commit was understood as [conventional](https://www.conventionalcommits.org).
- - 0 issues like '(#ID)' were seen in commit messages
-
-### Commit Details
-
-<csr-read-only-do-not-edit/>
-
-<details><summary>view details</summary>
-
- * **Uncategorized**
-    - Consumer-first README pass across crates, add peacoqc-py usage example, remove legacy utils crate ([`92e31b0`](https://github.com/jrmoynihan/flow/commit/92e31b03dc632230809d10422be0c1062e6e9e1b))
-</details>
+- README: PARC and FlowSOM usage, Stassen et al. 2020 citation, feature table.
+- `docs/PERF_PARC.md`: throughput, Rayon A/B, and peak RSS baselines.
 
 ## v0.1.1 (2026-05-11)
 
