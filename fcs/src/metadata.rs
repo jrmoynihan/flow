@@ -625,7 +625,15 @@ impl Metadata {
         }
     }
 
-    /// Insert or update a string keyword in the metadata
+    /// Insert or update a keyword from a raw string value.
+    ///
+    /// Routes through [`match_and_parse_keyword`] so standard keywords land in
+    /// their typed variants (e.g. `$BYTEORD` → [`Keyword::Byte`]). Callers that
+    /// used this helper for endianness (or `$DATATYPE`) previously got
+    /// [`StringKeyword::Other`], and [`crate::write::serialize_metadata`] then
+    /// silently rewrote `$BYTEORD` to little-endian — corrupting every numeric
+    /// column when the DATA segment was big-endian. Unable-to-parse values still
+    /// fall back to [`StringKeyword::Other`].
     pub fn insert_string_keyword(&mut self, key: String, value: String) {
         let normalized_key = if key.starts_with('$') {
             key
@@ -633,15 +641,18 @@ impl Metadata {
             format!("${key}")
         };
 
-        let parsed = match_and_parse_keyword(&normalized_key, value.as_str());
-        let string_keyword = match parsed {
-            KeywordCreationResult::String(string_keyword) => string_keyword,
-            // If parsing fails (or parses to a non-string keyword), fall back to `Other`.
-            _ => StringKeyword::Other(Arc::from(value)),
+        let keyword = match match_and_parse_keyword(&normalized_key, value.as_str()) {
+            KeywordCreationResult::Int(k) => Keyword::Int(k),
+            KeywordCreationResult::Float(k) => Keyword::Float(k),
+            KeywordCreationResult::String(k) => Keyword::String(k),
+            KeywordCreationResult::Byte(k) => Keyword::Byte(k),
+            KeywordCreationResult::Mixed(k) => Keyword::Mixed(k),
+            KeywordCreationResult::UnableToParse => {
+                Keyword::String(StringKeyword::Other(Arc::from(value)))
+            }
         };
 
-        self.keywords
-            .insert(normalized_key, Keyword::String(string_keyword));
+        self.keywords.insert(normalized_key, keyword);
     }
 
     /// Create metadata from a DataFrame and ParameterMap
