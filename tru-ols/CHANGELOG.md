@@ -5,6 +5,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] — 2026-11-03
+
+### Added
+
+- Path B TRU unmixing with a protected catalog autofluorescence column:
+  per-assignment `[fluors | a_k]` solvers keep AF as a first-class regressor
+  (`path_b_tru_with_protected_af`, `export_unmixed_fcs_path_b`).
+- Pair-test AF matching with scatter tie-break; dual-gate AF purity checks;
+  finite `AF_Confidence` when both pair-test residuals are zero.
+
+### Why
+
+When AutoSpectral assigns per-event AF variants, a fluor-only TRU solve drops
+the catalog AF column and can reabsorb AF into fluorophores (or the reverse).
+Path B keeps AF protected in the active set so exported Autofluorescence stays
+aligned with the matched signature.
+
+### Dependencies
+
+- `flow-fcs` ^0.6.0 (optional `flow-fcs` feature)
+- `flow-linalg` ^0.2.0
+
 ## Unreleased
 
 ### Chore

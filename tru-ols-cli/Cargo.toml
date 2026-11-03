@@ -33,8 +33,8 @@ name="generate_synthetic_test_data"
 path="examples/generate_synthetic_test_data.rs"
 
 [dependencies]
-flow-fcs = { path = "../fcs", version = "^0.5.2", features = ["test-util"] }
-flow-tru-ols={ path="../tru-ols", version="^0.2.0", features=[
+flow-fcs = { path = "../fcs", version = "^0.6.0", features = ["test-util"] }
+flow-tru-ols={ path="../tru-ols", version="^0.3.0", features=[
     "flow-fcs",
     "plotting",
     "unmix-cache",

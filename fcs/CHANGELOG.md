@@ -5,6 +5,32 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.0] — 2026-11-03
+
+### Added
+
+- Selected-channel row-range decode (`Fcs::read_selected_rows_into`),
+  `FcsRowSource`, and `FcsFloatRowSink` with atomic publication.
+- `FcsWriteMetadata` / `FcsWriteSource` for sinks that must not hold an open mmap.
+- `flow-linalg` is now a required dependency (row-block contracts).
+
+### Fixed
+
+- Writing TEXT no longer invents little-endian when `$BYTEORD` is missing or
+  untyped; the declared byte order is preserved so big-endian files are not
+  silently corrupted on round-trip.
+
+### Why
+
+Large FCS analysis must process bounded chunks of selected channels without
+materializing a full DataFrame. The BYTEORD fix stops write paths from changing
+numeric endianness behind the caller's back.
+
+### Dependencies
+
+- `flow-linalg` ^0.2.0
+- Optional `flow-fcs-compress` ^0.2.0 (`compress` feature)
+
 ## Unreleased
 
 ### Documentation

@@ -50,7 +50,7 @@ Or add this to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-flow-fcs = "0.5.2"
+flow-fcs = "0.6.0"
 ```
 
 ### Optional Features
@@ -68,7 +68,7 @@ flow-fcs = "0.5.2"
 
 ```toml
 [dependencies]
-flow-fcs = { version = "0.5.2", features = ["compensation", "compress"] }
+flow-fcs = { version = "0.6.0", features = ["compensation", "compress"] }
 ```
 
 ## Quick Start

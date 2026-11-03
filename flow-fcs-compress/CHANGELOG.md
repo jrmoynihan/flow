@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] — 2026-11-03
+
+### Added
+
+- Selected-channel row-range decode for FCZ (`read_selected_rows_into`) and
+  streaming row sources/sinks that match eager channel order and values.
+- Atomic publish for incremental FCZ sinks (failed or incomplete writes never
+  leave a final path).
+
+### Why
+
+Compressed archives are often the large on-disk form of a plate. Streaming
+selected channels keeps the same bounded-memory path as plain FCS so QC and
+unmix pipelines do not inflate to a full DataFrame.
+
+### Dependencies
+
+- `flow-linalg` ^0.2.0 (row-block contracts).
+
 ## Unreleased
 
 ### Chore

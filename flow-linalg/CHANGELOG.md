@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] — 2026-11-03
+
+### Added
+
+- Row-block contracts (`RowSource`, `OrderedRowSink`, `ChunkSize`, `MatrixShape`,
+  `RowBlock`) so large cytometry matrices can be read and written in bounded
+  chunks without holding a full event table in RAM.
+- Chunk-lease helpers for tests that assert live high-water marks.
+
+### Why
+
+PeacoQC, TRU-OLS, and compensation on million-event files currently force a full
+in-memory table. Shared row-block traits let FCS/FCZ and algorithm crates stream
+the same numerics with a configured memory ceiling.
+
 ## Unreleased
 
 ### Documentation

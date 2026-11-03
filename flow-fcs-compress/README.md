@@ -6,6 +6,13 @@ Column-oriented compression codecs and container formats for FCS flow cytometry 
 [![docs.rs](https://docs.rs/flow-fcs-compress/badge.svg)](https://docs.rs/flow-fcs-compress)
 [![MIT](https://img.shields.io/crates/l/flow-fcs-compress.svg)](LICENSE)
 
+
+## Install
+
+```toml
+flow-fcs-compress = "0.2.0"
+```
+
 ## Overview
 
 FCS files store event data row-major (all parameters for one event contiguous), which is optimal for acquisition but suboptimal for analysis — reading a single channel requires touching every row. `flow-fcs-compress` provides column-major codecs that exploit per-channel statistical structure for 2.5–6× compression while enabling parallel, single-channel decode at 0.5–3 GB/s.
