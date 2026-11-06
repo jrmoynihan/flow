@@ -10,6 +10,9 @@ pub enum PaCMAPError {
     #[error("Dimension mismatch: data slice length {len} is not divisible by d={d}")]
     DimensionMismatch { len: usize, d: usize },
 
+    #[error("Query dimension {query_d} does not match index dimension {index_d}")]
+    QueryDimensionMismatch { query_d: usize, index_d: usize },
+
     #[error("n={n} exceeds u32::MAX — indices would overflow pair storage")]
     DatasetTooLarge { n: usize },
 
