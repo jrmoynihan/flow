@@ -212,7 +212,11 @@ impl UnmixProvenance {
         set(keywords, UNMIXED_KEYWORD, Some(self.method.trim()));
         set(keywords, LAST_MODIFIER_KEYWORD, Some(&self.software));
         set(keywords, LAST_MODIFIED_KEYWORD, Some(&self.modified_at));
-        set(keywords, ORIGINALITY_KEYWORD, Some(ORIGINALITY_DATA_MODIFIED));
+        set(
+            keywords,
+            ORIGINALITY_KEYWORD,
+            Some(ORIGINALITY_DATA_MODIFIED),
+        );
         set(
             keywords,
             RAW_DATASOURCE_GUID_KEYWORD,
@@ -245,9 +249,12 @@ impl UnmixProvenance {
         );
 
         for (key, accessor) in FIT_KEYWORDS {
-            set(keywords, key, self.fit.as_ref().map(|f| accessor(f).to_string()));
+            set(
+                keywords,
+                key,
+                self.fit.as_ref().map(|f| accessor(f).to_string()),
+            );
         }
-
     }
 
     /// [`write_to`](Self::write_to) plus a fresh product `$GUID`.
@@ -270,22 +277,21 @@ impl UnmixProvenance {
     /// crate (or was written before provenance existed), and reporting partial
     /// provenance for it would be misleading. Every other field is best-effort.
     pub fn read_from(fcs: &Fcs) -> Option<Self> {
-        let (detector_names, endmember_names, mixing_matrix) =
-            match lookup(fcs, MIXMAT_KEYWORD)? {
-                Keyword::Mixed(MixedKeyword::MixingMatrix {
-                    detector_names,
-                    endmember_names,
-                    matrix_values,
-                    ..
-                }) => (
-                    detector_names.clone(),
-                    endmember_names.clone(),
-                    matrix_values.clone(),
-                ),
-                // Present but not parsed as a matrix: a hand-edited or truncated
-                // value. Treat it as absent rather than guessing at a shape.
-                _ => return None,
-            };
+        let (detector_names, endmember_names, mixing_matrix) = match lookup(fcs, MIXMAT_KEYWORD)? {
+            Keyword::Mixed(MixedKeyword::MixingMatrix {
+                detector_names,
+                endmember_names,
+                matrix_values,
+                ..
+            }) => (
+                detector_names.clone(),
+                endmember_names.clone(),
+                matrix_values.clone(),
+            ),
+            // Present but not parsed as a matrix: a hand-edited or truncated
+            // value. Treat it as absent rather than guessing at a shape.
+            _ => return None,
+        };
 
         Some(Self {
             method: text(fcs, UNMIXED_KEYWORD).unwrap_or_default(),
@@ -315,7 +321,6 @@ pub const ORIGINALITY_DATA_MODIFIED: &str = "DataModified";
 fn default_software_tag() -> String {
     format!("{}/{}", env!("CARGO_PKG_NAME"), env!("CARGO_PKG_VERSION"))
 }
-
 
 /// Stable TEXT spelling of a strategy.
 ///
@@ -395,10 +400,10 @@ fn read_fit(fcs: &Fcs) -> Option<UnmixFitProvenance> {
 #[cfg(test)]
 mod tests {
     use super::*;
-        use flow_fcs::{Header, Metadata};
     use flow_fcs::file::AccessWrapper;
     use flow_fcs::parameter::{Parameter, ParameterMap};
     use flow_fcs::transform::TransformType;
+    use flow_fcs::{Header, Metadata};
     use polars::prelude::{Column, DataFrame};
     use std::sync::Arc;
 
@@ -440,8 +445,8 @@ mod tests {
 
         // Builds `$PAR`, `$TOT` and the full `$Pn*` set, which the reader needs
         // to rebuild a parameter map on reopen.
-        let mut metadata = Metadata::from_dataframe_and_parameters(&df, &params)
-            .expect("build fixture metadata");
+        let mut metadata =
+            Metadata::from_dataframe_and_parameters(&df, &params).expect("build fixture metadata");
         metadata.insert_string_keyword("$GUID".to_string(), "source-guid-0001".to_string());
 
         Fcs::for_testing(
@@ -449,18 +454,12 @@ mod tests {
             metadata,
             params,
             Arc::new(df),
-            AccessWrapper::new(path.to_str().unwrap_or(""))
-                .expect("build fixture access wrapper"),
+            AccessWrapper::new(path.to_str().unwrap_or("")).expect("build fixture access wrapper"),
         )
     }
 
     fn fully_populated() -> UnmixProvenance {
-        let mut prov = UnmixProvenance::new(
-            "TRU-OLS",
-            detectors(),
-            endmembers(),
-            MATRIX.to_vec(),
-        );
+        let mut prov = UnmixProvenance::new("TRU-OLS", detectors(), endmembers(), MATRIX.to_vec());
         prov.af_endmember_index = Some(2);
         prov.strategy = Some(UnmixingStrategy::UnstainedControlMapping);
         prov.cutoff_percentile = Some(0.995);
@@ -501,8 +500,7 @@ mod tests {
         written.write_to(&mut fcs);
         flow_fcs::write_fcs_file(fcs, &path).expect("write fixture");
 
-        let reopened = Fcs::open(path.to_str().expect("utf-8 temp path"))
-            .expect("reopen fixture");
+        let reopened = Fcs::open(path.to_str().expect("utf-8 temp path")).expect("reopen fixture");
         let read = UnmixProvenance::read_from(&reopened).expect("provenance should survive write");
 
         assert_eq!(read.detector_names, detectors());
@@ -550,8 +548,7 @@ mod tests {
         assert_eq!(fcs.metadata.delimiter, original_delimiter);
 
         flow_fcs::write_fcs_file(fcs, &path).expect("write fixture");
-        let reopened =
-            Fcs::open(path.to_str().expect("utf-8 temp path")).expect("reopen fixture");
+        let reopened = Fcs::open(path.to_str().expect("utf-8 temp path")).expect("reopen fixture");
 
         // The parameter keywords are the canary: they sort after `$LAST_MODIFIER`
         // and they survive because flow-fcs now escapes delimiters in values.
@@ -602,7 +599,10 @@ mod tests {
         UnmixProvenance::new("TRU-OLS", detectors(), endmembers(), MATRIX.to_vec())
             .stamp_onto(&mut fcs);
 
-        let minted = fcs.metadata.keywords["$GUID"].value_str().unwrap().to_string();
+        let minted = fcs.metadata.keywords["$GUID"]
+            .value_str()
+            .unwrap()
+            .to_string();
 
         let mut enriched = UnmixProvenance::read_from(&fcs).expect("recoverable");
         enriched.cutoff_percentile = Some(0.995);
@@ -626,8 +626,7 @@ mod tests {
         let mut fcs = minimal_fcs(&dir.join("prov-restamp.fcs"));
         fully_populated().write_to(&mut fcs);
 
-        UnmixProvenance::new("OLS", detectors(), endmembers(), MATRIX.to_vec())
-            .write_to(&mut fcs);
+        UnmixProvenance::new("OLS", detectors(), endmembers(), MATRIX.to_vec()).write_to(&mut fcs);
 
         let read = UnmixProvenance::read_from(&fcs).expect("still recoverable");
         assert_eq!(read.method, "OLS");
@@ -646,11 +645,7 @@ mod tests {
 
         // Even a file carrying some of the scalars is not provenance without
         // the transform itself.
-        set(
-            &mut fcs.metadata.keywords,
-            STRATEGY_KEYWORD,
-            Some("Zero"),
-        );
+        set(&mut fcs.metadata.keywords, STRATEGY_KEYWORD, Some("Zero"));
         assert!(UnmixProvenance::read_from(&fcs).is_none());
     }
 

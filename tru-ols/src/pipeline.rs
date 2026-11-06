@@ -55,18 +55,16 @@ pub fn matrix_from_row_major_flat(
 
 /// Display-oriented output path: `{stem}_unmixed.fcs` under `out_dir` (not `$FIL` prefix).
 pub fn unmixed_output_path(src: &Path, out_dir: &Path) -> PathBuf {
-    let stem = src
-        .file_stem()
-        .and_then(|s| s.to_str())
-        .unwrap_or("sample");
+    let stem = src.file_stem().and_then(|s| s.to_str()).unwrap_or("sample");
     out_dir.join(format!("{stem}_unmixed.fcs"))
 }
 
 #[cfg(feature = "flow-fcs")]
 pub use fcs_export::{
-    PathBExportRequest, UnmixExportRequest, UnmixExportResult, FitMetricsSummary,
-    RAW_DATASOURCE_GUID_KEYWORD, export_unmixed_fcs, export_unmixed_fcs_path_b,
-    path_b_tru_with_protected_af, set_raw_datasource_guid,
+    CatalogAfExportRequest, CatalogAfTruOptions, CatalogAfTruResult, FitMetricsSummary,
+    RAW_DATASOURCE_GUID_KEYWORD, SignatureFenceDiag, UnmixExportRequest, UnmixExportResult,
+    export_unmixed_fcs, export_unmixed_fcs_catalog_af, set_raw_datasource_guid,
+    tru_ols_grouped_by_catalog_af,
 };
 
 #[cfg(feature = "flow-fcs")]
@@ -84,6 +82,10 @@ mod fcs_export {
         apply_tru_ols_unmixing_from_preprocessed, build_unmixed_fcs_from_unmixed_abundances,
         extract_detector_data,
     };
+    use crate::fence::{
+        FenceKind, MIN_FENCE_EVENTS, estimate_cutoffs_from_abundance_rows, mask_for_signature,
+        unmix_unstained_all,
+    };
     use crate::metrics::{FitMetrics, compute_fit_metrics};
     use crate::preprocessing::{CutoffCalculator, NonspecificObservation};
     use crate::provenance::{UnmixFitProvenance, UnmixProvenance};
@@ -95,14 +97,14 @@ mod fcs_export {
     use std::path::{Path, PathBuf};
     use std::sync::Arc;
 
-    /// Test-only observation of Path B TRU solvers (not provenance stamps).
+    /// Test-only observation of catalog-AF TRU solvers (not provenance stamps).
     ///
-    /// Cleared at the start of each [`path_b_tru_with_protected_af`] call and filled
+    /// Cleared at the start of each [`tru_ols_grouped_by_catalog_af`] call and filled
     /// with the AF index each constructed solver actually carries, plus whether that
     /// AF column stayed in the active set for each unmixed event.
     #[cfg(test)]
     #[derive(Debug, Clone, Default, PartialEq, Eq)]
-    pub(crate) struct PathBTruSolverProbe {
+    pub(crate) struct CatalogAfTruSolverProbe {
         /// `TruOls::autofluorescence_index()` for each catalog-group solver built.
         pub(crate) solver_af_indices: Vec<Option<usize>>,
         /// Per stained event that was unmixed: AF endmember remained in `relevant_indices`.
@@ -111,16 +113,16 @@ mod fcs_export {
 
     #[cfg(test)]
     thread_local! {
-        static PATH_B_TRU_SOLVER_PROBE: std::cell::RefCell<PathBTruSolverProbe> =
-            std::cell::RefCell::new(PathBTruSolverProbe {
+        static CATALOG_AF_TRU_SOLVER_PROBE: std::cell::RefCell<CatalogAfTruSolverProbe> =
+            std::cell::RefCell::new(CatalogAfTruSolverProbe {
                 solver_af_indices: Vec::new(),
                 af_stayed_active: Vec::new(),
             });
     }
 
     #[cfg(test)]
-    pub(crate) fn take_path_b_tru_solver_probe() -> PathBTruSolverProbe {
-        PATH_B_TRU_SOLVER_PROBE.with(|cell| std::mem::take(&mut *cell.borrow_mut()))
+    pub(crate) fn take_catalog_af_tru_solver_probe() -> CatalogAfTruSolverProbe {
+        CATALOG_AF_TRU_SOLVER_PROBE.with(|cell| std::mem::take(&mut *cell.borrow_mut()))
     }
 
     /// Provenance keyword written onto exported unmixed FCS files.
@@ -195,7 +197,9 @@ mod fcs_export {
     }
 
     /// Unmix one stained file against a shared unstained control and write reduced-channel FCS.
-    pub fn export_unmixed_fcs(req: UnmixExportRequest<'_>) -> Result<UnmixExportResult, TruOlsError> {
+    pub fn export_unmixed_fcs(
+        req: UnmixExportRequest<'_>,
+    ) -> Result<UnmixExportResult, TruOlsError> {
         let n_det = req.detector_names.len();
         if n_det == 0 {
             return Err(TruOlsError::InsufficientData(
@@ -236,11 +240,8 @@ mod fcs_export {
         };
         let cutoffs =
             CutoffCalculator::calculate(matrix.as_ref(), unstained_data.as_ref(), cutoff)?;
-        let nonspecific = NonspecificObservation::calculate(
-            matrix.as_ref(),
-            unstained_data.as_ref(),
-            af_idx,
-        )?;
+        let nonspecific =
+            NonspecificObservation::calculate(matrix.as_ref(), unstained_data.as_ref(), af_idx)?;
 
         let fit_metrics = if req.compute_fit {
             let stained_data = extract_detector_data(req.stained, &det_refs)?;
@@ -253,7 +254,8 @@ mod fcs_export {
             )?;
             tru_ols.set_strategy(req.strategy);
             let abundances = tru_ols.unmix(stained_data.as_ref())?;
-            let fit = compute_fit_metrics(stained_data.as_ref(), abundances.as_ref(), matrix.as_ref());
+            let fit =
+                compute_fit_metrics(stained_data.as_ref(), abundances.as_ref(), matrix.as_ref());
             Some(FitMetricsSummary::from(&fit))
         } else {
             None
@@ -335,14 +337,14 @@ mod fcs_export {
         })
     }
 
-    /// Inputs for a **Path B** export: autofluorescence is matched per event against a
+    /// Inputs for a **catalog-AF** export: autofluorescence is matched per event against a
     /// catalog instead of arriving as a single mixing-matrix column from the caller.
     ///
     /// The shape difference from [`UnmixExportRequest`] is deliberate and load-bearing:
-    /// `endmember_names` and `flat_matrix` here are **fluorophore-only**. OLS Path B
-    /// subtracts matched AF then solves fluors; TRU Path B appends the argmax catalog
+    /// `endmember_names` and `flat_matrix` here are **fluorophore-only**. Match+OLS
+    /// subtracts matched AF then solves fluors; catalog Then TRU appends the argmax catalog
     /// signature as a protected AF column for the TRU-OLS solve.
-    pub struct PathBExportRequest<'a> {
+    pub struct CatalogAfExportRequest<'a> {
         pub stained: &'a Fcs,
         pub unstained: &'a Fcs,
         pub detector_names: &'a [String],
@@ -378,7 +380,7 @@ mod fcs_export {
         pub af_source_guid: Option<String>,
     }
 
-    /// Unmix one stained file with per-event AF catalog matching (Path B).
+    /// Unmix one stained file with per-event AF catalog matching.
     ///
     /// 1. Extract detectors plus FSC/SSC from the stained file and detectors from the control.
     /// 2. Compute a **fluorophore-only** nonspecific observation from the control (matcher baseline).
@@ -388,8 +390,8 @@ mod fcs_export {
     ///    - TRU (`truncate == true`): append the argmax signature as a protected AF column and
     ///      run TRU-OLS on the **original** observations (not the AF-subtracted residual).
     /// 5. Write fluorophore abundances plus one matcher `Autofluorescence` channel.
-    pub fn export_unmixed_fcs_path_b(
-        req: PathBExportRequest<'_>,
+    pub fn export_unmixed_fcs_catalog_af(
+        req: CatalogAfExportRequest<'_>,
     ) -> Result<UnmixExportResult, TruOlsError> {
         let n_det = req.detector_names.len();
         if n_det == 0 {
@@ -439,15 +441,10 @@ mod fcs_export {
             fluor_matrix.as_ref(),
             unstained_data.as_ref(),
         )?;
-        let baseline: Vec<f64> = (0..n_det)
-            .map(|i| nonspecific.observation()[i])
-            .collect();
+        let baseline: Vec<f64> = (0..n_det).map(|i| nonspecific.observation()[i]).collect();
 
-        let prepared = build_af_match_library(
-            req.af_library,
-            fluor_matrix.as_ref(),
-            req.af_match_options,
-        )?;
+        let prepared =
+            build_af_match_library(req.af_library, fluor_matrix.as_ref(), req.af_match_options)?;
         let af = match_and_subtract(
             stained_data.as_ref(),
             fsc_ssc.as_ref(),
@@ -459,15 +456,17 @@ mod fcs_export {
         // truncate is on, TRU-OLS solves on original observations with the argmax catalog
         // signature as a protected AF column — never subtract-then-fluor-only TRU.
         let fluor_abundances = if req.truncate {
-            path_b_tru_with_protected_af(
+            tru_ols_grouped_by_catalog_af(
                 fluor_matrix.as_ref(),
                 stained_data.as_ref(),
                 unstained_data.as_ref(),
                 &prepared,
                 &af.assignment_1based,
-                cutoff,
+                FenceKind::Percentile { q: cutoff },
                 req.strategy,
+                CatalogAfTruOptions::default(),
             )?
+            .fluor_abundances
         } else {
             run_ols(af.residual_observations.as_ref(), fluor_matrix.as_ref())?
         };
@@ -523,10 +522,8 @@ mod fcs_export {
         provenance.strategy = req.truncate.then_some(req.strategy);
         provenance.cutoff_percentile = req.truncate.then_some(cutoff);
         provenance.af_endmember_index = req.truncate.then_some(n_fluor);
-        provenance.raw_datasource_guid =
-            crate::fcs_integration::source_guid(req.stained);
-        provenance.unstained_datasource_guid =
-            crate::fcs_integration::source_guid(req.unstained);
+        provenance.raw_datasource_guid = crate::fcs_integration::source_guid(req.stained);
+        provenance.unstained_datasource_guid = crate::fcs_integration::source_guid(req.unstained);
         provenance.unstained_info = Some(format!(
             "Autofluorescence channel '{af_pn}' assigned per event from a {}-entry AF catalog \
              (Path B multi-AF matching over {}/{}); fluorophore background from the unstained control",
@@ -614,22 +611,63 @@ mod fcs_export {
         }))
     }
 
-    /// Path B TRU: group events by argmax catalog assignment and unmix each group with
-    /// `[fluors | a_k]` and `autofluorescence_idx = n_fluor`. Observations are the
-    /// original stained detectors (TruOls subtracts nonspecific itself); exported AF
-    /// abundance stays the matcher `k*` and is not taken from these solves.
+    /// Options for [`tru_ols_grouped_by_catalog_af`].
+    #[derive(Debug, Clone, Default)]
+    pub struct CatalogAfTruOptions {
+        /// Pair-test unstained events and estimate fences from the matching signature subset.
+        pub af_adaptive: bool,
+        /// Unstained FSC/SSC (events × 2) required when `af_adaptive` is true.
+        pub unstained_fsc_ssc: Option<Mat<f64>>,
+        /// Fluorophore-only nonspecific observation for unstained pair-test.
+        pub unstained_o_ns: Option<Vec<f64>>,
+        /// When set, drop if abundance < cutoff only when residual barely changes.
+        pub residual_epsilon: Option<f64>,
+        /// Optional 1-based signature ids to exclude from AF-adaptive fence estimation
+        /// (e.g. purity Reject). Events assigned to these ids are omitted from masks.
+        pub exclude_signature_1based: Vec<u32>,
+        /// When true, populate per-signature truncation fractions (Preview lab).
+        pub collect_diagnostics: bool,
+    }
+
+    /// Per-signature fence diagnostics for Preview Fence lab.
+    #[derive(Debug, Clone)]
+    pub struct SignatureFenceDiag {
+        pub signature_index_0based: usize,
+        pub signature_id: String,
+        pub n_stained: usize,
+        pub n_unstained_for_fence: usize,
+        pub fell_back_to_global: bool,
+        /// Fraction of stained events in this group with any fluor truncated.
+        pub frac_events_truncated: f64,
+        pub cutoffs: Vec<f64>,
+    }
+
+    /// Result of catalog-grouped TRU with optional fence diagnostics.
+    #[derive(Debug)]
+    pub struct CatalogAfTruResult {
+        pub fluor_abundances: Mat<f64>,
+        pub signature_diags: Vec<SignatureFenceDiag>,
+        pub residual_norms: Vec<f64>,
+        pub any_fluor_truncated: Vec<bool>,
+    }
+
+    /// Group events by pair-test winner and unmix each group with `[fluors | a_k]` and
+    /// `autofluorescence_idx = n_fluor`. Observations are the original stained detectors
+    /// (TruOls subtracts nonspecific itself); exported AF abundance stays the matcher `k*`
+    /// and is not taken from these solves.
     ///
     /// Public for Preview IPC (`af_corrected_tru_ols`) so the app reuses the same
-    /// grouped solve as [`export_unmixed_fcs_path_b`] without duplicating the algorithm.
-    pub fn path_b_tru_with_protected_af(
+    /// grouped solve as [`export_unmixed_fcs_catalog_af`] without duplicating the algorithm.
+    pub fn tru_ols_grouped_by_catalog_af(
         fluor_matrix: MatRef<'_, f64>,
         stained_data: MatRef<'_, f64>,
         unstained_data: MatRef<'_, f64>,
         prepared: &PreparedAfLibrary,
         assignment_1based: &[u32],
-        cutoff_percentile: f64,
+        fence: FenceKind,
         strategy: UnmixingStrategy,
-    ) -> Result<Mat<f64>, TruOlsError> {
+        options: CatalogAfTruOptions,
+    ) -> Result<CatalogAfTruResult, TruOlsError> {
         let n_det = fluor_matrix.nrows();
         let n_fluor = fluor_matrix.ncols();
         let n_events = stained_data.nrows();
@@ -651,13 +689,41 @@ mod fcs_export {
             ));
         }
 
+        let unstained_assignment: Option<Vec<u32>> = if options.af_adaptive {
+            let fsc_ssc = options.unstained_fsc_ssc.as_ref().ok_or_else(|| {
+                TruOlsError::InsufficientData(
+                    "AF-adaptive fence needs unstained FSC/SSC".into(),
+                )
+            })?;
+            if fsc_ssc.nrows() != unstained_data.nrows() || fsc_ssc.ncols() != 2 {
+                return Err(TruOlsError::DimensionMismatch {
+                    expected: unstained_data.nrows(),
+                    actual: fsc_ssc.nrows(),
+                });
+            }
+            let o_ns = options.unstained_o_ns.as_deref();
+            let matched = match_and_subtract(
+                unstained_data,
+                fsc_ssc.as_ref(),
+                o_ns,
+                prepared,
+            )?;
+            Some(matched.assignment_1based)
+        } else {
+            None
+        };
+
         #[cfg(test)]
-        PATH_B_TRU_SOLVER_PROBE.with(|cell| {
-            *cell.borrow_mut() = PathBTruSolverProbe::default();
+        CATALOG_AF_TRU_SOLVER_PROBE.with(|cell| {
+            *cell.borrow_mut() = CatalogAfTruSolverProbe::default();
         });
 
         let mut fluor_abundances = Mat::<f64>::zeros(n_events, n_fluor);
+        let mut residual_norms = vec![0.0; n_events];
+        let mut any_fluor_truncated = vec![false; n_events];
         let n_groups = prepared.len();
+        let ids = prepared.entry_ids();
+        let mut signature_diags = Vec::with_capacity(n_groups);
 
         for k in 0..n_groups {
             let signature = prepared.entry_signature(k).ok_or_else(|| {
@@ -667,71 +733,128 @@ mod fcs_export {
                 ))
             })?;
             let matrix_with_af = hstack_fluor_and_signature(fluor_matrix, signature)?;
-            let cutoffs = CutoffCalculator::calculate(
-                matrix_with_af.as_ref(),
-                unstained_data,
-                cutoff_percentile,
-            )?;
-            let nonspecific_with_af = NonspecificObservation::calculate(
-                matrix_with_af.as_ref(),
-                unstained_data,
-                n_fluor,
-            )?;
-            let mut tru = TruOls::from_preprocessed(
-                matrix_with_af,
-                unstained_data.to_owned(),
-                cutoffs.cutoffs().clone(),
-                nonspecific_with_af.observation().clone(),
-                n_fluor,
-            )?;
-            tru.set_strategy(strategy);
 
-            #[cfg(test)]
-            PATH_B_TRU_SOLVER_PROBE.with(|cell| {
-                cell.borrow_mut()
-                    .solver_af_indices
-                    .push(tru.autofluorescence_index());
+            let mask = unstained_assignment.as_ref().map(|assign| {
+                let sig = (k as u32).saturating_add(1);
+                let mut m = mask_for_signature(assign, sig);
+                if !options.exclude_signature_1based.is_empty() {
+                    for (i, &a) in assign.iter().enumerate() {
+                        if options.exclude_signature_1based.contains(&a) {
+                            m[i] = false;
+                        }
+                    }
+                }
+                m
             });
+            let n_unstained_for_fence = mask
+                .as_ref()
+                .map(|m| m.iter().filter(|&&b| b).count())
+                .unwrap_or(unstained_data.nrows());
 
             let event_indices: Vec<usize> = (0..n_events)
                 .filter(|&ev| (assignment_1based[ev] as usize).saturating_sub(1) == k)
                 .collect();
             if event_indices.is_empty() {
+                signature_diags.push(SignatureFenceDiag {
+                    signature_index_0based: k,
+                    signature_id: ids.get(k).map(|s| s.to_string()).unwrap_or_default(),
+                    n_stained: 0,
+                    n_unstained_for_fence,
+                    fell_back_to_global: mask.is_some()
+                        && n_unstained_for_fence < MIN_FENCE_EVENTS,
+                    frac_events_truncated: 0.0,
+                    cutoffs: Vec::new(),
+                });
                 continue;
             }
 
-            #[cfg(test)]
-            {
-                for &ev in &event_indices {
-                    let observation =
-                        faer::Col::from_fn(n_det, |d| stained_data[(ev, d)]);
-                    let (_, relevant_indices, _) = tru.unmix_event(observation.as_ref())?;
-                    let af_active = relevant_indices.contains(&n_fluor);
-                    PATH_B_TRU_SOLVER_PROBE.with(|cell| {
-                        cell.borrow_mut().af_stayed_active.push(af_active);
-                    });
-                }
+            let unmixed_unstained =
+                unmix_unstained_all(matrix_with_af.as_ref(), unstained_data)?;
+            let (cutoffs, fell_back) = estimate_cutoffs_from_abundance_rows(
+                &unmixed_unstained,
+                fence,
+                mask.as_deref(),
+            )?;
+
+            let nonspecific_with_af = NonspecificObservation::from_abundance_rows(
+                matrix_with_af.as_ref(),
+                &unmixed_unstained,
+                Some(n_fluor),
+            )?;
+            let mut tru = TruOls::from_preprocessed(
+                matrix_with_af,
+                unstained_data.to_owned(),
+                cutoffs.clone(),
+                nonspecific_with_af.observation().clone(),
+                n_fluor,
+            )?;
+            tru.set_strategy(strategy);
+            if let Some(eps) = options.residual_epsilon {
+                tru.set_residual_epsilon(Some(eps));
             }
+
+            #[cfg(test)]
+            CATALOG_AF_TRU_SOLVER_PROBE.with(|cell| {
+                cell.borrow_mut()
+                    .solver_af_indices
+                    .push(tru.autofluorescence_index());
+            });
 
             let group_obs = Mat::from_fn(event_indices.len(), n_det, |i, d| {
                 stained_data[(event_indices[i], d)]
             });
-            let group_abundances = tru.unmix(group_obs.as_ref())?;
+            let group = tru.unmix_with_diagnostics(group_obs.as_ref())?;
+            let truncated = if options.collect_diagnostics {
+                group
+                    .any_fluor_truncated
+                    .iter()
+                    .filter(|&&value| value)
+                    .count()
+            } else {
+                0
+            };
+            #[cfg(test)]
+            CATALOG_AF_TRU_SOLVER_PROBE.with(|cell| {
+                cell.borrow_mut().af_stayed_active.extend(
+                    group
+                        .final_active_indices
+                        .iter()
+                        .map(|indices| indices.contains(&n_fluor)),
+                );
+            });
             for (i, &ev) in event_indices.iter().enumerate() {
                 for col in 0..n_fluor {
-                    fluor_abundances[(ev, col)] = group_abundances[(i, col)];
+                    fluor_abundances[(ev, col)] = group.abundances[(i, col)];
                 }
+                residual_norms[ev] = group.residual_norms[i];
+                any_fluor_truncated[ev] = group.any_fluor_truncated[i];
             }
+
+            let n_stained = event_indices.len();
+            signature_diags.push(SignatureFenceDiag {
+                signature_index_0based: k,
+                signature_id: ids.get(k).map(|s| s.to_string()).unwrap_or_default(),
+                n_stained,
+                n_unstained_for_fence,
+                fell_back_to_global: fell_back,
+                frac_events_truncated: if n_stained == 0 {
+                    0.0
+                } else {
+                    truncated as f64 / n_stained as f64
+                },
+                cutoffs: (0..cutoffs.nrows()).map(|i| cutoffs[i]).collect(),
+            });
         }
 
-        Ok(fluor_abundances)
+        Ok(CatalogAfTruResult {
+            fluor_abundances,
+            signature_diags,
+            residual_norms,
+            any_fluor_truncated,
+        })
     }
 
-    fn set_af_match_keywords(
-        fcs: &mut Fcs,
-        result: &AfMatchResult,
-        library: &PreparedAfLibrary,
-    ) {
+    fn set_af_match_keywords(fcs: &mut Fcs, result: &AfMatchResult, library: &PreparedAfLibrary) {
         let ids = library.entry_ids();
         let n_events = result.assignment_1based.len();
         let mut counts = vec![0_usize; ids.len()];
@@ -747,9 +870,7 @@ mod fcs_export {
             .iter()
             .zip(&counts)
             .enumerate()
-            .map(|(i, (id, &count))| {
-                format!("{}={}:{:.4}", i + 1, id, count as f64 / divisor)
-            })
+            .map(|(i, (id, &count))| format!("{}={}:{:.4}", i + 1, id, count as f64 / divisor))
             .collect::<Vec<_>>()
             .join("|");
 
@@ -835,8 +956,7 @@ mod tests {
     fn appends_af_when_missing() {
         let mut names = vec!["FITC".into(), "PE".into()];
         let mut flat = vec![1.0, 0.0, 0.0, 1.0];
-        let (idx, name) =
-            resolve_or_append_af_endmember(&mut names, &mut flat, 2, None).unwrap();
+        let (idx, name) = resolve_or_append_af_endmember(&mut names, &mut flat, 2, None).unwrap();
         assert_eq!(name, "AF");
         assert_eq!(idx, 2);
         assert_eq!(names.len(), 3);
@@ -854,16 +974,21 @@ mod tests {
 }
 
 #[cfg(all(test, feature = "flow-fcs"))]
-mod path_b_tests {
-    use super::fcs_export::take_path_b_tru_solver_probe;
-    use super::{PathBExportRequest, export_unmixed_fcs_path_b};
-    use crate::af_match::{AfCatalogEntry, AfMatchLibrary, AfMatchOptions};
+mod catalog_af_export_tests {
+    use super::fcs_export::take_catalog_af_tru_solver_probe;
+    use super::{
+        CatalogAfExportRequest, CatalogAfTruOptions, export_unmixed_fcs_catalog_af,
+        tru_ols_grouped_by_catalog_af,
+    };
+    use crate::af_match::{AfCatalogEntry, AfMatchLibrary, AfMatchOptions, build_af_match_library};
     use crate::error::TruOlsError;
     use crate::fcs_integration::{
-        AF_ASSIGNMENT_KEYWORD, AF_CONFIDENCE_KEYWORD, UNMIXED_KEYWORD,
-        UNMIXED_METHOD_OLS_MULTI_AF, UNMIXED_METHOD_TRU_OLS_MULTI_AF,
+        AF_ASSIGNMENT_KEYWORD, AF_CONFIDENCE_KEYWORD, UNMIXED_KEYWORD, UNMIXED_METHOD_OLS_MULTI_AF,
+        UNMIXED_METHOD_TRU_OLS_MULTI_AF,
     };
+    use crate::fence::FenceKind;
     use crate::unmixing::UnmixingStrategy;
+    use faer::Mat;
     use flow_fcs::keyword::{Keyword, StringKeyword};
     use flow_fcs::{
         Fcs, Header, Metadata, Parameter, TransformType, file::AccessWrapper,
@@ -1009,8 +1134,8 @@ mod path_b_tests {
         detector_names: &'a [String],
         output_dir: &'a std::path::Path,
         truncate: bool,
-    ) -> PathBExportRequest<'a> {
-        PathBExportRequest {
+    ) -> CatalogAfExportRequest<'a> {
+        CatalogAfExportRequest {
             stained,
             unstained,
             detector_names,
@@ -1041,20 +1166,168 @@ mod path_b_tests {
     }
 
     #[test]
+    fn catalog_grouped_tru_reports_event_diagnostics_and_protects_af() {
+        let fluor_matrix = Mat::from_fn(4, 2, |r, c| FLUOR_MATRIX_ROW_MAJOR[r * 2 + c]);
+        let stained_rows = stained_rows();
+        let stained = Mat::from_fn(stained_rows.len(), 4, |r, c| {
+            f64::from(stained_rows[r].0[c])
+        });
+        let unstained_rows = unstained_rows();
+        let unstained = Mat::from_fn(unstained_rows.len(), 4, |r, c| {
+            f64::from(unstained_rows[r].0[c])
+        });
+        let prepared = build_af_match_library(
+            af_library(),
+            fluor_matrix.as_ref(),
+            AfMatchOptions::default(),
+        )
+        .expect("prepare AF library");
+        let assignments: Vec<u32> = (0..stained.nrows())
+            .map(|event| if event % 2 == 0 { 1 } else { 2 })
+            .collect();
+
+        let result = tru_ols_grouped_by_catalog_af(
+            fluor_matrix.as_ref(),
+            stained.as_ref(),
+            unstained.as_ref(),
+            &prepared,
+            &assignments,
+            FenceKind::Percentile { q: 0.995 },
+            UnmixingStrategy::Zero,
+            CatalogAfTruOptions {
+                collect_diagnostics: true,
+                ..CatalogAfTruOptions::default()
+            },
+        )
+        .expect("catalog-grouped TRU solve");
+        let probe = take_catalog_af_tru_solver_probe();
+
+        assert_eq!(result.residual_norms.len(), stained.nrows());
+        assert_eq!(result.any_fluor_truncated.len(), stained.nrows());
+        assert!(probe.af_stayed_active.iter().all(|active| *active));
+    }
+
+    #[test]
+    fn catalog_grouped_tru_skips_solvers_for_unused_signatures() {
+        let fluor_matrix = Mat::from_fn(4, 2, |r, c| FLUOR_MATRIX_ROW_MAJOR[r * 2 + c]);
+        let stained_rows = stained_rows();
+        let stained = Mat::from_fn(stained_rows.len(), 4, |r, c| {
+            f64::from(stained_rows[r].0[c])
+        });
+        let unstained_rows = unstained_rows();
+        let unstained = Mat::from_fn(unstained_rows.len(), 4, |r, c| {
+            f64::from(unstained_rows[r].0[c])
+        });
+        let mut library = af_library();
+        library.entries.push(AfCatalogEntry {
+            id: "af_unused".into(),
+            values: [0.40, 0.30, 0.20, 0.10].to_vec(),
+            fsc_ssc_mean: [50.0, 50.0],
+            fsc_ssc_cov: [[400.0, 0.0], [0.0, 400.0]],
+            mixing_proportion: 0.01,
+        });
+        let prepared = build_af_match_library(
+            library,
+            fluor_matrix.as_ref(),
+            AfMatchOptions::default(),
+        )
+        .expect("prepare AF library with unused signature");
+        assert!(
+            prepared.len() >= 3,
+            "fixture must keep the unused signature, got {}",
+            prepared.len()
+        );
+        let assignments: Vec<u32> = (0..stained.nrows())
+            .map(|event| if event % 2 == 0 { 1 } else { 2 })
+            .collect();
+
+        let result = tru_ols_grouped_by_catalog_af(
+            fluor_matrix.as_ref(),
+            stained.as_ref(),
+            unstained.as_ref(),
+            &prepared,
+            &assignments,
+            FenceKind::Percentile { q: 0.995 },
+            UnmixingStrategy::Zero,
+            CatalogAfTruOptions {
+                collect_diagnostics: true,
+                ..CatalogAfTruOptions::default()
+            },
+        )
+        .expect("catalog-grouped TRU solve");
+        let probe = take_catalog_af_tru_solver_probe();
+
+        assert_eq!(probe.solver_af_indices.len(), 2);
+        assert_eq!(
+            result
+                .signature_diags
+                .iter()
+                .filter(|diag| diag.n_stained > 0)
+                .count(),
+            2
+        );
+        assert!(
+            result
+                .signature_diags
+                .iter()
+                .any(|diag| diag.n_stained == 0)
+        );
+    }
+
+    #[test]
+    fn catalog_grouped_tru_does_not_re_ols_unstained_for_nonspecific() {
+        let fluor_matrix = Mat::from_fn(4, 2, |r, c| FLUOR_MATRIX_ROW_MAJOR[r * 2 + c]);
+        let stained_rows = stained_rows();
+        let stained = Mat::from_fn(stained_rows.len(), 4, |r, c| {
+            f64::from(stained_rows[r].0[c])
+        });
+        let unstained_rows = unstained_rows();
+        let unstained = Mat::from_fn(unstained_rows.len(), 4, |r, c| {
+            f64::from(unstained_rows[r].0[c])
+        });
+        let prepared = build_af_match_library(
+            af_library(),
+            fluor_matrix.as_ref(),
+            AfMatchOptions::default(),
+        )
+        .expect("prepare AF library");
+        let assignments: Vec<u32> = (0..stained.nrows())
+            .map(|event| if event % 2 == 0 { 1 } else { 2 })
+            .collect();
+
+        crate::preprocessing::reset_nonspecific_ols_event_count();
+        tru_ols_grouped_by_catalog_af(
+            fluor_matrix.as_ref(),
+            stained.as_ref(),
+            unstained.as_ref(),
+            &prepared,
+            &assignments,
+            FenceKind::Percentile { q: 0.995 },
+            UnmixingStrategy::Zero,
+            CatalogAfTruOptions {
+                collect_diagnostics: true,
+                ..CatalogAfTruOptions::default()
+            },
+        )
+        .expect("catalog-grouped TRU solve");
+
+        assert_eq!(
+            crate::preprocessing::take_nonspecific_ols_event_count(),
+            0,
+            "nonspecific must reuse the per-group unstained OLS instead of solving again"
+        );
+    }
+
+    #[test]
     fn plain_ols_path_b_export_writes_fluor_channels_plus_one_af_channel() {
         let dir = scratch_dir("ols");
         let stained = build_fcs(&dir.join("stained.fcs"), &stained_rows());
         let unstained = build_fcs(&dir.join("unstained.fcs"), &unstained_rows());
         let detector_names: Vec<String> = DETECTORS.iter().map(|d| d.to_string()).collect();
 
-        let result = export_unmixed_fcs_path_b(request(
-            &stained,
-            &unstained,
-            &detector_names,
-            &dir,
-            false,
-        ))
-        .expect("path B export succeeds");
+        let result =
+            export_unmixed_fcs_catalog_af(request(&stained, &unstained, &detector_names, &dir, false))
+                .expect("path B export succeeds");
 
         assert_eq!(
             result.endmember_names,
@@ -1079,11 +1352,11 @@ mod path_b_tests {
         assert!(names.contains(&"Autofluorescence".to_string()));
         assert!(
             names.contains(&"AF_Signature".to_string()),
-            "Path B must expose per-event signature as $PnN: {names:?}"
+            "Catalog-AF export must expose per-event signature as $PnN: {names:?}"
         );
         assert!(
             names.contains(&"AF_Confidence".to_string()),
-            "Path B must expose per-event confidence as $PnN: {names:?}"
+            "Catalog-AF export must expose per-event confidence as $PnN: {names:?}"
         );
         assert!(names.contains(&"FSC-A".to_string()), "scatter survives");
         assert!(
@@ -1205,8 +1478,8 @@ mod path_b_tests {
         );
 
         // The recorded transform is fluorophore-only, with no AF column to point at.
-        let provenance = crate::provenance::UnmixProvenance::read_from(&reopened)
-            .expect("provenance recovered");
+        let provenance =
+            crate::provenance::UnmixProvenance::read_from(&reopened).expect("provenance recovered");
         assert_eq!(provenance.endmember_names, vec!["FITC", "PE"]);
         assert_eq!(provenance.mixing_matrix.len(), 8);
         assert_eq!(provenance.af_endmember_index, None);
@@ -1228,14 +1501,9 @@ mod path_b_tests {
         let unstained = build_fcs(&dir.join("unstained.fcs"), &unstained_rows());
         let detector_names: Vec<String> = DETECTORS.iter().map(|d| d.to_string()).collect();
 
-        let result = export_unmixed_fcs_path_b(request(
-            &stained,
-            &unstained,
-            &detector_names,
-            &dir,
-            true,
-        ))
-        .expect("truncated path B export succeeds");
+        let result =
+            export_unmixed_fcs_catalog_af(request(&stained, &unstained, &detector_names, &dir, true))
+                .expect("truncated path B export succeeds");
 
         let reopened = Fcs::open(result.output_path.to_str().expect("utf-8 path"))
             .expect("reopen path B export");
@@ -1247,14 +1515,14 @@ mod path_b_tests {
             UNMIXED_METHOD_TRU_OLS_MULTI_AF
         );
 
-        let provenance = crate::provenance::UnmixProvenance::read_from(&reopened)
-            .expect("provenance recovered");
+        let provenance =
+            crate::provenance::UnmixProvenance::read_from(&reopened).expect("provenance recovered");
         assert_eq!(provenance.strategy, Some(UnmixingStrategy::Zero));
         assert_eq!(provenance.cutoff_percentile, Some(0.995));
         assert_eq!(
             provenance.af_endmember_index,
             Some(2),
-            "Path B TRU protects a per-event AF column at index n_fluor"
+            "Catalog Then TRU protects a per-event AF column at index n_fluor"
         );
 
         // Truncation removes fluorophore columns, never the AF channel: the AF amounts
@@ -1298,10 +1566,7 @@ mod path_b_tests {
         let unstained_rows: Vec<([f32; 4], [f32; 2])> = (0..8)
             .map(|e| {
                 let j = e as f32 * 0.1;
-                (
-                    [50.0 + j, 0.5 + j, 0.5 + j, 2.0 + j],
-                    [200.0_f32, 150.0],
-                )
+                ([50.0 + j, 0.5 + j, 0.5 + j, 2.0 + j], [200.0_f32, 150.0])
             })
             .collect();
         // One stained event: fluor 0 under cutoff (~5), fluors 1–2 strong, AF present.
@@ -1340,20 +1605,20 @@ mod path_b_tests {
         };
         req.strategy = UnmixingStrategy::Zero;
 
-        let _ = take_path_b_tru_solver_probe(); // clear any prior probe state
-        let result = export_unmixed_fcs_path_b(req).expect("protected-AF Path B TRU export");
-        let probe = take_path_b_tru_solver_probe();
+        let _ = take_catalog_af_tru_solver_probe(); // clear any prior probe state
+        let result = export_unmixed_fcs_catalog_af(req).expect("protected-AF catalog TRU export");
+        let probe = take_catalog_af_tru_solver_probe();
 
         assert!(
             !probe.solver_af_indices.is_empty(),
-            "Path B TRU must construct at least one solver the test can observe"
+            "Catalog Then TRU must construct at least one solver the test can observe"
         );
         assert!(
             probe
                 .solver_af_indices
                 .iter()
                 .all(|idx| *idx == Some(N_FLUOR)),
-            "every Path B TRU solver must protect AF at n_fluor={N_FLUOR}; got {:?}",
+            "every catalog Then TRU solver must protect AF at n_fluor={N_FLUOR}; got {:?}",
             probe.solver_af_indices
         );
         assert!(
@@ -1362,8 +1627,8 @@ mod path_b_tests {
             probe.af_stayed_active
         );
 
-        let reopened = Fcs::open(result.output_path.to_str().expect("utf-8 path"))
-            .expect("reopen export");
+        let reopened =
+            Fcs::open(result.output_path.to_str().expect("utf-8 path")).expect("reopen export");
 
         assert_eq!(
             reopened
@@ -1373,9 +1638,7 @@ mod path_b_tests {
             UNMIXED_METHOD_TRU_OLS_MULTI_AF
         );
 
-        let a = reopened
-            .get_parameter_events_slice("A")
-            .expect("read A");
+        let a = reopened.get_parameter_events_slice("A").expect("read A");
         assert!(
             a[0].abs() < 1e-3,
             "fluor A is under its cutoff and should truncate: {}",
@@ -1402,7 +1665,7 @@ mod path_b_tests {
         let mut req = request(&stained, &unstained, &detector_names, &dir, false);
         req.endmember_names = vec!["FITC".into(), "Autofluorescence".into()];
 
-        let err = export_unmixed_fcs_path_b(req).expect_err("AF column must be refused");
+        let err = export_unmixed_fcs_catalog_af(req).expect_err("AF column must be refused");
         assert!(
             matches!(err, TruOlsError::InsufficientData(ref msg) if msg.contains("fluorophore-only")),
             "unexpected error: {err}"
@@ -1419,13 +1682,13 @@ mod path_b_tests {
         let mut req = request(&stained, &unstained, &detector_names, &dir, false);
         req.ssc_channel = "";
         assert!(matches!(
-            export_unmixed_fcs_path_b(req),
+            export_unmixed_fcs_catalog_af(req),
             Err(TruOlsError::InsufficientData(_))
         ));
 
         let mut req = request(&stained, &unstained, &detector_names, &dir, false);
         req.ssc_channel = "SSC-Z";
-        let err = export_unmixed_fcs_path_b(req).expect_err("unknown channel");
+        let err = export_unmixed_fcs_catalog_af(req).expect_err("unknown channel");
         assert!(
             matches!(err, TruOlsError::InsufficientData(ref msg) if msg.contains("SSC-Z")),
             "unexpected error: {err}"

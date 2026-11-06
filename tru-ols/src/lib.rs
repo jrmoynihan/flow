@@ -81,13 +81,16 @@ pub mod af_validation;
 pub mod batched_ols;
 pub mod benchmark;
 pub mod error;
+pub mod fence;
+pub mod fence_comparison;
 pub mod metrics;
+pub mod mixing_matrix;
+pub mod pipeline;
 pub mod preprocessing;
+pub mod spreading;
 pub(crate) mod unmix_buffer;
 #[cfg(feature = "unmix-cache")]
 pub(crate) mod unmix_cache;
-pub mod mixing_matrix;
-pub mod pipeline;
 pub mod unmixing;
 
 #[cfg(feature = "cubecl")]
@@ -103,49 +106,64 @@ pub mod provenance;
 pub mod plotting;
 
 pub use af_match::{
-    AfCatalogEntry, AfEventInspect, AfMatchLibrary, AfMatchOptions, AfMatchResult, DroppedAfEntry,
-    PreparedAfLibrary, build_af_match_library, inspect_match_event, match_and_subtract,
+    assess_af_purity, build_af_match_library, inspect_match_event, match_and_subtract,
+    AfCatalogEntry, AfEventInspect, AfMatchLibrary, AfMatchOptions, AfMatchResult, AfPurityCulprit,
+    AfPurityOptions, AfPurityReport, AfPurityVerdict, DroppedAfEntry, PreparedAfLibrary,
 };
 pub use af_validation::{
-    EventLabels, PathSolveResult, SolveMetrics, SyntheticPanel, ValidationPanelId,
     metrics_for_fluor_index, run_path_a, run_path_b,
+    EventLabels, PathSolveResult, SolveMetrics, SyntheticPanel, ValidationPanelId,
 };
 pub use batched_ols::run_ols_normal_equations;
 pub use error::TruOlsError;
-pub use preprocessing::{CutoffCalculator, NonspecificObservation};
-#[cfg(feature = "unmix-cache")]
-pub use unmixing::{SharedMaskFactorCache, shared_mask_factor_cache_with_capacity};
+pub use fence::{
+    asinh_histogram, cutoffs_from_abundance_columns, estimate_cutoffs,
+    estimate_cutoffs_with_fallback, mask_for_signature, unstained_abundance_columns, FenceKind,
+    FenceRequest, MIN_FENCE_EVENTS,
+};
+pub use fence_comparison::{
+    compare_fence_outputs, FenceComparisonInput, FenceComparisonMetrics,
+    FenceComparisonThresholds, FenceFluorComparison, FenceRankingStatus,
+};
 pub use mixing_matrix::{MixingMatrix, MixingMatrixBuilder};
 pub use pipeline::{
     matrix_from_row_major_flat, resolve_or_append_af_endmember, unmixed_output_path,
 };
+pub use preprocessing::{CutoffCalculator, NonspecificObservation};
+#[cfg(feature = "unmix-cache")]
+pub use unmixing::{shared_mask_factor_cache_with_capacity, SharedMaskFactorCache};
 pub use unmixing::{TruOls, TruncationStats, UnmixingStrategy};
 
 #[cfg(feature = "cubecl")]
-pub use gpu::{GpuWgpuContext, run_ols_normal_equations_gpu_rhs, try_shared_gpu_context};
+pub use gpu::{run_ols_normal_equations_gpu_rhs, try_shared_gpu_context, GpuWgpuContext};
 
-pub use benchmark::{BenchmarkConfig, comparison_report_markdown, run_comparison, run_ols};
+pub use benchmark::{comparison_report_markdown, run_comparison, run_ols, BenchmarkConfig};
 pub use metrics::{
+    compute_fit_metrics, compute_ssm, compute_use, dimensionality_metrics, spread_metrics,
     ComparisonReport, DimensionalityMetrics, FitMetrics, SpilloverSpreadingMatrix, SpreadMetrics,
-    UnmixingSpreadingError, compute_fit_metrics, compute_ssm, compute_use, dimensionality_metrics,
-    spread_metrics,
+    UnmixingSpreadingError,
+};
+pub use spreading::{
+    asinh_transform, compute_empirical_use_asinh, empirical_use_ratio, per_fluor_rsd_masked,
+    percentile_low, quantile, robust_rsd_asinh, EmpiricalUseComputed, DEFAULT_ASINH_COFACTOR,
+    MIN_EMPIRICAL_USE_EVENTS, MIN_SPREAD_EVENTS,
 };
 
 #[cfg(all(feature = "flow-fcs", feature = "unmix-cache"))]
 pub use fcs_integration::apply_tru_ols_unmixing_from_preprocessed_with_shared_factor_cache;
 #[cfg(feature = "flow-fcs")]
 pub use fcs_integration::{
-    AF_ASSIGNMENT_KEYWORD, AF_CONFIDENCE_CHANNEL_NAME, AF_CONFIDENCE_KEYWORD,
-    AF_SIGNATURE_CHANNEL_NAME, AF_SOURCE_GUID_KEYWORD, AF_SOURCE_KEYWORD, DEFAULT_AF_CHANNEL_NAME,
-    TruOlsUnmixing, UNMIXED_KEYWORD, UNMIXED_METHOD_FALSE, UNMIXED_METHOD_OLS,
+    append_linear_parameter_column, apply_tru_ols_unmixing_from_preprocessed,
+    extract_detector_data, TruOlsUnmixing, AF_ASSIGNMENT_KEYWORD, AF_CONFIDENCE_CHANNEL_NAME,
+    AF_CONFIDENCE_KEYWORD, AF_SIGNATURE_CHANNEL_NAME, AF_SOURCE_GUID_KEYWORD, AF_SOURCE_KEYWORD,
+    DEFAULT_AF_CHANNEL_NAME, UNMIXED_KEYWORD, UNMIXED_METHOD_FALSE, UNMIXED_METHOD_OLS,
     UNMIXED_METHOD_OLS_MULTI_AF, UNMIXED_METHOD_TRU_OLS, UNMIXED_METHOD_TRU_OLS_MULTI_AF,
-    append_linear_parameter_column, apply_tru_ols_unmixing_from_preprocessed, extract_detector_data,
 };
 #[cfg(feature = "flow-fcs")]
 pub use pipeline::{
-    FitMetricsSummary, PathBExportRequest, UnmixExportRequest, UnmixExportResult,
-    export_unmixed_fcs, export_unmixed_fcs_path_b, path_b_tru_with_protected_af,
-    set_raw_datasource_guid,
+    export_unmixed_fcs, export_unmixed_fcs_catalog_af, set_raw_datasource_guid,
+    tru_ols_grouped_by_catalog_af, CatalogAfExportRequest, CatalogAfTruOptions, CatalogAfTruResult,
+    FitMetricsSummary, SignatureFenceDiag, UnmixExportRequest, UnmixExportResult,
 };
 
 #[cfg(all(feature = "flow-fcs", feature = "plotting"))]

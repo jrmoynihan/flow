@@ -25,6 +25,16 @@ pub struct TruncationStats {
     pub inner_iterations_mean: f64,
 }
 
+/// Event-level outputs from one TRU-OLS batch solve.
+#[derive(Debug)]
+pub struct TruOlsBatchDiagnostics {
+    pub abundances: Mat<f64>,
+    pub residual_norms: Vec<f64>,
+    pub any_fluor_truncated: Vec<bool>,
+    #[cfg(test)]
+    pub(crate) final_active_indices: Vec<Vec<usize>>,
+}
+
 /// Shared mask-factorization cache for batch runs (requires **`unmix-cache`**).
 #[cfg(feature = "unmix-cache")]
 #[derive(Clone)]
@@ -103,11 +113,14 @@ pub struct TruOls {
     cutoffs: Col<f64>,
     nonspecific_observation: Col<f64>,
     unstained_control: Mat<f64>,
-    /// `None` for a fluorophore-only panel (OLS Path B after AF subtract): there is no AF
+    /// `None` for a fluorophore-only panel (after AF subtract): there is no AF
     /// column to protect from truncation or to exempt from UCM. See [`TruOls::new_fluor_only`].
-    /// TRU Path B instead uses [`Self::from_preprocessed`] with a catalog-signature AF column.
+    /// Catalog Then TRU uses [`Self::from_preprocessed`] with a catalog-signature AF column.
     autofluorescence_idx: Option<usize>,
     strategy: UnmixingStrategy,
+    /// When `Some(eps)`, only drop a fluor below its cutoff if removing it increases
+    /// residual norm by a relative factor of at most `eps` (dual-gate).
+    residual_epsilon: Option<f64>,
     /// Present when built with the **`unmix-cache`** feature; keyed by active global-endmember mask.
     #[cfg(feature = "unmix-cache")]
     factor_cache: SharedMaskFactorCache,
@@ -150,6 +163,7 @@ impl TruOls {
             unstained_control,
             autofluorescence_idx: Some(autofluorescence_idx),
             strategy: UnmixingStrategy::UnstainedControlMapping,
+            residual_epsilon: None,
             #[cfg(feature = "unmix-cache")]
             factor_cache: shared_mask_factor_cache_with_capacity(512),
         })
@@ -157,12 +171,12 @@ impl TruOls {
 
     /// Create a TRU-OLS instance for a **fluorophore-only** mixing matrix.
     ///
-    /// OLS Path B (see [`crate::af_match`]) removes autofluorescence from the observation
+    /// Catalog match+OLS (see [`crate::af_match`]) removes autofluorescence from the observation
     /// before unmixing, so the matrix passed here has no AF column. Every endmember is
     /// then an ordinary fluorophore: none is protected from truncation, and none is
     /// exempt from [`UnmixingStrategy::UnstainedControlMapping`].
     ///
-    /// **Do not use for TRU Path B.** AutoSpectral → TRU appends the argmax catalog
+    /// **Do not use for catalog Then TRU.** AutoSpectral → TRU appends the argmax catalog
     /// signature as a protected AF column via [`Self::from_preprocessed`] /
     /// [`Self::new`]. Prefer this over synthesizing a placeholder AF column only when
     /// the pipeline is truly fluorophore-only after AF subtract (OLS).
@@ -185,6 +199,7 @@ impl TruOls {
             unstained_control,
             autofluorescence_idx: None,
             strategy: UnmixingStrategy::UnstainedControlMapping,
+            residual_epsilon: None,
             #[cfg(feature = "unmix-cache")]
             factor_cache: shared_mask_factor_cache_with_capacity(512),
         })
@@ -256,6 +271,7 @@ impl TruOls {
             unstained_control,
             autofluorescence_idx,
             strategy: UnmixingStrategy::UnstainedControlMapping,
+            residual_epsilon: None,
             #[cfg(feature = "unmix-cache")]
             factor_cache: shared_mask_factor_cache_with_capacity(512),
         })
@@ -288,6 +304,7 @@ impl TruOls {
             unstained_control,
             autofluorescence_idx: Some(autofluorescence_idx),
             strategy: UnmixingStrategy::UnstainedControlMapping,
+            residual_epsilon: None,
             factor_cache,
         })
     }
@@ -312,6 +329,12 @@ impl TruOls {
     /// Set the unmixing strategy.
     pub fn set_strategy(&mut self, strategy: UnmixingStrategy) {
         self.strategy = strategy;
+    }
+
+    /// Optional residual dual-gate: only drop dyes below cutoff when removing them
+    /// increases residual norm by a relative factor ≤ `eps`.
+    pub fn set_residual_epsilon(&mut self, eps: Option<f64>) {
+        self.residual_epsilon = eps.filter(|e| e.is_finite() && *e >= 0.0);
     }
 
     /// The strategy actually in effect, including the constructor default.
@@ -518,12 +541,45 @@ impl TruOls {
             }
 
             scratch.to_remove.clear();
+            let residual_eps = self.residual_epsilon;
+            let full_residual_norm = residual_eps.map(|_| {
+                residual_norm_sq(
+                    &scratch.adjusted_observation[..n_detectors],
+                    &scratch.working_m[..n_detectors * active],
+                    n_detectors,
+                    active,
+                    &scratch.x_out[..active],
+                )
+            });
             for local_idx in 0..active {
                 let global_idx = scratch.current_indices[local_idx];
                 if Some(global_idx) == self.autofluorescence_idx {
                     continue;
                 }
                 if scratch.x_out[local_idx] < self.cutoffs[global_idx] {
+                    if let (Some(eps), Some(full_norm)) = (residual_eps, full_residual_norm) {
+                        let without_norm = residual_norm_sq_without_column(
+                            &scratch.adjusted_observation[..n_detectors],
+                            &scratch.working_m[..n_detectors * active],
+                            n_detectors,
+                            active,
+                            &scratch.x_out[..active],
+                            local_idx,
+                        );
+                        // Keep the dye if dropping it blows the residual past eps.
+                        // Perfect fits have full_norm ≈ 0; any positive without_norm means
+                        // the column carries signal and must not be truncated.
+                        let full_r = full_norm.sqrt();
+                        let without_r = without_norm.sqrt();
+                        let keep = if full_r > 1e-12 {
+                            (without_r / full_r) - 1.0 > eps
+                        } else {
+                            without_r > 1e-12
+                        };
+                        if keep {
+                            continue;
+                        }
+                    }
                     scratch
                         .to_remove
                         .push((local_idx, global_idx, scratch.x_out[local_idx]));
@@ -642,6 +698,117 @@ impl TruOls {
         Ok(result)
     }
 
+    /// Unmix a dataset and report final-fit residuals and fluorophore truncation per event.
+    ///
+    /// The abundances and diagnostics are produced from the same event solves.
+    pub fn unmix_with_diagnostics(
+        &self,
+        dataset: MatRef<'_, f64>,
+    ) -> Result<TruOlsBatchDiagnostics, TruOlsError> {
+        let n_events = dataset.nrows();
+        let n_endmembers = self.mixing_matrix.ncols();
+        let n_detectors = self.mixing_matrix.nrows();
+
+        if dataset.ncols() != n_detectors {
+            return Err(TruOlsError::DimensionMismatch {
+                expected: n_detectors,
+                actual: dataset.ncols(),
+            });
+        }
+
+        let mut abundances = Mat::zeros(n_events, n_endmembers);
+        let mut residual_norms = vec![0.0; n_events];
+        let mut any_fluor_truncated = vec![false; n_events];
+        #[cfg(test)]
+        let mut final_active_indices = vec![Vec::new(); n_events];
+
+        if crate::use_parallel_unmix(n_events) {
+            use rayon::prelude::*;
+
+            let results: Result<Vec<_>, _> = (0..n_events)
+                .into_par_iter()
+                .map_init(
+                    || UnmixScratch::new(n_detectors, n_endmembers),
+                    |scratch, event_idx| {
+                        for detector_idx in 0..n_detectors {
+                            scratch.row_obs[detector_idx] = dataset[(event_idx, detector_idx)];
+                        }
+                        self.unmix_event_inner_prepped(scratch).map(
+                            |(relevant_abundances, relevant_indices, irrelevant, _)| {
+                                let residual_norm = final_residual_norm(
+                                    &scratch.adjusted_observation[..n_detectors],
+                                    self.mixing_matrix.as_ref(),
+                                    &relevant_indices,
+                                    relevant_abundances.as_ref(),
+                                );
+                                (
+                                    event_idx,
+                                    relevant_abundances,
+                                    relevant_indices,
+                                    residual_norm,
+                                    !irrelevant.is_empty(),
+                                )
+                            },
+                        )
+                    },
+                )
+                .collect();
+
+            for (event_idx, relevant_abundances, relevant_indices, residual_norm, truncated) in
+                results?
+            {
+                for (local_idx, &global_idx) in relevant_indices.iter().enumerate() {
+                    abundances[(event_idx, global_idx)] = relevant_abundances[local_idx];
+                }
+                residual_norms[event_idx] = residual_norm;
+                any_fluor_truncated[event_idx] = truncated;
+                #[cfg(test)]
+                let () = {
+                    final_active_indices[event_idx] = relevant_indices;
+                };
+            }
+        } else {
+            let mut scratch = UnmixScratch::new(n_detectors, n_endmembers);
+            for event_idx in 0..n_events {
+                for detector_idx in 0..n_detectors {
+                    scratch.row_obs[detector_idx] = dataset[(event_idx, detector_idx)];
+                }
+                let (relevant_abundances, relevant_indices, irrelevant, _) =
+                    self.unmix_event_inner_prepped(&mut scratch)?;
+
+                residual_norms[event_idx] = final_residual_norm(
+                    &scratch.adjusted_observation[..n_detectors],
+                    self.mixing_matrix.as_ref(),
+                    &relevant_indices,
+                    relevant_abundances.as_ref(),
+                );
+                any_fluor_truncated[event_idx] = !irrelevant.is_empty();
+                for (local_idx, &global_idx) in relevant_indices.iter().enumerate() {
+                    abundances[(event_idx, global_idx)] = relevant_abundances[local_idx];
+                }
+                #[cfg(test)]
+                let () = {
+                    final_active_indices[event_idx] = relevant_indices;
+                };
+            }
+        }
+
+        match self.strategy {
+            UnmixingStrategy::Zero => {}
+            UnmixingStrategy::UnstainedControlMapping => {
+                self.apply_ucm_mapping(&mut abundances)?;
+            }
+        }
+
+        Ok(TruOlsBatchDiagnostics {
+            abundances,
+            residual_norms,
+            any_fluor_truncated,
+            #[cfg(test)]
+            final_active_indices,
+        })
+    }
+
     /// Apply Unstained Control Mapping (UCM) to irrelevant/zero abundances.
     fn apply_ucm_mapping(&self, result: &mut Mat<f64>) -> Result<(), TruOlsError> {
         let n_events = result.nrows();
@@ -694,6 +861,72 @@ impl TruOls {
 
         Ok(())
     }
+}
+
+fn final_residual_norm(
+    observation: &[f64],
+    mixing: MatRef<'_, f64>,
+    relevant_indices: &[usize],
+    relevant_abundances: ColRef<'_, f64>,
+) -> f64 {
+    let residual_sum_squares = observation
+        .iter()
+        .enumerate()
+        .map(|(detector_idx, &observed)| {
+            let reconstructed = relevant_indices
+                .iter()
+                .enumerate()
+                .map(|(local_idx, &global_idx)| {
+                    mixing[(detector_idx, global_idx)] * relevant_abundances[local_idx]
+                })
+                .sum::<f64>();
+            let residual = observed - reconstructed;
+            residual * residual
+        })
+        .sum::<f64>();
+    residual_sum_squares.sqrt()
+}
+
+fn residual_norm_sq(
+    observation: &[f64],
+    working_m: &[f64],
+    n_detectors: usize,
+    active: usize,
+    abundances: &[f64],
+) -> f64 {
+    let mut sum = 0.0_f64;
+    for r in 0..n_detectors {
+        let mut pred = 0.0_f64;
+        for c in 0..active {
+            pred += working_m[c * n_detectors + r] * abundances[c];
+        }
+        let d = observation[r] - pred;
+        sum += d * d;
+    }
+    sum
+}
+
+fn residual_norm_sq_without_column(
+    observation: &[f64],
+    working_m: &[f64],
+    n_detectors: usize,
+    active: usize,
+    abundances: &[f64],
+    drop_local: usize,
+) -> f64 {
+    let mut sum = 0.0_f64;
+    for r in 0..n_detectors {
+        let mut pred = 0.0_f64;
+        for c in 0..active {
+            if c == drop_local {
+                continue;
+            }
+            pred += working_m[c * n_detectors + r] * abundances[c];
+        }
+        let d = observation[r] - pred;
+        sum += d * d;
+    }
+    sum
 }
 
 #[cfg(test)]
@@ -781,8 +1014,7 @@ mod tests {
             protected[(0, 0)]
         );
 
-        let mut fluor_only =
-            TruOls::new_fluor_only(mixing_matrix, unstained).unwrap();
+        let mut fluor_only = TruOls::new_fluor_only(mixing_matrix, unstained).unwrap();
         fluor_only.set_strategy(UnmixingStrategy::Zero);
         assert_eq!(fluor_only.autofluorescence_index(), None);
         let truncated = fluor_only.unmix(dataset.as_ref()).unwrap();
@@ -794,29 +1026,38 @@ mod tests {
         assert!((truncated[(0, 1)] - 100.0).abs() < 1e-9);
     }
 
+    #[test]
+    fn unmix_with_diagnostics_matches_unmix_and_reports_truncation() {
+        let mixing = mat![[1.0, 0.0], [0.0, 1.0]];
+        let unstained = mat![[10.0, 0.0], [10.0, 0.0], [10.0, 0.0]];
+        let mut tru = TruOls::new_fluor_only(mixing, unstained).unwrap();
+        tru.set_strategy(UnmixingStrategy::Zero);
+        let events = mat![[5.0, 100.0], [20.0, 100.0]];
+
+        let ordinary = tru.unmix(events.as_ref()).unwrap();
+        let diagnosed = tru.unmix_with_diagnostics(events.as_ref()).unwrap();
+
+        assert_eq!(diagnosed.abundances, ordinary);
+        assert_eq!(diagnosed.any_fluor_truncated, vec![true, false]);
+        assert_eq!(diagnosed.residual_norms.len(), 2);
+        assert!(diagnosed.residual_norms.iter().all(|v| v.is_finite()));
+        assert_eq!(diagnosed.final_active_indices, vec![vec![1], vec![0, 1]]);
+    }
+
     /// The AF column is exempt from truncation. Path B TRU appends a catalog signature at
     /// `autofluorescence_idx = n_fluor` for the same reason — that index must survive even
     /// when its abundance sits under the AF cutoff.
     #[test]
     fn protected_af_endmember_stays_in_the_active_set() {
-        let mixing_matrix = mat![
-            [1.0, 0.0, 0.1],
-            [0.0, 1.0, 0.1],
-            [0.0, 0.0, 1.0]
-        ];
+        let mixing_matrix = mat![[1.0, 0.0, 0.1], [0.0, 1.0, 0.1], [0.0, 0.0, 1.0]];
         // Fluors bright in control → high cutoffs; AF column near zero → low AF cutoff.
-        let unstained = mat![
-            [20.0, 20.0, 0.0],
-            [20.0, 20.0, 0.0],
-            [20.0, 20.0, 0.0]
-        ];
+        let unstained = mat![[20.0, 20.0, 0.0], [20.0, 20.0, 0.0], [20.0, 20.0, 0.0]];
         let mut tru = TruOls::new(mixing_matrix, unstained, 2).unwrap();
         tru.set_strategy(UnmixingStrategy::Zero);
         assert_eq!(tru.autofluorescence_index(), Some(2));
 
         let observation = faer::col![5.0, 5.0, 50.0];
-        let (relevant, relevant_indices, _) =
-            tru.unmix_event(observation.as_ref()).unwrap();
+        let (relevant, relevant_indices, _) = tru.unmix_event(observation.as_ref()).unwrap();
         assert!(
             relevant_indices.contains(&2),
             "AF index must remain active: {relevant_indices:?}"
@@ -858,6 +1099,57 @@ mod tests {
         assert!(
             (stats.inner_iterations_mean - stats.inner_iterations_min as f64).abs()
                 <= (stats.inner_iterations_max - stats.inner_iterations_min) as f64
+        );
+    }
+
+    /// Dim true dye under a high fence is kept when dropping it blows residual;
+    /// a noise-only dye under the same fence still drops.
+    #[test]
+    fn residual_dual_gate_keeps_dim_true_dye_and_drops_noise() {
+        let mixing = mat![[1.0, 0.0], [0.0, 1.0]];
+        let ust = mat![
+            [0.0, 0.0],
+            [0.0, 0.0],
+            [0.0, 0.0],
+            [0.0, 0.0],
+            [0.0, 0.0],
+        ];
+        // Protect column 1 so only dye0 is truncatable.
+        let cut = faer::Col::from_fn(2, |_| 100.0);
+        let ns = NonspecificObservation::calculate(mixing.as_ref(), ust.as_ref(), 1).unwrap();
+        let mut tru = TruOls::from_preprocessed(
+            mixing.clone(),
+            ust.clone(),
+            cut,
+            ns.observation().clone(),
+            1,
+        )
+        .unwrap();
+        tru.set_strategy(UnmixingStrategy::Zero);
+
+        let bright = mat![[40.0, 0.0]];
+        let dropped = tru.unmix(bright.as_ref()).unwrap();
+        assert!(
+            dropped[(0, 0)].abs() < 1e-6,
+            "without residual gate dim true dye0 truncates, got {}",
+            dropped[(0, 0)]
+        );
+
+        tru.set_residual_epsilon(Some(0.05));
+        let kept = tru.unmix(bright.as_ref()).unwrap();
+        assert!(
+            kept[(0, 0)] > 20.0,
+            "residual gate should keep dim true dye0, got {}",
+            kept[(0, 0)]
+        );
+
+        // Near-zero dye0 under the fence: dropping it does not change residual → still drop.
+        let noise = mat![[0.0, 50.0]];
+        let noise_out = tru.unmix(noise.as_ref()).unwrap();
+        assert!(
+            noise_out[(0, 0)].abs() < 1e-6,
+            "near-zero dye0 should still truncate under residual gate, got {}",
+            noise_out[(0, 0)]
         );
     }
 }

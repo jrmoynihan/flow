@@ -2,17 +2,17 @@
 //!
 //! Used by headless golden tests and DEV-only FCS fixture writers.
 
-use faer::{mat, Mat, MatRef};
+use faer::{Mat, MatRef, mat};
 use rand::Rng;
 use rand::RngExt;
 use rand::SeedableRng;
 
+use crate::TruOlsError;
 use crate::af_match::{
-    build_af_match_library, match_and_subtract, AfCatalogEntry, AfMatchLibrary, AfMatchOptions,
-    PreparedAfLibrary,
+    AfCatalogEntry, AfMatchLibrary, AfMatchOptions, PreparedAfLibrary, build_af_match_library,
+    match_and_subtract,
 };
 use crate::benchmark::run_ols;
-use crate::TruOlsError;
 
 /// Which contrived scenario this panel exercises.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -155,12 +155,7 @@ fn median(values: &[f64]) -> f64 {
     }
 }
 
-fn entry(
-    id: &str,
-    values: [f64; 4],
-    mean: [f64; 2],
-    proportion: f64,
-) -> AfCatalogEntry {
+fn entry(id: &str, values: [f64; 4], mean: [f64; 2], proportion: f64) -> AfCatalogEntry {
     AfCatalogEntry {
         id: id.to_string(),
         values: values.to_vec(),
@@ -171,12 +166,7 @@ fn entry(
 }
 
 fn fluor_matrix_from_shape(fluor: [f64; 4]) -> Mat<f64> {
-    mat![
-        [fluor[0]],
-        [fluor[1]],
-        [fluor[2]],
-        [fluor[3]],
-    ]
+    mat![[fluor[0]], [fluor[1]], [fluor[2]], [fluor[3]],]
 }
 
 fn build_joint_matrix(fluor: MatRef<f64>, af_col: &[f64]) -> Mat<f64> {
@@ -400,7 +390,9 @@ impl SyntheticPanel {
             unstained_spectra.push(spec);
         }
         for _ in 0..500 {
-            observations.push(synthesize_event(120.0, &af_true, 45.0, &fluor, noise, &mut rng));
+            observations.push(synthesize_event(
+                120.0, &af_true, 45.0, &fluor, noise, &mut rng,
+            ));
             fsc_ssc.push([410.0, 360.0]);
             true_fluor.push(120.0);
             true_af_amount.push(45.0);
@@ -568,8 +560,16 @@ mod tests {
         let m_a = metrics_for_fluor_index(&panel, &path_a, 0);
         let m_b = metrics_for_fluor_index(&panel, &path_b, 0);
 
-        assert!(m_a.true_negative_median.abs() < 25.0, "path A tn {}", m_a.true_negative_median);
-        assert!(m_b.true_negative_median.abs() < 25.0, "path B tn {}", m_b.true_negative_median);
+        assert!(
+            m_a.true_negative_median.abs() < 25.0,
+            "path A tn {}",
+            m_a.true_negative_median
+        );
+        assert!(
+            m_b.true_negative_median.abs() < 25.0,
+            "path B tn {}",
+            m_b.true_negative_median
+        );
         assert!(m_a.rmse < 20.0, "path A rmse {}", m_a.rmse);
         assert!(m_b.rmse < 20.0, "path B rmse {}", m_b.rmse);
     }

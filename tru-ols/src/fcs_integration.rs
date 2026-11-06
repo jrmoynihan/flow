@@ -6,9 +6,9 @@
 #[cfg(feature = "flow-fcs")]
 use crate::error::TruOlsError;
 #[cfg(feature = "flow-fcs")]
-use crate::unmixing::{TruOls, UnmixingStrategy};
-#[cfg(feature = "flow-fcs")]
 use crate::provenance::UnmixProvenance;
+#[cfg(feature = "flow-fcs")]
+use crate::unmixing::{TruOls, UnmixingStrategy};
 #[cfg(feature = "flow-fcs")]
 use faer::{Col, Mat};
 #[cfg(feature = "flow-fcs")]
@@ -503,12 +503,7 @@ pub(crate) fn build_unmixed_fcs_from_unmixed_abundances(
         // Add parameter metadata for autofluorescence
         use flow_fcs::{Parameter, TransformType};
         let param_num = starting_param_num + result_df_columns.len() - scatter_time_count - 1;
-        let param = Parameter::new(
-            &param_num,
-            &af_pn,
-            "",
-            &TransformType::Linear,
-        );
+        let param = Parameter::new(&param_num, &af_pn, "", &TransformType::Linear);
         output_fcs.parameters.insert(af_pn.clone().into(), param);
 
         // Add FCS keywords for autofluorescence
@@ -781,7 +776,8 @@ fn tru_ols_unmix_fcs_impl(
     provenance.af_endmember_index = Some(autofluorescence_idx);
     provenance.raw_datasource_guid = source_guid(stained);
     provenance.unstained_datasource_guid = source_guid(unstained_control);
-    provenance.unstained_info = describe_unstained_control(unstained_control, autofluorescence_name);
+    provenance.unstained_info =
+        describe_unstained_control(unstained_control, autofluorescence_name);
 
     let stained_data = extract_detector_data(stained, detector_names)?;
     let unstained_data = extract_detector_data(unstained_control, detector_names)?;
@@ -1569,8 +1565,7 @@ mod tests {
             Metadata::new(),
             params,
             Arc::new(df),
-            AccessWrapper::new(src_path.to_str().unwrap_or(""))
-                .expect("AccessWrapper"),
+            AccessWrapper::new(src_path.to_str().unwrap_or("")).expect("AccessWrapper"),
         );
         // Seed sample metadata that must survive export (regression: `$P` strip dropped these).
         {
@@ -1630,9 +1625,9 @@ mod tests {
         // stained GUID in both source slots.
         unstained_fcs.metadata.keywords.insert(
             "$GUID".into(),
-            flow_fcs::keyword::Keyword::String(flow_fcs::keyword::StringKeyword::Other(
-                Arc::from("11111111-2222-3333-4444-555555555555"),
-            )),
+            flow_fcs::keyword::Keyword::String(flow_fcs::keyword::StringKeyword::Other(Arc::from(
+                "11111111-2222-3333-4444-555555555555",
+            ))),
         );
 
         let mixing_matrix = mat![[0.9, 0.1], [0.1, 0.9], [0.05, 0.05]];
@@ -1715,7 +1710,12 @@ mod tests {
             .get_spillover_matrix()
             .expect("spillover parse")
             .expect("identity $SPILLOVER present");
-        assert_eq!(spill.1.len(), 2, "abundance channels in spillover: {:?}", spill.1);
+        assert_eq!(
+            spill.1.len(),
+            2,
+            "abundance channels in spillover: {:?}",
+            spill.1
+        );
         assert!((spill.0[(0, 0)] - 1.0).abs() < 1e-5);
         assert!(spill.0[(0, 1)].abs() < 1e-5);
 
@@ -1839,13 +1839,18 @@ mod tests {
             .iter()
             .map(|s| s.to_string())
             .collect();
-        assert!(names.contains(&"BUV615".to_string()), "abundance $PnN present");
+        assert!(
+            names.contains(&"BUV615".to_string()),
+            "abundance $PnN present"
+        );
         assert!(
             names.contains(&"Autofluorescence".to_string()),
             "AF abundance present"
         );
         assert!(
-            !names.iter().any(|n| n == "FL1-A" || n == "FL2-A" || n == "UV1-A"),
+            !names
+                .iter()
+                .any(|n| n == "FL1-A" || n == "FL2-A" || n == "UV1-A"),
             "acquisition detectors must be absent: {names:?}"
         );
 

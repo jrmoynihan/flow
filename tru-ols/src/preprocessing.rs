@@ -309,6 +309,21 @@ pub struct NonspecificObservation {
     observation: Col<f64>,
 }
 
+#[cfg(test)]
+thread_local! {
+    static NONSPECIFIC_OLS_EVENT_COUNT: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+#[cfg(test)]
+pub(crate) fn reset_nonspecific_ols_event_count() {
+    NONSPECIFIC_OLS_EVENT_COUNT.with(|cell| cell.set(0));
+}
+
+#[cfg(test)]
+pub(crate) fn take_nonspecific_ols_event_count() -> usize {
+    NONSPECIFIC_OLS_EVENT_COUNT.with(|cell| cell.replace(0))
+}
+
 impl NonspecificObservation {
     /// Calculate the nonspecific observation.
     ///
@@ -344,6 +359,56 @@ impl NonspecificObservation {
         Self::calculate_with_optional_af(mixing_matrix, unstained_control, None)
     }
 
+    /// Build `o⃗NS` from already-unmixed unstained abundances (same mixing matrix).
+    pub fn from_abundance_rows(
+        mixing_matrix: MatRef<'_, f64>,
+        abundance_rows: &[Vec<f64>],
+        autofluorescence_idx: Option<usize>,
+    ) -> Result<Self, TruOlsError> {
+        let n_detectors = mixing_matrix.nrows();
+        let n_endmembers = mixing_matrix.ncols();
+        if autofluorescence_idx.is_some_and(|idx| idx >= n_endmembers) {
+            return Err(TruOlsError::NoAutofluorescenceEndmember);
+        }
+        if abundance_rows.is_empty() {
+            return Err(TruOlsError::InsufficientData(
+                "Unstained control must contain at least one event".to_string(),
+            ));
+        }
+        if abundance_rows.iter().any(|row| row.len() != n_endmembers) {
+            return Err(TruOlsError::DimensionMismatch {
+                expected: n_endmembers,
+                actual: abundance_rows
+                    .first()
+                    .map(Vec::len)
+                    .unwrap_or_default(),
+            });
+        }
+
+        let n_events = abundance_rows.len() as f64;
+        let mut mean_abundances = vec![0.0; n_endmembers];
+        for row in abundance_rows {
+            for (idx, &value) in row.iter().enumerate() {
+                if autofluorescence_idx == Some(idx) {
+                    continue;
+                }
+                mean_abundances[idx] += value;
+            }
+        }
+        for value in &mut mean_abundances {
+            *value /= n_events;
+        }
+        if let Some(af_idx) = autofluorescence_idx {
+            mean_abundances[af_idx] = 0.0;
+        }
+
+        let mean_col = Col::from_fn(n_endmembers, |i| mean_abundances[i]);
+        let observation = mixing_matrix * &mean_col;
+        Ok(Self {
+            observation: Col::from_fn(n_detectors, |i| observation[i]),
+        })
+    }
+
     fn calculate_with_optional_af(
         mixing_matrix: MatRef<'_, f64>,
         unstained_control: MatRef<'_, f64>,
@@ -369,6 +434,9 @@ impl NonspecificObservation {
                 "Unstained control must contain at least one event".to_string(),
             ));
         }
+
+        #[cfg(test)]
+        NONSPECIFIC_OLS_EVENT_COUNT.with(|cell| cell.set(cell.get() + n_events));
 
         let partial_rows: Vec<Vec<f64>> = if crate::use_parallel_independent_events(n_events) {
             use rayon::prelude::*;
@@ -407,29 +475,7 @@ impl NonspecificObservation {
             out
         };
 
-        let mut mean_abundances = vec![0.0; n_endmembers];
-        for row in partial_rows {
-            for idx in 0..n_endmembers {
-                mean_abundances[idx] += row[idx];
-            }
-        }
-
-        // Calculate mean (excluding autofluorescence)
-        for x in mean_abundances.iter_mut() {
-            *x /= n_events as f64;
-        }
-        if let Some(af_idx) = autofluorescence_idx {
-            mean_abundances[af_idx] = 0.0; // Ensure AF is zero
-        }
-
-        let mean_col = Col::from_fn(n_endmembers, |i| mean_abundances[i]);
-
-        // Calculate nonspecific observation: M · mean_abundances
-        let observation = mixing_matrix * &mean_col;
-
-        Ok(Self {
-            observation: Col::from_fn(n_detectors, |i| observation[i]),
-        })
+        Self::from_abundance_rows(mixing_matrix, &partial_rows, autofluorescence_idx)
     }
 
     /// Get the nonspecific observation vector.
@@ -486,5 +532,44 @@ mod tests {
         .unwrap();
         assert!((fluor_only.observation()[0] - 10.0).abs() < 1e-12);
         assert!((fluor_only.observation()[1] - 4.0).abs() < 1e-12);
+    }
+
+    #[test]
+    fn nonspecific_from_abundance_rows_matches_fresh_ols() {
+        let mixing_matrix = mat![[1.0, 0.2, 0.05], [0.1, 1.0, 0.04], [0.0, 0.0, 1.0]];
+        let unstained = mat![
+            [1.0, 0.8, 2.0],
+            [1.1, 0.7, 2.2],
+            [0.9, 0.9, 1.8],
+            [1.2, 0.6, 2.1]
+        ];
+        let n_events = unstained.nrows();
+        let n_endmembers = mixing_matrix.ncols();
+        let mut rows = Vec::with_capacity(n_events);
+        for event_idx in 0..n_events {
+            let observation = Col::from_fn(mixing_matrix.nrows(), |i| unstained[(event_idx, i)]);
+            let abundances = solve_linear_system(mixing_matrix.as_ref(), observation.as_ref())
+                .expect("ols");
+            rows.push((0..n_endmembers).map(|i| abundances[i]).collect());
+        }
+
+        let reused = NonspecificObservation::from_abundance_rows(
+            mixing_matrix.as_ref(),
+            &rows,
+            Some(2),
+        )
+        .expect("reuse abundances");
+        let fresh =
+            NonspecificObservation::calculate(mixing_matrix.as_ref(), unstained.as_ref(), 2)
+                .expect("fresh ols");
+        assert_eq!(reused.observation().nrows(), fresh.observation().nrows());
+        for i in 0..fresh.observation().nrows() {
+            assert!(
+                (reused.observation()[i] - fresh.observation()[i]).abs() < 1e-12,
+                "detector {i}: reused {} != fresh {}",
+                reused.observation()[i],
+                fresh.observation()[i]
+            );
+        }
     }
 }
