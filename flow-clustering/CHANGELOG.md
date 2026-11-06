@@ -5,23 +5,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## Unreleased
+## 0.2.1 — 2026-11-06
 
 ### Added
 
 - PARC optional progress / cancellation: `ParcProgress`, `ParcStage`, and
   PaCMAP-shaped trailing `progress` / `cancel` args on `Parc::fit_with_knn`.
 - `ClusteringError::Cancelled` when the cancel flag is set at a stage boundary.
-- Example `compare_cytometry` (env-gated FR-FCM-ZZPH staging) and
-  `docs/comparison-with-parc-paper.md` / `docs/cytometry_bench_manifest.toml`.
-- Example `compare_with_python` + `docs/comparison-with-python.md` /
-  `docs/throughput_vs_python_sample.md` (same-host vs PyPI `parc`).
+- Same-host Rust vs Python PARC throughput harness (`compare_with_python`) with
+  sample ~4–8× speedups vs PyPI `parc` 0.40.
 - Criterion bench `flowsom_throughput` and `docs/PERF_FLOWSOM.md`.
+- Optional FR-FCM-ZZPH paper-suite harness (`compare_cytometry`) and docs
+  (env-gated; no matrices committed).
 
 ### Changed
 
 - `Parc::fit_with_knn` now takes `progress: Option<Sender<ParcProgress>>` and
   `cancel: Option<Arc<AtomicBool>>` after the optional k-NN graph (pre-1.0).
+
+### Documentation
+
+- README Performance: Python PARC comparison headline, FlowSOM synthetic table,
+  Exact vs HNSW summary.
 
 ## 0.2.0 — 2026-11-03
 

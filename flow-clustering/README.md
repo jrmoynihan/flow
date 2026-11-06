@@ -28,7 +28,7 @@ cargo add flow-clustering --features parc
 
 ```toml
 [dependencies]
-flow-clustering = { version = "0.2.0", features = ["parc"] }
+flow-clustering = { version = "0.2.1", features = ["parc"] }
 ```
 
 | Feature | Description |
