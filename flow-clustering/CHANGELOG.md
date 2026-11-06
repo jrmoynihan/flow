@@ -47,7 +47,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - README: PARC and FlowSOM usage, Stassen et al. 2020 citation, feature table.
 - `docs/PERF_PARC.md`: throughput, Rayon A/B, and peak RSS baselines.
 
+## v0.2.1 (2026-11-06)
+
+### Chore
+
+ - <csr-id-6562b53fa71b9f285f8646c91c7a88a563696d11/> polish 0.2.1 changelog and README install version
+
+### New Features
+
+ - <csr-id-e27facdaf1a14908f4e3cadba2de1440bd7a752b/> PARC progress/cancel, Python speed compare, FlowSOM benches
+   Add PaCMAP-shaped progress and cancellation for PARC, same-host throughput
+   vs PyPI parc (~4–8×), FlowSOM Criterion baselines, and paper-harness scaffolding.
+
+### Commit Statistics
+
+<csr-read-only-do-not-edit/>
+
+ - 2 commits contributed to the release.
+ - 3 days passed between releases.
+ - 2 commits were understood as [conventional](https://www.conventionalcommits.org).
+ - 0 issues like '(#ID)' were seen in commit messages
+
+### Commit Details
+
+<csr-read-only-do-not-edit/>
+
+<details><summary>view details</summary>
+
+ * **Uncategorized**
+    - Polish 0.2.1 changelog and README install version ([`6562b53`](https://github.com/jrmoynihan/flow/commit/6562b53fa71b9f285f8646c91c7a88a563696d11))
+    - PARC progress/cancel, Python speed compare, FlowSOM benches ([`e27facd`](https://github.com/jrmoynihan/flow/commit/e27facdaf1a14908f4e3cadba2de1440bd7a752b))
+</details>
+
 ## v0.2.0 (2026-11-03)
+
+<csr-id-964879b6c4d52736bd5dd54e0d80572f655a9557/>
 
 ### Chore
 
@@ -74,7 +108,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 <csr-read-only-do-not-edit/>
 
- - 6 commits contributed to the release.
+ - 7 commits contributed to the release.
  - 4 commits were understood as [conventional](https://www.conventionalcommits.org).
  - 0 issues like '(#ID)' were seen in commit messages
 
@@ -85,6 +119,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 <details><summary>view details</summary>
 
  * **Uncategorized**
+    - Release flow-clustering v0.2.0 ([`7ec31b1`](https://github.com/jrmoynihan/flow/commit/7ec31b1bbd1b297a31e6fcaed4b07e8a0bc82621))
     - Polish changelogs for knn 0.1.2, clustering 0.2.0, autospectral 0.1.0 ([`964879b`](https://github.com/jrmoynihan/flow/commit/964879b6c4d52736bd5dd54e0d80572f655a9557))
     - Merge pull request #22 from jrmoynihan/feature/flow-autospectral ([`35007ba`](https://github.com/jrmoynihan/flow/commit/35007ba7841c164cf8e4ffae220a782dcb87d7ce))
     - Add batch SOM and FlowSOM metaclustering ([`9cc2e13`](https://github.com/jrmoynihan/flow/commit/9cc2e13cbc12e04a3474b00a7af9915deac4ee9e))

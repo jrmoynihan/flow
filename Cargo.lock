@@ -3247,7 +3247,7 @@ dependencies = [
 
 [[package]]
 name = "flow-clustering"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "anyhow",
  "criterion 0.8.2",
