@@ -1,0 +1,71 @@
+# FR-FCM-ZZPH / Weber & Robinson 2016 cytometry clustering suite.
+# Stage numeric matrices under $FLOW_CLUSTERING_BENCH_DATA; never commit raw data.
+#
+# Reference wall times are from published tables (different language/hardware).
+# Weber & Robinson 2016 Table 3 FlowSOM runtimes; Stassen et al. 2020 reports
+# PARC scalability on Samusik_all subsamples (Fig. 3) rather than one scalar per
+# dataset — parc_ref_secs is omitted unless a clear published scalar exists.
+
+paper_hardware_weber = "See Weber & Robinson 2016 Supporting Information Tables S1/S4 (multi-core; not single-machine identical)."
+paper_hardware_stassen = "8× 3.6 GHz CPUs, 126 GB RAM (Stassen et al. 2020)."
+flowrepository_id = "FR-FCM-ZZPH"
+
+[[dataset]]
+id = "Levine_13dim"
+n = 167044
+d = 13
+matrix_file = "Levine_13dim.csv"
+labels_file = "Levine_13dim.labels.txt"
+weber_flowsom_secs = 15.0
+weber_flowsom_f1 = 0.495
+citation = "Weber & Robinson 2016; Levine et al. 2015"
+
+[[dataset]]
+id = "Levine_32dim"
+n = 265627
+d = 32
+matrix_file = "Levine_32dim.csv"
+labels_file = "Levine_32dim.labels.txt"
+weber_flowsom_secs = 41.0
+weber_flowsom_f1 = 0.780
+citation = "Weber & Robinson 2016; Levine et al. 2015"
+
+[[dataset]]
+id = "Samusik_01"
+n = 86864
+d = 39
+matrix_file = "Samusik_01.csv"
+labels_file = "Samusik_01.labels.txt"
+weber_flowsom_secs = 19.0
+weber_flowsom_f1 = 0.707
+citation = "Weber & Robinson 2016; Samusik et al. 2016"
+
+[[dataset]]
+id = "Samusik_all"
+n = 841644
+d = 39
+matrix_file = "Samusik_all.csv"
+labels_file = "Samusik_all.labels.txt"
+weber_flowsom_secs = 133.0
+weber_flowsom_f1 = 0.702
+citation = "Weber & Robinson 2016; Samusik et al. 2016; Stassen et al. 2020 Fig. 3 scalability"
+
+[[dataset]]
+id = "Nilsson_rare"
+n = 44140
+d = 13
+matrix_file = "Nilsson_rare.csv"
+labels_file = "Nilsson_rare.labels.txt"
+weber_flowsom_secs = 8.0
+weber_flowsom_f1 = 0.447
+citation = "Weber & Robinson 2016; Nilsson et al. 2013"
+
+[[dataset]]
+id = "Mosmann_rare"
+n = 396460
+d = 14
+matrix_file = "Mosmann_rare.csv"
+labels_file = "Mosmann_rare.labels.txt"
+weber_flowsom_secs = 134.0
+weber_flowsom_f1 = 0.665
+citation = "Weber & Robinson 2016; Mosmann et al. 2014"

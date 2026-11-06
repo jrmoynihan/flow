@@ -22,9 +22,99 @@ use prune::{global_jaccard_prune, local_distance_prune};
 use refine::{
     reassign_small_populations, renumber_labels, split_too_big_clusters,
 };
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, mpsc};
 
 pub use leiden::ParcPartition;
 pub use prune::{JacStdGlobal, KeepLocalDist};
+
+/// Coarse PARC pipeline stage for progress events.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ParcStage {
+    /// Building or validating the k-NN graph.
+    Knn,
+    /// Local distance prune.
+    LocalPrune,
+    /// Global Jaccard prune.
+    JaccardPrune,
+    /// Leiden community detection.
+    Leiden,
+    /// Recursive split of oversized communities.
+    SplitTooBig,
+    /// Reassign points in undersized communities.
+    ReassignSmall,
+    /// Pipeline finished.
+    Done,
+}
+
+impl ParcStage {
+    fn label(self) -> &'static str {
+        match self {
+            Self::Knn => "knn",
+            Self::LocalPrune => "local_prune",
+            Self::JaccardPrune => "jaccard_prune",
+            Self::Leiden => "leiden",
+            Self::SplitTooBig => "split_too_big",
+            Self::ReassignSmall => "reassign_small",
+            Self::Done => "done",
+        }
+    }
+}
+
+/// Progress event emitted at coarse PARC stage boundaries.
+#[derive(Debug, Clone)]
+pub struct ParcProgress {
+    /// Current pipeline stage.
+    pub stage: ParcStage,
+    /// Zero-based index among [`Self::stage_count`] coarse stages.
+    pub stage_index: usize,
+    /// Total coarse stages for this run (includes [`ParcStage::Done`]).
+    pub stage_count: usize,
+    /// Coarse overall fraction in `0.0..=1.0`.
+    pub fraction: f32,
+    /// Optional detail (e.g. too-big subpass size).
+    pub detail: Option<String>,
+}
+
+/// Optional progress channel and cancellation token (PaCMAP-shaped).
+#[derive(Clone, Copy)]
+pub(crate) struct ParcControl<'a> {
+    progress: Option<&'a mpsc::Sender<ParcProgress>>,
+    cancel: Option<&'a AtomicBool>,
+    stage_count: usize,
+}
+
+impl<'a> ParcControl<'a> {
+    pub(crate) fn check_cancel(&self) -> ClusteringResult<()> {
+        if let Some(flag) = self.cancel
+            && flag.load(Ordering::Relaxed)
+        {
+            return Err(ClusteringError::Cancelled);
+        }
+        Ok(())
+    }
+
+    pub(crate) fn emit(
+        &self,
+        stage: ParcStage,
+        stage_index: usize,
+        detail: Option<String>,
+    ) -> ClusteringResult<()> {
+        self.check_cancel()?;
+        if let Some(tx) = self.progress {
+            let denom = self.stage_count.saturating_sub(1).max(1) as f32;
+            let fraction = (stage_index as f32 / denom).clamp(0.0, 1.0);
+            let _ = tx.send(ParcProgress {
+                stage,
+                stage_index,
+                stage_count: self.stage_count,
+                fraction,
+                detail,
+            });
+        }
+        Ok(())
+    }
+}
 
 /// Distance space for k-NN construction (mapped onto [`DistanceMetric`]).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -162,13 +252,18 @@ pub struct ParcResult {
     pub n_clusters: usize,
 }
 
+/// Top-level stage count (Knn … Done).
+const TOP_STAGE_COUNT: usize = 7;
+/// Sub-PARC omits SplitTooBig and outer Done bookkeeping uses fewer emits.
+const SUB_STAGE_COUNT: usize = 6;
+
 /// PARC clustering entry point.
 pub struct Parc;
 
 impl Parc {
     /// Run PARC on row-major `data` (`n × d`), computing a k-NN graph internally.
     pub fn fit(data: &Array2<f64>, config: &ParcConfig) -> ClusteringResult<ParcResult> {
-        Self::fit_with_knn(data, config, None)
+        Self::fit_with_knn(data, config, None, None, None)
     }
 
     /// Run PARC, optionally reusing a precomputed [`KnnGraph`].
@@ -176,10 +271,16 @@ impl Parc {
     /// When `knn` is `Some`, it must have `graph.n == data.nrows()` and
     /// `graph.k >= config.knn` (extra neighbours are truncated). Metric should
     /// match [`ParcConfig::distance`].
+    ///
+    /// - `progress`: optional channel for coarse stage events (PaCMAP-shaped)
+    /// - `cancel`: optional flag; checked at stage boundaries (`true` →
+    ///   [`ClusteringError::Cancelled`])
     pub fn fit_with_knn(
         data: &Array2<f64>,
         config: &ParcConfig,
         knn: Option<&KnnGraph>,
+        progress: Option<mpsc::Sender<ParcProgress>>,
+        cancel: Option<Arc<AtomicBool>>,
     ) -> ClusteringResult<ParcResult> {
         let n = data.nrows();
         let d = data.ncols();
@@ -200,6 +301,14 @@ impl Parc {
             ));
         }
 
+        let control = ParcControl {
+            progress: progress.as_ref(),
+            cancel: cancel.as_deref(),
+            stage_count: TOP_STAGE_COUNT,
+        };
+
+        control.emit(ParcStage::Knn, 0, None)?;
+
         let flat_f32: Vec<f32> = data.iter().map(|&x| x as f32).collect();
         let metric = config.distance.to_metric();
         let graph = match knn {
@@ -215,8 +324,9 @@ impl Parc {
                 })?
             }
         };
+        control.check_cancel()?;
 
-        run_parc_on_graph(&flat_f32, n, d, &graph, config, false)
+        run_parc_on_graph(&flat_f32, n, d, &graph, config, false, control)
     }
 }
 
@@ -260,7 +370,21 @@ fn run_parc_on_graph(
     graph: &KnnGraph,
     config: &ParcConfig,
     is_toobig_sub: bool,
+    control: ParcControl<'_>,
 ) -> ClusteringResult<ParcResult> {
+    // Stage indices: 0=Knn (already emitted for top-level), then 1.. 
+    let local_idx = if is_toobig_sub { 1 } else { 1 };
+    let jac_idx = local_idx + 1;
+    let leiden_idx = jac_idx + 1;
+    let split_idx = leiden_idx + 1;
+    let reassign_idx = if is_toobig_sub {
+        leiden_idx + 1
+    } else {
+        split_idx + 1
+    };
+    let done_idx = reassign_idx + 1;
+
+    control.emit(ParcStage::LocalPrune, local_idx, None)?;
     let skip_local = config.skip_local_prune(n);
     let distances_are_squared = matches!(graph.metric, DistanceMetric::EuclideanSq);
 
@@ -272,6 +396,7 @@ fn run_parc_on_graph(
         config.parallel_prune,
     );
 
+    control.emit(ParcStage::JaccardPrune, jac_idx, None)?;
     let jac_std = if is_toobig_sub {
         JacStdGlobal::Sigma(config.jac_std_toobig)
     } else {
@@ -286,6 +411,7 @@ fn run_parc_on_graph(
         config.parallel_prune,
     )?;
 
+    control.emit(ParcStage::Leiden, leiden_idx, None)?;
     let partition = config.effective_partition();
     let mut labels = leiden::run_leiden(
         n,
@@ -305,6 +431,7 @@ fn run_parc_on_graph(
         .collect();
 
     if !is_toobig_sub {
+        control.emit(ParcStage::SplitTooBig, split_idx, None)?;
         labels = split_too_big_clusters(
             data_f32,
             n,
@@ -312,9 +439,11 @@ fn run_parc_on_graph(
             labels,
             &neighbor_indices,
             config,
+            control,
         )?;
     }
 
+    control.emit(ParcStage::ReassignSmall, reassign_idx, None)?;
     labels = reassign_small_populations(
         labels,
         &neighbor_indices,
@@ -322,6 +451,12 @@ fn run_parc_on_graph(
         config.small_pop_max_iters,
     );
     labels = renumber_labels(labels);
+
+    control.emit(
+        ParcStage::Done,
+        done_idx.min(control.stage_count.saturating_sub(1)),
+        Some(ParcStage::Done.label().to_string()),
+    )?;
 
     let n_clusters = labels.iter().copied().max().map(|m| m + 1).unwrap_or(0);
     Ok(ParcResult {
@@ -336,7 +471,14 @@ pub(crate) fn run_subparc_on_subset(
     n: usize,
     d: usize,
     config: &ParcConfig,
+    control: ParcControl<'_>,
 ) -> ClusteringResult<Vec<usize>> {
+    control.emit(
+        ParcStage::Knn,
+        0,
+        Some(format!("subparc n={n}")),
+    )?;
+
     let knn_big = if n > config.knn {
         config.knn
     } else {
@@ -358,8 +500,14 @@ pub(crate) fn run_subparc_on_subset(
         DistanceMetric::Euclidean,
     )
     .map_err(|e| ClusteringError::ClusteringFailed(format!("sub-PARC k-NN failed: {e}")))?;
+    control.check_cancel()?;
 
-    let result = run_parc_on_graph(data_f32, n, d, &graph, config, true)?;
+    let sub_control = ParcControl {
+        progress: control.progress,
+        cancel: control.cancel,
+        stage_count: SUB_STAGE_COUNT,
+    };
+    let result = run_parc_on_graph(data_f32, n, d, &graph, config, true, sub_control)?;
     Ok(result.assignments)
 }
 
@@ -367,6 +515,8 @@ pub(crate) fn run_subparc_on_subset(
 mod tests {
     use super::*;
     use ndarray::Array2;
+    use std::sync::mpsc;
+    use std::time::Duration;
 
     /// Two isotropic clouds centred far apart (not a 1D chain — modularity splits chains).
     fn two_blobs(n_per: usize, d: usize) -> Array2<f64> {
@@ -396,10 +546,8 @@ mod tests {
         Array2::from_shape_vec((n_per * 2, d), rows).expect("shape")
     }
 
-    #[test]
-    fn parc_separates_two_blobs() {
-        let data = two_blobs(50, 3);
-        let config = ParcConfig {
+    fn test_config() -> ParcConfig {
+        ParcConfig {
             knn: 15,
             knn_method: Some(KnnMethod::Exact),
             keep_all_local_dist: KeepLocalDist::Always,
@@ -407,7 +555,13 @@ mod tests {
             small_pop: 5,
             too_big_factor: 0.9,
             ..ParcConfig::default()
-        };
+        }
+    }
+
+    #[test]
+    fn parc_separates_two_blobs() {
+        let data = two_blobs(50, 3);
+        let config = test_config();
         let result = Parc::fit(&data, &config).expect("parc");
         assert_eq!(result.assignments.len(), 100);
         assert!(
@@ -435,5 +589,50 @@ mod tests {
         let err = Parc::fit(&data, &ParcConfig::default()).unwrap_err();
         assert!(matches!(err, ClusteringError::EmptyData));
     }
-}
 
+    #[test]
+    fn parc_cancel_before_run() {
+        let data = two_blobs(40, 3);
+        let cancel = Arc::new(AtomicBool::new(true));
+        let err = Parc::fit_with_knn(&data, &test_config(), None, None, Some(cancel))
+            .unwrap_err();
+        assert!(matches!(err, ClusteringError::Cancelled));
+    }
+
+    #[test]
+    fn parc_progress_emits_ordered_stages() {
+        let data = two_blobs(40, 3);
+        let (tx, rx) = mpsc::channel();
+        let result = Parc::fit_with_knn(&data, &test_config(), None, Some(tx), None)
+            .expect("parc");
+        assert_eq!(result.assignments.len(), 80);
+
+        let mut stages = Vec::new();
+        while let Ok(ev) = rx.recv_timeout(Duration::from_millis(50)) {
+            stages.push(ev.stage);
+        }
+        assert!(
+            stages.first() == Some(&ParcStage::Knn),
+            "first stage={:?}",
+            stages.first()
+        );
+        assert!(
+            stages.last() == Some(&ParcStage::Done),
+            "last stage={:?}",
+            stages.last()
+        );
+        assert!(stages.contains(&ParcStage::LocalPrune));
+        assert!(stages.contains(&ParcStage::JaccardPrune));
+        assert!(stages.contains(&ParcStage::Leiden));
+        assert!(stages.contains(&ParcStage::ReassignSmall));
+        // Monotonic stage_index among received events.
+        let mut prev = 0usize;
+        let (tx2, rx2) = mpsc::channel();
+        let _ = Parc::fit_with_knn(&data, &test_config(), None, Some(tx2), None);
+        while let Ok(ev) = rx2.recv_timeout(Duration::from_millis(50)) {
+            assert!(ev.stage_index >= prev);
+            prev = ev.stage_index;
+            assert!(ev.fraction >= 0.0 && ev.fraction <= 1.0);
+        }
+    }
+}

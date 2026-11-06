@@ -108,3 +108,33 @@ Rayon prune costs modest extra RSS (~10–16%) for the measured sizes.
 
 Long Criterion sessions can drift on this machine; A/B groups interleave
 Exact↔HNSW and seq↔rayon per size. Prefer that pattern for future A/B.
+
+## vs Python PARC (same host)
+
+Headline speed claim vs ShobiStassen/PARC. Sample table:
+[`throughput_vs_python_sample.md`](throughput_vs_python_sample.md). Reproduce:
+[`comparison-with-python.md`](comparison-with-python.md).
+
+```bash
+PARC_PYTHON=/path/to/venv/bin/python \
+cargo run -p flow-clustering --release --example compare_with_python --features parc -- \
+  --out ./clustering_parc_py_compare --warmup 1 --reps 3
+```
+
+On Apple M5 Max (2026-11-06), Rust was about **4–8×** faster than `parc` 0.40
+on 5k–100k × 20 synthetic events (clustering-only, interleaved).
+
+## Paper datasets (Weber FR-FCM-ZZPH / Stassen)
+
+Synthetic Criterion above is for HNSW/Exact/Rayon A/B. For wall-clock comparison
+against published CyTOF/flow timings, stage FR-FCM-ZZPH matrices locally and run:
+
+```bash
+export FLOW_CLUSTERING_BENCH_DATA=/path/to/staged/matrices
+cargo run -p flow-clustering --release --example compare_cytometry --features parc -- \
+  --out ./clustering_cytometry_bench_out
+```
+
+See [`comparison-with-parc-paper.md`](comparison-with-parc-paper.md) and
+[`cytometry_bench_manifest.toml`](cytometry_bench_manifest.toml). Do not invent
+or commit paper-dataset timings here until a local run fills the report.

@@ -177,6 +177,8 @@ fn bench_parc_prune_ab(c: &mut Criterion) {
                                 black_box(data),
                                 black_box(config),
                                 Some(black_box(graph)),
+                                None,
+                                None,
                             )
                             .expect("parc"),
                         )

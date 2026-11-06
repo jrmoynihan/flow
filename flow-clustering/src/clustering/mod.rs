@@ -16,7 +16,8 @@ pub use gmm::{Gmm, GmmConfig, GmmResult};
 pub use kmeans::{KMeans, KMeansConfig, KMeansResult};
 #[cfg(feature = "parc")]
 pub use parc::{
-    JacStdGlobal, KeepLocalDist, Parc, ParcConfig, ParcDistance, ParcPartition, ParcResult,
+    JacStdGlobal, KeepLocalDist, Parc, ParcConfig, ParcDistance, ParcPartition, ParcProgress,
+    ParcResult, ParcStage,
 };
 pub use silhouette::{SilhouetteResult, silhouette_scores, silhouette_scores_sampled};
 pub use som::{FlowSom, FlowSomConfig, FlowSomResult, Som, SomConfig, SomResult};
@@ -36,6 +37,9 @@ pub enum ClusteringError {
     ValidationFailed(String),
     #[error("Clustering failed: {0}")]
     ClusteringFailed(String),
+    /// Cooperative cancellation via an optional `Arc<AtomicBool>` (PARC).
+    #[error("Run cancelled by caller")]
+    Cancelled,
 }
 
 pub type ClusteringResult<T> = Result<T, ClusteringError>;

@@ -11,8 +11,12 @@ Clustering for flow cytometry: K-means, DBSCAN, GMM, SOM / FlowSOM, and optional
 - **K-means / GMM / DBSCAN** — thin [`linfa`](https://crates.io/crates/linfa) wrappers with shared error types
 - **SOM / FlowSOM** *(feature `som`, default)* — batch SOM codebook, then k-means metaclusters
 - **PARC** *(feature `parc`)* — HNSW k-NN → local + Jaccard prune → Leiden, for large phenotypic datasets
+- **Faster than Python PARC** — same-host clustering-only wall times are about **4–8×** the
+  [ShobiStassen/PARC](https://github.com/ShobiStassen/PARC) reference on 5k–100k events
+  (see [Performance](#performance))
 - **Silhouette** — full and sampled cluster validation
 - **Shared k-NN** — PARC accepts a prebuilt [`flow-knn`](../flow-knn/) `KnnGraph` (same pattern as PaCMAP)
+- **Progress / cancel** — optional PaCMAP-shaped stage events and cooperative cancellation
 
 ## Installation
 
@@ -142,7 +146,8 @@ use ndarray::Array2;
 fn example(data: &Array2<f64>) -> ClusteringResult<()> {
     let config: ParcConfig = ParcConfig::default();
     let result: ParcResult = Parc::fit(data, &config)?;
-    // Or reuse a graph: Parc::fit_with_knn(data, &config, Some(&knn_graph))?;
+    // Optional progress + cancel (PaCMAP-shaped):
+    // Parc::fit_with_knn(data, &config, None, Some(tx), Some(cancel))?;
     let assignments: &Vec<usize> = &result.assignments;
     let n_clusters: usize = result.n_clusters;
     let _ = (assignments, n_clusters);
@@ -169,11 +174,59 @@ fn example(data: &[Vec<f64>], labels: &[usize]) -> ClusteringResult<()> {
 
 ## Performance
 
-See [`docs/PERF_PARC.md`](docs/PERF_PARC.md) for Criterion n×d throughput,
-Rayon vs sequential prune A/B, and peak RSS on Apple M5 Max.
+### vs Python PARC (headline)
+
+Same-host clustering-only wall times vs PyPI `parc` 0.40 (ShobiStassen reference),
+Apple M5 Max, `rustc` 1.98.1, interleaved reps. Full sample:
+[`docs/throughput_vs_python_sample.md`](docs/throughput_vs_python_sample.md).
+Harness: [`docs/comparison-with-python.md`](docs/comparison-with-python.md).
+
+| n × d | Rust median | Python median | Speedup |
+|-------|-------------|---------------|---------|
+| 5k × 20 | 0.40 s | 1.54 s | **3.9×** |
+| 20k × 20 | 0.81 s | 3.54 s | **4.4×** |
+| 50k × 20 | 1.29 s | 10.1 s | **7.8×** |
+| 100k × 20 | 2.70 s | 19.5 s | **7.2×** |
+
+Throughput claim is wall-clock only; HNSW backends differ (`flow-knn` vs
+`hnswlib`), so cluster counts need not match.
+
+### PARC internals (Exact vs HNSW)
+
+Synthetic Criterion on Apple M5 Max (2026-08-18). Full tables, Rayon A/B, peak
+RSS: [`docs/PERF_PARC.md`](docs/PERF_PARC.md).
+
+| Size | HNSW median | HNSW evt/s | vs Exact |
+|------|-------------|------------|----------|
+| 5k × 20, k=20 | 212 ms | 23.6k | 0.96× (Exact slightly faster) |
+| 20k × 20, k=30 | 690 ms | 29.0k | 0.93× |
+| 50k × 20, k=30 | 943 ms | 53.0k | **1.63×** |
+| 100k × 20, k=30 | 1.65 s | 60.4k | **2.75×** |
+
+HNSW is the production default from ~50k events upward. Peak RSS on Exact k-NN
+is roughly 0.2–0.4 GiB at 50k–100k events (Rayon prune adds ~10–16%).
+
+### FlowSOM
+
+Synthetic Criterion on Apple M5 Max (2026-11-06), 10×10 SOM / 10 metaclusters.
+Details: [`docs/PERF_FLOWSOM.md`](docs/PERF_FLOWSOM.md).
+
+| Case | Median | Throughput |
+|------|--------|------------|
+| 20k × 10 | 238 ms | 83.9k evt/s |
+| 50k × 20 | 858 ms | 58.3k evt/s |
+| 100k × 20 | 1.68 s | 59.5k evt/s |
+| 100k × 30 | 2.36 s | 42.3k evt/s |
+
+### Reproduce
 
 ```bash
+# Same-host vs Python PARC (needs venv with parc; see comparison-with-python.md)
+PARC_PYTHON=... cargo run -p flow-clustering --release --example compare_with_python \
+  --features parc -- --warmup 1 --reps 3
+
 cargo bench -p flow-clustering --bench parc_throughput --features parc
+cargo bench -p flow-clustering --bench flowsom_throughput
 cargo run -p flow-clustering --release --example parc_rss --features parc
 ```
 

@@ -1,6 +1,6 @@
 //! Too-big recursive split and small-population reassignment.
 
-use super::{run_subparc_on_subset, ParcConfig};
+use super::{run_subparc_on_subset, ParcConfig, ParcControl, ParcStage};
 use crate::clustering::ClusteringResult;
 use std::collections::{HashMap, HashSet};
 
@@ -148,6 +148,7 @@ pub fn split_too_big_clusters(
     mut labels: Vec<usize>,
     _neighbor_indices: &[Vec<u32>],
     config: &ParcConfig,
+    control: ParcControl<'_>,
 ) -> ClusteringResult<Vec<usize>> {
     let threshold = (config.too_big_factor * n as f64) as usize;
     if threshold == 0 {
@@ -156,6 +157,7 @@ pub fn split_too_big_clusters(
 
     let mut expanded_pops: HashSet<usize> = HashSet::new();
     loop {
+        control.check_cancel()?;
         labels = renumber_labels(labels);
         let sizes = cluster_sizes(&labels);
         // Prefer largest first (Python expands cluster 0 when it is the largest).
@@ -183,13 +185,20 @@ pub fn split_too_big_clusters(
             break;
         }
 
+        control.emit(
+            ParcStage::SplitTooBig,
+            4,
+            Some(format!("subparc members={}", members.len())),
+        )?;
+
         let mut sub_data = Vec::with_capacity(members.len() * d);
         for &idx in &members {
             let start = idx * d;
             sub_data.extend_from_slice(&data_f32[start..start + d]);
         }
 
-        let sub_labels = run_subparc_on_subset(&sub_data, members.len(), d, config)?;
+        let sub_labels =
+            run_subparc_on_subset(&sub_data, members.len(), d, config, control)?;
         // Offset so new labels do not collide before renumber.
         for (j, &global_i) in members.iter().enumerate() {
             labels[global_i] = sub_labels[j].saturating_add(100_000);

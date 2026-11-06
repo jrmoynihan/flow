@@ -39,8 +39,21 @@ name = "parc_throughput"
 harness = false
 required-features = ["parc"]
 
+[[bench]]
+name = "flowsom_throughput"
+harness = false
+required-features = ["som"]
+
 [[example]]
 name = "parc_rss"
+required-features = ["parc"]
+
+[[example]]
+name = "compare_cytometry"
+required-features = ["parc"]
+
+[[example]]
+name = "compare_with_python"
 required-features = ["parc"]
 
 [package.metadata.scripts]

@@ -9,5 +9,6 @@ pub use clustering::{
 
 #[cfg(feature = "parc")]
 pub use clustering::{
-    JacStdGlobal, KeepLocalDist, Parc, ParcConfig, ParcDistance, ParcPartition, ParcResult,
+    JacStdGlobal, KeepLocalDist, Parc, ParcConfig, ParcDistance, ParcPartition, ParcProgress,
+    ParcResult, ParcStage,
 };
