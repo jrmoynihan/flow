@@ -23,9 +23,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Default features now include `emeans`: same-kernel Lloyd is slower than
-  e-means for essentially all practical cytometry sizes (n ≥ ~5k / 10k).
-  Linfa `KMeans` remains for the `Array2<f64>` API.
+- Default features now include `emeans` and **exclude** `kmeans`: same-kernel
+  Lloyd is slower than e-means for essentially all practical cytometry sizes
+  (n ≥ ~5k / 10k). Linfa `KMeans` is opt-in (`--features kmeans`) for the
+  `Array2<f64>` API.
+- FlowSOM codebook metaclustering uses `Lloyd` instead of linfa `KMeans`;
+  feature `som` depends on `emeans`.
 
 ## 0.2.1 — 2026-11-06
 

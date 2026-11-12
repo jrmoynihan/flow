@@ -1,9 +1,10 @@
 //! Self-organizing maps and FlowSOM-style metaclustering.
 //!
 //! Batch SOM trains a rectangular codebook; [`FlowSom`] then clusters those
-//! nodes (k-means) and maps each event through its best-matching unit (BMU).
+//! nodes with same-kernel [`Lloyd`] and maps each event through its
+//! best-matching unit (BMU).
 
-use crate::clustering::{ClusteringError, ClusteringResult, KMeans, KMeansConfig, KMeansResult};
+use crate::clustering::{ClusteringError, ClusteringResult, InitMethod, Lloyd, LloydConfig};
 use ndarray::Array2;
 
 /// Configuration for a rectangular batch SOM.
@@ -165,7 +166,7 @@ pub struct FlowSomResult {
 pub struct FlowSom;
 
 impl FlowSom {
-    /// Train a SOM then metacluster the codebook with k-means.
+    /// Train a SOM then metacluster the codebook with Lloyd k-means.
     pub fn fit(data: &Array2<f64>, config: &FlowSomConfig) -> ClusteringResult<FlowSomResult> {
         if config.n_metaclusters == 0 {
             return Err(ClusteringError::InvalidConfig(
@@ -175,17 +176,28 @@ impl FlowSom {
         let som = Som::fit(data, &config.som)?;
         let n_nodes = som.n_nodes();
         let k = config.n_metaclusters.min(n_nodes).min(data.nrows()).max(1);
+        let d_w = som.weights.ncols();
 
-        let km_cfg = KMeansConfig {
+        // Codebooks are small (typically ≤ a few hundred nodes); full-batch
+        // Lloyd on the shared f32 kernel is enough and drops the linfa path.
+        let mut flat = vec![0.0f32; n_nodes * d_w];
+        for i in 0..n_nodes {
+            for j in 0..d_w {
+                flat[i * d_w + j] = som.weights[(i, j)] as f32;
+            }
+        }
+        let lloyd_cfg = LloydConfig {
             n_clusters: k,
             max_iterations: config.meta_max_iterations,
             tolerance: 1e-4,
-            seed: config.meta_seed,
+            until_convergence: true,
+            init: InitMethod::Random,
+            seed: config.meta_seed.or(Some(42)),
+            ..Default::default()
         };
-        let KMeansResult {
-            assignments: node_metaclusters,
-            ..
-        } = KMeans::fit(&som.weights, &km_cfg)?;
+        let fitted = Lloyd::fit(&flat, n_nodes, d_w, &lloyd_cfg)?;
+        let node_metaclusters: Vec<usize> =
+            fitted.assignments.iter().map(|&a| a as usize).collect();
 
         let d = data.ncols();
         let event_metaclusters: Vec<usize> = som

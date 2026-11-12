@@ -11,11 +11,13 @@ keywords = ["flow-cytometry", "clustering", "kmeans", "parc", "flowsom"]
 categories = ["science", "algorithms"]
 
 [features]
-default = ["kmeans", "dbscan", "gmm", "som", "emeans"]
+default = ["dbscan", "gmm", "som", "emeans"]
+# Optional linfa Array2<f64> K-means (legacy); FlowSOM uses Lloyd via `emeans`
 kmeans  = []
 dbscan  = []
 gmm     = []
-som     = []
+# Batch SOM + FlowSOM; metaclusters via Lloyd (`emeans`)
+som     = ["emeans"]
 # PARC: HNSW k-NN (flow-knn) + prune + Leiden community detection
 parc = ["dep:flow-knn", "dep:leiden-rs"]
 # Mini-batch EMA k-means (Bessa et al., arXiv:2611.09501); default-on — see prefer_emeans

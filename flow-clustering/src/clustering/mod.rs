@@ -10,10 +10,12 @@ mod dbscan;
 #[cfg(feature = "emeans")]
 pub mod emeans;
 mod gmm;
+#[cfg(feature = "kmeans")]
 mod kmeans;
 #[cfg(feature = "parc")]
 pub mod parc;
 pub mod silhouette;
+#[cfg(feature = "som")]
 mod som;
 
 #[cfg(feature = "agglomerative")]
@@ -28,6 +30,7 @@ pub use emeans::{
     InitMethod, Lloyd, LloydConfig, LloydResult, REVIVAL_DELTA_BF16, prefer_emeans,
 };
 pub use gmm::{Gmm, GmmConfig, GmmResult};
+#[cfg(feature = "kmeans")]
 pub use kmeans::{KMeans, KMeansConfig, KMeansResult};
 #[cfg(feature = "parc")]
 pub use parc::{
@@ -35,6 +38,7 @@ pub use parc::{
     ParcResult, ParcStage,
 };
 pub use silhouette::{SilhouetteResult, silhouette_scores, silhouette_scores_sampled};
+#[cfg(feature = "som")]
 pub use som::{FlowSom, FlowSomConfig, FlowSomResult, Som, SomConfig, SomResult};
 
 use thiserror::Error;

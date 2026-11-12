@@ -2,10 +2,15 @@
 pub mod clustering;
 
 pub use clustering::{
-    ClusteringError, ClusteringResult, Dbscan, DbscanConfig, DbscanResult, FlowSom, FlowSomConfig,
-    FlowSomResult, Gmm, GmmConfig, GmmResult, KMeans, KMeansConfig, KMeansResult, SilhouetteResult,
-    Som, SomConfig, SomResult, silhouette_scores, silhouette_scores_sampled,
+    ClusteringError, ClusteringResult, Dbscan, DbscanConfig, DbscanResult, Gmm, GmmConfig,
+    GmmResult, SilhouetteResult, silhouette_scores, silhouette_scores_sampled,
 };
+
+#[cfg(feature = "kmeans")]
+pub use clustering::{KMeans, KMeansConfig, KMeansResult};
+
+#[cfg(feature = "som")]
+pub use clustering::{FlowSom, FlowSomConfig, FlowSomResult, Som, SomConfig, SomResult};
 
 #[cfg(feature = "agglomerative")]
 pub use clustering::{

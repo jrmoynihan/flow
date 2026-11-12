@@ -29,8 +29,8 @@ are the defaults; every knob is overridable.
 - Size heuristic: [`prefer_emeans`](../src/clustering/emeans/schedule.rs)
   (`n ≥ 5_000` or `n × d ≥ 50_000`). Below that both e-means and Lloyd usually
   finish under ~20 ms; Lloyd only clearly wins at toy sizes.
-- Keep linfa `KMeans` for callers that need the `Array2<f64>` API until that
-  wrapper is retired.
+- Linfa `KMeans` is opt-in (`--features kmeans`) for the `Array2<f64>` API;
+  FlowSOM metaclusters via `Lloyd`.
 - **Do not enable `emeans-gpu` by default.** On this host GPU assignment only
   wins for large per-batch work (see crossover below). Leave the feature off
   unless batch × clusters is roughly ≥ 3×10⁷ (for example 16 384 × 2 048).

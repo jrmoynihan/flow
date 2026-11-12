@@ -37,11 +37,11 @@ flow-clustering = { version = "0.2.1", features = ["parc"] }
 
 | Feature | Description |
 | ------- | ----------- |
-| `kmeans` *(default)* | Linfa K-means (`Array2<f64>` API) |
+| `emeans` *(default)* | Row-major `f32` EMA k-means + Lloyd baseline (preferred; 3 epochs, CPU) |
 | `dbscan` *(default)* | Density-based spatial clustering (DBSCAN) |
 | `gmm` *(default)* | Gaussian Mixture Model fitting |
-| `som` *(default)* | Batch SOM and FlowSOM metaclustering |
-| `emeans` *(default)* | Row-major `f32` EMA k-means + Lloyd baseline (3 epochs, CPU assign) |
+| `som` *(default)* | Batch SOM and FlowSOM (codebook metaclusters via Lloyd; pulls `emeans`) |
+| `kmeans` | Optional linfa `Array2<f64>` K-means (legacy) |
 | `parc` | PARC: k-NN graph prune + Leiden community detection |
 | `emeans-faer` | Optional faer product assignment kernel (A/B vs CPU loop) |
 | `emeans-gpu` | cubeCL nearest-centroid; **not recommended by default** (see PERF_EMEANS) |
@@ -49,7 +49,10 @@ flow-clustering = { version = "0.2.1", features = ["parc"] }
 
 ## Usage
 
-### K-Means
+### K-Means (legacy linfa; feature `kmeans`)
+
+Prefer [`EMeans`](#e-means-default) for new code. The linfa wrapper stays
+available behind `--features kmeans` for the `Array2<f64>` API.
 
 ```rust
 use flow_clustering::{ClusteringResult, KMeans, KMeansConfig, KMeansResult};
@@ -210,9 +213,10 @@ fn example(data: &[f32], n: usize, d: usize) -> ClusteringResult<()> {
 }
 ```
 
-`Lloyd` (same feature) is the fair baseline on the shared assignment kernel.
-Linfa `KMeans` remains for the `Array2<f64>` API. `Agglomerative` /
-`metacluster` (feature `agglomerative`) merge over-clusters.
+`Lloyd` (same feature) is the fair baseline and is what FlowSOM uses for
+codebook metaclusters. Linfa `KMeans` is optional (`kmeans` feature) for the
+`Array2<f64>` API. `Agglomerative` / `metacluster` (feature `agglomerative`)
+merge over-clusters.
 
 ## Performance
 
