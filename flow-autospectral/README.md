@@ -25,7 +25,7 @@ Phase 1 is AF library discovery + match. Phase 2 adds SOM spectral variants and 
 
 ```toml
 [dependencies]
-flow-autospectral = { version = "0.1.0", features = ["hnsw"] }
+flow-autospectral = { version = "0.1.1", features = ["hnsw"] }
 # optional:
 # flow-autospectral = { version = "0.1.0", features = ["hnsw", "tru-ols"] }
 # flow-autospectral = { version = "0.1.0", features = ["hnsw", "tru-ols", "fcs"] }

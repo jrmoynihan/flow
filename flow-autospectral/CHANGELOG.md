@@ -2,44 +2,17 @@
 
 ## Unreleased
 
-### Performance
+## [0.1.1] — 2026-11-12
 
-- No cubeCL code in this crate; discovery, match, and joint unmix stay on CPU (faer /
-  Rayon). ann-search-rs **0.12.2** may shift `AnnIndex` latency via `flow-knn` only—no
-  nq5 bench here.
+### Changed
 
-## 0.1.0 — 2026-11-03
-
-### Added
-
-- Multi-AF spectral library discovery from unstained controls (GMM default;
-  k-means, HNSW-medoid, FlowSOM backends), optional scatter-match + PCA
-  cleaning, and residual / NN matching via `flow-knn` `AnnIndex`.
-- Standalone OLS helpers and optional `tru-ols` mixing-matrix adapter with
-  `TruOls::from_preprocessed` after AF match.
-- `discover_spectral_variants` (SOM + cosine QC) and
-  `unmix_autospectral_joint` (`JointUnmixConfig`; AutoSpectral v1.6 joint
-  pipeline; defaults follow R `unmix.fcs`, including `n_passes = 1`).
-- Examples: `af_match_tru_ols`, `method_comparison`, `compare_with_r`
-  (1-thread and N-thread QC-core vs AutoSpectralRcpp; fluor-column cosine /
-  AF-index agreement; collinear-pair MAD).
-- Criterion benches: `discover_and_match`, `match_matrix`, `scatter_clean`,
-  `joint_unmix`.
-
-### Performance
-
-- Joint unmix reuses a per-worker workspace (`EventScratch`), copies mixing
-  matrices only when an event first accepts a variant, writes into pre-sized
-  tables, and uses contiguous column-major `gemv` products.
-- `JointUnmixConfig::precision`: default `f64` (vs-R); optional internal
-  `f32` faer for large event tables.
-
-### Documentation
-
-- README performance table and `docs/comparison-with-r.md` /
-  `docs/PERF_MATRIX.md` / `docs/PERF_AB.md`.
+- `flow-knn` ^0.1.3, `flow-clustering` ^0.3.0, optional `flow-tru-ols` ^0.3.1.
+  Discovery, match, and joint unmix remain CPU-only (faer / Rayon); ann-search-rs
+  **0.12.2** may shift `AnnIndex` latency via `flow-knn` only.
 
 ## v0.1.0 (2026-11-03)
+
+<csr-id-964879b6c4d52736bd5dd54e0d80572f655a9557/>
 
 ### Chore
 
@@ -78,7 +51,7 @@
 
 <csr-read-only-do-not-edit/>
 
- - 7 commits contributed to the release.
+ - 8 commits contributed to the release.
  - 6 commits were understood as [conventional](https://www.conventionalcommits.org).
  - 0 issues like '(#ID)' were seen in commit messages
 
@@ -89,6 +62,7 @@
 <details><summary>view details</summary>
 
  * **Uncategorized**
+    - Release flow-autospectral v0.1.0 ([`2ac4911`](https://github.com/jrmoynihan/flow/commit/2ac4911ea03a9f928b6ee4ce45cfed2105432cd0))
     - Polish changelogs for knn 0.1.2, clustering 0.2.0, autospectral 0.1.0 ([`964879b`](https://github.com/jrmoynihan/flow/commit/964879b6c4d52736bd5dd54e0d80572f655a9557))
     - Merge pull request #22 from jrmoynihan/feature/flow-autospectral ([`35007ba`](https://github.com/jrmoynihan/flow/commit/35007ba7841c164cf8e4ffae220a782dcb87d7ce))
     - Add joint unmix, variants, and vs-R harness ([`90d645a`](https://github.com/jrmoynihan/flow/commit/90d645a8d2a8ca920d5f86730a3242612443684e))

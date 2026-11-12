@@ -27,12 +27,25 @@ aligned with the matched signature.
 - `flow-fcs` ^0.6.0 (optional `flow-fcs` feature)
 - `flow-linalg` ^0.2.0
 
+## Unreleased
+
+## [0.3.1] — 2026-11-12
+
+### Performance
+
+- Workspace stack bump to cubeCL **0.11.4** / Burn **0.22.1** / wgpu **30** behind
+  the optional `cubecl` feature. Interleaved 0.10 vs 0.11 on Apple M5 Max:
+  **normal_equations_gpu_rhs_f32** did not move materially on repeat (within host
+  drift). CPU QR/parallel paths are unchanged in headline TRU-OLS QC.
+
 ## 0.3.0 (2026-11-03)
 
 <csr-id-af6097fbd09f00657eaf82ea8367fffd3ee72baf/>
 <csr-id-74956f94c544d1fa83f6fffbb18e2d4f5e6072ff/>
 <csr-id-fd1cc4a76af40804018e24792dce407860302857/>
 <csr-id-bd8837a275f83cee37e59ab665d6dd2ec293bbfc/>
+<csr-id-7169985189803569276439dd5872638a80c28d06/>
+<csr-id-9272c3787525a50a253f7f27ce5ff43902e68c6d/>
 
 ### Chore
 
@@ -289,7 +302,7 @@ aligned with the matched signature.
 
 <csr-read-only-do-not-edit/>
 
- - 12 commits contributed to the release.
+ - 13 commits contributed to the release.
  - 9 commits were understood as [conventional](https://www.conventionalcommits.org).
  - 0 issues like '(#ID)' were seen in commit messages
 
@@ -300,6 +313,7 @@ aligned with the matched signature.
 <details><summary>view details</summary>
 
  * **Uncategorized**
+    - Release flow-tru-ols v0.3.0 ([`cef5454`](https://github.com/jrmoynihan/flow/commit/cef5454376777e9ffaaad1990fbe38a496f3cfb5))
     - Release flow-linalg 0.2.0, flow-fcs-compress 0.2.0, flow-fcs 0.6.0, flow-tru-ols 0.3.0 ([`1b24dcf`](https://github.com/jrmoynihan/flow/commit/1b24dcfc91ae604072a32d451465478eb56669fc))
     - Merge pull request #26 from jrmoynihan/feature/tru-ols-path-b-protected-af ([`a51cd25`](https://github.com/jrmoynihan/flow/commit/a51cd25879f62c31a9fb6cb3e787697136f8fb00))
     - Drop unused imports from tests and benches ([`9272c37`](https://github.com/jrmoynihan/flow/commit/9272c3787525a50a253f7f27ce5ff43902e68c6d))
@@ -316,6 +330,11 @@ aligned with the matched signature.
 
 ## 0.2.0 (2026-08-18)
 
+<csr-id-af6097fbd09f00657eaf82ea8367fffd3ee72baf/>
+<csr-id-74956f94c544d1fa83f6fffbb18e2d4f5e6072ff/>
+<csr-id-fd1cc4a76af40804018e24792dce407860302857/>
+<csr-id-bd8837a275f83cee37e59ab665d6dd2ec293bbfc/>
+
 ### Performance
 
 - Workspace stack bump to cubeCL **0.11.4** / Burn **0.22.1** / wgpu **30** (`cubecl`
@@ -327,6 +346,11 @@ aligned with the matched signature.
   fresh target dirs measured **~22.8 ms vs ~26.2 ms** then **~26.4 ms vs ~26.8 ms**
   on repeat—within host drift, not attributed to cubeCL kernel changes. Do not treat
   QR parallel as a 0.11 GPU regression.
+ - <csr-id-2d3c6fc30fb8bdcc2ddb2c0ca638766e68401e37/> bulk-load KnnGraph IO; record unsafe micro-opt A/B
+   Keep the ~100× faster graph load via read_exact + LE bytemuck cast.
+   Add Criterion benches and PERF_AB docs for the six-item A/B campaign;
+   revert opts that missed the ≥5% keep rule (BSS, FCS columns/write,
+   TRU-OLS SyncPtr, exact KNN / PaCMAP unchecked).
 
 ### Chore
 
@@ -478,24 +502,24 @@ aligned with the matched signature.
    Write descriptive, non-empty values instead of omitting or blanking:
    - scatter/time parameters: $PnS = channel name (orig_param.channel_name)
    - fluorophore endmembers: $PnS = target when resolved, else fall back
-     to the fluor name already written as $PnN for that parameter
+   to the fluor name already written as $PnN for that parameter
    - autofluorescence: $PnS = af_pn (defaults to "Autofluorescence")
  - <csr-id-a565fdf4b372fe74eb6393eb61218a8ea159b6fe/> address final whole-branch review findings (bounds check, cache warning, feature scoping, version bump, benchmark docs)
    - Fcs::columns() now returns a descriptive Err instead of panicking when a
-     parameter's cache index falls outside the column cache (can happen on a
-     derived Fcs whose parameters were replaced without resizing the cache,
-     e.g. tru-ols's spectral-unmixing output). Added a regression test.
+   parameter's cache index falls outside the column cache (can happen on a
+   derived Fcs whose parameters were replaced without resizing the cache,
+   e.g. tru-ols's spectral-unmixing output). Added a regression test.
    - Added a `# Warning` doc section to column()/columns()/events() noting the
-     cache is only meaningful on an Fcs from open()/open_all() (flow-crates-rkq).
+   cache is only meaningful on an Fcs from open()/open_all() (flow-crates-rkq).
    - Moved flow-fcs's `test-util` feature enablement from [dependencies] to
-     [dev-dependencies] in gates, tru-ols, and peacoqc-rs so it's no longer
-     forced on in release builds via feature unification.
+   [dev-dependencies] in gates, tru-ols, and peacoqc-rs so it's no longer
+   forced on in release builds via feature unification.
    - Bumped flow-fcs to 0.5.1 (test-util didn't exist in the published 0.5.0)
-     and its dependents' version constraints to ^0.5.1.
+   and its dependents' version constraints to ^0.5.1.
    - Documented the benchmark's actual ~8x events_uncached/open_eager_baseline
-     gap (extract_columns lacking a uniform-width fast path, not double work
-     from open()) in the benchmark source and amended the Stage A plan doc.
-     Tracked as flow-crates-3si.
+   gap (extract_columns lacking a uniform-width fast path, not double work
+   from open()) in the benchmark source and amended the Stage A plan doc.
+   Tracked as flow-crates-3si.
  - <csr-id-6e3d7233683f7c18b858829c83844171fa6adfd1/> add Fcs::for_testing constructor, restore cross-crate test-fixture construction
    Task 4's pub(crate) columns field broke every out-of-crate struct-literal
    construction of Fcs, since a pub(crate) field can't be named externally at
@@ -506,21 +530,21 @@ aligned with the matched signature.
    Fixes four parsing gaps reported in jrmoynihan/flow#21:
    
    - $PnR masking (flow-crates-d35, P0): integer parameters now mask off
-     unused high bits per their declared $PnR range before column
-     extraction, fixing silently-wrong channel values on instruments
-     (Beckman FC500/Gallios/Navios, older BD) that store sub-16-bit ADC
-     resolution in wider fields.
+   unused high bits per their declared $PnR range before column
+   extraction, fixing silently-wrong channel values on instruments
+   (Beckman FC500/Gallios/Navios, older BD) that store sub-16-bit ADC
+   resolution in wider fields.
    - Bit-packed $PnB stride (flow-crates-bk6, P2): calculate_bytes_per_event
-     now sums raw bit widths before rounding once, instead of rounding each
-     parameter first — correct for both byte-aligned and bit-packed layouts.
+   now sums raw bit widths before rounding once, instead of rounding each
+   parameter first — correct for both byte-aligned and bit-packed layouts.
    - $NEXTDATA traversal (flow-crates-1mg, P2): new Fcs::open_all() walks
-     the $NEXTDATA chain to read every dataset in a multi-dataset FCS file
-     (all Beckman .lmd files use this). open() is unchanged and still
-     returns only the first dataset, so existing callers are unaffected.
+   the $NEXTDATA chain to read every dataset in a multi-dataset FCS file
+   (all Beckman .lmd files use this). open() is unchanged and still
+   returns only the first dataset, so existing callers are unaffected.
    - $DATATYPE A (flow-crates-ee0, P3, won't-fix): documented the existing
-     Err behavior as a deliberate spec-driven decision (ASCII was
-     deprecated due to cross-vendor bit-order disagreement) rather than an
-     oversight, and added a test confirming it.
+   Err behavior as a deliberate spec-driven decision (ASCII was
+   deprecated due to cross-vendor bit-order disagreement) rather than an
+   oversight, and added a test confirming it.
    
    Bumps flow-fcs 0.4.1 -> 0.5.0 and the paired version requirement in
    every workspace crate that depends on it via path (Cargo enforces that

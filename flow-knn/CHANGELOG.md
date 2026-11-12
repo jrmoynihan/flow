@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+## [0.1.3] — 2026-11-12
+
+### Changed
+
+- `recommend_method` / `available_method_ids`: only the ann-search build consults
+  the USearch `prefer_usearch` flag.
+
 ### Performance
 
 - Workspace bump to cubeCL **0.11.4** / Burn **0.22.1** / ann-search-rs **0.12.2** /
@@ -12,43 +19,7 @@
   unchanged (~1.08 s). **ivf_gpu** at 100k×10 **1.06 s → 108 ms** in that same A/B run
   (the matrix file’s latest **ivf_gpu** row at 100k×10 is ~1.67 s — different harness
   and capture date). **hnsw_ann_cpu** moved **556 ms → 309 ms** with ann-search-rs
-  **0.4.4 → 0.12.2**, not from cubeCL alone. `collect_matrix` still appends partial
-  rows (smoke plus `FLOW_KNN_MATRIX_MAX_N=50000` on this host); regen the full matrix
-  separately when you need comparable n>50k rows.
-
-## [0.1.2] — 2026-11-03
-
-### Added
-
-- [`AnnIndex`] / [`build_ann_index`] for query-vs-library nearest-neighbour search
-  (Exact, usearch HNSW, ann-search-rs; GPU Exact/IVF behind `gpu`). Used by
-  stained-vs-AF-library matching in `flow-autospectral`.
-
-### Performance
-
-- Keep bulk [`KnnGraph`] IO: staged `write_all` and little-endian typed
-  `read_exact` load buffers (see crate `docs/PERF_AB.md`).
-
-### Documentation
-
-- README covers `AnnIndex` for query ≠ database workloads alongside self-query
-  [`compute_knn`].
-
-## [0.1.1] — 2026-07-25
-
-### Added
-
-- Versioned portable disk format for [`KnnGraph`]: [`write_knn_graph`] / [`read_knn_graph`]
-  (`knn.bin`: magic `FKNN`, packed indices + distances).
-- [`KnnError::Io`] for serialize/deserialize failures.
-
-## [0.1.0] — 2026-07-23
-
-### Added
-
-- Initial `flow-knn` crate: portable [`KnnGraph`] / [`NeighborList`], [`compute_knn`].
-- Backends: exact (Rayon), usearch HNSW (`hnsw` feature), optional `ann-search-rs` HNSW
-  (`ann-search` feature; faer 0.23 pinned to match that stack), kiddo stub (`kdtree`).
+  **0.4.4 → 0.12.2**, not from cubeCL alone.
 
 ## v0.1.2 (2026-11-03)
 
@@ -83,7 +54,7 @@
 
 <csr-read-only-do-not-edit/>
 
- - 6 commits contributed to the release.
+ - 7 commits contributed to the release.
  - 4 commits were understood as [conventional](https://www.conventionalcommits.org).
  - 0 issues like '(#ID)' were seen in commit messages
 
@@ -94,6 +65,7 @@
 <details><summary>view details</summary>
 
  * **Uncategorized**
+    - Release flow-knn v0.1.2 ([`5ba917d`](https://github.com/jrmoynihan/flow/commit/5ba917dd3cb05139eaee0653dc4979e9a8e2065c))
     - Release flow-knn v0.1.2 ([`00e1ffc`](https://github.com/jrmoynihan/flow/commit/00e1ffcf73ae1ea33e15670704d3f38c4a50e432))
     - Polish changelogs for knn 0.1.2, clustering 0.2.0, autospectral 0.1.0 ([`964879b`](https://github.com/jrmoynihan/flow/commit/964879b6c4d52736bd5dd54e0d80572f655a9557))
     - Merge pull request #22 from jrmoynihan/feature/flow-autospectral ([`35007ba`](https://github.com/jrmoynihan/flow/commit/35007ba7841c164cf8e4ffae220a782dcb87d7ce))

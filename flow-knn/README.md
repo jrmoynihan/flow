@@ -33,7 +33,7 @@ Or add it directly to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-flow-knn = { version = "0.1.2", features = ["hnsw"] }
+flow-knn = { version = "0.1.3", features = ["hnsw"] }
 ```
 
 | Feature | Backend | Notes |

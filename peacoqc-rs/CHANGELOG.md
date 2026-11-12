@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [0.3.4] — 2026-11-12
+
+### Added
+
+- `flow_fcs::synthetic` Gaussian mixture fixtures wired into `compare_with_r`
+  (mild FL timed artifact) for QC-core regression without committing clinical FCS.
+
+### Fixed
+
+- Drop wrap-tail Events/sec windows with huge ΔTime: split rate windows on Time
+  discontinuities so a clock wrap cannot draw a near-zero overlapping segment.
+
 ### Performance
 
 - cubeCL **0.11.4** KDE microbench (`gpu`, wgpu **30**): interleaved 0.10 vs 0.11 on
@@ -17,6 +29,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Documentation
 
+- Refresh `compare_with_r` sample tables for synthetic Gaussian mixtures and
+  updated QC-core agreement on large (1M-event) fixtures.
+
+## 0.3.3 (2026-08-18)
+
+### Documentation
+
+ - <csr-id-8953fb69a59e69ae363e1b2d1ef28ce5f67289ee/> drop user Unreleased summaries that break smart-release
+   Leave Keep-a-Changelog sections cargo-smart-release already knows how to rewrite.
+ - <csr-id-2af7c38d871243877def4efd66ae004c3af6ce5f/> put changelog summaries under Keep-a-Changelog headings
+   cargo-smart-release rejects free-form Unreleased paragraphs that are not a known section.
+ - <csr-id-3b118cede174e11c18a64c25e913416654b8c26e/> polish release notes and README install versions
+   Add first-publish summaries for unpublished crates and bump install examples to the versions cargo-smart-release will publish.
  - <csr-id-ecf8f4a77fed17d29bd059c7fe987e658281a4d1/> refresh vs-R sample with Gaussian synthetic fixtures
    Re-run QC-core matrix on flow_fcs::synthetic mixtures (+ mild FL artifact)
    and real FCS; update agreement/timing tables. Large synth (1M) now tracks R
@@ -40,9 +65,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 <csr-read-only-do-not-edit/>
 
- - 4 commits contributed to the release over the course of 7 calendar days.
- - 7 days passed between releases.
- - 3 commits were understood as [conventional](https://www.conventionalcommits.org).
+ - 8 commits contributed to the release over the course of 8 calendar days.
+ - 8 days passed between releases.
+ - 6 commits were understood as [conventional](https://www.conventionalcommits.org).
  - 0 issues like '(#ID)' were seen in commit messages
 
 ### Commit Details
@@ -52,6 +77,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 <details><summary>view details</summary>
 
  * **Uncategorized**
+    - Release flow-fcs-compress v0.1.4, flow-linalg v0.1.3, flow-fcs v0.5.2, flow-knn v0.1.1, flow-dimensional-reduction v0.1.0, flow-pacmap v0.1.2, flow-density v0.1.2, flow-plots v0.3.3, flow-clustering v0.1.2, flow-gates v0.5.0, flow-peak-detection v0.1.0, flow-control-detection v0.1.0, flow-tru-ols v0.2.0, peacoqc-rs v0.3.3, peacoqc-cli v0.3.0 ([`63fb593`](https://github.com/jrmoynihan/flow/commit/63fb5937185fba6f342ae3ae5b960a4df4c2bc72))
+    - Drop user Unreleased summaries that break smart-release ([`8953fb6`](https://github.com/jrmoynihan/flow/commit/8953fb69a59e69ae363e1b2d1ef28ce5f67289ee))
+    - Put changelog summaries under Keep-a-Changelog headings ([`2af7c38`](https://github.com/jrmoynihan/flow/commit/2af7c38d871243877def4efd66ae004c3af6ce5f))
+    - Polish release notes and README install versions ([`3b118ce`](https://github.com/jrmoynihan/flow/commit/3b118cede174e11c18a64c25e913416654b8c26e))
     - Drop wrap-tail Events/sec windows with huge ΔTime. ([`4f7c6ee`](https://github.com/jrmoynihan/flow/commit/4f7c6ee73bbbfad059cfc5c2d36f0907c3ca5615))
     - Merge branch 'peacoqc-rust-vs-r-throughput' into main ([`536825d`](https://github.com/jrmoynihan/flow/commit/536825ddf5b52f910778eae86b91dfee4f9c319e))
     - Refresh vs-R sample with Gaussian synthetic fixtures ([`ecf8f4a`](https://github.com/jrmoynihan/flow/commit/ecf8f4a77fed17d29bd059c7fe987e658281a4d1))
@@ -59,6 +88,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 </details>
 
 ## 0.3.2 (2026-08-10)
+
+<csr-id-ea2dc79a5aa48b38ef5a642cec9222ab9e4afa6d/>
+<csr-id-af6097fbd09f00657eaf82ea8367fffd3ee72baf/>
 
 ### Added
 
@@ -114,20 +146,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  - <csr-id-9c76fb47bcc68005c1d7a45d99478e46bb3a4f81/> anonymize real FCS case ids in compare_with_r reports
  - <csr-id-a565fdf4b372fe74eb6393eb61218a8ea159b6fe/> address final whole-branch review findings (bounds check, cache warning, feature scoping, version bump, benchmark docs)
    - Fcs::columns() now returns a descriptive Err instead of panicking when a
-     parameter's cache index falls outside the column cache (can happen on a
-     derived Fcs whose parameters were replaced without resizing the cache,
-     e.g. tru-ols's spectral-unmixing output). Added a regression test.
+   parameter's cache index falls outside the column cache (can happen on a
+   derived Fcs whose parameters were replaced without resizing the cache,
+   e.g. tru-ols's spectral-unmixing output). Added a regression test.
    - Added a `# Warning` doc section to column()/columns()/events() noting the
-     cache is only meaningful on an Fcs from open()/open_all() (flow-crates-rkq).
+   cache is only meaningful on an Fcs from open()/open_all() (flow-crates-rkq).
    - Moved flow-fcs's `test-util` feature enablement from [dependencies] to
-     [dev-dependencies] in gates, tru-ols, and peacoqc-rs so it's no longer
-     forced on in release builds via feature unification.
+   [dev-dependencies] in gates, tru-ols, and peacoqc-rs so it's no longer
+   forced on in release builds via feature unification.
    - Bumped flow-fcs to 0.5.1 (test-util didn't exist in the published 0.5.0)
-     and its dependents' version constraints to ^0.5.1.
+   and its dependents' version constraints to ^0.5.1.
    - Documented the benchmark's actual ~8x events_uncached/open_eager_baseline
-     gap (extract_columns lacking a uniform-width fast path, not double work
-     from open()) in the benchmark source and amended the Stage A plan doc.
-     Tracked as flow-crates-3si.
+   gap (extract_columns lacking a uniform-width fast path, not double work
+   from open()) in the benchmark source and amended the Stage A plan doc.
+   Tracked as flow-crates-3si.
  - <csr-id-6e3d7233683f7c18b858829c83844171fa6adfd1/> add Fcs::for_testing constructor, restore cross-crate test-fixture construction
    Task 4's pub(crate) columns field broke every out-of-crate struct-literal
    construction of Fcs, since a pub(crate) field can't be named externally at
@@ -138,21 +170,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
    Fixes four parsing gaps reported in jrmoynihan/flow#21:
    
    - $PnR masking (flow-crates-d35, P0): integer parameters now mask off
-     unused high bits per their declared $PnR range before column
-     extraction, fixing silently-wrong channel values on instruments
-     (Beckman FC500/Gallios/Navios, older BD) that store sub-16-bit ADC
-     resolution in wider fields.
+   unused high bits per their declared $PnR range before column
+   extraction, fixing silently-wrong channel values on instruments
+   (Beckman FC500/Gallios/Navios, older BD) that store sub-16-bit ADC
+   resolution in wider fields.
    - Bit-packed $PnB stride (flow-crates-bk6, P2): calculate_bytes_per_event
-     now sums raw bit widths before rounding once, instead of rounding each
-     parameter first — correct for both byte-aligned and bit-packed layouts.
+   now sums raw bit widths before rounding once, instead of rounding each
+   parameter first — correct for both byte-aligned and bit-packed layouts.
    - $NEXTDATA traversal (flow-crates-1mg, P2): new Fcs::open_all() walks
-     the $NEXTDATA chain to read every dataset in a multi-dataset FCS file
-     (all Beckman .lmd files use this). open() is unchanged and still
-     returns only the first dataset, so existing callers are unaffected.
+   the $NEXTDATA chain to read every dataset in a multi-dataset FCS file
+   (all Beckman .lmd files use this). open() is unchanged and still
+   returns only the first dataset, so existing callers are unaffected.
    - $DATATYPE A (flow-crates-ee0, P3, won't-fix): documented the existing
-     Err behavior as a deliberate spec-driven decision (ASCII was
-     deprecated due to cross-vendor bit-order disagreement) rather than an
-     oversight, and added a test confirming it.
+   Err behavior as a deliberate spec-driven decision (ASCII was
+   deprecated due to cross-vendor bit-order disagreement) rather than an
+   oversight, and added a test confirming it.
    
    Bumps flow-fcs 0.4.1 -> 0.5.0 and the paired version requirement in
    every workspace crate that depends on it via path (Cargo enforces that
@@ -180,8 +212,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
    fontconfig library, which isn't present in the manylinux Docker image
    used to build peacoqc-py wheels:
    
-     The system library `fontconfig` required by crate
-     `yeslogic-fontconfig-sys` was not found.
+   The system library `fontconfig` required by crate
+   `yeslogic-fontconfig-sys` was not found.
    
    peacoqc-py only needs the QC algorithms, not plotting, so there's no
    reason for it to pull this in. Made plotters/image optional behind a

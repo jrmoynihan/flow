@@ -7,78 +7,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
-### Performance
-
-- `emeans-gpu` cubeCL **0.11.4** port. Interleaved `emeans_assign_cpu_vs_gpu`, Apple
-  M5 Max, `OMP_NUM_THREADS=1`, 65,536 events × 30 dimensions, k = 256: **gpu** assign
-  **7.7 ms → 4.4 ms**; **cpu** control unchanged (~7.4 ms).
+## [0.3.0] — 2026-11-12
 
 ### Added
 
 - `emeans` feature (now **default**): mini-batch EMA k-means (`EMeans`) and
-  same-kernel Lloyd baseline (`Lloyd`) on row-major `f32` (Bessa et al.,
-  arXiv:2611.09501). Optional `emeans-gpu` (cubeCL assignment) and
-  `emeans-faer` (matrix-product assignment A/B).
-- `prefer_emeans(n, d)` size heuristic (≥5k events or n×d ≥ 50k) from the
-  lower-bound vs Lloyd grid.
-- `agglomerative` feature: kodama-backed average/complete/single/ward linkage
-  with `Dendrogram::cut` and `metacluster` helper for merging over-clusters.
-- Example `compare_emeans_lloyd`, Criterion benches `emeans_throughput` and
-  `emeans_assign_cpu_vs_gpu`, and `docs/PERF_EMEANS.md`.
+  same-kernel Lloyd baseline (`Lloyd`) on row-major `f32`. Optional `emeans-gpu`
+  (cubeCL assignment) and `emeans-faer` (matrix-product assignment).
+- `prefer_emeans(n, d)` size heuristic (≥5k events or n×d ≥ 50k).
+- `agglomerative` feature: kodama linkage with `Dendrogram::cut` and `metacluster`.
+- Example `compare_emeans_lloyd`, Criterion benches, and `docs/PERF_EMEANS.md`.
 - `ClusteringError::GpuUnavailable`.
 
 ### Changed
 
-- Default features now include `emeans` and **exclude** `kmeans`: same-kernel
-  Lloyd is slower than e-means for essentially all practical cytometry sizes
-  (n ≥ ~5k / 10k). Linfa `KMeans` is opt-in (`--features kmeans`) for the
-  `Array2<f64>` API.
-- FlowSOM codebook metaclustering uses `Lloyd` instead of linfa `KMeans`;
-  feature `som` depends on `emeans`.
+- Default features include `emeans` and **exclude** `kmeans`; linfa `KMeans` is
+  opt-in (`--features kmeans`) for the `Array2<f64>` API.
+- FlowSOM metaclustering uses `Lloyd` instead of linfa `KMeans`; feature `som`
+  depends on `emeans`.
+- `flow-fcs` ^0.6.0 for synthetic examples.
 
-## 0.2.1 — 2026-11-06
+### Performance
 
-### Added
+- `emeans-gpu` cubeCL **0.11.4** port: interleaved `emeans_assign_cpu_vs_gpu`,
+  Apple M5 Max, `OMP_NUM_THREADS=1`, 65,536 events × 30 dimensions, k = 256:
+  **gpu** assign **7.7 ms → 4.4 ms**; **cpu** control unchanged (~7.4 ms).
 
-- PARC optional progress / cancellation: `ParcProgress`, `ParcStage`, and
-  PaCMAP-shaped trailing `progress` / `cancel` args on `Parc::fit_with_knn`.
-- `ClusteringError::Cancelled` when the cancel flag is set at a stage boundary.
-- Same-host Rust vs Python PARC throughput harness (`compare_with_python`) with
-  sample ~4–8× speedups vs PyPI `parc` 0.40.
-- Criterion bench `flowsom_throughput` and `docs/PERF_FLOWSOM.md`.
-- Optional FR-FCM-ZZPH paper-suite harness (`compare_cytometry`) and docs
-  (env-gated; no matrices committed).
+### Dependencies
 
-### Changed
-
-- `Parc::fit_with_knn` now takes `progress: Option<Sender<ParcProgress>>` and
-  `cancel: Option<Arc<AtomicBool>>` after the optional k-NN graph (pre-1.0).
-
-### Documentation
-
-- README Performance: Python PARC comparison headline, FlowSOM synthetic table,
-  Exact vs HNSW summary.
-
-## 0.2.0 — 2026-11-03
-
-### Added
-
-- Optional `parc` feature: PARC clustering (HNSW/Exact k-NN via `flow-knn`,
-  Rayon local + Jaccard prune, `leiden-rs` community detection, too-big
-  recursive split, small-population reassignment).
-- `Parc::fit` / `Parc::fit_with_knn` with Python-aligned defaults and full
-  config surface (`ParcConfig`).
-- `ParcConfig::parallel_prune` to toggle Rayon on local/Jaccard prune.
-- Criterion bench `parc_throughput` and example `parc_rss` (peak RSS).
-- Batch SOM and FlowSOM (SOM codebook + k-means metaclusters) behind default
-  feature `som`.
-
-### Documentation
-
-- README: PARC and FlowSOM usage, Stassen et al. 2020 citation, feature table.
-- `docs/PERF_PARC.md`: throughput, Rayon A/B, and peak RSS baselines.
+- `flow-knn` ^0.1.3 (PARC / AnnIndex consumers)
 
 ## v0.2.1 (2026-11-06)
+
+<csr-id-6562b53fa71b9f285f8646c91c7a88a563696d11/>
 
 ### Chore
 
@@ -94,7 +55,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 <csr-read-only-do-not-edit/>
 
- - 2 commits contributed to the release.
+ - 4 commits contributed to the release over the course of 3 calendar days.
  - 3 days passed between releases.
  - 2 commits were understood as [conventional](https://www.conventionalcommits.org).
  - 0 issues like '(#ID)' were seen in commit messages
@@ -106,8 +67,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 <details><summary>view details</summary>
 
  * **Uncategorized**
+    - Release flow-clustering v0.2.1 ([`fdaf5d5`](https://github.com/jrmoynihan/flow/commit/fdaf5d5614b07f600cde989a63e36677f308870a))
     - Polish 0.2.1 changelog and README install version ([`6562b53`](https://github.com/jrmoynihan/flow/commit/6562b53fa71b9f285f8646c91c7a88a563696d11))
     - PARC progress/cancel, Python speed compare, FlowSOM benches ([`e27facd`](https://github.com/jrmoynihan/flow/commit/e27facdaf1a14908f4e3cadba2de1440bd7a752b))
+    - Merge pull request #23 from jrmoynihan/release/clustering-autospectral-dry ([`b26691b`](https://github.com/jrmoynihan/flow/commit/b26691b458ca8b0e99e6d39b34e3b4cd700500df))
 </details>
 
 ## v0.2.0 (2026-11-03)

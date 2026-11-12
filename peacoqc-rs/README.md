@@ -42,7 +42,7 @@ Add this to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-peacoqc-rs = { version = "0.3.3", features = ["flow-fcs"] }
+peacoqc-rs = { version = "0.3.4", features = ["flow-fcs"] }
 ```
 
 ## How it works

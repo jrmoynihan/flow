@@ -32,7 +32,7 @@ cargo add flow-clustering --features agglomerative
 
 ```toml
 [dependencies]
-flow-clustering = { version = "0.2.1", features = ["parc"] }
+flow-clustering = { version = "0.3.0", features = ["parc"] }
 ```
 
 | Feature | Description |

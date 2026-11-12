@@ -7,57 +7,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
-### New Features
+## [0.1.3] — 2026-11-12
 
- - Staged KNN API: public `KnnGraph`, `compute_knn` → `KnnGraph`, and
-   optional `knn: Option<&KnnGraph>` on `fit_transform` so callers can build
-   the neighbour graph once and reuse it across configs.
- - Depend on workspace crate `flow-knn` for algorithm-agnostic KNN (usearch
-   HNSW by default; optional `ann-search` feature for the ann-search-rs stack).
- - <csr-id-55b077057b98e53e2414b3b42cca18efd8b14b1c/> stage KNN via flow-knn and add cubeCL optimize path
-   Reuse portable KnnGraph across embeddings, forward ANN features to flow-knn,
-   and add Burn/cubeCL CSR pair-gradient optimization with Criterion harnesses.
+### Fixed
 
-### Breaking Changes
+- Map `KnnError::QueryDimensionMismatch` to `PaCMAPError::QueryDimensionMismatch`
+  (typed variant) instead of a generic KNN index string.
 
- - `fit_transform` gains a `knn: Option<&KnnGraph>` argument after `config`
-   (pass `None` for previous one-shot behaviour).
- - `compute_knn` now returns `Result<KnnGraph, PaCMAPError>` instead of
-   `Result<Vec<NeighborList>, PaCMAPError>`.
- - Cargo features `hnsw` / `kdtree` now forward to `flow-knn`; add
-   `ann-search` to enable the ann-search-rs HNSW backend.
+### Changed
 
-### Refactor
-
- - <csr-id-02ab29154270fb5e288287c36652ed8c30b6b5d5/> use shared flow-dimensional-reduction PCA
-   pca_init becomes a two-component specialization of the shared covariance
-   PCA. Public signature unchanged; the axis-alignment guard test and the
-   pacmap_compare bench are unaffected.
-   
-   Fixes f32 covariance accumulation: the shared implementation accumulates
-   in f64, which matters at the n~1e7 scale this path runs at.
+- Optional GPU optimize path: derive one shared WGPU/cubeCL client from Burn’s device
+  so CSR kernels and Adam see the same handles under `BURN_DEVICE`.
 
 ### Performance
 
-- cubeCL **0.11.4** / Burn **0.22.1** CSR optimize path (wgpu **30**). A 0.10 baseline
-  binary for `pacmap_optimize_gpu` does not build at `d21d0ff` (missing
-  `KnnError::QueryDimensionMismatch` mapping). HEAD-only Criterion at 50k×10:
-  **optimize_gpu ~144 ms** vs **optimize_cpu ~888 ms**; prior host row in
-  `docs/dev/PERF_GAP.md` was ~1.09 s GPU vs ~9.49 s CPU—direction unchanged, GPU
-  optimize remains faster than CPU on this path after the port.
+- cubeCL **0.11.4** / Burn **0.22.1** CSR optimize path (wgpu **30**). HEAD-only Criterion
+  at 50k×10: **optimize_gpu ~144 ms** vs **optimize_cpu ~888 ms**; direction unchanged
+  after the stack port—GPU optimize remains faster than CPU on this host.
 
- - <csr-id-05d8cf13511a8b064b406fd3a385eec95948b8bd/> bulk-write KnnGraph and typed load buffers
-   Complete Campaign 2 A/B: keep staged write_all (−99.9%) and LE typed
-   read_exact (−6.7%) at 100k×60; document reverted pacmap/compress/peaks
-   scratch experiments with Criterion benches retained.
- - <csr-id-2d3c6fc30fb8bdcc2ddb2c0ca638766e68401e37/> bulk-load KnnGraph IO; record unsafe micro-opt A/B
-   Keep the ~100× faster graph load via read_exact + LE bytemuck cast.
-   Add Criterion benches and PERF_AB docs for the six-item A/B campaign;
-   revert opts that missed the ≥5% keep rule (BSS, FCS columns/write,
-   TRU-OLS SyncPtr, exact KNN / PaCMAP unchecked).
+### Dependencies
+
+- `flow-knn` ^0.1.3
+
+## 0.1.2 (2026-08-18)
+
+### Chore
+
+ - <csr-id-9ee153e04507d454f9509a4d2b2a2b3ffe9db17b/> add crates.io metadata for unpublished crates
+   Pin flow-pacmap's flow-knn path dependency to a version so cargo publish can succeed.
 
 ### Documentation
 
+ - <csr-id-8953fb69a59e69ae363e1b2d1ef28ce5f67289ee/> drop user Unreleased summaries that break smart-release
+   Leave Keep-a-Changelog sections cargo-smart-release already knows how to rewrite.
+ - <csr-id-2af7c38d871243877def4efd66ae004c3af6ce5f/> put changelog summaries under Keep-a-Changelog headings
+   cargo-smart-release rejects free-form Unreleased paragraphs that are not a known section.
+ - <csr-id-3b118cede174e11c18a64c25e913416654b8c26e/> polish release notes and README install versions
+   Add first-publish summaries for unpublished crates and bump install examples to the versions cargo-smart-release will publish.
  - <csr-id-92e31b03dc632230809d10422be0c1062e6e9e1b/> consumer-first README pass across crates, add peacoqc-py usage example, remove legacy utils crate
    Rewrites READMEs across the workspace (fcs, flow-clustering,
    flow-control-detection, flow-density, flow-fcs-compress, flow-knn,
@@ -76,18 +62,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
    attribution; restore neutral release notes and drop the misplaced
    pacmap prep entry from linalg/gates changelogs.
 
-### Chore
+### New Features
 
- - <csr-id-9ee153e04507d454f9509a4d2b2a2b3ffe9db17b/> add crates.io metadata for unpublished crates
-   Pin flow-pacmap's flow-knn path dependency to a version so cargo publish can succeed.
+ - <csr-id-55b077057b98e53e2414b3b42cca18efd8b14b1c/> stage KNN via flow-knn and add cubeCL optimize path
+   Reuse portable KnnGraph across embeddings, forward ANN features to flow-knn,
+   and add Burn/cubeCL CSR pair-gradient optimization with Criterion harnesses.
+
+### Performance
+
+ - <csr-id-05d8cf13511a8b064b406fd3a385eec95948b8bd/> bulk-write KnnGraph and typed load buffers
+   Complete Campaign 2 A/B: keep staged write_all (−99.9%) and LE typed
+   read_exact (−6.7%) at 100k×60; document reverted pacmap/compress/peaks
+   scratch experiments with Criterion benches retained.
+ - <csr-id-2d3c6fc30fb8bdcc2ddb2c0ca638766e68401e37/> bulk-load KnnGraph IO; record unsafe micro-opt A/B
+   Keep the ~100× faster graph load via read_exact + LE bytemuck cast.
+   Add Criterion benches and PERF_AB docs for the six-item A/B campaign;
+   revert opts that missed the ≥5% keep rule (BSS, FCS columns/write,
+   TRU-OLS SyncPtr, exact KNN / PaCMAP unchecked).
+
+### Refactor
+
+ - <csr-id-02ab29154270fb5e288287c36652ed8c30b6b5d5/> use shared flow-dimensional-reduction PCA
+   pca_init becomes a two-component specialization of the shared covariance
+   PCA. Public signature unchanged; the axis-alignment guard test and the
+   pacmap_compare bench are unaffected.
+   
+   Fixes f32 covariance accumulation: the shared implementation accumulates
+   in f64, which matters at the n~1e7 scale this path runs at.
 
 ### Commit Statistics
 
 <csr-read-only-do-not-edit/>
 
- - 8 commits contributed to the release over the course of 26 calendar days.
- - 26 days passed between releases.
- - 7 commits were understood as [conventional](https://www.conventionalcommits.org).
+ - 12 commits contributed to the release over the course of 27 calendar days.
+ - 27 days passed between releases.
+ - 10 commits were understood as [conventional](https://www.conventionalcommits.org).
  - 0 issues like '(#ID)' were seen in commit messages
 
 ### Commit Details
@@ -97,6 +106,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 <details><summary>view details</summary>
 
  * **Uncategorized**
+    - Release flow-fcs-compress v0.1.4, flow-linalg v0.1.3, flow-fcs v0.5.2, flow-knn v0.1.1, flow-dimensional-reduction v0.1.0, flow-pacmap v0.1.2, flow-density v0.1.2, flow-plots v0.3.3, flow-clustering v0.1.2, flow-gates v0.5.0, flow-peak-detection v0.1.0, flow-control-detection v0.1.0, flow-tru-ols v0.2.0, peacoqc-rs v0.3.3, peacoqc-cli v0.3.0 ([`63fb593`](https://github.com/jrmoynihan/flow/commit/63fb5937185fba6f342ae3ae5b960a4df4c2bc72))
+    - Drop user Unreleased summaries that break smart-release ([`8953fb6`](https://github.com/jrmoynihan/flow/commit/8953fb69a59e69ae363e1b2d1ef28ce5f67289ee))
+    - Put changelog summaries under Keep-a-Changelog headings ([`2af7c38`](https://github.com/jrmoynihan/flow/commit/2af7c38d871243877def4efd66ae004c3af6ce5f))
+    - Polish release notes and README install versions ([`3b118ce`](https://github.com/jrmoynihan/flow/commit/3b118cede174e11c18a64c25e913416654b8c26e))
     - Add crates.io metadata for unpublished crates ([`9ee153e`](https://github.com/jrmoynihan/flow/commit/9ee153e04507d454f9509a4d2b2a2b3ffe9db17b))
     - Merge branch 'worktree-pr1-pca-typestate' ([`2cb86fb`](https://github.com/jrmoynihan/flow/commit/2cb86fbea24f6605f550e5af9830c77f8710f17b))
     - Consumer-first README pass across crates, add peacoqc-py usage example, remove legacy utils crate ([`92e31b0`](https://github.com/jrmoynihan/flow/commit/92e31b03dc632230809d10422be0c1062e6e9e1b))

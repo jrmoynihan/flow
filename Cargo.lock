@@ -3735,7 +3735,7 @@ checksum = "37007738a80ea34f969af54a3390dd72cacdef654974cfd449c9f6f72dbaac10"
 
 [[package]]
 name = "flow-autospectral"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "anyhow",
  "approx",
@@ -3758,7 +3758,7 @@ dependencies = [
 
 [[package]]
 name = "flow-clustering"
-version = "0.2.1"
+version = "0.3.0"
 dependencies = [
  "anyhow",
  "bytemuck",
@@ -3913,7 +3913,7 @@ dependencies = [
 
 [[package]]
 name = "flow-knn"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = [
  "ann-search-rs 0.12.2",
  "approx",
@@ -3942,7 +3942,7 @@ dependencies = [
 
 [[package]]
 name = "flow-pacmap"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = [
  "approx",
  "burn",
@@ -4004,7 +4004,7 @@ dependencies = [
 
 [[package]]
 name = "flow-tru-ols"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "anyhow",
  "bytemuck",
@@ -7084,7 +7084,7 @@ dependencies = [
 
 [[package]]
 name = "peacoqc-rs"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "anyhow",
  "approx",
