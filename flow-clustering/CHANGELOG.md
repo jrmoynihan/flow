@@ -5,6 +5,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+### Added
+
+- `emeans` feature (now **default**): mini-batch EMA k-means (`EMeans`) and
+  same-kernel Lloyd baseline (`Lloyd`) on row-major `f32` (Bessa et al.,
+  arXiv:2611.09501). Optional `emeans-gpu` (cubeCL assignment) and
+  `emeans-faer` (matrix-product assignment A/B).
+- `prefer_emeans(n, d)` size heuristic (≥5k events or n×d ≥ 50k) from the
+  lower-bound vs Lloyd grid.
+- `agglomerative` feature: kodama-backed average/complete/single/ward linkage
+  with `Dendrogram::cut` and `metacluster` helper for merging over-clusters.
+- Example `compare_emeans_lloyd`, Criterion benches `emeans_throughput` and
+  `emeans_assign_cpu_vs_gpu`, and `docs/PERF_EMEANS.md`.
+- `ClusteringError::GpuUnavailable`.
+
+### Changed
+
+- Default features now include `emeans`: same-kernel Lloyd is slower than
+  e-means for essentially all practical cytometry sizes (n ≥ ~5k / 10k).
+  Linfa `KMeans` remains for the `Array2<f64>` API.
+
 ## 0.2.1 — 2026-11-06
 
 ### Added

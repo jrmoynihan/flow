@@ -17,6 +17,7 @@ hnsw = ["dep:usearch"]
 # HNSW via ann-search-rs (same stack as manifolds-rs)
 ann-search = ["dep:ann-search-rs", "dep:faer"]
 # GPU exact / IVF / NN-Descent via ann-search-rs + cubeCL 0.10 (wgpu)
+# Workspace cubeCL 0.11 upgrade tracked in Beads flow-crates-nq5 (Array→Tensor).
 gpu = ["ann-search", "ann-search-rs/gpu", "dep:cubecl"]
 # k-d tree stub (currently falls back to exact)
 kdtree = ["dep:kiddo"]

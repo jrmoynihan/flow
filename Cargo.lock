@@ -3250,15 +3250,22 @@ name = "flow-clustering"
 version = "0.2.1"
 dependencies = [
  "anyhow",
+ "bytemuck",
  "criterion 0.8.2",
+ "cubecl",
+ "faer 0.24.4",
+ "flow-fcs",
  "flow-knn",
+ "kodama",
  "leiden-rs",
  "libc",
  "linfa",
  "linfa-clustering",
  "linfa-linalg",
  "ndarray 0.16.1",
+ "rand 0.10.2",
  "rayon",
+ "serde_json",
  "thiserror 2.0.19",
 ]
 
@@ -4974,6 +4981,12 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
 ]
+
+[[package]]
+name = "kodama"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f868feceed4703c842925c14232667c5f29c8059d0354154b2d06ec3bf9daf82"
 
 [[package]]
 name = "kurbo"
