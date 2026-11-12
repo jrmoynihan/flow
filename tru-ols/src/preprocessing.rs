@@ -324,10 +324,35 @@ impl NonspecificObservation {
         unstained_control: MatRef<'_, f64>,
         autofluorescence_idx: usize,
     ) -> Result<Self, TruOlsError> {
+        Self::calculate_with_optional_af(
+            mixing_matrix,
+            unstained_control,
+            Some(autofluorescence_idx),
+        )
+    }
+
+    /// Calculate the nonspecific observation for a **fluorophore-only** mixing matrix.
+    ///
+    /// Path B ([`crate::af_match`]) keeps autofluorescence out of the matrix, so there is
+    /// no column to exclude from the mean: every endmember contributes. Calling
+    /// [`Self::calculate`] with a made-up index would zero a real dye's contribution to
+    /// the background instead.
+    pub fn calculate_fluor_only(
+        mixing_matrix: MatRef<'_, f64>,
+        unstained_control: MatRef<'_, f64>,
+    ) -> Result<Self, TruOlsError> {
+        Self::calculate_with_optional_af(mixing_matrix, unstained_control, None)
+    }
+
+    fn calculate_with_optional_af(
+        mixing_matrix: MatRef<'_, f64>,
+        unstained_control: MatRef<'_, f64>,
+        autofluorescence_idx: Option<usize>,
+    ) -> Result<Self, TruOlsError> {
         let n_detectors = mixing_matrix.nrows();
         let n_endmembers = mixing_matrix.ncols();
 
-        if autofluorescence_idx >= n_endmembers {
+        if autofluorescence_idx.is_some_and(|idx| idx >= n_endmembers) {
             return Err(TruOlsError::NoAutofluorescenceEndmember);
         }
 
@@ -358,7 +383,7 @@ impl NonspecificObservation {
                         })?;
                     let mut row = vec![0.0; n_endmembers];
                     for idx in 0..abundances.nrows() {
-                        if idx != autofluorescence_idx {
+                        if autofluorescence_idx != Some(idx) {
                             row[idx] = abundances[idx];
                         }
                     }
@@ -373,7 +398,7 @@ impl NonspecificObservation {
                     .map_err(|e| TruOlsError::LinearAlgebra(format!("Failed to solve: {}", e)))?;
                 let mut row = vec![0.0; n_endmembers];
                 for idx in 0..abundances.nrows() {
-                    if idx != autofluorescence_idx {
+                    if autofluorescence_idx != Some(idx) {
                         row[idx] = abundances[idx];
                     }
                 }
@@ -393,7 +418,9 @@ impl NonspecificObservation {
         for x in mean_abundances.iter_mut() {
             *x /= n_events as f64;
         }
-        mean_abundances[autofluorescence_idx] = 0.0; // Ensure AF is zero
+        if let Some(af_idx) = autofluorescence_idx {
+            mean_abundances[af_idx] = 0.0; // Ensure AF is zero
+        }
 
         let mean_col = Col::from_fn(n_endmembers, |i| mean_abundances[i]);
 
@@ -437,5 +464,27 @@ mod tests {
             NonspecificObservation::calculate(mixing_matrix.as_ref(), unstained.as_ref(), 0)
                 .unwrap();
         assert_eq!(nonspecific.observation().nrows(), 2);
+    }
+
+    /// Path A zeroes the AF endmember's contribution to the background; Path B has no AF
+    /// column, so every endmember must contribute instead of one being silently dropped.
+    #[test]
+    fn fluor_only_nonspecific_keeps_every_endmember() {
+        let mixing_matrix = mat![[1.0, 0.0], [0.0, 1.0]];
+        let unstained = mat![[10.0, 4.0]];
+
+        let with_af =
+            NonspecificObservation::calculate(mixing_matrix.as_ref(), unstained.as_ref(), 0)
+                .unwrap();
+        assert!(with_af.observation()[0].abs() < 1e-12, "AF column excluded");
+        assert!((with_af.observation()[1] - 4.0).abs() < 1e-12);
+
+        let fluor_only = NonspecificObservation::calculate_fluor_only(
+            mixing_matrix.as_ref(),
+            unstained.as_ref(),
+        )
+        .unwrap();
+        assert!((fluor_only.observation()[0] - 10.0).abs() < 1e-12);
+        assert!((fluor_only.observation()[1] - 4.0).abs() < 1e-12);
     }
 }

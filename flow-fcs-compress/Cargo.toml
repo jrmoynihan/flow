@@ -1,6 +1,6 @@
 [package]
 name = "flow-fcs-compress"
-version = "0.1.4"
+version = "0.2.0"
 edition.workspace = true
 authors.workspace = true
 readme = "README.md"
@@ -27,6 +27,7 @@ thiserror = { workspace = true }
 
 # I/O for .fcz container
 memmap3 = { workspace = true }
+flow-linalg = { path = "../flow-linalg", version = "^0.2.0" }
 
 # Optional: parallel chunk encode/decode
 rayon = { workspace = true, optional = true }

@@ -131,6 +131,79 @@ pub struct Fcs {
     pub dataset_start: usize,
 }
 
+/// Owned header/metadata/parameters bundle for constructing an FCS without an
+/// open mmap (streaming sinks, synthetic writers).
+#[derive(Debug, Clone)]
+pub struct FcsWriteMetadata {
+    header: Header,
+    metadata: Metadata,
+    parameters: ParameterMap,
+}
+
+impl FcsWriteMetadata {
+    #[must_use]
+    pub fn new(header: Header, metadata: Metadata, parameters: ParameterMap) -> Self {
+        Self {
+            header,
+            metadata,
+            parameters,
+        }
+    }
+
+    #[must_use]
+    pub fn header(&self) -> &Header {
+        &self.header
+    }
+
+    pub fn header_mut(&mut self) -> &mut Header {
+        &mut self.header
+    }
+
+    #[must_use]
+    pub fn metadata(&self) -> &Metadata {
+        &self.metadata
+    }
+
+    pub fn metadata_mut(&mut self) -> &mut Metadata {
+        &mut self.metadata
+    }
+
+    #[must_use]
+    pub fn parameters(&self) -> &ParameterMap {
+        &self.parameters
+    }
+
+    pub fn parameters_mut(&mut self) -> &mut ParameterMap {
+        &mut self.parameters
+    }
+}
+
+/// Read-only metadata needed by the FCS writer / row sink.
+pub trait FcsWriteSource {
+    fn write_header(&self) -> &Header;
+    fn write_metadata(&self) -> &Metadata;
+}
+
+impl FcsWriteSource for Fcs {
+    fn write_header(&self) -> &Header {
+        &self.header
+    }
+
+    fn write_metadata(&self) -> &Metadata {
+        &self.metadata
+    }
+}
+
+impl FcsWriteSource for FcsWriteMetadata {
+    fn write_header(&self) -> &Header {
+        &self.header
+    }
+
+    fn write_metadata(&self) -> &Metadata {
+        &self.metadata
+    }
+}
+
 /// Extract one parameter column from row-major flat `f32` event data.
 ///
 /// FCS DATA is stored as `event0_p0, event0_p1, …, event1_p0, …`.
@@ -419,6 +492,17 @@ impl Fcs {
             columns: std::iter::repeat_with(std::sync::OnceLock::new).take(0).collect(),
             dataset_start: 0,
         })
+    }
+
+    /// Clone header/metadata/parameters for a streaming sink that must not hold
+    /// an open mmap (or share mutable keyword state with the source `Fcs`).
+    #[must_use]
+    pub fn write_metadata_template(&self) -> FcsWriteMetadata {
+        FcsWriteMetadata {
+            header: self.header.clone(),
+            metadata: self.metadata.clone(),
+            parameters: self.parameters.clone(),
+        }
     }
 
     /// Builds an `Fcs` directly from its parts, for test fixtures that don't
@@ -1686,6 +1770,36 @@ impl Fcs {
         }
 
         Ok(&mmap[data_start..=data_end])
+    }
+
+    /// Decode selected zero-based channels for a row range into reusable
+    /// row-major storage.
+    ///
+    /// Why: callers processing large FCS files (PeacoQC, TRU-OLS, compensation)
+    /// need bounded chunks of selected channels without materializing a full
+    /// DataFrame. Channel values in each row follow `channels` exactly. The
+    /// destination is cleared and resized to `(rows.end - rows.start) * channels.len()`.
+    ///
+    /// # Errors
+    /// Returns an error for empty, duplicate, or out-of-range channel
+    /// selections, invalid row bounds, arithmetic overflow, malformed DATA, or
+    /// unsupported parameter encodings.
+    pub fn read_selected_rows_into(
+        &self,
+        channels: &[usize],
+        rows: std::ops::Range<usize>,
+        storage: &mut Vec<f32>,
+    ) -> Result<()> {
+        let layout = crate::columns::ColumnLayout::from_metadata(&self.metadata)
+            .context("failed to resolve FCS row layout")?;
+        crate::columns::decode_selected_rows_into(
+            self.data_bytes().context("failed to access FCS DATA")?,
+            &layout,
+            channels,
+            rows,
+            storage,
+        )
+        .context("failed to decode selected FCS rows")
     }
 
     /// Looks for the parameter name as a key in the `parameters` hashmap and returns a mutable reference to it

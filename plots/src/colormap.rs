@@ -259,34 +259,6 @@ fn convert_hsl_to_rgb(hsl: HSLColor) -> RGBColor {
     RGBColor(r, g, b)
 }
 
-// Define your custom color map
-pub struct CustomColorMap;
-
-macro_rules! def_linear_colormap{
-    ($color_scale_name:ident, $color_type:ident, $doc:expr, $(($($color_value:expr),+)),*) => {
-        #[doc = $doc]
-        pub struct $color_scale_name;
-
-        impl $color_scale_name {
-            // const COLORS: [$color_type; $number_colors] = [$($color_type($($color_value),+)),+];
-            // const COLORS: [$color_type; $crate::count!($(($($color_value:expr),+))*)] = [$($color_type($($color_value),+)),+];
-            const COLORS: [$color_type; $crate::count!($(($($color_value:expr),+))*)] = $crate::define_colors_from_list_of_values_or_directly!{$color_type, $(($($color_value),+)),*};
-        }
-
-        $crate::implement_linear_interpolation_color_map!{$color_scale_name, $color_type}
-    };
-    ($color_scale_name:ident, $color_type:ident, $doc:expr, $($color_complete:tt),+) => {
-        #[doc = $doc]
-        pub struct $color_scale_name;
-
-        impl $color_scale_name {
-            const COLORS: [$color_type; $crate::count!($($color_complete)*)] = $crate::define_colors_from_list_of_values_or_directly!{$($color_complete),+};
-        }
-
-        $crate::implement_linear_interpolation_color_map!{$color_scale_name, $color_type}
-    }
-}
-
 #[macro_export]
 #[doc(hidden)]
 /// Implements the [ColorMap] trait on a given color scale.
@@ -378,14 +350,4 @@ pub fn calculate_relative_difference_index_lower_upper<
     // Calculate the relative difference, ie. is the actual value more towards the color of index_upper or index_lower?
     let relative_difference = approximate_index.ceil() - approximate_index;
     (relative_difference, index_lower, index_upper)
-}
-
-/// Converts a given color identifier and a sequence of colors to an array of them.
-macro_rules! define_colors_from_list_of_values_or_directly{
-    ($color_type:ident, $(($($color_value:expr),+)),+) => {
-        [$($color_type($($color_value),+)),+]
-    };
-    ($($color_complete:tt),+) => {
-        [$($color_complete),+]
-    };
 }

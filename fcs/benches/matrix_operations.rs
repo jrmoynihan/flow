@@ -12,7 +12,6 @@ use std::hint::black_box;
 
 /// Generate a random compensation matrix for testing
 fn generate_compensation_matrix(n: usize) -> Mat<f32> {
-    use rand::Rng;
     use rand::SeedableRng;
     use rand::rngs::StdRng;
 
@@ -37,7 +36,6 @@ fn generate_compensation_matrix(n: usize) -> Mat<f32> {
 
 /// Generate synthetic channel data for testing
 fn generate_channel_data(n_channels: usize, n_events: usize) -> Vec<Vec<f32>> {
-    use rand::Rng;
     use rand::SeedableRng;
     use rand::rngs::StdRng;
 

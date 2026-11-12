@@ -1,6 +1,6 @@
 #[cfg(test)]
 mod tests {
-    use crate::error::{GateError, Result};
+    use crate::error::GateError;
     use crate::types::{GateGeometry, GateNode};
 
     #[test]

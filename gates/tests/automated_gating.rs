@@ -8,7 +8,6 @@ use flow_gates::automated::{
     ScatterGateMethod, ScatterQualityPolicy, UserReview, consensus_fsc_threshold,
     create_preprocessing_gates, create_preprocessing_gates_interactive,
 };
-use flow_gates::filter_events_by_gate;
 use std::path::{Path, PathBuf};
 
 mod test_helpers;

@@ -82,8 +82,8 @@ pub fn parse_matrix_jsonl(text: &str) -> Result<Vec<PerfRecord>, String> {
         if line.is_empty() || line.starts_with('#') {
             continue;
         }
-        let rec: PerfRecord = serde_json::from_str(line)
-            .map_err(|e| format!("jsonl line {}: {e}", i + 1))?;
+        let rec: PerfRecord =
+            serde_json::from_str(line).map_err(|e| format!("jsonl line {}: {e}", i + 1))?;
         out.push(rec);
     }
     Ok(out)
@@ -152,6 +152,7 @@ pub fn recommend_method_with_matrix(
 }
 
 fn available_method_ids(prefer_usearch: bool, allow_gpu: bool, n: usize) -> Vec<&'static str> {
+    // Only the ann-search build consults the USearch preference.
     #[cfg(not(feature = "ann-search"))]
     let _ = prefer_usearch;
     let mut ids = Vec::new();
@@ -233,11 +234,7 @@ fn estimate_secs(method: &str, n: usize, d: usize, matrix: &[PerfRecord]) -> Opt
         num += w * scaled;
         den += w;
     }
-    if den > 0.0 {
-        Some(num / den)
-    } else {
-        None
-    }
+    if den > 0.0 { Some(num / den) } else { None }
 }
 
 #[cfg(test)]

@@ -1,6 +1,5 @@
 use criterion::{BenchmarkId, Criterion, Throughput, criterion_group, criterion_main};
 use polars::prelude::*;
-use rand::RngExt;
 use std::hint::black_box;
 use std::sync::Arc;
 use std::time::Duration;
@@ -52,7 +51,7 @@ impl PeacoQCData for BenchmarkFcs {
 
 /// Generate synthetic FCS-like data for benchmarking
 fn generate_benchmark_fcs(num_events: usize, num_channels: usize) -> BenchmarkFcs {
-    use rand::{Rng, RngExt};
+    use rand::RngExt;
     let mut rng = rand::rng();
 
     let mut columns = Vec::new();

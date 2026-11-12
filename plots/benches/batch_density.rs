@@ -2,7 +2,7 @@ use criterion::{BenchmarkId, Criterion, Throughput, criterion_group, criterion_m
 use flow_plots::ScatterPlotData;
 use flow_plots::density_calc::calculate_density_per_pixel_batch;
 use flow_plots::options::{AxisOptions, BasePlotOptions, DensityPlotOptions, PlotOptions};
-use rand::{Rng, RngExt};
+use rand::RngExt;
 use std::hint::black_box;
 
 fn generate_test_data(n_points: usize) -> Vec<(f32, f32)> {
