@@ -10,24 +10,22 @@ use cubecl::prelude::*;
 /// Each GPU thread processes one complex multiplication
 #[cube(launch)]
 pub fn complex_multiply_kernel<F: Float>(
-    a_re: &Array<F>,          // Real part of first complex array
-    a_im: &Array<F>,          // Imaginary part of first complex array
-    b_re: &Array<F>,          // Real part of second complex array
-    b_im: &Array<F>,          // Imaginary part of second complex array
-    result_re: &mut Array<F>, // Output: real part
-    result_im: &mut Array<F>, // Output: imaginary part
+    a_re: &Tensor<F>,
+    a_im: &Tensor<F>,
+    b_re: &Tensor<F>,
+    b_im: &Tensor<F>,
+    result_re: &mut Tensor<F>,
+    result_im: &mut Tensor<F>,
+    n: u32,
 ) {
     let idx = ABSOLUTE_POS;
-
-    // Bounds check
-    if idx < a_re.len() {
+    let n_usz = n as usize;
+    if idx < n_usz {
         let a_re_val = a_re[idx];
         let a_im_val = a_im[idx];
         let b_re_val = b_re[idx];
         let b_im_val = b_im[idx];
 
-        // Complex multiplication: (a_re + i*a_im) * (b_re + i*b_im)
-        // = (a_re*b_re - a_im*b_im) + i*(a_re*b_im + a_im*b_re)
         result_re[idx] = a_re_val * b_re_val - a_im_val * b_im_val;
         result_im[idx] = a_re_val * b_im_val + a_im_val * b_re_val;
     }

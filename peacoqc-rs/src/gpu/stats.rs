@@ -4,10 +4,7 @@
 //! Standard deviation uses GPU but may have overhead for small datasets.
 
 use crate::error::{PeacoQCError, Result};
-use burn::backend::wgpu::WgpuDevice;
-use burn::tensor::Tensor;
-
-type Backend = burn::backend::wgpu::Wgpu;
+use burn::tensor::{Device, Tensor};
 
 /// Calculate standard deviation on GPU
 ///
@@ -17,15 +14,14 @@ pub fn standard_deviation_gpu(data: &[f64]) -> Result<f64> {
         return Err(PeacoQCError::StatsError("Empty data".to_string()));
     }
 
-    let device = WgpuDevice::default();
+    let device = Device::default();
 
     // Burn's Float is f32; convert f64 -> f32 for tensor data
     use burn::tensor::TensorData;
 
     let data_f32: Vec<f32> = data.iter().map(|&x| x as f32).collect();
     let data_tensor_data = TensorData::new(data_f32.into(), vec![data.len()]);
-    let data_tensor =
-        Tensor::<Backend, 1, burn::tensor::Float>::from_data(data_tensor_data, &device);
+    let data_tensor = Tensor::<1>::from_data(data_tensor_data, &device);
 
     // Calculate mean
     let mean = data_tensor.clone().mean();

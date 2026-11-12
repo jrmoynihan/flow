@@ -7,16 +7,14 @@ use crate::config::{DistanceMetric, IvfGpuParams, NnDescentGpuParams};
 use crate::error::KnnError;
 use crate::exact::exact_knn;
 use crate::graph::NeighborList;
-use ann_search_rs::gpu::LINE_SIZE;
 use ann_search_rs::gpu::exhaustive_gpu::ExhaustiveIndexGpu;
 use ann_search_rs::gpu::ivf_gpu::IvfIndexGpu;
 use ann_search_rs::{
-    build_exhaustive_index_gpu, build_ivf_index_gpu, build_nndescent_index_gpu,
+    Verbosity, build_exhaustive_index_gpu, build_ivf_index_gpu, build_nndescent_index_gpu,
     query_exhaustive_index_gpu, query_exhaustive_index_gpu_self, query_ivf_index_gpu,
     query_ivf_index_gpu_self, query_nndescent_index_gpu_self,
 };
-use cubecl::prelude::Runtime;
-use cubecl::wgpu::{WgpuDevice, WgpuRuntime};
+use cubecl::Device;
 use faer::Mat;
 use std::fmt;
 use std::sync::OnceLock;
@@ -35,11 +33,14 @@ fn row_major_to_mat(data: &[f32], n: usize, d: usize) -> Mat<f32> {
     Mat::from_fn(n, d, |i, j| data[i * d + j])
 }
 
-/// GPU indices pad features to [`LINE_SIZE`] and then `check_dim` against the
+/// Must match `cubecl_utils_rs::LINE_SIZE` / ann-search-rs GPU kernels (vector width 4).
+const GPU_LINE_SIZE: usize = 4;
+
+/// GPU indices pad features to [`GPU_LINE_SIZE`] and then `check_dim` against the
 /// padded width. Trailing zeros keep Euclidean / cosine / Manhattan distances
 /// unchanged versus the original `d`.
 fn gpu_padded_d(d: usize) -> usize {
-    d.next_multiple_of(LINE_SIZE)
+    d.next_multiple_of(GPU_LINE_SIZE)
 }
 
 fn row_major_to_gpu_mat(data: &[f32], n: usize, d: usize) -> Mat<f32> {
@@ -115,14 +116,14 @@ pub fn gpu_adapter_available() -> bool {
     try_shared_device().is_ok()
 }
 
-fn try_shared_device() -> Result<&'static WgpuDevice, String> {
-    static INIT: OnceLock<Result<WgpuDevice, String>> = OnceLock::new();
+fn try_shared_device() -> Result<&'static Device, String> {
+    static INIT: OnceLock<Result<Device, String>> = OnceLock::new();
     INIT.get_or_init(|| {
         let prev = std::panic::take_hook();
         std::panic::set_hook(Box::new(|_| {}));
         let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            let device = WgpuDevice::default();
-            let client = WgpuRuntime::client(&device);
+            let device = Device::default();
+            let client = device.client();
             let handle = client.empty(4);
             let _ = client.read_one(handle);
             device
@@ -142,9 +143,11 @@ fn try_shared_device() -> Result<&'static WgpuDevice, String> {
     .map_err(|s| s.clone())
 }
 
-fn device_or_err() -> Result<&'static WgpuDevice, KnnError> {
+fn device_or_err() -> Result<&'static Device, KnnError> {
     try_shared_device().map_err(KnnError::GpuUnavailable)
 }
+
+const QUIET: Verbosity = Verbosity::Quiet;
 
 /// Exact (exhaustive) kNN on the GPU.
 pub fn exact_gpu_knn(
@@ -162,10 +165,11 @@ pub fn exact_gpu_knn(
     let mat = Mat::from_fn(n, d, |i, j| data[i * d + j]);
     let k_fetch = k + 1;
 
-    let index = build_exhaustive_index_gpu::<f32, WgpuRuntime>(mat.as_ref(), dist, device)
+    let index = build_exhaustive_index_gpu::<f32>(mat.as_ref(), dist, device, QUIET)
         .map_err(|e| KnnError::Index(e.to_string()))?;
-    let (indices, distances_opt) = query_exhaustive_index_gpu_self(&index, k_fetch, true, false)
-        .map_err(|e| KnnError::Index(e.to_string()))?;
+    let (indices, distances_opt) =
+        query_exhaustive_index_gpu_self(&index, k_fetch, true, QUIET)
+            .map_err(|e| KnnError::Index(e.to_string()))?;
     let distances = distances_opt
         .ok_or_else(|| KnnError::Index("exhaustive GPU returned no distances".into()))?;
     to_neighbor_lists(n, k, &indices, &distances)
@@ -188,19 +192,19 @@ pub fn ivf_gpu_knn(
     let mat = Mat::from_fn(n, d, |i, j| data[i * d + j]);
     let k_fetch = k + 1;
 
-    let index = build_ivf_index_gpu::<f32, WgpuRuntime>(
+    let index = build_ivf_index_gpu::<f32>(
         mat.as_ref(),
         params.n_list,
         None,
         dist,
         42,
-        false,
+        QUIET,
         device,
     )
     .map_err(|e| KnnError::Index(e.to_string()))?;
 
     let (indices, distances_opt) =
-        query_ivf_index_gpu_self(&index, k_fetch, params.n_probes, None, true, false)
+        query_ivf_index_gpu_self(&index, k_fetch, params.n_probes, None, true, QUIET)
             .map_err(|e| KnnError::Index(e.to_string()))?;
     let distances =
         distances_opt.ok_or_else(|| KnnError::Index("IVF GPU returned no distances".into()))?;
@@ -223,10 +227,9 @@ pub fn nndescent_gpu_knn(
     let device = device_or_err()?.clone();
     let mat = Mat::from_fn(n, d, |i, j| data[i * d + j]);
     let k_fetch = k + 1;
-    // Graph degree should cover the requested neighbourhood.
     let graph_k = params.k.unwrap_or(k.max(30));
 
-    let mut index = build_nndescent_index_gpu::<f32, WgpuRuntime>(
+    let mut index = build_nndescent_index_gpu::<f32>(
         mat.as_ref(),
         dist,
         Some(graph_k),
@@ -237,14 +240,15 @@ pub fn nndescent_gpu_knn(
         params.rho,
         None,
         42,
-        false,
+        QUIET,
         true,
         device,
     )
     .map_err(|e| KnnError::Index(e.to_string()))?;
 
-    let (indices, distances_opt) = query_nndescent_index_gpu_self(&mut index, k_fetch, None, true)
-        .map_err(|e| KnnError::Index(e.to_string()))?;
+    let (indices, distances_opt) =
+        query_nndescent_index_gpu_self(&mut index, k_fetch, None, true, QUIET)
+            .map_err(|e| KnnError::Index(e.to_string()))?;
     let distances = distances_opt
         .ok_or_else(|| KnnError::Index("NN-Descent GPU returned no distances".into()))?;
     to_neighbor_lists(n, k, &indices, &distances)
@@ -252,7 +256,7 @@ pub fn nndescent_gpu_knn(
 
 /// Held exhaustive GPU index for query-set ≠ database-set search.
 pub(crate) struct GpuExactIndex {
-    index: ExhaustiveIndexGpu<f32, WgpuRuntime>,
+    index: ExhaustiveIndexGpu<f32>,
     d: usize,
 }
 
@@ -274,7 +278,7 @@ impl GpuExactIndex {
         let dist = dist_metric_str(metric)?;
         let device = device_or_err()?.clone();
         let mat = row_major_to_gpu_mat(data, n, d);
-        let index = build_exhaustive_index_gpu::<f32, WgpuRuntime>(mat.as_ref(), dist, device)
+        let index = build_exhaustive_index_gpu::<f32>(mat.as_ref(), dist, device, QUIET)
             .map_err(|e| KnnError::Index(e.to_string()))?;
         Ok(Self { index, d })
     }
@@ -294,7 +298,7 @@ impl GpuExactIndex {
     ) -> Result<Vec<NeighborList>, KnnError> {
         let mat = row_major_to_gpu_mat(queries, n_queries, self.d);
         let (indices, distances_opt) =
-            query_exhaustive_index_gpu(mat.as_ref(), &self.index, k, true, false)
+            query_exhaustive_index_gpu(mat.as_ref(), &self.index, k, true, QUIET)
                 .map_err(|e| KnnError::Index(e.to_string()))?;
         let distances = distances_opt.ok_or_else(|| {
             KnnError::Index("exhaustive GPU query-vs-library returned no distances".into())
@@ -305,7 +309,7 @@ impl GpuExactIndex {
 
 /// Held IVF GPU index for query-set ≠ database-set search.
 pub(crate) struct GpuIvfIndex {
-    index: IvfIndexGpu<f32, WgpuRuntime>,
+    index: IvfIndexGpu<f32>,
     n_probes: Option<usize>,
     d: usize,
 }
@@ -330,13 +334,13 @@ impl GpuIvfIndex {
         let dist = dist_metric_str(metric)?;
         let device = device_or_err()?.clone();
         let mat = row_major_to_gpu_mat(data, n, d);
-        let index = build_ivf_index_gpu::<f32, WgpuRuntime>(
+        let index = build_ivf_index_gpu::<f32>(
             mat.as_ref(),
             params.n_list,
             None,
             dist,
             42,
-            false,
+            QUIET,
             device,
         )
         .map_err(|e| KnnError::Index(e.to_string()))?;
@@ -368,7 +372,7 @@ impl GpuIvfIndex {
             self.n_probes,
             None,
             true,
-            false,
+            QUIET,
         )
         .map_err(|e| KnnError::Index(e.to_string()))?;
         let distances = distances_opt.ok_or_else(|| {

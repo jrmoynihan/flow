@@ -4,12 +4,17 @@ use super::kernel::assign_nearest_centroid;
 use crate::clustering::ClusteringError;
 use cubecl::bytes::Bytes;
 use cubecl::calculate_cube_count_elemwise;
+use cubecl::client::Client;
 use cubecl::prelude::*;
-use cubecl::wgpu::WgpuRuntime;
+use cubecl::zspace::{Shape, Strides};
+
+unsafe fn tensor_arg_1d(handle: cubecl::server::Handle, len: usize) -> TensorArg {
+    unsafe { TensorArg::from_raw_parts(handle, Strides::new(&[1]), Shape::new([len])) }
+}
 
 /// Assign each of `n` points to the nearest of `k` centroids on the GPU.
 pub fn launch_assign_f32(
-    client: &ComputeClient<WgpuRuntime>,
+    client: &Client,
     points: &[f32],
     n: usize,
     d: usize,
@@ -42,13 +47,13 @@ pub fn launch_assign_f32(
     let cube_count = calculate_cube_count_elemwise(client, n, cube_dim);
 
     unsafe {
-        assign_nearest_centroid::launch::<WgpuRuntime>(
+        assign_nearest_centroid::launch(
             client,
             cube_count,
             cube_dim,
-            ArrayArg::from_raw_parts(pts_h.clone(), expected_pts),
-            ArrayArg::from_raw_parts(cents_h.clone(), expected_c),
-            ArrayArg::from_raw_parts(out_h.clone(), n),
+            tensor_arg_1d(pts_h.clone(), expected_pts),
+            tensor_arg_1d(cents_h.clone(), expected_c),
+            tensor_arg_1d(out_h.clone(), n),
             n as u32,
             d as u32,
             k as u32,

@@ -4,14 +4,19 @@ use super::matmul_kernel::matmul_obs_times_mixing;
 use crate::error::TruOlsError;
 use cubecl::bytes::Bytes;
 use cubecl::calculate_cube_count_elemwise;
+use cubecl::client::Client;
 use cubecl::prelude::*;
-use cubecl::wgpu::WgpuRuntime;
+use cubecl::zspace::{Shape, Strides};
+
+unsafe fn tensor_arg_1d(handle: cubecl::server::Handle, len: usize) -> TensorArg {
+    unsafe { TensorArg::from_raw_parts(handle, Strides::new(&[1]), Shape::new([len])) }
+}
 
 /// Row-major GEMM: `out = observations @ mixing` with `observations` (`n_row × k`) and `mixing` (`k × n_col`).
 ///
 /// All buffers are `f32`. `out` length must be `n_row * n_col`.
 pub fn launch_obs_times_mixing_f32(
-    client: &ComputeClient<WgpuRuntime>,
+    client: &Client,
     observations: &[f32],
     mixing: &[f32],
     out: &mut [f32],
@@ -49,13 +54,13 @@ pub fn launch_obs_times_mixing_f32(
     let cube_count = calculate_cube_count_elemwise(client, expected_out, cube_dim);
 
     unsafe {
-        matmul_obs_times_mixing::launch::<f32, WgpuRuntime>(
+        matmul_obs_times_mixing::launch::<f32>(
             client,
             cube_count,
             cube_dim,
-            ArrayArg::from_raw_parts(obs_handle.clone(), expected_obs),
-            ArrayArg::from_raw_parts(mix_handle.clone(), expected_mix),
-            ArrayArg::from_raw_parts(out_handle.clone(), expected_out),
+            tensor_arg_1d(obs_handle.clone(), expected_obs),
+            tensor_arg_1d(mix_handle.clone(), expected_mix),
+            tensor_arg_1d(out_handle.clone(), expected_out),
             n_row,
             k,
             n_col,

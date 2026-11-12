@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+### Performance
+
+- Workspace bump to cubeCL **0.11.4** / Burn **0.22.1** / ann-search-rs **0.12.2** /
+  wgpu **30** (was 0.10 / 0.21 / 0.4.4 on `d21d0ff`). Interleaved Criterion on Apple
+  M5 Max, `OMP_NUM_THREADS=1`, `hnsw,ann-search,gpu`: self-query **exact_gpu** at
+  50k×10 **410 ms → 284 ms**; **ivf_gpu** at 100k×10 **1.06 s → 108 ms**;
+  **exact_cpu** control at 50k×10 unchanged (~1.08 s). The **hnsw_ann_cpu** arm also
+  changed (**556 ms → 309 ms**) because ann-search-rs **0.4.4 → 0.12.2** on HEAD,
+  not from cubeCL alone. `collect_matrix` appended rows to
+  `data/knn_perf_matrix.jsonl` (smoke plus `FLOW_KNN_MATRIX_MAX_N=50000` on this host).
+
 ## [0.1.2] — 2026-11-03
 
 ### Added

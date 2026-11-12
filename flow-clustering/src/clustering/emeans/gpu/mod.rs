@@ -1,17 +1,14 @@
 //! cubeCL assignment backend for e-means / Lloyd.
 //!
-//! Written against the workspace cubeCL pin (0.10 today; migrate with the
-//! workspace 0.11 upgrade). Only the assignment kernel runs on the GPU;
-//! EMA, revival and finalisation stay on the CPU.
+//! Assignment kernel on cubeCL 0.11; EMA / revival / finalisation stay on CPU.
 
 mod kernel;
 mod launch;
 
 use std::sync::OnceLock;
 
-use cubecl::client::ComputeClient;
-use cubecl::prelude::Runtime;
-use cubecl::wgpu::{WgpuDevice, WgpuRuntime};
+use cubecl::Device;
+use cubecl::client::Client;
 
 use crate::clustering::{ClusteringError, ClusteringResult};
 
@@ -19,12 +16,12 @@ use super::assign::Assign;
 use launch::launch_assign_f32;
 
 struct GpuCtx {
-    device: WgpuDevice,
+    device: Device,
 }
 
 impl GpuCtx {
-    fn client(&self) -> ComputeClient<WgpuRuntime> {
-        WgpuRuntime::client(&self.device)
+    fn client(&self) -> Client {
+        self.device.client()
     }
 }
 
@@ -33,7 +30,7 @@ static GPU_TRY_INIT: OnceLock<Result<GpuCtx, String>> = OnceLock::new();
 fn try_shared_gpu() -> ClusteringResult<&'static GpuCtx> {
     let res = GPU_TRY_INIT.get_or_init(|| {
         let ctx = GpuCtx {
-            device: WgpuDevice::default(),
+            device: Device::default(),
         };
         let client = ctx.client();
         // Smoke: one point, one centroid at the origin → assignment 0.

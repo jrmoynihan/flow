@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+### Performance
+
+- No cubeCL code in this crate; discovery, match, and joint unmix stay on CPU (faer /
+  Rayon). ann-search-rs **0.12.2** may shift `AnnIndex` latency via `flow-knn` only—no
+  nq5 bench here.
+
 ## 0.1.0 — 2026-11-03
 
 ### Added

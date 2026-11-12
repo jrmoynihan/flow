@@ -9,37 +9,39 @@
 //!   (one thread per node, no float atomics)
 //! - Host sync only when downloading the final embedding
 
-
 mod csr;
 mod kernels;
 mod optimize;
 
 pub use optimize::{GpuOptimizeContext, gpu_context_available, optimize_embedding_gpu};
 
-use burn::backend::wgpu::WgpuDevice;
-use cubecl::client::ComputeClient;
-use cubecl::prelude::Runtime;
-use cubecl::wgpu::WgpuRuntime;
+use burn::tensor::Device as BurnDevice;
+use cubecl::Device as CubeDevice;
+use cubecl::client::Client;
 use std::sync::OnceLock;
 
-/// Shared WGPU device for repeated PaCMAP optimize launches.
+/// Shared device for repeated PaCMAP optimize launches.
 pub struct GpuWgpuContext {
-    device: WgpuDevice,
+    /// Burn device handle (for tensor construction; Burn 0.22 API).
+    burn_device: BurnDevice,
+    /// cubeCL device (for Client / raw launches).
+    cube_device: CubeDevice,
 }
 
 impl GpuWgpuContext {
     pub fn new() -> Self {
         Self {
-            device: WgpuDevice::default(),
+            burn_device: BurnDevice::default(),
+            cube_device: CubeDevice::default(),
         }
     }
 
-    pub fn device(&self) -> &WgpuDevice {
-        &self.device
+    pub fn device(&self) -> &BurnDevice {
+        &self.burn_device
     }
 
-    pub fn client(&self) -> ComputeClient<WgpuRuntime> {
-        WgpuRuntime::client(&self.device)
+    pub fn client(&self) -> Client {
+        self.cube_device.client()
     }
 }
 

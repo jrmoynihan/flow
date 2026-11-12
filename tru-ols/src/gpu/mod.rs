@@ -8,28 +8,27 @@ mod matmul_kernel;
 pub use launch::launch_obs_times_mixing_f32;
 
 use crate::error::TruOlsError;
-use cubecl::client::ComputeClient;
-use cubecl::prelude::Runtime;
-use cubecl::wgpu::{WgpuDevice, WgpuRuntime};
+use cubecl::Device;
+use cubecl::client::Client;
 use faer::linalg::solvers::Llt;
 use faer::prelude::*;
 use faer::{Mat, MatRef, Side};
 use std::sync::OnceLock;
 
-/// Holds a WGPU device for repeated cubeCL launches.
+/// Holds a cubeCL device for repeated launches.
 pub struct GpuWgpuContext {
-    device: WgpuDevice,
+    device: Device,
 }
 
 impl GpuWgpuContext {
     pub fn new() -> Self {
         Self {
-            device: WgpuDevice::default(),
+            device: Device::default(),
         }
     }
 
-    pub fn client(&self) -> ComputeClient<WgpuRuntime> {
-        WgpuRuntime::client(&self.device)
+    pub fn client(&self) -> Client {
+        self.device.client()
     }
 }
 

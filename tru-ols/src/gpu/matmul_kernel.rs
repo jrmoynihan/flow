@@ -6,9 +6,9 @@ use cubecl::prelude::*;
 
 #[cube(launch)]
 pub fn matmul_obs_times_mixing<F: Float>(
-    observations: &Array<F>,
-    mixing: &Array<F>,
-    out: &mut Array<F>,
+    observations: &Tensor<F>,
+    mixing: &Tensor<F>,
+    out: &mut Tensor<F>,
     n_row: usize,
     k: usize,
     n_col: usize,
@@ -18,7 +18,7 @@ pub fn matmul_obs_times_mixing<F: Float>(
     if linear < n_out {
         let i = linear / n_col;
         let j = linear % n_col;
-        let mut acc = F::new(0.0);
+        let mut acc = F::new(0.0_f32);
         for t in 0..k {
             let a_idx = i * k + t;
             let b_idx = t * n_col + j;

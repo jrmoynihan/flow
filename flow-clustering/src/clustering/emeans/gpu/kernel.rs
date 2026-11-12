@@ -7,9 +7,9 @@ use cubecl::prelude::*;
 /// `points` is row-major `n × d`, `centroids` is row-major `k × d`, `out` is length `n`.
 #[cube(launch)]
 pub fn assign_nearest_centroid(
-    points: &Array<f32>,
-    centroids: &Array<f32>,
-    out: &mut Array<u32>,
+    points: &Tensor<f32>,
+    centroids: &Tensor<f32>,
+    out: &mut Tensor<u32>,
     n: u32,
     d: u32,
     k: u32,

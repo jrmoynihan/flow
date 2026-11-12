@@ -152,6 +152,8 @@ pub fn recommend_method_with_matrix(
 }
 
 fn available_method_ids(prefer_usearch: bool, allow_gpu: bool, n: usize) -> Vec<&'static str> {
+    #[cfg(not(feature = "ann-search"))]
+    let _ = prefer_usearch;
     let mut ids = Vec::new();
     // Exact only competes up to FCS mid-scale; beyond that ANN build dominates.
     if n <= 80_000 {
@@ -196,6 +198,8 @@ fn method_from_id(id: &str) -> KnnMethod {
 }
 
 fn heuristic_fallback(n: usize, prefer_usearch: bool) -> KnnMethod {
+    #[cfg(not(feature = "ann-search"))]
+    let _ = prefer_usearch;
     if n <= 5_000 {
         return KnnMethod::Exact;
     }

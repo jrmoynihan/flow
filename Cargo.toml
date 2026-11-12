@@ -132,9 +132,9 @@ xxhash-rust = { version = "0.8", features = ["xxh3"] }
 pco = "1.0.2"
 lz4_flex = { version = "0.13", default-features = false, features = ["frame"] }
 
-# GPU (Burn 0.21 ↔ cubeCL 0.10; keep in lockstep across peacoqc / pacmap / tru-ols / density)
-burn = { version = "0.21", default-features = false, features = ["std", "wgpu"] }
-cubecl = { version = "0.10", default-features = false, features = ["std", "wgpu"] }
+# GPU (Burn 0.22.1 ↔ cubeCL 0.11.4; keep in lockstep across peacoqc / pacmap / tru-ols / density / clustering / knn)
+burn = { version = "0.22.1", default-features = false, features = ["std", "wgpu", "optim"] }
+cubecl = { version = "0.11.4", default-features = false, features = ["std", "wgpu"] }
 
 # Some crates.io packages ship a `.vscode/` tree; creating that directory is blocked in
 # Cursor agent sandboxes. Path-patch those packages so `cargo` never unpacks them.
