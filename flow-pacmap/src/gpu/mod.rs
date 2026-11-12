@@ -15,8 +15,8 @@ mod optimize;
 
 pub use optimize::{GpuOptimizeContext, gpu_context_available, optimize_embedding_gpu};
 
-use burn::tensor::Device as BurnDevice;
-use cubecl::Device as CubeDevice;
+use burn::backend::wgpu::Wgpu;
+use burn::tensor::{Device as BurnDevice, Tensor};
 use cubecl::client::Client;
 use std::sync::OnceLock;
 
@@ -24,16 +24,20 @@ use std::sync::OnceLock;
 pub struct GpuWgpuContext {
     /// Burn device handle (for tensor construction; Burn 0.22 API).
     burn_device: BurnDevice,
-    /// cubeCL device (for Client / raw launches).
-    cube_device: CubeDevice,
+    /// cubeCL client for the same runtime as tensors on [`burn_device`].
+    client: Client,
 }
 
 impl GpuWgpuContext {
-    pub fn new() -> Self {
-        Self {
-            burn_device: BurnDevice::default(),
-            cube_device: CubeDevice::default(),
-        }
+    fn try_new() -> Result<Self, String> {
+        let burn_device = BurnDevice::default();
+        let smoke = Tensor::<1>::zeros([1], &burn_device);
+        let client = smoke
+            .try_into_primitive::<Wgpu>()
+            .map_err(|e| format!("Wgpu smoke tensor: {e:?}"))?
+            .client
+            .clone();
+        Ok(Self { burn_device, client })
     }
 
     pub fn device(&self) -> &BurnDevice {
@@ -41,7 +45,7 @@ impl GpuWgpuContext {
     }
 
     pub fn client(&self) -> Client {
-        self.cube_device.client()
+        self.client.clone()
     }
 }
 
@@ -57,22 +61,23 @@ pub fn try_shared_gpu_context() -> Result<&'static GpuWgpuContext, String> {
             let prev = std::panic::take_hook();
             std::panic::set_hook(Box::new(|_| {}));
             let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                let ctx = GpuWgpuContext::new();
+                let ctx = GpuWgpuContext::try_new()?;
                 let client = ctx.client();
                 let handle = client.empty(4);
                 let _ = client.read_one(handle);
-                ctx
+                Ok(ctx)
             }));
             std::panic::set_hook(prev);
-            result.map_err(|payload| {
-                if let Some(s) = payload.downcast_ref::<&str>() {
+            match result {
+                Ok(inner) => inner,
+                Err(payload) => Err(if let Some(s) = payload.downcast_ref::<&str>() {
                     format!("WGPU adapter init panicked: {s}")
                 } else if let Some(s) = payload.downcast_ref::<String>() {
                     format!("WGPU adapter init panicked: {s}")
                 } else {
                     "WGPU adapter init panicked".into()
-                }
-            })
+                }),
+            }
         })
         .as_ref()
         .map_err(|s| s.clone())

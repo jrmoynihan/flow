@@ -63,7 +63,6 @@ impl GpuOptimizeContext {
     ) -> Result<Self, PaCMAPError> {
         let wgpu = try_shared_gpu_context()
             .map_err(|e| PaCMAPError::Gpu(format!("WGPU adapter unavailable: {e}")))?;
-        let client = wgpu.client();
         let device = wgpu.device().clone();
         let n = embedding.len();
         let n2 = n * 2;
@@ -73,6 +72,8 @@ impl GpuOptimizeContext {
         let embd_tensor = Tensor::<2>::from_data(TensorData::new(flat, [n, 2]), &device);
         // Grad buffer stays on device for the whole run (CSR writes; Adam reads).
         let grad_tensor = Tensor::<2>::zeros([n, 2], &device);
+        // Same cubeCL client as Burn tensor storage (avoids a second CubeDevice::default()).
+        let client = as_cube(embd_tensor.clone())?.client;
 
         let offsets = client.create(Bytes::from_bytes_vec(
             bytemuck::cast_slice(&csr.offsets).to_vec(),

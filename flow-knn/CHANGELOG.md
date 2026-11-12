@@ -5,13 +5,16 @@
 ### Performance
 
 - Workspace bump to cubeCL **0.11.4** / Burn **0.22.1** / ann-search-rs **0.12.2** /
-  wgpu **30** (was 0.10 / 0.21 / 0.4.4 on `d21d0ff`). Interleaved Criterion on Apple
-  M5 Max, `OMP_NUM_THREADS=1`, `hnsw,ann-search,gpu`: self-query **exact_gpu** at
-  50k×10 **410 ms → 284 ms**; **ivf_gpu** at 100k×10 **1.06 s → 108 ms**;
-  **exact_cpu** control at 50k×10 unchanged (~1.08 s). The **hnsw_ann_cpu** arm also
-  changed (**556 ms → 309 ms**) because ann-search-rs **0.4.4 → 0.12.2** on HEAD,
-  not from cubeCL alone. `collect_matrix` appended rows to
-  `data/knn_perf_matrix.jsonl` (smoke plus `FLOW_KNN_MATRIX_MAX_N=50000` on this host).
+  wgpu **30** (was 0.10 / 0.21 / 0.4.4 on `d21d0ff`). Medians below are from
+  **interleaved Criterion A/B** on Apple M5 Max (`OMP_NUM_THREADS=1`, features
+  `hnsw,ann-search,gpu`); they are not copied from `data/knn_perf_matrix.jsonl` rows.
+  Self-query **exact_gpu** at 50k×10 **410 ms → 284 ms**; **exact_cpu** at 50k×10
+  unchanged (~1.08 s). **ivf_gpu** at 100k×10 **1.06 s → 108 ms** in that same A/B run
+  (the matrix file’s latest **ivf_gpu** row at 100k×10 is ~1.67 s — different harness
+  and capture date). **hnsw_ann_cpu** moved **556 ms → 309 ms** with ann-search-rs
+  **0.4.4 → 0.12.2**, not from cubeCL alone. `collect_matrix` still appends partial
+  rows (smoke plus `FLOW_KNN_MATRIX_MAX_N=50000` on this host); regen the full matrix
+  separately when you need comparable n>50k rows.
 
 ## [0.1.2] — 2026-11-03
 
