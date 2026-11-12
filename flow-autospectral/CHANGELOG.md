@@ -1,14 +1,53 @@
 # Changelog
 
-## Unreleased
+## 0.1.1 (2026-11-12)
 
 ## [0.1.1] — 2026-11-12
+
+### New Features
+
+ - <csr-id-500179053b2999f71805645e564d680350382dd8/> port GPU crates to cubeCL 0.11 / Burn 0.22
+   Align workspace wgpu/ann-search stacks and record interleaved A/B
+   Performance notes so callers know what moved on this host.
+
+### Chore
+
+ - <csr-id-9407a6dc3adca636bf51c241b71cb513ed3cfbab/> prep clustering/autospectral cubeCL port publish
+   Merge main (FCS 0.6, TRU-OLS 0.3.0, typed PaCMAP KNN dim mismatch), bump
+   six port crates with polished changelogs and README install pins; flow-clustering
+   0.3.0 minor for e-means/agglomerative.
 
 ### Changed
 
 - `flow-knn` ^0.1.3, `flow-clustering` ^0.3.0, optional `flow-tru-ols` ^0.3.1.
   Discovery, match, and joint unmix remain CPU-only (faer / Rayon); ann-search-rs
   **0.12.2** may shift `AnnIndex` latency via `flow-knn` only.
+
+### Commit Statistics
+
+<csr-read-only-do-not-edit/>
+
+ - 8 commits contributed to the release over the course of 9 calendar days.
+ - 9 days passed between releases.
+ - 2 commits were understood as [conventional](https://www.conventionalcommits.org).
+ - 0 issues like '(#ID)' were seen in commit messages
+
+### Commit Details
+
+<csr-read-only-do-not-edit/>
+
+<details><summary>view details</summary>
+
+ * **Uncategorized**
+    - Prep clustering/autospectral cubeCL port publish ([`9407a6d`](https://github.com/jrmoynihan/flow/commit/9407a6dc3adca636bf51c241b71cb513ed3cfbab))
+    - Merge origin/main into release/clustering-autospectral-dry ([`713ac1c`](https://github.com/jrmoynihan/flow/commit/713ac1cc46dc2115e32684f4909c60eeecaa0152))
+    - Merge pull request #30 from jrmoynihan/feature/cubecl-0.11 ([`fe7594c`](https://github.com/jrmoynihan/flow/commit/fe7594c96aa61e9f2a32fadc6310a59e86f1f9a3))
+    - Port GPU crates to cubeCL 0.11 / Burn 0.22 ([`5001790`](https://github.com/jrmoynihan/flow/commit/500179053b2999f71805645e564d680350382dd8))
+    - Release flow-clustering v0.2.1 ([`fdaf5d5`](https://github.com/jrmoynihan/flow/commit/fdaf5d5614b07f600cde989a63e36677f308870a))
+    - Merge pull request #27 from jrmoynihan/release/row-io-path-b-bumps ([`ec6ccbd`](https://github.com/jrmoynihan/flow/commit/ec6ccbda8015e46d2c629c7e3b90c1cd2c218d8c))
+    - Release flow-linalg 0.2.0, flow-fcs-compress 0.2.0, flow-fcs 0.6.0, flow-tru-ols 0.3.0 ([`1b24dcf`](https://github.com/jrmoynihan/flow/commit/1b24dcfc91ae604072a32d451465478eb56669fc))
+    - Merge pull request #23 from jrmoynihan/release/clustering-autospectral-dry ([`b26691b`](https://github.com/jrmoynihan/flow/commit/b26691b458ca8b0e99e6d39b34e3b4cd700500df))
+</details>
 
 ## v0.1.0 (2026-11-03)
 

@@ -5,7 +5,9 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## Unreleased
+## 0.3.4 (2026-11-12)
+
+<csr-id-af6097fbd09f00657eaf82ea8367fffd3ee72baf/>
 
 ### Chore
 
@@ -18,6 +20,106 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
    whole suite) and a `cargo nt` alias, since Cargo cannot alias the built-in
    `test` subcommand. Doctests stay on the built-in harness because nextest
    cannot run them.
+
+### Chore
+
+ - <csr-id-9272c3787525a50a253f7f27ce5ff43902e68c6d/> drop unused imports from tests and benches
+   Rand 0.9 exposes random_range on RngExt, and several integration tests imported helpers they never called. Clearing those keeps cargo check --tests --benches quiet without touching unused TestScenario variants still wired for later cases.
+
+### New Features
+
+ - <csr-id-3f465e84fb9492cf318777a2e76878e217d9c539/> flatten BasePlotOptions fields onto plot builders, fix scatter dispatch
+   Promote all BasePlotOptions fields (width, height, title, etc.) as direct
+   passthrough setters on DensityPlotOptionsBuilder, HistogramPlotOptionsBuilder,
+   and SpectralSignaturePlotOptionsBuilder via a shared macro, so callers no
+   longer need a nested .base(BasePlotOptions::new()...build()?) just to set
+   common layout options. .base(...) still works unchanged.
+   
+   Also fixes PlotType::Scatter always ignoring gate_ids/gate_colors (the
+   gate-aware scatter_to_pixels_overlay path was dead code); it's now used
+   whenever ScatterPlotData carries gates. Confirmed as a no-op for fast-flow,
+   which never sets gates.
+   
+   Updates README and CHANGELOG examples/naming to match, and corrects stale
+   ScatterOverlay/ScatterColoredContinuous references to the real PlotType
+   variants.
+
+### Bug Fixes
+
+ - <csr-id-6986541e936967c566b3c6caca42c9e0cbf5678f/> apply $PnR masking, fix bit-packed stride, add $NEXTDATA traversal
+   Fixes four parsing gaps reported in jrmoynihan/flow#21:
+   
+   - $PnR masking (flow-crates-d35, P0): integer parameters now mask off
+   unused high bits per their declared $PnR range before column
+   extraction, fixing silently-wrong channel values on instruments
+   (Beckman FC500/Gallios/Navios, older BD) that store sub-16-bit ADC
+   resolution in wider fields.
+   - Bit-packed $PnB stride (flow-crates-bk6, P2): calculate_bytes_per_event
+   now sums raw bit widths before rounding once, instead of rounding each
+   parameter first — correct for both byte-aligned and bit-packed layouts.
+   - $NEXTDATA traversal (flow-crates-1mg, P2): new Fcs::open_all() walks
+   the $NEXTDATA chain to read every dataset in a multi-dataset FCS file
+   (all Beckman .lmd files use this). open() is unchanged and still
+   returns only the first dataset, so existing callers are unaffected.
+   - $DATATYPE A (flow-crates-ee0, P3, won't-fix): documented the existing
+   Err behavior as a deliberate spec-driven decision (ASCII was
+   deprecated due to cross-vendor bit-order disagreement) rather than an
+   oversight, and added a test confirming it.
+   
+   Bumps flow-fcs 0.4.1 -> 0.5.0 and the paired version requirement in
+   every workspace crate that depends on it via path (Cargo enforces that
+   constraint even for path deps).
+ - <csr-id-67218442c5353cdd9e17fe698f46c1b82618868c/> update plot_types_validation for renamed PlotType variants
+   Use Scatter and Intensity in the validation example after the public plot
+   type enum rename.
+ - <csr-id-424a0faf58cdfb4db3270be641be66fe84d1b9b0/> drop the circular density deprecation
+   render_pixels and render_contour were deprecated in favor of the same functions. Kuva still does not draw density or contour, so this backend stays. Also remove the unused colormap macros and keep prefer_usearch only for the ann-search build.
+
+### Commit Statistics
+
+<csr-read-only-do-not-edit/>
+
+ - 6 commits contributed to the release over the course of 9 calendar days.
+ - 2 commits were understood as [conventional](https://www.conventionalcommits.org).
+ - 0 issues like '(#ID)' were seen in commit messages
+
+### Commit Details
+
+<csr-read-only-do-not-edit/>
+
+<details><summary>view details</summary>
+
+ * **Uncategorized**
+    - Merge origin/main into release/clustering-autospectral-dry ([`713ac1c`](https://github.com/jrmoynihan/flow/commit/713ac1cc46dc2115e32684f4909c60eeecaa0152))
+    - Merge pull request #27 from jrmoynihan/release/row-io-path-b-bumps ([`ec6ccbd`](https://github.com/jrmoynihan/flow/commit/ec6ccbda8015e46d2c629c7e3b90c1cd2c218d8c))
+    - Release flow-linalg 0.2.0, flow-fcs-compress 0.2.0, flow-fcs 0.6.0, flow-tru-ols 0.3.0 ([`1b24dcf`](https://github.com/jrmoynihan/flow/commit/1b24dcfc91ae604072a32d451465478eb56669fc))
+    - Merge pull request #26 from jrmoynihan/feature/tru-ols-path-b-protected-af ([`a51cd25`](https://github.com/jrmoynihan/flow/commit/a51cd25879f62c31a9fb6cb3e787697136f8fb00))
+    - Drop unused imports from tests and benches ([`9272c37`](https://github.com/jrmoynihan/flow/commit/9272c3787525a50a253f7f27ce5ff43902e68c6d))
+    - Drop the circular density deprecation ([`424a0fa`](https://github.com/jrmoynihan/flow/commit/424a0faf58cdfb4db3270be641be66fe84d1b9b0))
+</details>
+
+## 0.3.3 (2026-08-18)
+
+### Chore
+
+ - <csr-id-af6097fbd09f00657eaf82ea8367fffd3ee72baf/> default test commands to cargo-nextest (flow-crates-9xv)
+   Nextest runs each test in its own process and reports per-test timing, so
+   make it the default runner everywhere the project tells a human or an agent
+   how to run tests, rather than leaving it as an opt-in each caller remembers.
+   
+   Adds .config/nextest.toml (default profile fails fast; a ci profile runs the
+   whole suite) and a `cargo nt` alias, since Cargo cannot alias the built-in
+   `test` subcommand. Doctests stay on the built-in harness because nextest
+   cannot run them.
+
+### Documentation
+
+ - <csr-id-8953fb69a59e69ae363e1b2d1ef28ce5f67289ee/> drop user Unreleased summaries that break smart-release
+   Leave Keep-a-Changelog sections cargo-smart-release already knows how to rewrite.
+ - <csr-id-2af7c38d871243877def4efd66ae004c3af6ce5f/> put changelog summaries under Keep-a-Changelog headings
+   cargo-smart-release rejects free-form Unreleased paragraphs that are not a known section.
+ - <csr-id-3b118cede174e11c18a64c25e913416654b8c26e/> polish release notes and README install versions
+   Add first-publish summaries for unpublished crates and bump install examples to the versions cargo-smart-release will publish.
 
 ### New Features
 
@@ -70,9 +172,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 <csr-read-only-do-not-edit/>
 
- - 6 commits contributed to the release over the course of 16 calendar days.
- - 26 days passed between releases.
- - 4 commits were understood as [conventional](https://www.conventionalcommits.org).
+ - 10 commits contributed to the release over the course of 16 calendar days.
+ - 27 days passed between releases.
+ - 7 commits were understood as [conventional](https://www.conventionalcommits.org).
  - 0 issues like '(#ID)' were seen in commit messages
 
 ### Commit Details
@@ -82,6 +184,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 <details><summary>view details</summary>
 
  * **Uncategorized**
+    - Release flow-fcs-compress v0.1.4, flow-linalg v0.1.3, flow-fcs v0.5.2, flow-knn v0.1.1, flow-dimensional-reduction v0.1.0, flow-pacmap v0.1.2, flow-density v0.1.2, flow-plots v0.3.3, flow-clustering v0.1.2, flow-gates v0.5.0, flow-peak-detection v0.1.0, flow-control-detection v0.1.0, flow-tru-ols v0.2.0, peacoqc-rs v0.3.3, peacoqc-cli v0.3.0 ([`63fb593`](https://github.com/jrmoynihan/flow/commit/63fb5937185fba6f342ae3ae5b960a4df4c2bc72))
+    - Drop user Unreleased summaries that break smart-release ([`8953fb6`](https://github.com/jrmoynihan/flow/commit/8953fb69a59e69ae363e1b2d1ef28ce5f67289ee))
+    - Put changelog summaries under Keep-a-Changelog headings ([`2af7c38`](https://github.com/jrmoynihan/flow/commit/2af7c38d871243877def4efd66ae004c3af6ce5f))
+    - Polish release notes and README install versions ([`3b118ce`](https://github.com/jrmoynihan/flow/commit/3b118cede174e11c18a64c25e913416654b8c26e))
     - Merge branch 'peacoqc-rust-vs-r-throughput' into main ([`536825d`](https://github.com/jrmoynihan/flow/commit/536825ddf5b52f910778eae86b91dfee4f9c319e))
     - Release flow-fcs v0.5.1 ([`ddc9d09`](https://github.com/jrmoynihan/flow/commit/ddc9d094ee0a7390f16daf3e9f23c47eda39e637))
     - Default test commands to cargo-nextest (flow-crates-9xv) ([`af6097f`](https://github.com/jrmoynihan/flow/commit/af6097fbd09f00657eaf82ea8367fffd3ee72baf))

@@ -5,9 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## Unreleased
+## 0.3.4 (2026-11-12)
 
 ## [0.3.4] — 2026-11-12
+
+### New Features
+
+ - <csr-id-500179053b2999f71805645e564d680350382dd8/> port GPU crates to cubeCL 0.11 / Burn 0.22
+   Align workspace wgpu/ann-search stacks and record interleaved A/B
+   Performance notes so callers know what moved on this host.
+
+### Chore
+
+ - <csr-id-9407a6dc3adca636bf51c241b71cb513ed3cfbab/> prep clustering/autospectral cubeCL port publish
+   Merge main (FCS 0.6, TRU-OLS 0.3.0, typed PaCMAP KNN dim mismatch), bump
+   six port crates with polished changelogs and README install pins; flow-clustering
+   0.3.0 minor for e-means/agglomerative.
+ - <csr-id-9272c3787525a50a253f7f27ce5ff43902e68c6d/> drop unused imports from tests and benches
+   Rand 0.9 exposes random_range on RngExt, and several integration tests imported helpers they never called. Clearing those keeps cargo check --tests --benches quiet without touching unused TestScenario variants still wired for later cases.
 
 ### Added
 
@@ -31,6 +46,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Refresh `compare_with_r` sample tables for synthetic Gaussian mixtures and
   updated QC-core agreement on large (1M-event) fixtures.
+ - <csr-id-e33bbe75d3777e0b8f7c8f5ebe0d71259ab9b4ef/> add performance-guided development map and host calibrator
+   Give agents a napkin-math floor, this-machine snapshot, gap index, and
+   retry shortlist so hot-path work starts from hardware cost rather than
+   another 5% unsafe A/B.
+
+### Commit Statistics
+
+<csr-read-only-do-not-edit/>
+
+ - 10 commits contributed to the release.
+ - 4 commits were understood as [conventional](https://www.conventionalcommits.org).
+ - 0 issues like '(#ID)' were seen in commit messages
+
+### Commit Details
+
+<csr-read-only-do-not-edit/>
+
+<details><summary>view details</summary>
+
+ * **Uncategorized**
+    - Prep clustering/autospectral cubeCL port publish ([`9407a6d`](https://github.com/jrmoynihan/flow/commit/9407a6dc3adca636bf51c241b71cb513ed3cfbab))
+    - Merge origin/main into release/clustering-autospectral-dry ([`713ac1c`](https://github.com/jrmoynihan/flow/commit/713ac1cc46dc2115e32684f4909c60eeecaa0152))
+    - Merge pull request #30 from jrmoynihan/feature/cubecl-0.11 ([`fe7594c`](https://github.com/jrmoynihan/flow/commit/fe7594c96aa61e9f2a32fadc6310a59e86f1f9a3))
+    - Port GPU crates to cubeCL 0.11 / Burn 0.22 ([`5001790`](https://github.com/jrmoynihan/flow/commit/500179053b2999f71805645e564d680350382dd8))
+    - Merge pull request #27 from jrmoynihan/release/row-io-path-b-bumps ([`ec6ccbd`](https://github.com/jrmoynihan/flow/commit/ec6ccbda8015e46d2c629c7e3b90c1cd2c218d8c))
+    - Release flow-linalg 0.2.0, flow-fcs-compress 0.2.0, flow-fcs 0.6.0, flow-tru-ols 0.3.0 ([`1b24dcf`](https://github.com/jrmoynihan/flow/commit/1b24dcfc91ae604072a32d451465478eb56669fc))
+    - Merge pull request #26 from jrmoynihan/feature/tru-ols-path-b-protected-af ([`a51cd25`](https://github.com/jrmoynihan/flow/commit/a51cd25879f62c31a9fb6cb3e787697136f8fb00))
+    - Drop unused imports from tests and benches ([`9272c37`](https://github.com/jrmoynihan/flow/commit/9272c3787525a50a253f7f27ce5ff43902e68c6d))
+    - Merge pull request #22 from jrmoynihan/feature/flow-autospectral ([`35007ba`](https://github.com/jrmoynihan/flow/commit/35007ba7841c164cf8e4ffae220a782dcb87d7ce))
+    - Add performance-guided development map and host calibrator ([`e33bbe7`](https://github.com/jrmoynihan/flow/commit/e33bbe75d3777e0b8f7c8f5ebe0d71259ab9b4ef))
+</details>
 
 ## 0.3.3 (2026-08-18)
 

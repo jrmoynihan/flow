@@ -5,9 +5,31 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## Unreleased
+## 0.3.0 (2026-11-12)
 
 ## [0.3.0] — 2026-11-12
+
+### Refactor
+
+ - <csr-id-d21d0ffca0377b8bd62e8e941eab78e20b4232d8/> FlowSOM via Lloyd; demote linfa kmeans
+   Codebook metaclusters no longer need linfa. Drop kmeans from defaults and
+   gate the Array2 wrapper behind --features kmeans; som pulls emeans.
+
+### New Features
+
+ - <csr-id-500179053b2999f71805645e564d680350382dd8/> port GPU crates to cubeCL 0.11 / Burn 0.22
+   Align workspace wgpu/ann-search stacks and record interleaved A/B
+   Performance notes so callers know what moved on this host.
+ - <csr-id-175b9749a8e82e7619c7c6da061846d5879f13ca/> add e-means (default) and agglomerative metaclustering
+   Ship mini-batch EMA k-means with a same-kernel Lloyd baseline, measured
+   to beat Lloyd from ~5k events, plus kodama linkage for over-cluster merges.
+
+### Chore
+
+ - <csr-id-9407a6dc3adca636bf51c241b71cb513ed3cfbab/> prep clustering/autospectral cubeCL port publish
+   Merge main (FCS 0.6, TRU-OLS 0.3.0, typed PaCMAP KNN dim mismatch), bump
+   six port crates with polished changelogs and README install pins; flow-clustering
+   0.3.0 minor for e-means/agglomerative.
 
 ### Added
 
@@ -36,6 +58,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Dependencies
 
 - `flow-knn` ^0.1.3 (PARC / AnnIndex consumers)
+
+### Commit Statistics
+
+<csr-read-only-do-not-edit/>
+
+ - 6 commits contributed to the release.
+ - 6 days passed between releases.
+ - 4 commits were understood as [conventional](https://www.conventionalcommits.org).
+ - 0 issues like '(#ID)' were seen in commit messages
+
+### Commit Details
+
+<csr-read-only-do-not-edit/>
+
+<details><summary>view details</summary>
+
+ * **Uncategorized**
+    - Prep clustering/autospectral cubeCL port publish ([`9407a6d`](https://github.com/jrmoynihan/flow/commit/9407a6dc3adca636bf51c241b71cb513ed3cfbab))
+    - Merge pull request #30 from jrmoynihan/feature/cubecl-0.11 ([`fe7594c`](https://github.com/jrmoynihan/flow/commit/fe7594c96aa61e9f2a32fadc6310a59e86f1f9a3))
+    - Port GPU crates to cubeCL 0.11 / Burn 0.22 ([`5001790`](https://github.com/jrmoynihan/flow/commit/500179053b2999f71805645e564d680350382dd8))
+    - Merge pull request #29 from jrmoynihan/feature/emeans-prototype ([`7c8f826`](https://github.com/jrmoynihan/flow/commit/7c8f8267258a21d0cd5c5264b691808a5f14f15c))
+    - FlowSOM via Lloyd; demote linfa kmeans ([`d21d0ff`](https://github.com/jrmoynihan/flow/commit/d21d0ffca0377b8bd62e8e941eab78e20b4232d8))
+    - Add e-means (default) and agglomerative metaclustering ([`175b974`](https://github.com/jrmoynihan/flow/commit/175b9749a8e82e7619c7c6da061846d5879f13ca))
+</details>
 
 ## v0.2.1 (2026-11-06)
 

@@ -27,9 +27,22 @@ aligned with the matched signature.
 - `flow-fcs` ^0.6.0 (optional `flow-fcs` feature)
 - `flow-linalg` ^0.2.0
 
-## Unreleased
+## 0.3.1 (2026-11-12)
 
 ## [0.3.1] — 2026-11-12
+
+### New Features
+
+ - <csr-id-500179053b2999f71805645e564d680350382dd8/> port GPU crates to cubeCL 0.11 / Burn 0.22
+   Align workspace wgpu/ann-search stacks and record interleaved A/B
+   Performance notes so callers know what moved on this host.
+
+### Chore
+
+ - <csr-id-9407a6dc3adca636bf51c241b71cb513ed3cfbab/> prep clustering/autospectral cubeCL port publish
+   Merge main (FCS 0.6, TRU-OLS 0.3.0, typed PaCMAP KNN dim mismatch), bump
+   six port crates with polished changelogs and README install pins; flow-clustering
+   0.3.0 minor for e-means/agglomerative.
 
 ### Performance
 
@@ -37,6 +50,29 @@ aligned with the matched signature.
   the optional `cubecl` feature. Interleaved 0.10 vs 0.11 on Apple M5 Max:
   **normal_equations_gpu_rhs_f32** did not move materially on repeat (within host
   drift). CPU QR/parallel paths are unchanged in headline TRU-OLS QC.
+
+### Commit Statistics
+
+<csr-read-only-do-not-edit/>
+
+ - 5 commits contributed to the release over the course of 9 calendar days.
+ - 9 days passed between releases.
+ - 2 commits were understood as [conventional](https://www.conventionalcommits.org).
+ - 0 issues like '(#ID)' were seen in commit messages
+
+### Commit Details
+
+<csr-read-only-do-not-edit/>
+
+<details><summary>view details</summary>
+
+ * **Uncategorized**
+    - Prep clustering/autospectral cubeCL port publish ([`9407a6d`](https://github.com/jrmoynihan/flow/commit/9407a6dc3adca636bf51c241b71cb513ed3cfbab))
+    - Merge origin/main into release/clustering-autospectral-dry ([`713ac1c`](https://github.com/jrmoynihan/flow/commit/713ac1cc46dc2115e32684f4909c60eeecaa0152))
+    - Merge pull request #30 from jrmoynihan/feature/cubecl-0.11 ([`fe7594c`](https://github.com/jrmoynihan/flow/commit/fe7594c96aa61e9f2a32fadc6310a59e86f1f9a3))
+    - Port GPU crates to cubeCL 0.11 / Burn 0.22 ([`5001790`](https://github.com/jrmoynihan/flow/commit/500179053b2999f71805645e564d680350382dd8))
+    - Merge pull request #27 from jrmoynihan/release/row-io-path-b-bumps ([`ec6ccbd`](https://github.com/jrmoynihan/flow/commit/ec6ccbda8015e46d2c629c7e3b90c1cd2c218d8c))
+</details>
 
 ## 0.3.0 (2026-11-03)
 

@@ -5,9 +5,37 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## Unreleased
+## 0.1.3 (2026-11-12)
 
 ## [0.1.3] — 2026-11-12
+
+### Bug Fixes
+
+ - <csr-id-5a739f84782af506b668f8dcd07bcfe10f35bb50/> one cubeCL client with Burn tensors
+   Derive the shared WGPU client from Burn's device so CSR kernels and Adam
+   see the same handles under BURN_DEVICE. Clarify flow-knn Unreleased timings
+   as interleaved Criterion medians, not matrix rows, and update agent GPU pins.
+ - <csr-id-8655cee1b53af05171c0f6df3b9e5206e647d815/> map KnnError::QueryDimensionMismatch
+
+### New Features
+
+ - <csr-id-500179053b2999f71805645e564d680350382dd8/> port GPU crates to cubeCL 0.11 / Burn 0.22
+   Align workspace wgpu/ann-search stacks and record interleaved A/B
+   Performance notes so callers know what moved on this host.
+
+### Documentation
+
+ - <csr-id-e33bbe75d3777e0b8f7c8f5ebe0d71259ab9b4ef/> add performance-guided development map and host calibrator
+   Give agents a napkin-math floor, this-machine snapshot, gap index, and
+   retry shortlist so hot-path work starts from hardware cost rather than
+   another 5% unsafe A/B.
+
+### Chore
+
+ - <csr-id-9407a6dc3adca636bf51c241b71cb513ed3cfbab/> prep clustering/autospectral cubeCL port publish
+   Merge main (FCS 0.6, TRU-OLS 0.3.0, typed PaCMAP KNN dim mismatch), bump
+   six port crates with polished changelogs and README install pins; flow-clustering
+   0.3.0 minor for e-means/agglomerative.
 
 ### Fixed
 
@@ -29,7 +57,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `flow-knn` ^0.1.3
 
+### Commit Statistics
+
+<csr-read-only-do-not-edit/>
+
+ - 11 commits contributed to the release.
+ - 5 commits were understood as [conventional](https://www.conventionalcommits.org).
+ - 0 issues like '(#ID)' were seen in commit messages
+
+### Commit Details
+
+<csr-read-only-do-not-edit/>
+
+<details><summary>view details</summary>
+
+ * **Uncategorized**
+    - Prep clustering/autospectral cubeCL port publish ([`9407a6d`](https://github.com/jrmoynihan/flow/commit/9407a6dc3adca636bf51c241b71cb513ed3cfbab))
+    - Merge origin/main into release/clustering-autospectral-dry ([`713ac1c`](https://github.com/jrmoynihan/flow/commit/713ac1cc46dc2115e32684f4909c60eeecaa0152))
+    - Merge pull request #28 from jrmoynihan/fix/pacmap-knn-query-dim-mismatch ([`047eafc`](https://github.com/jrmoynihan/flow/commit/047eafc2f539676599eae935a468018d1bcedca2))
+    - Merge pull request #30 from jrmoynihan/feature/cubecl-0.11 ([`fe7594c`](https://github.com/jrmoynihan/flow/commit/fe7594c96aa61e9f2a32fadc6310a59e86f1f9a3))
+    - One cubeCL client with Burn tensors ([`5a739f8`](https://github.com/jrmoynihan/flow/commit/5a739f84782af506b668f8dcd07bcfe10f35bb50))
+    - Port GPU crates to cubeCL 0.11 / Burn 0.22 ([`5001790`](https://github.com/jrmoynihan/flow/commit/500179053b2999f71805645e564d680350382dd8))
+    - Map KnnError::QueryDimensionMismatch ([`8655cee`](https://github.com/jrmoynihan/flow/commit/8655cee1b53af05171c0f6df3b9e5206e647d815))
+    - Merge pull request #23 from jrmoynihan/release/clustering-autospectral-dry ([`b26691b`](https://github.com/jrmoynihan/flow/commit/b26691b458ca8b0e99e6d39b34e3b4cd700500df))
+    - Release flow-knn v0.1.2 ([`00e1ffc`](https://github.com/jrmoynihan/flow/commit/00e1ffcf73ae1ea33e15670704d3f38c4a50e432))
+    - Merge pull request #22 from jrmoynihan/feature/flow-autospectral ([`35007ba`](https://github.com/jrmoynihan/flow/commit/35007ba7841c164cf8e4ffae220a782dcb87d7ce))
+    - Add performance-guided development map and host calibrator ([`e33bbe7`](https://github.com/jrmoynihan/flow/commit/e33bbe75d3777e0b8f7c8f5ebe0d71259ab9b4ef))
+</details>
+
 ## 0.1.2 (2026-08-18)
+
+<csr-id-9ee153e04507d454f9509a4d2b2a2b3ffe9db17b/>
+<csr-id-02ab29154270fb5e288287c36652ed8c30b6b5d5/>
 
 ### Chore
 

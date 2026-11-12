@@ -3791,7 +3791,7 @@ dependencies = [
 
 [[package]]
 name = "flow-density"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = [
  "anyhow",
  "burn",
@@ -3980,7 +3980,7 @@ dependencies = [
 
 [[package]]
 name = "flow-plots"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "anyhow",
  "colorgrad",
