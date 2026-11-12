@@ -1,0 +1,8 @@
+{"method":"cpu","n":1024,"d":30,"k":16,"median_secs":0.00017603,"throughput_elem_per_s":2.7922e9,"machine":"Apple M5 Max","captured_at":"2026-11-12","note":"emeans_assign_cpu_vs_gpu"}
+{"method":"gpu","n":1024,"d":30,"k":16,"median_secs":0.0014671,"throughput_elem_per_s":3.3503e8,"machine":"Apple M5 Max","captured_at":"2026-11-12","note":"CPU wins"}
+{"method":"cpu","n":16384,"d":30,"k":2048,"median_secs":0.014593,"throughput_elem_per_s":6.8981e10,"machine":"Apple M5 Max","captured_at":"2026-11-12","note":"crossover region"}
+{"method":"gpu","n":16384,"d":30,"k":2048,"median_secs":0.0069532,"throughput_elem_per_s":1.4477e11,"machine":"Apple M5 Max","captured_at":"2026-11-12","note":"GPU ~2.1x"}
+{"method":"cpu","n":65536,"d":30,"k":2048,"median_secs":0.057452,"throughput_elem_per_s":7.0085e10,"machine":"Apple M5 Max","captured_at":"2026-11-12"}
+{"method":"gpu","n":65536,"d":30,"k":2048,"median_secs":0.021068,"throughput_elem_per_s":1.9112e11,"machine":"Apple M5 Max","captured_at":"2026-11-12","note":"GPU ~2.7x"}
+{"method":"cpu","n":65536,"d":60,"k":2048,"median_secs":0.13721,"throughput_elem_per_s":5.8690e10,"machine":"Apple M5 Max","captured_at":"2026-11-12"}
+{"method":"gpu","n":65536,"d":60,"k":2048,"median_secs":0.047997,"throughput_elem_per_s":1.6778e11,"machine":"Apple M5 Max","captured_at":"2026-11-12","note":"GPU ~2.9x; recommend GPU only when batch*k large"}

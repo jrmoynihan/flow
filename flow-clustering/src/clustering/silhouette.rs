@@ -123,7 +123,7 @@ pub fn silhouette_scores_sampled(
         return silhouette_scores(data, labels);
     }
 
-    let stride = (data.len() + max_points - 1) / max_points;
+    let stride = data.len().div_ceil(max_points);
     let sampled_data: Vec<Vec<f64>> = data.iter().step_by(stride).cloned().collect();
     let sampled_labels: Vec<usize> = labels.iter().step_by(stride).copied().collect();
     silhouette_scores(&sampled_data, &sampled_labels)

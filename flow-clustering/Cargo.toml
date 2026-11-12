@@ -6,18 +6,28 @@ authors.workspace = true
 license = "MIT"
 repository = "https://github.com/jrmoynihan/flow/flow-clustering"
 readme = "README.md"
-description = "Clustering algorithms for flow cytometry: K-means, DBSCAN, GMM, SOM / FlowSOM, and optional PARC"
+description = "Clustering algorithms for flow cytometry: e-means, K-means, DBSCAN, GMM, SOM / FlowSOM, and optional PARC"
 keywords = ["flow-cytometry", "clustering", "kmeans", "parc", "flowsom"]
 categories = ["science", "algorithms"]
 
 [features]
-default = ["kmeans", "dbscan", "gmm", "som"]
+default = ["dbscan", "gmm", "som", "emeans"]
+# Optional linfa Array2<f64> K-means (legacy); FlowSOM uses Lloyd via `emeans`
 kmeans  = []
 dbscan  = []
 gmm     = []
-som     = []
+# Batch SOM + FlowSOM; metaclusters via Lloyd (`emeans`)
+som     = ["emeans"]
 # PARC: HNSW k-NN (flow-knn) + prune + Leiden community detection
 parc = ["dep:flow-knn", "dep:leiden-rs"]
+# Mini-batch EMA k-means (Bessa et al., arXiv:2611.09501); default-on — see prefer_emeans
+emeans = ["dep:rand"]
+# Optional faer matrix-product assignment kernel (A/B vs CpuLoop)
+emeans-faer = ["emeans", "dep:faer"]
+# cubeCL nearest-centroid assignment (requires workspace cubeCL ≥ 0.11)
+emeans-gpu = ["emeans", "dep:cubecl", "dep:bytemuck"]
+# Average/complete/single/ward linkage on small row matrices (kodama)
+agglomerative = ["dep:kodama"]
 
 [dependencies]
 thiserror        = { workspace = true }
@@ -27,12 +37,19 @@ ndarray          = { workspace = true }
 linfa            = "0.8"
 linfa-clustering = "0.8"
 linfa-linalg     = "0.2"
+rand             = { workspace = true, optional = true }
+faer             = { workspace = true, optional = true }
+cubecl           = { workspace = true, optional = true }
+bytemuck         = { workspace = true, optional = true }
+kodama           = { version = "0.3", optional = true }
 flow-knn         = { path = "../flow-knn", version = "^0.1.2", optional = true, default-features = true }
 leiden-rs        = { version = "0.8.1", optional = true, default-features = false, features = ["rayon"] }
 
 [dev-dependencies]
 criterion = { workspace = true }
 libc = "0.2"
+flow-fcs = { path = "../fcs", version = "^0.5.2", default-features = false, features = ["synthetic"] }
+serde_json = { workspace = true }
 
 [[bench]]
 name = "parc_throughput"
@@ -55,6 +72,20 @@ required-features = ["parc"]
 [[example]]
 name = "compare_with_python"
 required-features = ["parc"]
+
+[[example]]
+name = "compare_emeans_lloyd"
+required-features = ["emeans"]
+
+[[bench]]
+name = "emeans_throughput"
+harness = false
+required-features = ["emeans"]
+
+[[bench]]
+name = "emeans_assign_cpu_vs_gpu"
+harness = false
+required-features = ["emeans", "emeans-gpu"]
 
 [package.metadata.scripts]
 dry-release = "cargo smart-release flow-clustering --update-crates-index"

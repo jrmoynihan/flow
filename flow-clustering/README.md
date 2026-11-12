@@ -1,6 +1,6 @@
 # flow-clustering
 
-Clustering for flow cytometry: K-means, DBSCAN, GMM, SOM / FlowSOM, and optional PARC (graph community detection).
+Clustering for flow cytometry: K-means, DBSCAN, GMM, SOM / FlowSOM, optional PARC, experimental e-means, and agglomerative metaclustering.
 
 [![crates.io](https://img.shields.io/crates/v/flow-clustering.svg)](https://crates.io/crates/flow-clustering)
 [![docs.rs](https://docs.rs/flow-clustering/badge.svg)](https://docs.rs/flow-clustering)
@@ -17,6 +17,8 @@ Clustering for flow cytometry: K-means, DBSCAN, GMM, SOM / FlowSOM, and optional
 - **Silhouette** — full and sampled cluster validation
 - **Shared k-NN** — PARC accepts a prebuilt [`flow-knn`](../flow-knn/) `KnnGraph` (same pattern as PaCMAP)
 - **Progress / cancel** — optional PaCMAP-shaped stage events and cooperative cancellation
+- **e-means** *(feature `emeans`, default)* — preferred row-major `f32` k-means (Bessa et al., arXiv:2611.09501); about **6–13×** faster than same-kernel Lloyd@25 at 1M events with matched held-out MSE; wins from ~5k events (see [Performance](#performance))
+- **Agglomerative** *(feature `agglomerative`)* — kodama linkage for merging over-clusters into metaclusters
 
 ## Installation
 
@@ -24,6 +26,8 @@ Clustering for flow cytometry: K-means, DBSCAN, GMM, SOM / FlowSOM, and optional
 cargo add flow-clustering
 # Optional PARC (pulls flow-knn + leiden-rs):
 cargo add flow-clustering --features parc
+# Optional agglomerative metaclustering:
+cargo add flow-clustering --features agglomerative
 ```
 
 ```toml
@@ -33,15 +37,22 @@ flow-clustering = { version = "0.2.1", features = ["parc"] }
 
 | Feature | Description |
 | ------- | ----------- |
-| `kmeans` *(default)* | K-means clustering |
+| `emeans` *(default)* | Row-major `f32` EMA k-means + Lloyd baseline (preferred; 3 epochs, CPU) |
 | `dbscan` *(default)* | Density-based spatial clustering (DBSCAN) |
 | `gmm` *(default)* | Gaussian Mixture Model fitting |
-| `som` *(default)* | Batch SOM and FlowSOM metaclustering |
+| `som` *(default)* | Batch SOM and FlowSOM (codebook metaclusters via Lloyd; pulls `emeans`) |
+| `kmeans` | Optional linfa `Array2<f64>` K-means (legacy) |
 | `parc` | PARC: k-NN graph prune + Leiden community detection |
+| `emeans-faer` | Optional faer product assignment kernel (A/B vs CPU loop) |
+| `emeans-gpu` | cubeCL nearest-centroid; **not recommended by default** (see PERF_EMEANS) |
+| `agglomerative` | Average/complete/single/ward linkage (kodama) |
 
 ## Usage
 
-### K-Means
+### K-Means (legacy linfa; feature `kmeans`)
+
+Prefer [`EMeans`](#e-means-default) for new code. The linfa wrapper stays
+available behind `--features kmeans` for the `Array2<f64>` API.
 
 ```rust
 use flow_clustering::{ClusteringResult, KMeans, KMeansConfig, KMeansResult};
@@ -172,7 +183,60 @@ fn example(data: &[Vec<f64>], labels: &[usize]) -> ClusteringResult<()> {
 }
 ```
 
+### e-means (default)
+
+Preferred row-major `f32` mini-batch EMA k-means for practical event counts.
+Defaults: 3 epochs, CPU assignment, last-epoch-mean finalisation, published
+scaling laws for batch size and peak step. Use [`prefer_emeans`] when choosing
+between e-means and same-kernel Lloyd (true for `n ≥ 5k` or `n × d ≥ 50k`).
+
+```rust
+use flow_clustering::{ClusteringResult, EMeans, EMeansConfig, EMeansResult, prefer_emeans};
+
+fn example(data: &[f32], n: usize, d: usize) -> ClusteringResult<()> {
+    let _use_emeans = prefer_emeans(n, d); // true for n ≥ 5k or n×d ≥ 50k
+    let config: EMeansConfig = EMeansConfig {
+        n_clusters: 256,
+        epochs: 3, // default
+        seed: Some(42),
+        ..Default::default()
+    };
+    let result: EMeansResult = EMeans::fit(data, n, d, &config)?;
+    let _ = (
+        &result.centroids,
+        &result.assignments,
+        result.inertia,
+        result.batch_size,
+        result.alpha0,
+    );
+    Ok(())
+}
+```
+
+`Lloyd` (same feature) is the fair baseline and is what FlowSOM uses for
+codebook metaclusters. Linfa `KMeans` is optional (`kmeans` feature) for the
+`Array2<f64>` API. `Agglomerative` / `metacluster` (feature `agglomerative`)
+merge over-clusters.
+
 ## Performance
+
+### e-means vs Lloyd (headline)
+
+Same-kernel assignment, synthetic unequal Gaussian populations, Apple M5 Max
+(2026-11-12). Lower-bound grid: e-means wins from about **5k events** (or
+`n × d ≥ 50k`); at n ≥ 10k it won 26/27 cells. At 1M events it matches
+Lloyd@25 held-out MSE in 1–2 epochs with about **6–13×** less wall time.
+Details: [`docs/PERF_EMEANS.md`](docs/PERF_EMEANS.md).
+
+| n × d × k | Epochs to match | Speedup vs Lloyd@25 |
+|-----------|-----------------|---------------------|
+| 10k × 30 × 256 | 2 | ~2.9× |
+| 50k × 30 × 256 | 1 | ~6× |
+| 1M × 30 × 256 | 1 | ~10× |
+| 1M × 60 × 2048 | 1 | ~13× |
+
+GPU assignment wins only for large batches (e.g. 16k events × 2048 clusters);
+keep CPU as the default.
 
 ### vs Python PARC (headline)
 
@@ -228,6 +292,11 @@ PARC_PYTHON=... cargo run -p flow-clustering --release --example compare_with_py
 cargo bench -p flow-clustering --bench parc_throughput --features parc
 cargo bench -p flow-clustering --bench flowsom_throughput
 cargo run -p flow-clustering --release --example parc_rss --features parc
+
+# e-means quality / lower-bound grids + assignment crossover
+cargo run -p flow-clustering --example compare_emeans_lloyd --release
+FLOW_CLUSTERING_BENCH_LOWER_BOUND=1 cargo run -p flow-clustering --example compare_emeans_lloyd --release
+cargo bench -p flow-clustering --bench emeans_assign_cpu_vs_gpu --features emeans-gpu
 ```
 
 ## Tests
@@ -235,9 +304,11 @@ cargo run -p flow-clustering --release --example parc_rss --features parc
 ```bash
 cargo nextest run -p flow-clustering --lib
 cargo nextest run -p flow-clustering --features parc --lib
+cargo nextest run -p flow-clustering --features agglomerative --lib
 ```
 
-Unit tests cover silhouette scores plus SOM / FlowSOM recovery of two well-separated blobs.
+Unit tests cover silhouette scores, SOM / FlowSOM recovery of two well-separated
+blobs, e-means / Lloyd on two blobs, and average-linkage cut parity.
 
 ## Acknowledgments
 
@@ -246,6 +317,9 @@ doi:[10.1093/bioinformatics/btaa042](https://doi.org/10.1093/bioinformatics/btaa
 Reference implementation: [ShobiStassen/PARC](https://github.com/ShobiStassen/PARC) (MIT).
 
 Van Gassen S *et al.* (2015). FlowSOM. *Cytometry Part A*, 87(7), 636–645.
+
+e-means: Bessa, Mazaré, Szilvasy, Touvron, Picard, Douze and Jégou,
+[arXiv:2611.09501](https://arxiv.org/abs/2611.09501).
 
 ## License
 

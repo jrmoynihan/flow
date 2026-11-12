@@ -1,18 +1,36 @@
 //! Clustering algorithms module
 //!
 //! Provides K-means, DBSCAN, GMM, SOM / FlowSOM, silhouette scoring,
-//! and optional PARC (feature `parc`).
+//! optional PARC (feature `parc`), e-means (feature `emeans`, default),
+//! and agglomerative linkage (feature `agglomerative`).
 
+#[cfg(feature = "agglomerative")]
+pub mod agglomerative;
 mod dbscan;
+#[cfg(feature = "emeans")]
+pub mod emeans;
 mod gmm;
+#[cfg(feature = "kmeans")]
 mod kmeans;
 #[cfg(feature = "parc")]
 pub mod parc;
 pub mod silhouette;
+#[cfg(feature = "som")]
 mod som;
 
+#[cfg(feature = "agglomerative")]
+pub use agglomerative::{
+    Agglomerative, AgglomerativeConfig, AgglomerativeResult, Dendrogram, DendrogramMerge,
+    LinkageMethod, MetaclusterResult, Metric, metacluster,
+};
 pub use dbscan::{Dbscan, DbscanConfig, DbscanResult};
+#[cfg(feature = "emeans")]
+pub use emeans::{
+    AssignBackend, EMeans, EMeansConfig, EMeansProgress, EMeansResult, EMeansStage, Finalization,
+    InitMethod, Lloyd, LloydConfig, LloydResult, REVIVAL_DELTA_BF16, prefer_emeans,
+};
 pub use gmm::{Gmm, GmmConfig, GmmResult};
+#[cfg(feature = "kmeans")]
 pub use kmeans::{KMeans, KMeansConfig, KMeansResult};
 #[cfg(feature = "parc")]
 pub use parc::{
@@ -20,6 +38,7 @@ pub use parc::{
     ParcResult, ParcStage,
 };
 pub use silhouette::{SilhouetteResult, silhouette_scores, silhouette_scores_sampled};
+#[cfg(feature = "som")]
 pub use som::{FlowSom, FlowSomConfig, FlowSomResult, Som, SomConfig, SomResult};
 
 use thiserror::Error;
@@ -37,9 +56,12 @@ pub enum ClusteringError {
     ValidationFailed(String),
     #[error("Clustering failed: {0}")]
     ClusteringFailed(String),
-    /// Cooperative cancellation via an optional `Arc<AtomicBool>` (PARC).
+    /// Cooperative cancellation via an optional `Arc<AtomicBool>` (PARC / e-means).
     #[error("Run cancelled by caller")]
     Cancelled,
+    /// GPU backend requested but no usable WGPU adapter / cubeCL context.
+    #[error("GPU unavailable: {0}")]
+    GpuUnavailable(String),
 }
 
 pub type ClusteringResult<T> = Result<T, ClusteringError>;
