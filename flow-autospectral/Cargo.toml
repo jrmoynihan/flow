@@ -23,7 +23,8 @@ faer = { workspace = true }
 ndarray = { workspace = true }
 rayon = { workspace = true }
 thiserror = { workspace = true }
-flow-clustering = { path = "../flow-clustering", version = "^0.2.1" }
+# `kmeans` keeps DiscoveryBackend::KMeans on linfa; default clustering is e-means.
+flow-clustering = { path = "../flow-clustering", version = "^0.2.1", features = ["kmeans"] }
 flow-dimensional-reduction = { path = "../flow-dimensional-reduction", version = "^0.1.0" }
 flow-knn = { path = "../flow-knn", version = "^0.1.2", default-features = false }
 flow-tru-ols = { path = "../tru-ols", version = "^0.2.0", optional = true, default-features = false }

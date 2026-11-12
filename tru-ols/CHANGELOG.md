@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Performance
+
+- Workspace stack bump to cubeCL **0.11.4** / Burn **0.22.1** / wgpu **30** (`cubecl`
+  feature). `ols_method_compare` at 200k events × 10 detectors × 10 endmembers,
+  Apple M5 Max, `OMP_NUM_THREADS=1`, interleaved 0.10 vs 0.11 trees: the optional
+  **normal_equations_gpu_rhs_f32** path (actual cubeCL GEMM + CPU Cholesky) median
+  **~14.3 ms → ~13.7 ms** (neutral to slightly faster). **run_ols_qr_parallel** is
+  CPU-only (`benchmark::run_ols` → Rayon + faer QR/LU); a second interleaved pass on
+  fresh target dirs measured **~22.8 ms vs ~26.2 ms** then **~26.4 ms vs ~26.8 ms**
+  on repeat—within host drift, not attributed to cubeCL kernel changes. Do not treat
+  QR parallel as a 0.11 GPU regression.
+
 ### Chore
 
  - <csr-id-af6097fbd09f00657eaf82ea8367fffd3ee72baf/> default test commands to cargo-nextest (flow-crates-9xv)

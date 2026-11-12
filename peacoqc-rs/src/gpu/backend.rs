@@ -1,6 +1,6 @@
 //! GPU backend detection and initialization
 
-use burn::backend::wgpu::WgpuDevice;
+use burn::tensor::Device;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 static GPU_AVAILABLE: AtomicBool = AtomicBool::new(false);
@@ -39,9 +39,9 @@ fn force_cpu_from_env() -> bool {
 
 /// Initialize GPU backend
 fn init_gpu_backend() -> anyhow::Result<()> {
-    // Try to create a WGPU device
+    // Try to create a Burn/WGPU device
     // This will fail if no GPU is available
-    let _device = WgpuDevice::default();
+    let _device = Device::default();
 
     // If we get here, GPU is available
     Ok(())
@@ -49,18 +49,18 @@ fn init_gpu_backend() -> anyhow::Result<()> {
 
 /// GPU backend wrapper
 pub struct GpuBackend {
-    device: WgpuDevice,
+    device: Device,
 }
 
 impl GpuBackend {
     /// Create a new GPU backend instance
     pub fn new() -> anyhow::Result<Self> {
-        let device = WgpuDevice::default();
+        let device = Device::default();
         Ok(Self { device })
     }
 
     /// Get the device
-    pub fn device(&self) -> &WgpuDevice {
+    pub fn device(&self) -> &Device {
         &self.device
     }
 }

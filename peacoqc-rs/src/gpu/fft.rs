@@ -6,11 +6,8 @@
 
 use crate::error::{PeacoQCError, Result};
 use crate::gpu::is_gpu_available;
-use burn::backend::wgpu::WgpuDevice;
-use burn::tensor::Tensor;
+use burn::tensor::{Device, Tensor};
 use realfft::num_complex::Complex;
-
-type Backend = burn::backend::wgpu::Wgpu;
 
 /// GPU-accelerated FFT-based KDE
 ///
@@ -140,7 +137,7 @@ pub fn kde_fft_gpu(data: &[f64], grid: &[f64], bandwidth: f64, n: f64) -> Result
 
 /// Multiply two complex spectra on GPU
 fn multiply_spectra_gpu(a: &[Complex<f64>], b: &[Complex<f64>]) -> Result<Vec<Complex<f64>>> {
-    let device = WgpuDevice::default();
+    let device = Device::default();
     let n = a.len();
 
     // Convert complex arrays to real arrays (interleaved: [real, imag, real, imag, ...])
@@ -167,13 +164,13 @@ fn multiply_spectra_gpu(a: &[Complex<f64>], b: &[Complex<f64>]) -> Result<Vec<Co
     let b_im_f32: Vec<f32> = b_imag.iter().map(|&x| x as f32).collect();
 
     let a_re_data = TensorData::new(a_re_f32.into(), vec![n]);
-    let a_re_tensor = Tensor::<Backend, 1, burn::tensor::Float>::from_data(a_re_data, &device);
+    let a_re_tensor = Tensor::<1>::from_data(a_re_data, &device);
     let a_im_data = TensorData::new(a_im_f32.into(), vec![n]);
-    let a_im_tensor = Tensor::<Backend, 1, burn::tensor::Float>::from_data(a_im_data, &device);
+    let a_im_tensor = Tensor::<1>::from_data(a_im_data, &device);
     let b_re_data = TensorData::new(b_re_f32.into(), vec![n]);
-    let b_re_tensor = Tensor::<Backend, 1, burn::tensor::Float>::from_data(b_re_data, &device);
+    let b_re_tensor = Tensor::<1>::from_data(b_re_data, &device);
     let b_im_data = TensorData::new(b_im_f32.into(), vec![n]);
-    let b_im_tensor = Tensor::<Backend, 1, burn::tensor::Float>::from_data(b_im_data, &device);
+    let b_im_tensor = Tensor::<1>::from_data(b_im_data, &device);
 
     // Complex multiplication: (a_re + i*a_im) * (b_re + i*b_im)
     // = (a_re*b_re - a_im*b_im) + i*(a_re*b_im + a_im*b_re)

@@ -6,7 +6,7 @@
 //! - Provides efficient tensor operations
 
 use crate::error::Result;
-use burn::backend::wgpu::WgpuDevice;
+use burn::tensor::Device;
 use realfft::num_complex::Complex;
 
 /// GPU context that persists between operations
@@ -15,7 +15,7 @@ use realfft::num_complex::Complex;
 /// - GPU device initialization
 /// - Kernel spectrum recomputation (when same size/bandwidth)
 pub struct GpuContext {
-    device: WgpuDevice,
+    device: Device,
     /// Cached kernel spectrum: (spectrum, fft_size, bandwidth)
     /// Cached to avoid recomputing FFT for same kernel
     cached_kernel_spectrum: Option<(Vec<Complex<f64>>, usize, f64)>,
@@ -24,7 +24,7 @@ pub struct GpuContext {
 impl GpuContext {
     /// Create a new GPU context
     pub fn new() -> Result<Self> {
-        let device = WgpuDevice::default();
+        let device = Device::default();
         Ok(Self {
             device,
             cached_kernel_spectrum: None,
@@ -32,7 +32,7 @@ impl GpuContext {
     }
 
     /// Get the GPU device
-    pub fn device(&self) -> &WgpuDevice {
+    pub fn device(&self) -> &Device {
         &self.device
     }
 

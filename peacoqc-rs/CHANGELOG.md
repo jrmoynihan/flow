@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Performance
+
+- cubeCL **0.11.4** KDE microbench (`gpu`, wgpu **30**): interleaved 0.10 vs 0.11 on
+  Apple M5 Max, `OMP_NUM_THREADS=1`, 1M-sample Threshold Analysis arm—**~18 ms CPU
+  and ~18 ms GPU** on 0.10, **~16 ms** for both on 0.11 (within noise; no GPU win).
+  Full PeacoQC e2e should stay on CPU; use GPU only where microbenches already justify
+  it (not QC-core headline).
+
 ### Documentation
 
  - <csr-id-ecf8f4a77fed17d29bd059c7fe987e658281a4d1/> refresh vs-R sample with Gaussian synthetic fixtures

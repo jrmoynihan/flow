@@ -79,6 +79,9 @@ validate_metadata.rs
 .beads-credential-key
 .beads/proxieddb/
 
+# Agent-local nq5 / A/B bench transcripts (not release artifacts)
+docs/dev/nq5_*.log
+
 # Local GPU dependency caches (Burn/cubeCL trees; crates.io is canonical)
 .vendor/
 .cargo-home/

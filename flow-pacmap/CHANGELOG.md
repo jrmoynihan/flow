@@ -39,6 +39,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Performance
 
+- cubeCL **0.11.4** / Burn **0.22.1** CSR optimize path (wgpu **30**). A 0.10 baseline
+  binary for `pacmap_optimize_gpu` does not build at `d21d0ff` (missing
+  `KnnError::QueryDimensionMismatch` mapping). HEAD-only Criterion at 50k×10:
+  **optimize_gpu ~144 ms** vs **optimize_cpu ~888 ms**; prior host row in
+  `docs/dev/PERF_GAP.md` was ~1.09 s GPU vs ~9.49 s CPU—direction unchanged, GPU
+  optimize remains faster than CPU on this path after the port.
+
  - <csr-id-05d8cf13511a8b064b406fd3a385eec95948b8bd/> bulk-write KnnGraph and typed load buffers
    Complete Campaign 2 A/B: keep staged write_all (−99.9%) and LE typed
    read_exact (−6.7%) at 100k×60; document reverted pacmap/compress/peaks

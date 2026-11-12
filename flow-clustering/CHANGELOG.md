@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Performance
+
+- `emeans-gpu` cubeCL **0.11.4** port. Interleaved `emeans_assign_cpu_vs_gpu`, Apple
+  M5 Max, `OMP_NUM_THREADS=1`, 65,536 events × 30 dimensions, k = 256: **gpu** assign
+  **7.7 ms → 4.4 ms**; **cpu** control unchanged (~7.4 ms).
+
 ### Added
 
 - `emeans` feature (now **default**): mini-batch EMA k-means (`EMeans`) and

@@ -10,11 +10,11 @@ use cubecl::prelude::*;
 /// Pair kinds: 0 = near (attractive, C=10), 1 = mid-near (C=10000), 2 = far (repulsive).
 #[cube(launch)]
 pub fn pacmap_grad_accum(
-    embd: &Array<f32>,
-    offsets: &Array<u32>,
-    others: &Array<u32>,
-    kinds: &Array<u32>,
-    grad: &mut Array<f32>,
+    embd: &Tensor<f32>,
+    offsets: &Tensor<u32>,
+    others: &Tensor<u32>,
+    kinds: &Tensor<u32>,
+    grad: &mut Tensor<f32>,
     n: u32,
     w_nb: f32,
     w_mn: f32,

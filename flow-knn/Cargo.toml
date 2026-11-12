@@ -16,8 +16,7 @@ default = ["hnsw"]
 hnsw = ["dep:usearch"]
 # HNSW via ann-search-rs (same stack as manifolds-rs)
 ann-search = ["dep:ann-search-rs", "dep:faer"]
-# GPU exact / IVF / NN-Descent via ann-search-rs + cubeCL 0.10 (wgpu)
-# Workspace cubeCL 0.11 upgrade tracked in Beads flow-crates-nq5 (Array→Tensor).
+# GPU exact / IVF / NN-Descent via ann-search-rs + cubeCL 0.11 (wgpu)
 gpu = ["ann-search", "ann-search-rs/gpu", "dep:cubecl"]
 # k-d tree stub (currently falls back to exact)
 kdtree = ["dep:kiddo"]
@@ -41,13 +40,13 @@ version = "5"
 optional = true
 
 [dependencies.ann-search-rs]
-version = "0.4.4"
+version = "0.12.2"
 optional = true
 default-features = false
 
-# ann-search-rs 0.4.x requires faer 0.23 (workspace is 0.24).
+# ann-search-rs 0.12.x aligns with workspace faer 0.24.
 [dependencies.faer]
-version = "=0.23.2"
+workspace = true
 optional = true
 
 [dev-dependencies]

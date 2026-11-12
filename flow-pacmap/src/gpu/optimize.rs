@@ -3,6 +3,9 @@
 //! Embedding and gradient live as Burn `Wgpu` tensors whose storage is a cubeCL
 //! `Handle`. The CSR kernel launches on those same handles; Adam updates stay on
 //! device. Host sync happens only on final download.
+//!
+//! Burn 0.22: `Tensor<const D>` is backend-erased; extract cubeCL storage via
+//! `try_into_primitive::<Wgpu>()`. Adam implements `Optimizer` (no `SimpleOptimizer`).
 
 use super::csr::PacmapCsr;
 use super::kernels::pacmap_grad_accum;
@@ -10,33 +13,38 @@ use super::{GpuWgpuContext, try_shared_gpu_context};
 use crate::error::PaCMAPError;
 use crate::weights::{Weights, weights_at};
 use burn::backend::wgpu::{CubeTensor, Wgpu};
-use burn::optim::{Adam, AdamConfig, AdamState, SimpleOptimizer};
+use burn::optim::{Adam, AdamConfig, AdamState, Optimizer};
 use burn::tensor::{Tensor, TensorData};
 use cubecl::bytes::Bytes;
 use cubecl::calculate_cube_count_elemwise;
+use cubecl::client::Client;
 use cubecl::prelude::*;
 use cubecl::server::Handle;
-use cubecl::wgpu::WgpuRuntime;
+use cubecl::zspace::{Shape, Strides};
 use std::sync::{
     Arc,
     atomic::{AtomicBool, Ordering},
 };
 
-type Backend = Wgpu<f32, i32>;
+unsafe fn tensor_arg_1d(handle: Handle, len: usize) -> TensorArg {
+    unsafe { TensorArg::from_raw_parts(handle, Strides::new(&[1]), Shape::new([len])) }
+}
 
-fn as_cube(tensor: Tensor<Backend, 2>) -> CubeTensor<WgpuRuntime> {
-    tensor.into_primitive().tensor()
+fn as_cube(tensor: Tensor<2>) -> Result<CubeTensor, PaCMAPError> {
+    tensor
+        .try_into_primitive::<Wgpu>()
+        .map_err(|e| PaCMAPError::Gpu(format!("expected Wgpu float tensor: {e:?}")))
 }
 
 /// Reusable GPU buffers for a PaCMAP optimize run.
 pub struct GpuOptimizeContext {
     #[allow(dead_code)]
     wgpu: &'static GpuWgpuContext,
-    client: ComputeClient<WgpuRuntime>,
+    client: Client,
     adam: Adam,
-    adam_state: Option<AdamState<Backend, 2>>,
-    embd_tensor: Tensor<Backend, 2>,
-    grad_tensor: Tensor<Backend, 2>,
+    adam_state: Option<AdamState<2>>,
+    embd_tensor: Tensor<2>,
+    grad_tensor: Tensor<2>,
     n: usize,
     n2: usize,
     offsets: Handle,
@@ -55,17 +63,17 @@ impl GpuOptimizeContext {
     ) -> Result<Self, PaCMAPError> {
         let wgpu = try_shared_gpu_context()
             .map_err(|e| PaCMAPError::Gpu(format!("WGPU adapter unavailable: {e}")))?;
-        let client = wgpu.client();
         let device = wgpu.device().clone();
         let n = embedding.len();
         let n2 = n * 2;
         let csr = PacmapCsr::from_pair_lists(n, near, mid_near, further);
 
         let flat: Vec<f32> = embedding.iter().flat_map(|p| [p[0], p[1]]).collect();
-        let embd_tensor =
-            Tensor::<Backend, 2>::from_data(TensorData::new(flat, [n, 2]), &device);
+        let embd_tensor = Tensor::<2>::from_data(TensorData::new(flat, [n, 2]), &device);
         // Grad buffer stays on device for the whole run (CSR writes; Adam reads).
-        let grad_tensor = Tensor::<Backend, 2>::zeros([n, 2], &device);
+        let grad_tensor = Tensor::<2>::zeros([n, 2], &device);
+        // Same cubeCL client as Burn tensor storage (avoids a second CubeDevice::default()).
+        let client = as_cube(embd_tensor.clone())?.client;
 
         let offsets = client.create(Bytes::from_bytes_vec(
             bytemuck::cast_slice(&csr.offsets).to_vec(),
@@ -102,8 +110,8 @@ impl GpuOptimizeContext {
 
     fn launch_grad(
         &self,
-        embd: &CubeTensor<WgpuRuntime>,
-        grad: &CubeTensor<WgpuRuntime>,
+        embd: &CubeTensor,
+        grad: &CubeTensor,
         w: Weights,
     ) -> Result<(), PaCMAPError> {
         let cube_dim = CubeDim::new_1d(256);
@@ -111,15 +119,15 @@ impl GpuOptimizeContext {
         let n_off = self.n + 1;
         let n_edges = self.n_edges.max(1);
         unsafe {
-            pacmap_grad_accum::launch::<WgpuRuntime>(
+            pacmap_grad_accum::launch(
                 &self.client,
                 cube_count,
                 cube_dim,
-                ArrayArg::from_raw_parts(embd.handle.clone(), self.n2),
-                ArrayArg::from_raw_parts(self.offsets.clone(), n_off),
-                ArrayArg::from_raw_parts(self.others.clone(), n_edges),
-                ArrayArg::from_raw_parts(self.kinds.clone(), n_edges),
-                ArrayArg::from_raw_parts(grad.handle.clone(), self.n2),
+                tensor_arg_1d(embd.handle.clone(), self.n2),
+                tensor_arg_1d(self.offsets.clone(), n_off),
+                tensor_arg_1d(self.others.clone(), n_edges),
+                tensor_arg_1d(self.kinds.clone(), n_edges),
+                tensor_arg_1d(grad.handle.clone(), self.n2),
                 self.n as u32,
                 w.w_nb,
                 w.w_mn,
@@ -134,8 +142,8 @@ impl GpuOptimizeContext {
         // Borrow cubeCL handles from Burn storage, then drop wrappers so Adam
         // can take exclusive ownership of the tensors.
         {
-            let embd_c = as_cube(self.embd_tensor.clone());
-            let grad_c = as_cube(self.grad_tensor.clone());
+            let embd_c = as_cube(self.embd_tensor.clone())?;
+            let grad_c = as_cube(self.grad_tensor.clone())?;
             self.launch_grad(&embd_c, &grad_c, w)?;
         }
 

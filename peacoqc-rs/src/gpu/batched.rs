@@ -161,24 +161,10 @@ fn multiply_spectra_gpu_with_context(
     let b_re_f32: Vec<f32> = b_real.iter().map(|&x| x as f32).collect();
     let b_im_f32: Vec<f32> = b_imag.iter().map(|&x| x as f32).collect();
 
-    type Backend = burn::backend::wgpu::Wgpu;
-
-    let a_re_tensor = Tensor::<Backend, 1, burn::tensor::Float>::from_data(
-        TensorData::new(a_re_f32.into(), vec![n]),
-        device,
-    );
-    let a_im_tensor = Tensor::<Backend, 1, burn::tensor::Float>::from_data(
-        TensorData::new(a_im_f32.into(), vec![n]),
-        device,
-    );
-    let b_re_tensor = Tensor::<Backend, 1, burn::tensor::Float>::from_data(
-        TensorData::new(b_re_f32.into(), vec![n]),
-        device,
-    );
-    let b_im_tensor = Tensor::<Backend, 1, burn::tensor::Float>::from_data(
-        TensorData::new(b_im_f32.into(), vec![n]),
-        device,
-    );
+    let a_re_tensor = Tensor::<1>::from_data(TensorData::new(a_re_f32.into(), vec![n]), device);
+    let a_im_tensor = Tensor::<1>::from_data(TensorData::new(a_im_f32.into(), vec![n]), device);
+    let b_re_tensor = Tensor::<1>::from_data(TensorData::new(b_re_f32.into(), vec![n]), device);
+    let b_im_tensor = Tensor::<1>::from_data(TensorData::new(b_im_f32.into(), vec![n]), device);
 
     // Complex multiplication: (a_re + i*a_im) * (b_re + i*b_im)
     // = (a_re*b_re - a_im*b_im) + i*(a_re*b_im + a_im*b_re)
