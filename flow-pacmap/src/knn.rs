@@ -25,6 +25,9 @@ pub(crate) fn map_knn_error(err: flow_knn::KnnError) -> PaCMAPError {
     match err {
         KnnError::DatasetTooSmall { n } => PaCMAPError::DatasetTooSmall { n },
         KnnError::DimensionMismatch { len, d } => PaCMAPError::DimensionMismatch { len, d },
+        KnnError::QueryDimensionMismatch { query_d, index_d } => {
+            PaCMAPError::QueryDimensionMismatch { query_d, index_d }
+        }
         KnnError::MethodNotImplemented { method } => PaCMAPError::MethodNotImplemented { method },
         KnnError::Index(msg) => PaCMAPError::KnnIndex(msg),
         KnnError::GraphSizeMismatch {
